@@ -1,4 +1,4 @@
-import secrets from "../src/util/secrets";
+import secrets from "../../src/util/secrets";
 
 test("secrets", () => {
   expect(secrets.cookieSecret.length).toBeGreaterThan(0);
