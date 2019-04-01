@@ -1,4 +1,4 @@
-import express, { Request } from "express";
+import express from "express";
 // import layout from "./layout";
 import adminHome from "./routes/adminHome";
 import publicHome from "./routes/publicHome";
@@ -14,22 +14,19 @@ import authenticate from "./util/authenticate";
 // import createProject from "./util/createProject";
 import Mustache from "mustache";
 import fs from "fs";
+import fileUpload, { UploadedFile } from "express-fileupload";
+import requireAdmin, { isAdmin } from "./util/requireAdmin";
+import uploadDocument, {
+  validateUploadDocument
+} from "./routes/uploadDocument";
+import layout from "./util/layout";
+import * as Storage from "./util/Storage";
+import docStrings from "./routes/docStrings";
 
 const app = express();
 app.use(express.static("public"));
 app.use(cookieSession({ secret: secrets.cookieSecret }));
 const formDataParser = bodyParser.urlencoded({ extended: false });
-
-function isAdmin(req: Request) {
-  return !!req.session.admin;
-}
-
-function layout(content: string) {
-  const layoutTemplate = fs
-    .readFileSync("views/layout.html.mustache")
-    .toString();
-  return Mustache.render(layoutTemplate, { content });
-}
 
 app.get("/", async (req, res) => {
   if (isAdmin(req)) res.send(layout(adminHome()));
@@ -43,6 +40,23 @@ app.post("/login", formDataParser, async (req, res) => {
   } else {
     res.redirect("/?failedLogin=true");
   }
+});
+
+app.post(
+  "/documents",
+  requireAdmin,
+  formDataParser,
+  fileUpload(),
+  validateUploadDocument,
+  async (req, res) => {
+    const file = req.files.document as UploadedFile;
+    const lessonId = await uploadDocument(req.body.language, file);
+    res.redirect(`/documents/${Storage.lessonIdToString(lessonId)}`);
+  }
+);
+
+app.get("/documents/:lessonId", requireAdmin, async (req, res) => {
+  res.send(layout(docStrings(Storage.lessonIdFromString(req.params.lessonId))));
 });
 
 // app.post("/create", formDataParser, async (req, res) => {

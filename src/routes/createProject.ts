@@ -1,5 +1,5 @@
 import fs from "fs";
-import encode from "./timestampEncode";
+import encode from "../util/timestampEncode";
 
 const projectsJson = "strings/projects.json";
 

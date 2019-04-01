@@ -36,5 +36,14 @@ test("api : good login", async () => {
     .send({ username: secrets.adminUsername, password: secrets.adminPassword })
     .redirects(1);
   expect(response.status).toBe(200);
-  expect(response.text).toContain("Admin Home");
+  expect(response.text).toContain(
+    "<form action='/documents' method='post' encType='multipart/form-data'>"
+  );
+});
+
+test("api : require admin", async () => {
+  expect.assertions(2);
+  const response = await request(app).post("/documents");
+  expect(response.status).toBe(302);
+  expect(response.header.location).toEqual("/");
 });

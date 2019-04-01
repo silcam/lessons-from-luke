@@ -1,0 +1,12 @@
+<form action='/documents' method='post' encType='multipart/form-data'>
+    <div>
+        <p>
+            <input type='text' name='language' placeholder='Language' />
+        </p>
+        <p>
+            <input type='file' name='document' accept='application/vnd.oasis.opendocument.text' />
+        </p>
+        <p class="error">{{uploadError}}</p>
+        <button type='submit'>Upload</button>
+    </div>
+</form>
