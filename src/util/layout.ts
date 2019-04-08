@@ -1,9 +1,6 @@
-import fs from "fs";
 import Mustache from "mustache";
+import { getTemplate } from "./getTemplate";
 
 export default function layout(content: string) {
-  const layoutTemplate = fs
-    .readFileSync("views/layout.html.mustache")
-    .toString();
-  return Mustache.render(layoutTemplate, { content });
+  return Mustache.render(getTemplate("layout"), { content });
 }

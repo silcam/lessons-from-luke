@@ -1,6 +1,7 @@
 import { mkdirSafe } from "./fsUtils";
 import fs from "fs";
 import { DocString } from "../xml/parse";
+import process from "process";
 
 export interface LessonId {
   language: string;
@@ -65,6 +66,7 @@ function srcStringsDirPath() {
   return `${stringsDirPath()}/src`;
 }
 
-function stringsDirPath() {
+export function stringsDirPath() {
+  if (process.env.NODE_ENV == "test") return "test/strings";
   return "strings";
 }

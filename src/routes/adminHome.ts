@@ -1,13 +1,20 @@
 import Mustache from "mustache";
-import fs from "fs";
+import { getTemplate } from "../util/getTemplate";
+import { getTemplates } from "../util/getTemplate";
+import * as Manifest from "../util/Manifest";
 
 interface ExtraStrings {
   uploadError?: string;
 }
 
 export default function adminHome(extraStrings: ExtraStrings = {}) {
-  const template = fs
-    .readFileSync("views/uploadDocForm.html.mustache")
-    .toString();
-  return Mustache.render(template, extraStrings);
+  const sourceManifest = Manifest.readSourceManifest();
+  const sourceLangs = sourceManifest
+    .map(langManifest => langManifest.language)
+    .sort();
+  return Mustache.render(
+    getTemplate("adminHome"),
+    { ...extraStrings, sourceLangs },
+    getTemplates(["createProjectForm", "uploadDocForm"])
+  );
 }

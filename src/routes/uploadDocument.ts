@@ -6,6 +6,7 @@ import { mkdirSafe, unzip } from "../util/fsUtils";
 import { UploadedFile } from "express-fileupload";
 import parse from "../xml/parse";
 import * as Storage from "../util/Storage";
+import * as Manifest from "../util/Manifest";
 
 export function validateUploadDocument(
   req: Request,
@@ -34,6 +35,7 @@ export default async function uploadDocument(
   const docPath = `${lessonDirPath}/${lessonId.lesson}.odt`;
   await file.mv(docPath);
   await unpack(lessonId, docPath);
+  Manifest.addSourceLesson(lessonId);
   return lessonId;
 }
 

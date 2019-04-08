@@ -4,7 +4,7 @@ import Mustache from "mustache";
 
 export default function docStrings(lessonId: Storage.LessonId) {
   const template = fs
-    .readFileSync("views/editSrcStrings.html.mustache")
+    .readFileSync("templates/editSrcStrings.html.mustache")
     .toString();
   const srcStrings = Storage.getSrcStrings(lessonId);
   return Mustache.render(template, { srcStrings });
