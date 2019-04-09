@@ -6,9 +6,9 @@
     "start": "yarn serve",
     "build": "yarn build-ts && npm run copy-static-assets",
     "serve": "node dist/server.js",
-    "watch-node": "nodemon dist/server.js",
+    "watch-node": "nodemon dist/server.js --watch dist",
     "watch": "concurrently -k -p \"[{name}]\" -n \"TypeScript,Node\" -c \"yellow.bold,green.bold\" \"npm run watch-ts\" \"npm run watch-node\"",
-    "test": "NODE_ENV=test jest",
+    "test": "NODE_ENV=test jest --runInBand",
     "test-watch": "yarn test --watchAll",
     "build-ts": "tsc",
     "watch-ts": "tsc -w"
