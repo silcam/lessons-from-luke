@@ -1,62 +1,78 @@
 import * as Manifest from "../../src/util/Manifest";
 import { resetTestStorage } from "../testHelper";
-
-const timestamp = 1554731812624;
+import MockDate from "mockdate";
 
 beforeAll(() => {
+  MockDate.set(1554891104714);
+});
+
+afterAll(() => {
+  MockDate.reset();
+});
+
+beforeEach(() => {
   resetTestStorage();
 });
 
 test("Add new lesson version", () => {
-  const lessonId = {
-    language: "English",
-    lesson: "Q1-L01",
-    version: timestamp
-  };
-  Manifest.addSourceLesson(lessonId);
+  Manifest.addSourceLesson("English", "Luke-Q1-L01");
   const manifest = Manifest.readSourceManifest();
   expect(manifest.length).toBe(1);
   expect(manifest[0].lessons.length).toBe(1);
   expect(manifest[0].lessons[0].versions.length).toBe(2);
   expect(manifest[0].lessons[0].versions[1]).toEqual({
-    version: timestamp,
+    version: 2,
     projects: []
   });
 });
 
 test("Add new lesson", () => {
-  const lessonId = {
-    language: "English",
-    lesson: "Q1-L02",
-    version: timestamp
-  };
-  Manifest.addSourceLesson(lessonId);
+  Manifest.addSourceLesson("English", "Luke-Q1-L02");
   const manifest = Manifest.readSourceManifest();
   expect(manifest.length).toBe(1);
   expect(manifest[0].lessons.length).toBe(2);
   expect(manifest[0].lessons[1]).toEqual({
-    lesson: "Q1-L02",
-    versions: [{ version: timestamp, projects: [] }]
+    lesson: "Luke-Q1-L02",
+    versions: [{ version: 1, projects: [] }]
   });
 });
 
 test("Add new language", () => {
-  const lessonId = {
-    language: "French",
-    lesson: "Q1-L01",
-    version: timestamp
-  };
-  Manifest.addSourceLesson(lessonId);
+  Manifest.addSourceLanguage("Français");
   const manifest = Manifest.readSourceManifest();
   expect(manifest.length).toBe(2);
   expect(manifest[1]).toEqual({
-    language: "French",
-    lessons: [
-      {
-        lesson: "Q1-L01",
-        versions: [{ version: timestamp, projects: [] }]
-      }
-    ],
+    language: "Français",
+    lessons: [],
     projects: []
   });
+});
+
+test("Add new project", () => {
+  Manifest.addProject("English", "Lingala");
+  expect(Manifest.readSourceManifest()).toEqual([
+    {
+      language: "English",
+      lessons: [
+        {
+          lesson: "Luke-Q1-L01",
+          versions: [
+            {
+              projects: ["Lingala_1554891104714"],
+              version: 1
+            }
+          ]
+        }
+      ],
+      projects: ["Lingala_1554891104714"]
+    }
+  ]);
+  expect(Manifest.readProjectManifest()).toEqual([
+    {
+      datetime: 1554891104714,
+      lessons: [{ lesson: "Luke-Q1-L01", version: 1 }],
+      sourceLang: "English",
+      targetLang: "Lingala"
+    }
+  ]);
 });

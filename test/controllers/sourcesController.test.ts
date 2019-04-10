@@ -4,34 +4,30 @@ beforeAll(() => {
   resetTestStorage();
 });
 
-test("uploadDoc : invalid language", async () => {
+test("New Source Language", async () => {
   expect.assertions(1);
   const agent = await loggedInAgent();
   const response = await agent
-    .post("/documents")
-    .field("language", "")
-    .attach("document", "test/data/Q1-L01.odt")
+    .post("/sources")
+    .type("form")
+    .send({ language: "Français" })
     .redirects(1);
-  expect(response.text).toContain("Language can&#39;t be blank.");
+  expect(response.text).toContain("<h2>Français</h2>");
 });
 
-test("uploadDoc : invalid file", async () => {
+test("Source Page", async () => {
   expect.assertions(1);
   const agent = await loggedInAgent();
-  const response = await agent
-    .post("/documents")
-    .field("language", "English")
-    .attach("document", null)
-    .redirects(1);
-  expect(response.text).toContain("No file was attached.");
+  const response = await agent.get("/sources/English");
+  expect(response.text).toContain("<h2>English</h2>");
 });
 
 test("uploadDoc", async () => {
   expect.assertions(1);
   const agent = await loggedInAgent();
   const response = await agent
-    .post("/documents")
-    .field("language", "English")
+    .post("/sources/English")
+    .field("series", "Luke")
     .attach("document", "test/data/Q1-L01.odt")
     .redirects(1);
   expect(response.text).toContain("The Book of Luke and");

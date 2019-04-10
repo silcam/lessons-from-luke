@@ -1,0 +1,15 @@
+<div id="sourceLangList">
+    <h2>Source Languages</h2>
+    <p>
+        {{#sourceLangs}}
+            <a href="/sources/{{.}}">{{.}}</a>
+            &nbsp;&nbsp;&nbsp;
+        {{/sourceLangs}}
+    </p>
+    <p>
+        <form action="/sources" method="post">
+            <input type="text" name="language" placeholder="Add Language" required />
+            <button type="submit">Add</button>
+        </form>
+    </p>
+</div>

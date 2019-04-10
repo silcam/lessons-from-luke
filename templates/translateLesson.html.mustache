@@ -1,0 +1,32 @@
+<h3>
+    <a href="{{projectUrl}}">
+        &lt;&lt; Lessons
+    </a>
+</h3>
+
+<div>
+    <form action="{{lessonUrl}}" method="post">
+        <button type="submit">{{t.Save}}</button>
+
+        <table>
+            <tbody>
+                {{#strings}}
+                    <tr class="src">
+                        <th>{{sourceLang}}</th>
+                        <td>{{src}}</td>
+                    </tr>
+                    <tr class="target">
+                        <th>{{targetLang}}</th>
+                        <td>
+                            {{! Renders an input or textarea depending on the length of the source string}}
+                            {{{stringInput}}}
+                        </td>
+                    </tr>
+                {{/strings}}
+            </tbody>
+        </table>
+
+        <button type="submit">{{t.Save}}</button>
+    </form>
+</div>
+

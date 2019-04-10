@@ -36,14 +36,12 @@ test("api : good login", async () => {
     .send({ username: secrets.adminUsername, password: secrets.adminPassword })
     .redirects(1);
   expect(response.status).toBe(200);
-  expect(response.text).toContain(
-    "<form action='/documents' method='post' encType='multipart/form-data'>"
-  );
+  expect(response.text).toContain(`<div id="adminHome">`);
 });
 
 test("api : require admin", async () => {
   expect.assertions(2);
-  const response = await request(app).post("/documents");
+  const response = await request(app).get("/sources/English");
   expect(response.status).toBe(302);
   expect(response.header.location).toEqual("/");
 });

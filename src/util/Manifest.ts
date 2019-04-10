@@ -1,4 +1,4 @@
-import { LessonId, stringsDirPath } from "./Storage";
+import { stringsDirPath, ProjectId, projectIdToString } from "./Storage";
 import fs from "fs";
 
 const stringsDir = stringsDirPath();
@@ -23,33 +23,116 @@ interface Language {
 
 export type SourceManifest = Language[];
 
-export function addSourceLesson(lessonId: LessonId) {
-  const manifest = readSourceManifest();
-  let langManifest = manifest.find(lm => lm.language == lessonId.language);
-  if (!langManifest) {
-    langManifest = { language: lessonId.language, lessons: [], projects: [] };
-    manifest.push(langManifest);
-  }
-  let lessonManifest = langManifest.lessons.find(
-    lm => lm.lesson == lessonId.lesson
-  );
-  if (!lessonManifest) {
-    lessonManifest = { lesson: lessonId.lesson, versions: [] };
-    langManifest.lessons.push(lessonManifest);
-  }
-  lessonManifest.versions.push({ version: lessonId.version, projects: [] });
+interface ProjectLesson {
+  lesson: string;
+  version: number;
+  progress?: number;
+}
 
+export interface Project {
+  sourceLang: string;
+  targetLang: string;
+  datetime: number;
+  lessons: ProjectLesson[];
+}
+
+export type ProjectManifest = Project[];
+
+export function addSourceLanguage(language: string) {
+  const manifest = readSourceManifest();
+  if (findBy(manifest, "language", language)) return;
+  manifest.push({ language, lessons: [], projects: [] });
   writeSourceManifest(manifest);
+}
+
+export function addSourceLesson(language: string, lesson: string) {
+  const manifest = readSourceManifest();
+
+  const langManifest = findBy(manifest, "language", language);
+
+  let lessonManifest = findBy(langManifest.lessons, "lesson", lesson);
+  if (!lessonManifest) {
+    lessonManifest = { lesson, versions: [] };
+    langManifest.lessons.push(lessonManifest);
+    langManifest.lessons.sort((a, b) => a.lesson.localeCompare(b.lesson));
+  }
+
+  const version = lessonManifest.versions.length + 1;
+  lessonManifest.versions.push({ version, projects: [] });
+  writeSourceManifest(manifest);
+  return lessonManifest;
+}
+
+export function addProject(sourceLang: string, targetLang: string): Project {
+  const projects = readProjectManifest();
+  const sources = readSourceManifest();
+  const source = findBy(sources, "language", sourceLang);
+  const id: ProjectId = {
+    targetLang,
+    datetime: Date.now().valueOf()
+  };
+
+  source.projects.push(projectIdToString(id));
+
+  const projectLessons: ProjectLesson[] = [];
+  for (let i = 0; i < source.lessons.length; ++i) {
+    const lessonVersionManifest = last(source.lessons[i].versions);
+    projectLessons.push({
+      lesson: source.lessons[i].lesson,
+      version: lessonVersionManifest.version
+    });
+    lessonVersionManifest.projects.push(projectIdToString(id));
+  }
+  const project = {
+    ...id,
+    sourceLang,
+    lessons: projectLessons
+  };
+  projects.push(project);
+
+  writeProjectManifest(projects);
+  writeSourceManifest(sources);
+  return project;
 }
 
 // function languageManifest(language: string): Language | undefined {
 //   return readSourceManifest().find(lm => lm.language == language)
 // }
 
-export function readSourceManifest(): SourceManifest {
-  return JSON.parse(fs.readFileSync(sourceManifestPath).toString());
+export function readSourceManifest(language: string): Language;
+export function readSourceManifest(language?: never): SourceManifest;
+export function readSourceManifest(language?: string) {
+  const manifest: SourceManifest = JSON.parse(
+    fs.readFileSync(sourceManifestPath).toString()
+  );
+  if (language) return findBy(manifest, "language", language);
+  return manifest;
 }
 
 function writeSourceManifest(manifest: SourceManifest) {
   fs.writeFileSync(sourceManifestPath, JSON.stringify(manifest));
+}
+
+export function readProjectManifest(datetime: number): Project;
+export function readProjectManifest(datetime?: never): ProjectManifest;
+export function readProjectManifest(datetime?: number) {
+  const projects: ProjectManifest = JSON.parse(
+    fs.readFileSync(projectsManifestPath).toString()
+  );
+  if (typeof datetime === "number") {
+    return findBy(projects, "datetime", datetime);
+  }
+  return projects;
+}
+
+function writeProjectManifest(manifest: ProjectManifest) {
+  fs.writeFileSync(projectsManifestPath, JSON.stringify(manifest));
+}
+
+function findBy<T, K extends keyof T>(list: T[], key: K, value: T[K]) {
+  return list.find(item => item[key] === value);
+}
+
+function last<T>(list: T[]) {
+  return list[list.length - 1];
 }

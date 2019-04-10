@@ -1,0 +1,18 @@
+<h2>{{t.Lessons}}</h2>
+
+<table>
+    <tbody>
+        {{#lessons}}
+            <tr>
+                <td>
+                    <a href="{{baseUrl}}/lesson/{{lesson}}">
+                        {{lesson}}
+                    </a>
+                </td>
+                <td class="progress {{isDone}}">
+                    {{progress}}
+                </td>
+            </tr>
+        {{/lessons}}
+    </tbody>
+</table>

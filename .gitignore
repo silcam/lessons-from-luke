@@ -1,5 +1,6 @@
 node_modules
 dist
 strings
+lessons/*.odt
 
 src/util/secrets.ts

@@ -1,0 +1,46 @@
+<div id="sourceLang">
+    <a href="/">&lt;&lt; Home</a>
+    <h2>{{language}}</h2>
+    <h3>Lessons</h3>
+    <table>
+        <tbody>
+            {{#lessons}}
+                <tr>
+                    <td>{{lesson}}</td>
+                    <td>
+                        {{#versions}}
+                            <a href="/sources/{{language}}/lessons/{{lesson}}/versions/{{version}}">
+                                Version {{version}}
+                            </a>
+                            &nbsp;&nbsp;&nbsp;
+                        {{/versions}}
+                    </td>
+                </tr>
+            {{/lessons}}
+        </tbody>
+    </table>
+
+    <h4>Upload Lesson</h4>
+    <form action="/sources/{{language}}" method="post" encType="multipart/form-data">
+        <p>
+            <label>
+                Lessons from 
+                <select name='series'>
+                    <option value='Luke'>Luke</option>
+                    <option value='Acts'>Acts</option>
+                </select>
+            </label>
+        </p>
+        <p>
+            <input type='file' name='document' accept='application/vnd.oasis.opendocument.text' required />
+        </p>
+        <button type="submit">Upload</button>
+    </form>
+
+    <h3>Projects based on this language</h3>
+    <ul>
+        {{#projects}}
+            <li>{{.}}</li>
+        {{/projects}}
+    </ul>
+</div>
