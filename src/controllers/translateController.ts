@@ -9,9 +9,9 @@ import docStrings from "../routes/docStrings";
 import layout from "../util/layout";
 import Mustache from "mustache";
 import { getTemplate } from "../util/getTemplate";
-import translateLesson from "../routes/translateLesson";
 import { decode } from "../util/timestampEncode";
 import i18n from "../util/i18n";
+import assert = require("assert");
 
 const formDataParser = bodyParser.urlencoded({ extended: false });
 const maxLengthForInput = 120;
@@ -26,6 +26,7 @@ export default function translateController(app: Express) {
       layout(
         Mustache.render(getTemplate("translateIndex"), {
           lessons: project.lessons,
+          extraProgressClass,
           t,
           baseUrl: req.url //`/translate/${req.params.projectCode}`
         })
@@ -53,19 +54,28 @@ export default function translateController(app: Express) {
     );
   });
 
-  // app.post(
-  //   "/translate/:project/lesson/:code",
-  //   formDataParser,
-  //   async (req, res) => {
-  //     try {
-  //       storage.saveStrings(req.params.project, req.params.code, req.body);
-  //       res.redirect(`/translate/${req.params.project}`);
-  //     } catch (error) {
-  //       console.error(error);
-  //       res.status(500).send("Sorry, there was a problem.");
-  //     }
-  //   }
-  // );
+  app.post(
+    "/translate/:projectCode/lesson/:lesson",
+    formDataParser,
+    async (req, res) => {
+      const project = Manifest.readProjectManifest(
+        decode(req.params.projectCode)
+      );
+      const tStrings = Storage.getTStrings(project, req.params.lesson);
+      const newStrings = req.body as { [id: string]: string };
+      Object.keys(newStrings).forEach(id => {
+        const targetText = newStrings[id].trim();
+        if (targetText.length > 0) {
+          const tString = tStrings[parseInt(id)];
+          assert(tString.id === parseInt(id));
+          tString.targetText = targetText;
+        }
+      });
+      Storage.saveTStrings(project, req.params.lesson, tStrings);
+      Manifest.saveProgress(project, req.params.lesson, tStrings);
+      res.redirect(`/translate/${req.params.projectCode}`);
+    }
+  );
 }
 
 function stringInput() {
@@ -73,4 +83,9 @@ function stringInput() {
     return `<textarea name="${this.id}" rows="4">${this.targetText}</textarea>`;
   }
   return `<input type="text" name="${this.id}" value="${this.targetText}" />`;
+}
+
+function extraProgressClass() {
+  if (this.progress === undefined) return "noShow";
+  if (this.progress == 100) return "done";
 }

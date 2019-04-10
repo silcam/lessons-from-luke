@@ -87,6 +87,17 @@ export function getTStrings(
   );
 }
 
+export function saveTStrings(
+  projectId: ProjectId,
+  lesson: string,
+  tStrings: TDocString[]
+) {
+  fs.writeFileSync(
+    tStringsJsonPath(projectId, lesson),
+    JSON.stringify(tStrings)
+  );
+}
+
 function tStringsJsonPath(projectId: ProjectId, lesson: string) {
   return `${projectDirPath(projectId)}/${lesson}.json`;
 }

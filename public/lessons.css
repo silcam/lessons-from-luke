@@ -18,14 +18,12 @@ td.progress {
     font-size: smaller;
 }
 
-td.progress.done {
-    color: #2e8b57
+td.progress.noShow {
+    display: none;
 }
 
-input,
-textarea {
-    width: 100%;
-    font-size: larger;
+td.progress.done {
+    color: #2e8b57
 }
 
 textarea {
@@ -49,8 +47,7 @@ button {
     color: white;
     background-color: #337ab7;
     border-width: 0;
-    padding: 8px 16px;
-    font-size: 18px;
+    padding: 4px 8px;
     margin: 0 12px 12px 0;
     box-shadow: 1px 1px 0 #00000033;
     cursor: pointer;
@@ -62,4 +59,14 @@ button:active {
 
 .error {
     color: #800000
+}
+
+#translateLesson input,
+#translateLesson textarea {
+    width: 100%;
+    font-size: larger;
+}
+#translateLesson button {
+    font-size: 18px;
+    padding: 8px 16px;
 }

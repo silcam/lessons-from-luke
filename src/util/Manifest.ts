@@ -1,4 +1,9 @@
-import { stringsDirPath, ProjectId, projectIdToString } from "./Storage";
+import {
+  stringsDirPath,
+  ProjectId,
+  projectIdToString,
+  TDocString
+} from "./Storage";
 import fs from "fs";
 
 const stringsDir = stringsDirPath();
@@ -37,6 +42,24 @@ export interface Project {
 }
 
 export type ProjectManifest = Project[];
+
+export function saveProgress(
+  projectId: ProjectId,
+  lesson: string,
+  tStrings: TDocString[]
+) {
+  const progress = Math.round(
+    (100 * tStrings.filter(ts => ts.targetText.length > 0).length) /
+      tStrings.length
+  );
+  const manifest = readProjectManifest();
+  findBy(
+    findBy(manifest, "datetime", projectId.datetime).lessons,
+    "lesson",
+    lesson
+  ).progress = progress;
+  writeProjectManifest(manifest);
+}
 
 export function addSourceLanguage(language: string) {
   const manifest = readSourceManifest();
