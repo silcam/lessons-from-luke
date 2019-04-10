@@ -26,11 +26,11 @@ export default async function uploadDocument(
   const lessonDirPath = Storage.makeLessonDir(lessonId);
   const docPath = `${lessonDirPath}/${lessonId.lesson}.odt`;
   await file.mv(docPath);
-  await unpack(lessonId, docPath);
+  unpack(lessonId, docPath);
   return lessonId;
 }
 
-async function unpack(lessonId: Storage.LessonId, docPath: string) {
+function unpack(lessonId: Storage.LessonId, docPath: string) {
   const extractDir = Storage.odtDirPath(lessonId);
   mkdirSafe(extractDir);
   unzip(docPath, extractDir);

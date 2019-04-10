@@ -17,7 +17,7 @@ const formDataParser = bodyParser.urlencoded({ extended: false });
 const maxLengthForInput = 120;
 
 export default function translateController(app: Express) {
-  app.get("/translate/:projectCode", async (req, res) => {
+  app.get("/translate/:projectCode", (req, res) => {
     const project = Manifest.readProjectManifest(
       decode(req.params.projectCode)
     );
@@ -34,7 +34,7 @@ export default function translateController(app: Express) {
     );
   });
 
-  app.get("/translate/:projectCode/lesson/:lesson", async (req, res) => {
+  app.get("/translate/:projectCode/lesson/:lesson", (req, res) => {
     const project = Manifest.readProjectManifest(
       decode(req.params.projectCode)
     );
@@ -57,7 +57,7 @@ export default function translateController(app: Express) {
   app.post(
     "/translate/:projectCode/lesson/:lesson",
     formDataParser,
-    async (req, res) => {
+    (req, res) => {
       const project = Manifest.readProjectManifest(
         decode(req.params.projectCode)
       );

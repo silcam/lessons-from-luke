@@ -14,7 +14,7 @@ import { encode } from "../util/timestampEncode";
 const formDataParser = bodyParser.urlencoded({ extended: false });
 
 export default function projectsController(app: Express) {
-  app.post("/projects", requireAdmin, formDataParser, async (req, res) => {
+  app.post("/projects", requireAdmin, formDataParser, (req, res) => {
     const project = Manifest.addProject(
       req.body.sourceLang,
       req.body.targetLang
@@ -23,7 +23,7 @@ export default function projectsController(app: Express) {
     res.redirect(`/`);
   });
 
-  // app.get("/view/:projectCode", async (req, res) => {
+  // app.get("/view/:projectCode", (req, res) => {
 
   //   res.send(layout(viewProject()));
   // });

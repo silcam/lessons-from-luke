@@ -29,25 +29,29 @@ export default function sourcesController(app: Express) {
     requireAdmin,
     formDataParser,
     fileUpload(),
-    async (req, res) => {
-      const file = req.files.document as UploadedFile;
-      const lessonId = await uploadDocument(
-        req.params.language,
-        req.body.series,
-        file
-      );
-      res.redirect(
-        `/sources/${req.params.language}/lessons/${lessonId.lesson}/versions/${
-          lessonId.version
-        }`
-      );
+    async (req, res, next) => {
+      try {
+        const file = req.files.document as UploadedFile;
+        const lessonId = await uploadDocument(
+          req.params.language,
+          req.body.series,
+          file
+        );
+        res.redirect(
+          `/sources/${req.params.language}/lessons/${
+            lessonId.lesson
+          }/versions/${lessonId.version}`
+        );
+      } catch (err) {
+        next(err);
+      }
     }
   );
 
   app.get(
     "/sources/:language/lessons/:lesson/versions/:version",
     requireAdmin,
-    async (req, res) => {
+    (req, res) => {
       res.send(layout(docStrings(req.params)));
     }
   );
