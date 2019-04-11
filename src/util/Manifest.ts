@@ -2,7 +2,8 @@ import {
   stringsDirPath,
   ProjectId,
   projectIdToString,
-  TDocString
+  TDocString,
+  LessonId
 } from "./Storage";
 import fs from "fs";
 
@@ -85,6 +86,18 @@ export function addSourceLesson(language: string, lesson: string) {
   lessonManifest.versions.push({ version, projects: [] });
   writeSourceManifest(manifest);
   return lessonManifest;
+}
+
+export function deleteLessonVersion(lessonId: LessonId) {
+  const manifest = readSourceManifest();
+  const langManifest = findBy(manifest, "language", lessonId.language);
+  const lessonManifest = findBy(
+    langManifest.lessons,
+    "lesson",
+    lessonId.lesson
+  );
+  lessonManifest.versions[lessonId.version - 1].deleted = true;
+  writeSourceManifest(manifest);
 }
 
 export function addProject(sourceLang: string, targetLang: string): Project {

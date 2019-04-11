@@ -108,4 +108,13 @@ export default function sourcesController(app: Express) {
       res.redirect(`/sources/${oldLessonId.language}`);
     }
   );
+
+  app.get(
+    "/sources/:language/lessons/:lesson/versions/:version/delete",
+    (req, res) => {
+      const lessonId: Storage.LessonId = req.params;
+      Manifest.deleteLessonVersion(lessonId);
+      res.redirect(`/sources/${lessonId.language}`);
+    }
+  );
 }

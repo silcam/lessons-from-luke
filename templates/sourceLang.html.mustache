@@ -1,3 +1,9 @@
+<style>
+    span[data-deleted=true] {
+        display: none;
+    }
+</style>
+
 <div id="sourceLang">
     <a href="/">&lt;&lt; Home</a>
     <h2>{{language}}</h2>
@@ -9,10 +15,12 @@
                     <td>{{lesson}}</td>
                     <td>
                         {{#versions}}
-                            <a href="/sources/{{language}}/lessons/{{lesson}}/versions/{{version}}">
-                                Version {{version}}
-                            </a>
-                            &nbsp;&nbsp;&nbsp;
+                            <span data-deleted="{{deleted}}">
+                                <a href="/sources/{{language}}/lessons/{{lesson}}/versions/{{version}}">
+                                    Version {{version}}
+                                </a>
+                                &nbsp;&nbsp;&nbsp;
+                            </span>
                         {{/versions}}
                     </td>
                 </tr>
