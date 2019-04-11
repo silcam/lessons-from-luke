@@ -1,14 +1,15 @@
 <style>
-    .merged-note {
+    .merged-note,
+    .edited-note {
         display: none;
         font-size: smaller;
         color: #aaa;
         margin-top: 4px;
     }
-    .merge-check label {
-        color: #333;
-    }
-    .merge-text-input {
+    .merge-in-progress,
+    .text-input,
+    .edit-in-progress,
+    .delete-in-progress {
         display: none;
     }
     #editSrcStrings table {
@@ -38,18 +39,31 @@
                         <div class="text">
                             {{text}}
                         </div>
+                        <div class="text-input">
+                            <input type="text" />
+                        </div>
                         <div class="merged-note">Merged</div>
+                        <div class="edited-note">Edited</div>
                     </td>
                     <td class="edit">
-                        <div class="merge-check">
-                            <label>
-                                <input type="checkbox" data-id="{{id}}" onclick="onMergeCheck('{{id}}')" />
-                                Merge with following
-                            </label>
+                        <div class="base-buttons">
+                            <button onclick="mergeNext('{{id}}')">
+                                Merge Next
+                            </button>
+                            <button onclick="edit('{{id}}')">Edit</button>
+                            <button class="red" onclick="deleteItem('{{id}}')">Delete</button>
                         </div>
-                        <div class="merge-text-input">
-                            <input type="text" />
-                            <button data-id="{{id}}" onclick="confirmMerge('{{id}}')">Merge</button>
+                        <div class="merge-in-progress">
+                            <button onclick="cancelMerge('{{id}}')" class="red">Cancel</button>
+                            <button onclick="confirmMerge('{{id}}')">Merge</button>
+                            <button onclick="addMergeSpace('{{id}}')">Add Space</button>
+                        </div>
+                        <div class="edit-in-progress">
+                            <button onclick="saveEdit('{{id}}')">Done</button>
+                        </div>
+                        <div class="delete-in-progress">
+                            <button onclick="cancelDelete('{{id}}')">Cancel</button>
+                            <button class="red" onclick="confirmDelete('{{id}}')">Confirm Delete</button>
                         </div>
                 </tr>
             {{/srcStrings}}

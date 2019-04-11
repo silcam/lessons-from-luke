@@ -53,8 +53,16 @@ button {
     cursor: pointer;
 }
 
+button.red {
+    background-color: #800000;
+}
+
 button:active {
     background-color: #204d74;
+}
+
+button:active.red {
+    background-color: #600000
 }
 
 .error {
