@@ -1,7 +1,59 @@
-<ul>
-    {{#srcStrings}}
-        <li>
-            {{text}}
-        </li>
-    {{/srcStrings}}
-</ul>
+<style>
+    .merged-note {
+        display: none;
+        font-size: smaller;
+        color: #aaa;
+        margin-top: 4px;
+    }
+    .merge-check label {
+        color: #333;
+    }
+    .merge-text-input {
+        display: none;
+    }
+    #editSrcStrings table {
+        border-collapse: collapse;
+    }
+    #editSrcStrings td {
+        border-top: 1px solid #eee;
+        padding: 6px 10px;
+        vertical-align: top;
+    }
+    td.text {
+        max-width: 600px;
+        font-size: larger;
+    }
+</style>
+
+<script src="/editSrcStrings.js"></script>
+
+<div id="editSrcStrings">
+    <table>
+        <tbody>
+            {{#srcStrings}}
+                <tr id="Row-{{id}}" data-id="{{id}}">
+                    <td class="text">
+                        <div class="text">
+                            {{text}}
+                        </div>
+                        <div class="merged-note">Merged</div>
+                    </td>
+                    <td class="edit">
+                        <div class="merge-check">
+                            <label>
+                                <input type="checkbox" data-id="{{id}}" onclick="onMergeCheck('{{id}}')" />
+                                Merge with following
+                            </label>
+                        </div>
+                        <div class="merge-text-input">
+                            <input type="text" />
+                            <button data-id="{{id}}" onclick="confirmMerge('{{id}}')">Merge</button>
+                        </div>
+                </tr>
+            {{/srcStrings}}
+        </tbody>
+    </table>
+    <form action="{{submitUrl}}" method="post" id="editSrcStringsForm">
+        <button type="submit">Save</button>
+    </form>
+</div>

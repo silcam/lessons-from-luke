@@ -1,4 +1,4 @@
-import { mkdirSafe } from "./fsUtils";
+import { mkdirSafe, copyRecursive } from "./fsUtils";
 import fs from "fs";
 import { DocString } from "../xml/parse";
 import process from "process";
@@ -114,6 +114,12 @@ export function makeLessonDir(lessonId: LessonId) {
   const dirPath = lessonDirPath(lessonId);
   mkdirSafe(dirPath);
   return dirPath;
+}
+
+export function copyLessonDir(oldLessonId: LessonId, newLessonId: LessonId) {
+  const newDirPath = lessonDirPath(newLessonId);
+  const oldDirPath = lessonDirPath(oldLessonId);
+  copyRecursive(oldDirPath, newDirPath);
 }
 
 export function lessonDirPath(lessonId: LessonId) {

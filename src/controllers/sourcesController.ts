@@ -9,6 +9,7 @@ import docStrings from "../routes/docStrings";
 import layout from "../util/layout";
 import Mustache from "mustache";
 import { getTemplate } from "../util/getTemplate";
+import updateSrcStrings from "../util/updateSrcStrings";
 
 const formDataParser = bodyParser.urlencoded({ extended: false });
 
@@ -53,6 +54,17 @@ export default function sourcesController(app: Express) {
     requireAdmin,
     (req, res) => {
       res.send(layout(docStrings(req.params)));
+    }
+  );
+
+  app.post(
+    "/sources/:language/lessons/:lesson/versions/:version",
+    requireAdmin,
+    formDataParser,
+    (req, res) => {
+      const oldLessonId = req.params as Storage.LessonId;
+      updateSrcStrings(oldLessonId, req.body);
+      res.redirect(`/sources/${oldLessonId.language}`);
     }
   );
 }
