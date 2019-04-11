@@ -13,6 +13,7 @@ import projectsController from "./controllers/projectsController";
 import errorTestController from "./controllers/errorTestController";
 import catchError from "./util/catchError";
 import handle404 from "./util/handle404";
+import documentsController from "./controllers/documentsController";
 
 const app = express();
 app.use(express.static("public"));
@@ -38,6 +39,8 @@ sourcesController(app);
 projectsController(app);
 
 translateController(app);
+
+documentsController(app);
 
 errorTestController(app);
 

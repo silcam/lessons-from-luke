@@ -13,15 +13,31 @@ export default function parse(contentXmlFilepath: string) {
   const xml = fs.readFileSync(contentXmlFilepath).toString();
   const xmlDoc = libxmljs.parseXml(xml);
 
-  const otherStylesToMatch = findStylesToMatch(xmlDoc).concat(
-    findStylesToMatch(xmlDoc, "Lesson_20_Title")
-  );
+  const knownStyleNames = ["Lesson_20_Title", "Langue_20_Maternelle"];
+  const knownStyleNamePatterns = ["M.T._20_Text", "L.M."];
+
+  const allStyleNames = knownStyleNames
+    .concat(
+      knownStyleNames.reduce(
+        (styles, styleName) =>
+          styles.concat(findStylesToMatch(xmlDoc, styleName)),
+        []
+      )
+    )
+    .concat(
+      knownStyleNamePatterns.reduce(
+        (styles, pattern) =>
+          styles.concat(findStylesToMatch(xmlDoc, "", pattern)),
+        []
+      )
+    );
 
   const xPath =
-    "//xmlns:p[contains(@xmlns:style-name, 'M.T._20_Text')] | " +
-    otherStylesToMatch
-      .map(styleName => xPathForPWithStyle(styleName))
-      .join(" | ");
+    knownStyleNamePatterns
+      .map(pattern => xPathForPWithStyleNameContains(pattern))
+      .join(" | ") +
+    " | " +
+    allStyleNames.map(name => xPathForPWithStyle(name)).join(" | ");
 
   const nodes = xmlDoc.root().find(xPath, textNS);
 
@@ -30,19 +46,33 @@ export default function parse(contentXmlFilepath: string) {
   return translatableStrings;
 }
 
-function findStylesToMatch(xmlDoc: Document, parentStyle?: string) {
-  const xPath = parentStyle
-    ? xPathForParentStyle(parentStyle)
-    : "//xmlns:style[contains(@xmlns:parent-style-name, 'M.T._20_Text')]";
+// parentStyleName is ignored if parentStylePattern is provided
+function findStylesToMatch(
+  xmlDoc: Document,
+  parentStyleName: string,
+  parentStylePattern?: string
+) {
+  const xPath = parentStylePattern
+    ? xPathForParentStyleNameContains(parentStylePattern)
+    : xPathForParentStyle(parentStyleName);
 
   const nodes = xmlDoc.root().find(xPath, styleNS) as Element[];
-  let styles = parentStyle ? [parentStyle] : [];
+  let styles: string[] = [];
   for (let i = 0; i < nodes.length; ++i) {
     let style = nodes[i].attr("name").value();
+    styles.push(style);
     let childStyles = findStylesToMatch(xmlDoc, style);
     styles = styles.concat(childStyles);
   }
   return styles;
+}
+
+function xPathForPWithStyleNameContains(stylePattern: string) {
+  return `//xmlns:p[contains(@xmlns:style-name, '${stylePattern}')]`;
+}
+
+function xPathForParentStyleNameContains(stylePattern: string) {
+  return `//xmlns:style[contains(@xmlns:parent-style-name, '${stylePattern}')]`;
 }
 
 function xPathForPWithStyle(styleName: string) {
@@ -55,8 +85,8 @@ function xPathForParentStyle(parentStyleName: string) {
 
 function parseNode(node: Element): DocString[] {
   if (node.type() == "text") {
-    // Node must have at least one word character
-    if (/\w/.test(node.text())) {
+    // Node must have at least one non-space character
+    if (/\S/.test(node.text())) {
       return [
         {
           xpath: node.path(),

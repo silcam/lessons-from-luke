@@ -13,6 +13,7 @@ const projectsManifestPath = `${stringsDir}/projects.json`;
 interface LessonVersion {
   version: number;
   projects: string[];
+  deleted?: boolean;
 }
 
 interface Lesson {
@@ -122,14 +123,17 @@ export function addProject(sourceLang: string, targetLang: string): Project {
 //   return readSourceManifest().find(lm => lm.language == language)
 // }
 
+export function readSourceManifest(language: string, lesson: string): Lesson;
 export function readSourceManifest(language: string): Language;
-export function readSourceManifest(language?: never): SourceManifest;
-export function readSourceManifest(language?: string) {
+export function readSourceManifest(): SourceManifest;
+export function readSourceManifest(language?: string, lesson?: string) {
   const manifest: SourceManifest = JSON.parse(
     fs.readFileSync(sourceManifestPath).toString()
   );
-  if (language) return findBy(manifest, "language", language);
-  return manifest;
+  if (!language) return manifest;
+  const langManifest = findBy(manifest, "language", language);
+  if (!lesson) return langManifest;
+  return findBy(langManifest.lessons, "lesson", lesson);
 }
 
 function writeSourceManifest(manifest: SourceManifest) {

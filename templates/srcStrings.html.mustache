@@ -1,0 +1,40 @@
+<style>
+    #srcStrings td {
+        border-top: 1px solid #eee;
+    }
+</style>
+
+<div id="srcStrings">
+    <h4><a href="/sources/{{language}}">&lt;&lt; {{language}}</a></h4>
+
+    <h2>{{lesson}}</h2>
+
+    <ul class="inline">
+        <li>
+            <h4><a href="/documents/source/{{lessonId}}">Download</a></h4>
+        </li>
+        <li>
+            <h4><a href="/sources/{{language}}/lessons/{{lesson}}/versions/{{version}}/edit">Edit</a></h4>
+        </li>
+        <li>
+            <h4><a href="/sources/{{language}}/lessons/{{lesson}}/versions/{{version}}/delete">{{deleteIfCanDelete}}</a></h4>
+        </li>
+    </ul>
+
+    <table>
+        <tbody>
+            {{#srcStrings}}
+                <tr>
+                    <td>{{text}}</td>
+                </tr>
+            {{/srcStrings}}
+        </tbody>
+    </table>
+
+    <h3>Projects using this version</h3>
+    <ul>
+        {{#projects}}
+            <li>{{.}}</li>
+        {{/projects}}
+    </ul>
+</div>

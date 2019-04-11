@@ -61,12 +61,21 @@ button:active {
     color: #800000
 }
 
+ul.inline {
+    padding: 0;
+}
+
+ul.inline li {
+    display: inline-block;
+    padding-right: 8px;
+}
+
 #translateLesson input,
 #translateLesson textarea {
     width: 100%;
     font-size: larger;
 }
-#translateLesson button {
+button.big {
     font-size: 18px;
     padding: 8px 16px;
 }

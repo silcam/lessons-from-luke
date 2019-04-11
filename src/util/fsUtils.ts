@@ -9,6 +9,12 @@ export function unzip(inPath: string, outPath: string) {
   child_process.execSync(`unzip "${inPath}" -d "${outPath}"`);
 }
 
+export function zip(srcDir: string, outPath: string) {
+  const tmpzip = ".tmpzip.zip";
+  child_process.execSync(`cd "${srcDir}" && zip -r "${tmpzip}" ./*`);
+  fs.renameSync(`${srcDir}/${tmpzip}`, outPath);
+}
+
 export function copyRecursive(from: string, to: string) {
   fs.copyFileSync(from, to);
   if (fs.statSync(from).isDirectory()) {

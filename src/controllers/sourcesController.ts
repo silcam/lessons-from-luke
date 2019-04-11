@@ -53,7 +53,48 @@ export default function sourcesController(app: Express) {
     "/sources/:language/lessons/:lesson/versions/:version",
     requireAdmin,
     (req, res) => {
-      res.send(layout(docStrings(req.params)));
+      const lessonId: Storage.LessonId = req.params;
+      const lessonManifest = Manifest.readSourceManifest(
+        lessonId.language,
+        lessonId.lesson
+      );
+      const srcStrings = Storage.getSrcStrings(lessonId);
+      const projects = lessonManifest.versions[lessonId.version - 1].projects;
+      const deleteIfCanDelete = projects.length == 0 ? "Delete" : "";
+      res.send(
+        layout(
+          Mustache.render(getTemplate("srcStrings"), {
+            srcStrings,
+            ...lessonId,
+            lessonId: Storage.lessonIdToString(lessonId),
+            projects,
+            deleteIfCanDelete
+          })
+        )
+      );
+    }
+  );
+
+  app.get(
+    "/sources/:language/lessons/:lesson/versions/:version/edit",
+    requireAdmin,
+    (req, res) => {
+      const lessonId: Storage.LessonId = req.params;
+      const srcStrings = Storage.getSrcStrings(lessonId).map((src, index) => ({
+        ...src,
+        id: index
+      }));
+      res.send(
+        layout(
+          Mustache.render(getTemplate("editSrcStrings"), {
+            srcStrings,
+            ...lessonId,
+            submitUrl: `/sources/${lessonId.language}/lessons/${
+              lessonId.lesson
+            }/versions/${lessonId.version}`
+          })
+        )
+      );
     }
   );
 

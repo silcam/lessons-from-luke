@@ -1,4 +1,4 @@
-import { mkdirSafe, copyRecursive } from "./fsUtils";
+import { mkdirSafe, copyRecursive, zip } from "./fsUtils";
 import fs from "fs";
 import { DocString } from "../xml/parse";
 import process from "process";
@@ -108,6 +108,13 @@ export function contentXmlPath(lessonId: LessonId) {
 
 export function odtDirPath(lessonId: LessonId) {
   return `${lessonDirPath(lessonId)}/odt`;
+}
+
+export function documentPathForSource(lessonId: LessonId) {
+  const dirPath = lessonDirPath(lessonId);
+  const docPath = `${dirPath}/${lessonId.lesson}.odt`;
+  if (!fs.existsSync(docPath)) zip(`${dirPath}/odt`, docPath);
+  return docPath;
 }
 
 export function makeLessonDir(lessonId: LessonId) {
