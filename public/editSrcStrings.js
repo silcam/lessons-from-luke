@@ -9,7 +9,7 @@ function mergeNext(id) {
   var draftTextHtml =
     "<span>" +
     getTextFromRow(row) +
-    "</span><span>" +
+    "</span><span class='added'>" +
     getTextFromRow(nextRow) +
     "</span>";
   row.querySelector("div.text").innerHTML = draftTextHtml;
@@ -56,6 +56,7 @@ function confirmMerge(id) {
   var text = row.querySelector("div.text").innerText;
 
   // Update this row
+  row.querySelector("div.text").innerText = text; // Remove the spans
   row.querySelector("div.base-buttons").style.display = "block";
   row.querySelector("div.merge-in-progress").style.display = "none";
   row.querySelector("div.merged-note").style.display = "block";

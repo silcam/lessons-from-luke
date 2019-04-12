@@ -54,7 +54,7 @@ button {
 }
 
 button.red {
-    background-color: #800000;
+    background-color: #c9302c;
 }
 
 button:active {
@@ -62,7 +62,7 @@ button:active {
 }
 
 button:active.red {
-    background-color: #600000
+    background-color: #800000
 }
 
 .error {

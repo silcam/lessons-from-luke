@@ -24,6 +24,12 @@
         max-width: 600px;
         font-size: larger;
     }
+    div.text span {
+        font-style: italic;
+    }
+    div.text span.added {
+        color: #028A0F
+    }
 </style>
 
 <script src="/editSrcStrings.js"></script>
@@ -54,9 +60,9 @@
                             <button class="red" onclick="deleteItem('{{id}}')">Delete</button>
                         </div>
                         <div class="merge-in-progress">
-                            <button onclick="cancelMerge('{{id}}')" class="red">Cancel</button>
-                            <button onclick="confirmMerge('{{id}}')">Merge</button>
                             <button onclick="addMergeSpace('{{id}}')">Add Space</button>
+                            <button onclick="confirmMerge('{{id}}')">Merge</button>
+                            <button onclick="cancelMerge('{{id}}')" class="red">Cancel</button>
                         </div>
                         <div class="edit-in-progress">
                             <button onclick="saveEdit('{{id}}')">Done</button>
