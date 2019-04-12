@@ -32,7 +32,7 @@ module.exports = shipit => {
 
   shipit.blTask("restart", async () => {
     try {
-      const tmpDir = shipis.releasePath + "/tmp";
+      const tmpDir = shipit.releasePath + "/tmp";
       res = await shipit.remote(
         `mkdir ${tmpDir} && touch ${tmpDir}/restart.txt`
       );
