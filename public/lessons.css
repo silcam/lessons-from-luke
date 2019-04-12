@@ -1,6 +1,10 @@
 body {
     font-family: Helvietica, sans-serif;
-    padding: 12px;
+    margin: 0;
+}
+
+#content {
+    padding: 0 12px 30px;
 }
 
 a {
@@ -76,6 +80,12 @@ ul.inline {
 ul.inline li {
     display: inline-block;
     padding-right: 8px;
+}
+
+header {
+    background-color: #000;
+    color: #fff;
+    padding: 2px 24px;
 }
 
 #translateLesson input,
