@@ -18,3 +18,7 @@ export function resetTestStorage() {
   unlinkRecursive("test/strings");
   copyRecursive("test/base-strings", "test/strings");
 }
+
+export function stripSpace(text: string) {
+  return text.replace(/\s/g, "");
+}

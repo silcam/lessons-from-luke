@@ -4,11 +4,9 @@
     "lessons": [
       {
         "lesson": "Luke-Q1-L01",
-        "versions": [
-          { "version": 1, "projects": [] }
-        ]
+        "versions": [{ "version": 1, "projects": ["Pidgin_1555081479425"] }]
       }
     ],
-    "projects": []
+    "projects": ["Pidgin_1555081479425"]
   }
 ]

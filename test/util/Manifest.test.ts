@@ -58,21 +58,19 @@ test("Add new project", () => {
           lesson: "Luke-Q1-L01",
           versions: [
             {
-              projects: ["Lingala_1554891104714"],
+              projects: ["Pidgin_1555081479425", "Lingala_1554891104714"],
               version: 1
             }
           ]
         }
       ],
-      projects: ["Lingala_1554891104714"]
+      projects: ["Pidgin_1555081479425", "Lingala_1554891104714"]
     }
   ]);
-  expect(Manifest.readProjectManifest()).toEqual([
-    {
-      datetime: 1554891104714,
-      lessons: [{ lesson: "Luke-Q1-L01", version: 1 }],
-      sourceLang: "English",
-      targetLang: "Lingala"
-    }
-  ]);
+  expect(Manifest.readProjectManifest(1554891104714)).toEqual({
+    datetime: 1554891104714,
+    lessons: [{ lesson: "Luke-Q1-L01", version: 1 }],
+    sourceLang: "English",
+    targetLang: "Lingala"
+  });
 });
