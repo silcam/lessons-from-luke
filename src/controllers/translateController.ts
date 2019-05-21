@@ -38,7 +38,20 @@ export default function translateController(app: Express) {
     const project = Manifest.readProjectManifest(
       decode(req.params.projectCode)
     );
-    const tStrings = Storage.getTStrings(project, req.params.lesson);
+    const tStrings = Storage.getTStrings(project, req.params.lesson).map(
+      tString => {
+        const longText = tString.src.length > maxLengthForInput;
+        return {
+          ...tString,
+          className: tString.mtString ? "mtString" : "otherString",
+          editDisplay: tString.mtString ? "inline" : "none",
+          inputDisplay: longText ? "none" : "inline-block",
+          areaDisplay: longText ? "inline-block" : "none",
+          inputDisabled: longText ? "disabled" : "",
+          areaDisabled: longText ? "" : "disabled"
+        };
+      }
+    );
     res.send(
       layout(
         Mustache.render(getTemplate("translateLesson"), {

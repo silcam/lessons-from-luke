@@ -50,9 +50,10 @@ export function saveProgress(
   lesson: string,
   tStrings: TDocString[]
 ) {
+  const mtStrings = tStrings.filter(s => !!s.mtString);
   const progress = Math.round(
-    (100 * tStrings.filter(ts => ts.targetText.length > 0).length) /
-      tStrings.length
+    (100 * mtStrings.filter(ts => ts.targetText.length > 0).length) /
+      mtStrings.length
   );
   const manifest = readProjectManifest();
   findBy(

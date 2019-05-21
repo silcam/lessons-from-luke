@@ -7,6 +7,7 @@ const styleNS = "urn:oasis:names:tc:opendocument:xmlns:style:1.0";
 export interface DocString {
   xpath: string;
   text: string;
+  mtString?: boolean;
 }
 
 export default function parse(contentXmlFilepath: string) {
@@ -42,8 +43,14 @@ export default function parse(contentXmlFilepath: string) {
   const nodes = xmlDoc.root().find(xPath, textNS);
 
   const translatableStrings = parseNodes(nodes as Element[]);
+  const allStrings = parseNode(xmlDoc.root());
+  const mergedStrings = allStrings.map(docString => {
+    if (translatableStrings.some(mtString => mtString.xpath == docString.xpath))
+      return { ...docString, mtString: true };
+    return docString;
+  });
 
-  return translatableStrings;
+  return mergedStrings;
 }
 
 // parentStyleName is ignored if parentStylePattern is provided

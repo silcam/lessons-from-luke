@@ -5,6 +5,7 @@
         font-size: smaller;
         color: #aaa;
         margin-top: 4px;
+        font-weight: normal;
     }
     .merge-in-progress,
     .text-input,
@@ -41,7 +42,7 @@
         <tbody>
             {{#srcStrings}}
                 <tr id="Row-{{id}}" data-id="{{id}}">
-                    <td class="text">
+                    <td class="text {{tdClass}}">
                         <div class="text">
                             {{text}}
                         </div>

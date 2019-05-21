@@ -9,18 +9,24 @@
         <form action="{{lessonUrl}}" method="post">
             <button class="big" type="submit">{{t.Save}}</button>
 
-            <table>
+            <table class="translation">
                 <tbody>
                     {{#strings}}
-                        <tr class="src">
-                            <th>{{sourceLang}}</th>
-                            <td>{{src}}</td>
-                        </tr>
-                        <tr class="target">
-                            <th>{{targetLang}}</th>
-                            <td>
-                                {{! Renders an input or textarea depending on the length of the source string}}
-                                {{{stringInput}}}
+                        <tr>
+                            <td class="{{className}}">{{src}}
+                                <span style="display: {{editDisplay}}">
+                                    <input style="display: {{inputDisplay}}" 
+                                            {{inputDisabled}}
+                                            type="text" 
+                                            name="{{id}}" 
+                                            value="{{targetText}}"
+                                            placeholder="{{targetLang}}" />
+                                    <textarea style="display: {{areaDisplay}}" 
+                                                {{areaDisabled}}
+                                                name="{{id}}" 
+                                                rows="4"
+                                                placeholder="{{targetLang}}">{{targetText}}</textarea>
+                                </span>
                             </td>
                         </tr>
                     {{/strings}}

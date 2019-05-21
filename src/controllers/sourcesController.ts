@@ -5,11 +5,11 @@ import fileUpload, { UploadedFile } from "express-fileupload";
 import uploadDocument from "../routes/uploadDocument";
 import * as Storage from "../util/Storage";
 import * as Manifest from "../util/Manifest";
-import docStrings from "../routes/docStrings";
 import layout from "../util/layout";
 import Mustache from "mustache";
 import { getTemplate } from "../util/getTemplate";
 import updateSrcStrings from "../util/updateSrcStrings";
+import { DocString } from "../xml/parse";
 
 const formDataParser = bodyParser.urlencoded({ extended: false });
 
@@ -64,7 +64,7 @@ export default function sourcesController(app: Express) {
       res.send(
         layout(
           Mustache.render(getTemplate("srcStrings"), {
-            srcStrings,
+            srcStrings: srcStringsForTemplate(srcStrings),
             ...lessonId,
             lessonId: Storage.lessonIdToString(lessonId),
             projects,
@@ -80,14 +80,11 @@ export default function sourcesController(app: Express) {
     requireAdmin,
     (req, res) => {
       const lessonId: Storage.LessonId = req.params;
-      const srcStrings = Storage.getSrcStrings(lessonId).map((src, index) => ({
-        ...src,
-        id: index
-      }));
+      const srcStrings = Storage.getSrcStrings(lessonId);
       res.send(
         layout(
           Mustache.render(getTemplate("editSrcStrings"), {
-            srcStrings,
+            srcStrings: srcStringsForTemplate(srcStrings),
             ...lessonId,
             submitUrl: `/sources/${lessonId.language}/lessons/${
               lessonId.lesson
@@ -117,4 +114,12 @@ export default function sourcesController(app: Express) {
       res.redirect(`/sources/${lessonId.language}`);
     }
   );
+}
+
+function srcStringsForTemplate(srcStrings: DocString[]) {
+  return srcStrings.map((src, index) => ({
+    ...src,
+    id: index,
+    tdClass: src.mtString ? "mtString" : "otherString"
+  }));
 }

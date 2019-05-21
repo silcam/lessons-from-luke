@@ -42,11 +42,6 @@ th {
     vertical-align: top;
 }
 
-tr.target th,
-tr.target td {
-    padding-bottom: 24px;
-}
-
 button {
     color: white;
     background-color: #337ab7;
@@ -96,4 +91,21 @@ header {
 button.big {
     font-size: 18px;
     padding: 8px 16px;
+}
+
+td.mtString {
+    font-weight: bold;
+}
+
+table.translation td.mtString {
+    padding-top: 12px;
+    padding-bottom: 12px;
+}
+
+input::placeholder, textarea::placeholder {
+    font-size: small;
+}
+
+td.otherString {
+    color: #666;
 }

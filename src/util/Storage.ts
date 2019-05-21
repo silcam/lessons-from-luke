@@ -15,6 +15,7 @@ export interface TDocString {
   xpath: string;
   src: string;
   targetText: string;
+  mtString?: boolean;
 }
 
 export interface ProjectId {
@@ -60,7 +61,8 @@ export function makeProjectDir(project: Project) {
       id: index,
       xpath: srcString.xpath,
       src: srcString.text,
-      targetText: ""
+      targetText: "",
+      mtString: srcString.mtString
     }));
     fs.writeFileSync(
       tStringsJsonPath(project, projectLesson.lesson),

@@ -1,6 +1,10 @@
-import { loggedInAgent, stripSpace } from "../testHelper";
+import { loggedInAgent, stripSpace, resetTestStorage } from "../testHelper";
 import app from "../../src/app";
 import request from "supertest";
+
+beforeAll(() => {
+  resetTestStorage();
+});
 
 test("Translate Index", async () => {
   expect.assertions(1);
@@ -17,7 +21,9 @@ test("Translate lesson page", async () => {
     "/translate/TPINTII/lesson/Luke-Q1-L01"
   );
   // Check for a text input
-  expect(response.text).toContain(`<input type="text" name="1" value="" />`);
+  expect(response.text).toContain(
+    `<form action=\"&#x2F;translate&#x2F;TPINTII&#x2F;lesson&#x2F;Luke-Q1-L01\" method=\"post\">`
+  );
 });
 
 test("Submit translation", async () => {
