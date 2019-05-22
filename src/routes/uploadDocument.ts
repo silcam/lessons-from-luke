@@ -43,6 +43,9 @@ function unpack(lessonId: Storage.LessonId, docPath: string) {
 // Todo - validate filenames or something!
 function lessonFromFilename(series: string, filename: string) {
   const pattern = /[QT]\d+-L\d+/;
-  const lessonName = pattern.exec(filename)[0];
+  const match = pattern.exec(filename);
+  if (!match)
+    throw `Could not determine lesson name from filename ${filename}.`;
+  const lessonName = match[0];
   return `${series}-${lessonName}`;
 }

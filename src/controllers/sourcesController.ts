@@ -32,7 +32,7 @@ export default function sourcesController(app: Express) {
     fileUpload(),
     async (req, res, next) => {
       try {
-        const file = req.files.document as UploadedFile;
+        const file = req.files!.document as UploadedFile;
         const lessonId = await uploadDocument(
           req.params.language,
           req.body.series,

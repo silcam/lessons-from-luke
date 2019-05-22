@@ -129,6 +129,10 @@ export function documentPathForTranslation(
   const lessonManifest = projectManifest.lessons.find(
     lm => lm.lesson == lesson
   );
+  if (!lessonManifest)
+    throw `Lesson "${lesson}" not found in Project Manifest for project ${projectIdToString(
+      projectId
+    )}!`;
   const tStrings = getTStrings(projectId, lesson).filter(str => str.mtString);
 
   const tmpDocsPath = "tmp/docs";

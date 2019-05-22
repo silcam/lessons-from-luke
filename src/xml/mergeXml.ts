@@ -11,7 +11,7 @@ export default function mergeXml(
   for (let i = 0; i < translations.length; ++i) {
     const translation = translations[i];
     const element = xmlDoc.get(translation.xpath, namespaces);
-    element.text(translation.targetText);
+    if (element) element.text(translation.targetText);
   }
   fs.writeFileSync(contentXmlFilepath, xmlDoc.toString());
 }
@@ -23,7 +23,7 @@ function getXmlDoc(xmlFilpath: string) {
 
 function extractNamespaces(xmlDoc: Document) {
   return xmlDoc
-    .root()
+    .root()!
     .namespaces()
     .reduce(
       (accum, ns) => {

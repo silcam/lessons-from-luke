@@ -57,10 +57,10 @@ export function saveProgress(
   );
   const manifest = readProjectManifest();
   findBy(
-    findBy(manifest, "datetime", projectId.datetime).lessons,
+    findBy(manifest, "datetime", projectId.datetime)!.lessons,
     "lesson",
     lesson
-  ).progress = progress;
+  )!.progress = progress;
   writeProjectManifest(manifest);
 }
 
@@ -74,7 +74,7 @@ export function addSourceLanguage(language: string) {
 export function addSourceLesson(language: string, lesson: string) {
   const manifest = readSourceManifest();
 
-  const langManifest = findBy(manifest, "language", language);
+  const langManifest = findBy(manifest, "language", language)!;
 
   let lessonManifest = findBy(langManifest.lessons, "lesson", lesson);
   if (!lessonManifest) {
@@ -91,12 +91,12 @@ export function addSourceLesson(language: string, lesson: string) {
 
 export function deleteLessonVersion(lessonId: LessonId) {
   const manifest = readSourceManifest();
-  const langManifest = findBy(manifest, "language", lessonId.language);
+  const langManifest = findBy(manifest, "language", lessonId.language)!;
   const lessonManifest = findBy(
     langManifest.lessons,
     "lesson",
     lessonId.lesson
-  );
+  )!;
   lessonManifest.versions[lessonId.version - 1].deleted = true;
   writeSourceManifest(manifest);
 }
@@ -104,7 +104,7 @@ export function deleteLessonVersion(lessonId: LessonId) {
 export function addProject(sourceLang: string, targetLang: string): Project {
   const projects = readProjectManifest();
   const sources = readSourceManifest();
-  const source = findBy(sources, "language", sourceLang);
+  const source = findBy(sources, "language", sourceLang)!;
   const id: ProjectId = {
     targetLang,
     datetime: Date.now().valueOf()
@@ -145,9 +145,9 @@ export function readSourceManifest(language?: string, lesson?: string) {
     fs.readFileSync(sourceManifestPath).toString()
   );
   if (!language) return manifest;
-  const langManifest = findBy(manifest, "language", language);
+  const langManifest = findBy(manifest, "language", language)!;
   if (!lesson) return langManifest;
-  return findBy(langManifest.lessons, "lesson", lesson);
+  return findBy(langManifest.lessons, "lesson", lesson)!;
 }
 
 function writeSourceManifest(manifest: SourceManifest) {

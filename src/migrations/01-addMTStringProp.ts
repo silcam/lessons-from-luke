@@ -15,7 +15,7 @@ function addMTStringProp() {
         const strings = JSON.parse(
           fs.readFileSync(stringsJSONPath).toString()
         ) as DocString[];
-        if (!strings.some(str => str.mtString)) {
+        if (!strings.some(str => !!str.mtString)) {
           const updatedStrings = strings.map(str => ({
             ...str,
             mtString: true
@@ -36,7 +36,7 @@ function addMTStringProp() {
         const strings = JSON.parse(
           fs.readFileSync(jsonPath).toString()
         ) as TDocString[];
-        if (!strings.some(str => str.mtString)) {
+        if (!strings.some(str => !!str.mtString)) {
           const updatedStrings = strings.map(str => ({
             ...str,
             mtString: true

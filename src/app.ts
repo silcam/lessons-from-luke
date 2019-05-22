@@ -27,7 +27,7 @@ app.get("/", (req, res) => {
 
 app.post("/login", formDataParser, (req, res) => {
   if (authenticate(req.body)) {
-    req.session.admin = true;
+    req.session!.admin = true;
     res.redirect("/");
   } else {
     res.redirect("/?failedLogin=true");

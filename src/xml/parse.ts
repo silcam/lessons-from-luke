@@ -22,14 +22,14 @@ export default function parse(contentXmlFilepath: string) {
       knownStyleNames.reduce(
         (styles, styleName) =>
           styles.concat(findStylesToMatch(xmlDoc, styleName)),
-        []
+        [] as string[]
       )
     )
     .concat(
       knownStyleNamePatterns.reduce(
         (styles, pattern) =>
           styles.concat(findStylesToMatch(xmlDoc, "", pattern)),
-        []
+        [] as string[]
       )
     );
 
@@ -40,10 +40,10 @@ export default function parse(contentXmlFilepath: string) {
     " | " +
     allStyleNames.map(name => xPathForPWithStyle(name)).join(" | ");
 
-  const nodes = xmlDoc.root().find(xPath, textNS);
+  const nodes = xmlDoc.root()!.find(xPath, textNS);
 
   const translatableStrings = parseNodes(nodes as Element[]);
-  const allStrings = parseNode(xmlDoc.root());
+  const allStrings = parseNode(xmlDoc.root()!);
   const mergedStrings = allStrings.map(docString => {
     if (translatableStrings.some(mtString => mtString.xpath == docString.xpath))
       return { ...docString, mtString: true };
@@ -63,10 +63,10 @@ function findStylesToMatch(
     ? xPathForParentStyleNameContains(parentStylePattern)
     : xPathForParentStyle(parentStyleName);
 
-  const nodes = xmlDoc.root().find(xPath, styleNS) as Element[];
+  const nodes = xmlDoc.root()!.find(xPath, styleNS) as Element[];
   let styles: string[] = [];
   for (let i = 0; i < nodes.length; ++i) {
-    let style = nodes[i].attr("name").value();
+    let style = nodes[i].attr("name")!.value();
     styles.push(style);
     let childStyles = findStylesToMatch(xmlDoc, style);
     styles = styles.concat(childStyles);

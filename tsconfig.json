@@ -9,6 +9,7 @@
         "outDir": "dist",
         "baseUrl": ".",
         "typeRoots": ["@types", "node_modules/@types"],
+        "strictNullChecks": true,
         "paths": {
             "*": [
                 "node_modules/*",

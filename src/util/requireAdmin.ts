@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 
 export function isAdmin(req: Request) {
-  return !!req.session.admin;
+  return !!(req.session && req.session.admin);
 }
 
 export default function requireAdmin(
