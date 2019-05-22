@@ -1,8 +1,10 @@
-import { mkdirSafe, copyRecursive, zip } from "./fsUtils";
+import { mkdirSafe, copyRecursive, zip, unlinkRecursive } from "./fsUtils";
 import fs from "fs";
 import { DocString } from "../xml/parse";
 import process from "process";
 import { Project } from "./Manifest";
+import * as Manifest from "./Manifest";
+import mergeXml from "../xml/mergeXml";
 
 export interface LessonId {
   language: string;
@@ -41,10 +43,10 @@ export function projectIdToString(id: ProjectId) {
   return `${id.targetLang}_${id.datetime}`;
 }
 
-export function projectIdFromString(str: string) {
+export function projectIdFromString(str: string): ProjectId {
   const pieces = str.split("_");
   return {
-    language: pieces[0],
+    targetLang: pieces[0],
     datetime: parseInt(pieces[1])
   };
 }
@@ -116,6 +118,35 @@ export function documentPathForSource(lessonId: LessonId) {
   const dirPath = lessonDirPath(lessonId);
   const docPath = `${dirPath}/${lessonId.lesson}.odt`;
   if (!fs.existsSync(docPath)) zip(`${dirPath}/odt`, docPath);
+  return docPath;
+}
+
+export function documentPathForTranslation(
+  projectId: ProjectId,
+  lesson: string
+) {
+  const projectManifest = Manifest.readProjectManifest(projectId.datetime);
+  const lessonManifest = projectManifest.lessons.find(
+    lm => lm.lesson == lesson
+  );
+  const tStrings = getTStrings(projectId, lesson).filter(str => str.mtString);
+
+  const tmpDocsPath = "tmp/docs";
+  mkdirSafe(tmpDocsPath);
+  const odtStagingPath = `${tmpDocsPath}/${projectIdToString(projectId)}`;
+  mkdirSafe(odtStagingPath);
+
+  const srcDirPath = lessonDirPath({
+    ...lessonManifest,
+    language: projectManifest.sourceLang
+  });
+  copyRecursive(`${srcDirPath}/odt`, odtStagingPath);
+  mergeXml(`${odtStagingPath}/content.xml`, tStrings);
+
+  const docPath = `${tmpDocsPath}/${projectId.targetLang}-${lesson}.odt`;
+  zip(odtStagingPath, docPath);
+
+  unlinkRecursive(odtStagingPath);
   return docPath;
 }
 

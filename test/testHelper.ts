@@ -14,6 +14,10 @@ export async function loggedInAgent() {
   return agent;
 }
 
+export function plainAgent() {
+  return request.agent(app);
+}
+
 export function resetTestStorage() {
   unlinkRecursive("test/strings");
   copyRecursive("test/base-strings", "test/strings");

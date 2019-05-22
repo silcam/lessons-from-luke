@@ -16,15 +16,24 @@ export function zip(srcDir: string, outPath: string) {
 }
 
 export function copyRecursive(from: string, to: string) {
-  fs.copyFileSync(from, to);
-  if (fs.statSync(from).isDirectory()) {
-    fs.readdirSync(from).forEach(filename => {
-      copyRecursive(`${from}/${filename}`, `${to}/${filename}`);
-    });
+  // console.log(`Copy to ${to}`);
+  try {
+    if (fs.statSync(from).isDirectory()) {
+      mkdirSafe(to);
+      fs.readdirSync(from).forEach(filename => {
+        copyRecursive(`${from}/${filename}`, `${to}/${filename}`);
+      });
+    } else {
+      fs.copyFileSync(from, to);
+    }
+  } catch (err) {
+    console.error(err);
+    throw err;
   }
 }
 
 export function unlinkRecursive(path: string) {
+  // console.log(`Unlink ${path}`);
   if (fs.existsSync(path)) {
     if (fs.statSync(path).isDirectory()) {
       fs.readdirSync(path).forEach(filename => {

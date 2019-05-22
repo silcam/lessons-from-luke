@@ -16,17 +16,22 @@ a:hover {
     text-decoration: underline;
 }
 
+.subdued {
+    color: #999;
+    font-weight: normal;
+}
+
 td.progress {
     padding-left: 8px;
     color: #aaa;
     font-size: smaller;
 }
 
-td.progress.noShow {
+.noShow {
     display: none;
 }
 
-td.progress.done {
+td.done, span.done {
     color: #2e8b57
 }
 
@@ -34,13 +39,14 @@ textarea {
     font-family: inherit;
 }
 
-th {
+/* Was used on translate page */
+/* th {
     font-size: smaller;
     padding-right: 12px;
     text-align: left;
     font-weight: normal;
     vertical-align: top;
-}
+} */
 
 button {
     color: white;

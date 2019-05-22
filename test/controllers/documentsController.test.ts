@@ -1,4 +1,8 @@
-import { loggedInAgent } from "../testHelper";
+import { loggedInAgent, resetTestStorage, plainAgent } from "../testHelper";
+
+beforeAll(() => {
+  resetTestStorage();
+});
 
 test("Download existing source doc", async () => {
   expect.assertions(2);
@@ -18,6 +22,16 @@ test("Generate and download source doc", async () => {
     .send({})
     .redirects(1);
   const response = await agent.get("/documents/source/English_Luke-Q1-L01_2");
+  expect(response.status).toBe(200);
+  expect(response.type).toEqual("application/vnd.oasis.opendocument.text");
+});
+
+test("Generate and download translated doc", async () => {
+  expect.assertions(2);
+  const agent = await plainAgent();
+  const response = await agent.get(
+    "/documents/translation/Pidgin_1555081479425/Luke-Q1-L01"
+  );
   expect(response.status).toBe(200);
   expect(response.type).toEqual("application/vnd.oasis.opendocument.text");
 });

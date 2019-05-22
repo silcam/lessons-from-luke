@@ -1,6 +1,10 @@
 node_modules
 dist
-strings
+/strings
+/test/strings
+/strings2
 lessons/*.odt
+
+/tmp
 
 src/util/secrets.ts

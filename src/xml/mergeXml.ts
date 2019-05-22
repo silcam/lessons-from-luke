@@ -1,4 +1,4 @@
-import libxmljs from "libxmljs";
+import libxmljs2, { Document } from "libxmljs2";
 import fs from "fs";
 import { TDocString } from "../util/Storage";
 
@@ -18,10 +18,10 @@ export default function mergeXml(
 
 function getXmlDoc(xmlFilpath: string) {
   const xml = fs.readFileSync(xmlFilpath).toString();
-  return libxmljs.parseXml(xml);
+  return libxmljs2.parseXml(xml);
 }
 
-function extractNamespaces(xmlDoc: libxmljs.Document) {
+function extractNamespaces(xmlDoc: Document) {
   return xmlDoc
     .root()
     .namespaces()

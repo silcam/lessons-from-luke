@@ -98,7 +98,7 @@ function stringInput() {
   return `<input type="text" name="${this.id}" value="${this.targetText}" />`;
 }
 
-function extraProgressClass() {
+export function extraProgressClass() {
   if (this.progress === undefined) return "noShow";
   if (this.progress == 100) return "done";
 }

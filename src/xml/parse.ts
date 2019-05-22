@@ -1,4 +1,4 @@
-import libxmljs, { Document, Element } from "libxmljs";
+import libxmljs2, { Document, Element } from "libxmljs2";
 import fs from "fs";
 
 const textNS = "urn:oasis:names:tc:opendocument:xmlns:text:1.0";
@@ -12,7 +12,7 @@ export interface DocString {
 
 export default function parse(contentXmlFilepath: string) {
   const xml = fs.readFileSync(contentXmlFilepath).toString();
-  const xmlDoc = libxmljs.parseXml(xml);
+  const xmlDoc = libxmljs2.parseXml(xml);
 
   const knownStyleNames = ["Lesson_20_Title", "Langue_20_Maternelle"];
   const knownStyleNamePatterns = ["M.T._20_Text", "L.M."];
