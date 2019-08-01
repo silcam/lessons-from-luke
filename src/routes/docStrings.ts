@@ -1,11 +1,9 @@
 import * as Storage from "../util/Storage";
-import fs from "fs";
 import Mustache from "mustache";
+import { getTemplate } from "../util/getTemplate";
 
 export default function docStrings(lessonId: Storage.LessonId) {
-  const template = fs
-    .readFileSync("templates/editSrcStrings.html.mustache")
-    .toString();
+  const template = getTemplate("editSrcStrings");
   const srcStrings = Storage.getSrcStrings(lessonId).map((src, index) => ({
     ...src,
     id: index

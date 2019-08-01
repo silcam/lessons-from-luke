@@ -1,7 +1,14 @@
-import { mkdirSafe, copyRecursive, zip, unlinkRecursive } from "./fsUtils";
+import {
+  mkdirSafe,
+  copyRecursive,
+  zip,
+  unlinkRecursive,
+  stringsDirPath,
+  tmpDirPath
+} from "./fsUtils";
 import fs from "fs";
+import path from "path";
 import { DocString } from "../xml/parse";
-import process from "process";
 import { Project } from "./Manifest";
 import * as Manifest from "./Manifest";
 import mergeXml from "../xml/mergeXml";
@@ -79,7 +86,7 @@ export function getSrcStrings(lessonId: LessonId) {
 }
 
 export function srcStringsJsonPath(lessonId: LessonId) {
-  return `${lessonDirPath(lessonId)}/strings.json`;
+  return path.join(lessonDirPath(lessonId), "strings.json");
 }
 
 export function getTStrings(
@@ -103,21 +110,21 @@ export function saveTStrings(
 }
 
 function tStringsJsonPath(projectId: ProjectId, lesson: string) {
-  return `${projectDirPath(projectId)}/${lesson}.json`;
+  return path.join(projectDirPath(projectId), `${lesson}.json`);
 }
 
 export function contentXmlPath(lessonId: LessonId) {
-  return `${odtDirPath(lessonId)}/content.xml`;
+  return path.join(odtDirPath(lessonId), "content.xml");
 }
 
 export function odtDirPath(lessonId: LessonId) {
-  return `${lessonDirPath(lessonId)}/odt`;
+  return path.join(lessonDirPath(lessonId), "odt");
 }
 
 export function documentPathForSource(lessonId: LessonId) {
   const dirPath = lessonDirPath(lessonId);
-  const docPath = `${dirPath}/${lessonId.lesson}.odt`;
-  if (!fs.existsSync(docPath)) zip(`${dirPath}/odt`, docPath);
+  const docPath = path.join(dirPath, `${lessonId.lesson}.odt`);
+  if (!fs.existsSync(docPath)) zip(path.join(dirPath, "odt"), docPath);
   return docPath;
 }
 
@@ -135,19 +142,22 @@ export function documentPathForTranslation(
     )}!`;
   const tStrings = getTStrings(projectId, lesson).filter(str => str.mtString);
 
-  const tmpDocsPath = "tmp/docs";
+  const tmpDocsPath = path.join(tmpDirPath(), "docs");
   mkdirSafe(tmpDocsPath);
-  const odtStagingPath = `${tmpDocsPath}/${projectIdToString(projectId)}`;
+  const odtStagingPath = path.join(tmpDocsPath, projectIdToString(projectId));
   mkdirSafe(odtStagingPath);
 
   const srcDirPath = lessonDirPath({
     ...lessonManifest,
     language: projectManifest.sourceLang
   });
-  copyRecursive(`${srcDirPath}/odt`, odtStagingPath);
-  mergeXml(`${odtStagingPath}/content.xml`, tStrings);
+  copyRecursive(path.join(srcDirPath, "odt"), odtStagingPath);
+  mergeXml(path.join(odtStagingPath, "content.xml"), tStrings);
 
-  const docPath = `${tmpDocsPath}/${projectId.targetLang}-${lesson}.odt`;
+  const docPath = path.join(
+    tmpDocsPath,
+    `${projectId.targetLang}-${lesson}.odt`
+  );
   zip(odtStagingPath, docPath);
 
   unlinkRecursive(odtStagingPath);
@@ -168,7 +178,7 @@ export function copyLessonDir(oldLessonId: LessonId, newLessonId: LessonId) {
 
 export function lessonDirPath(lessonId: LessonId) {
   const { language, lesson, version } = lessonId;
-  return `${languageDirPath(language)}/${lesson}_${version}`;
+  return path.join(languageDirPath(language), `${lesson}_${version}`);
 }
 
 export function makeLangDir(language: string) {
@@ -178,22 +188,17 @@ export function makeLangDir(language: string) {
 }
 
 export function languageDirPath(language: string) {
-  return `${srcStringsDirPath()}/${language}`;
+  return path.join(srcStringsDirPath(), language);
 }
 
 function projectDirPath(projectId: ProjectId) {
-  return `${tStringsDirPath()}/${projectIdToString(projectId)}`;
+  return path.join(tStringsDirPath(), projectIdToString(projectId));
 }
 
 function tStringsDirPath() {
-  return `${stringsDirPath()}/translations`;
+  return path.join(stringsDirPath(), "translations");
 }
 
 function srcStringsDirPath() {
-  return `${stringsDirPath()}/src`;
-}
-
-export function stringsDirPath() {
-  if (process.env.NODE_ENV == "test") return "test/strings";
-  return "strings";
+  return path.join(stringsDirPath(), "src");
 }

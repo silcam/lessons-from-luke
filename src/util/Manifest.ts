@@ -1,15 +1,11 @@
-import {
-  stringsDirPath,
-  ProjectId,
-  projectIdToString,
-  TDocString,
-  LessonId
-} from "./Storage";
+import { ProjectId, projectIdToString, TDocString, LessonId } from "./Storage";
 import fs from "fs";
+import path from "path";
+import { stringsDirPath } from "./fsUtils";
 
 const stringsDir = stringsDirPath();
-const sourceManifestPath = `${stringsDir}/sources.json`;
-const projectsManifestPath = `${stringsDir}/projects.json`;
+const sourceManifestPath = path.join(stringsDir, "sources.json");
+const projectsManifestPath = path.join(stringsDir, "projects.json");
 
 interface LessonVersion {
   version: number;

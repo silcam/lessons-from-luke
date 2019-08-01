@@ -9,7 +9,7 @@ export default function errorTestController(app: Express) {
 
   app.get("/asyncError", async (req, res, next) => {
     try {
-      const sourcesStr = await readFile("./strings/sources.json");
+      // const sourcesStr = await readFile("./strings/sources.json");
       // const crash = JSON.parse(sourcesStr).not.a.real.property;
       throw "Test Error";
     } catch (err) {

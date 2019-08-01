@@ -5,7 +5,7 @@ export default function documentsController(app: Express) {
   app.get("/documents/source/:lessonId", (req, res) => {
     const lessonId = Storage.lessonIdFromString(req.params.lessonId);
     const docPath = Storage.documentPathForSource(lessonId);
-    res.sendFile(docPath, { root: "./" });
+    res.sendFile(docPath);
   });
 
   app.get("/documents/translation/:projectId/:lesson", (req, res) => {
@@ -14,6 +14,6 @@ export default function documentsController(app: Express) {
       projectId,
       req.params.lesson
     );
-    res.sendFile(docPath, { root: "./" });
+    res.sendFile(docPath);
   });
 }
