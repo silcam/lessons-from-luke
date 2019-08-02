@@ -11,7 +11,7 @@ import path from "path";
 import { DocString } from "../xml/parse";
 import { Project } from "./Manifest";
 import * as Manifest from "./Manifest";
-import mergeXml from "../xml/mergeXml";
+import { SyncFetchResponse } from "./desktopSync";
 
 export interface LessonId {
   language: string;
@@ -80,6 +80,17 @@ export function makeProjectDir(project: Project) {
   });
 }
 
+export function makeDesktopProjectDir(syncData: SyncFetchResponse) {
+  const dirPath = projectDirPath(syncData.project);
+  mkdirSafe(dirPath);
+  syncData.lessons.forEach(tLesson => {
+    fs.writeFileSync(
+      tStringsJsonPath(syncData.project, tLesson.lesson),
+      JSON.stringify(tLesson.strings)
+    );
+  });
+}
+
 export function getSrcStrings(lessonId: LessonId) {
   const stringsJson = fs.readFileSync(srcStringsJsonPath(lessonId)).toString();
   return JSON.parse(stringsJson) as DocString[];
@@ -125,42 +136,6 @@ export function documentPathForSource(lessonId: LessonId) {
   const dirPath = lessonDirPath(lessonId);
   const docPath = path.join(dirPath, `${lessonId.lesson}.odt`);
   if (!fs.existsSync(docPath)) zip(path.join(dirPath, "odt"), docPath);
-  return docPath;
-}
-
-export function documentPathForTranslation(
-  projectId: ProjectId,
-  lesson: string
-) {
-  const projectManifest = Manifest.readProjectManifest(projectId.datetime);
-  const lessonManifest = projectManifest.lessons.find(
-    lm => lm.lesson == lesson
-  );
-  if (!lessonManifest)
-    throw `Lesson "${lesson}" not found in Project Manifest for project ${projectIdToString(
-      projectId
-    )}!`;
-  const tStrings = getTStrings(projectId, lesson).filter(str => str.mtString);
-
-  const tmpDocsPath = path.join(tmpDirPath(), "docs");
-  mkdirSafe(tmpDocsPath);
-  const odtStagingPath = path.join(tmpDocsPath, projectIdToString(projectId));
-  mkdirSafe(odtStagingPath);
-
-  const srcDirPath = lessonDirPath({
-    ...lessonManifest,
-    language: projectManifest.sourceLang
-  });
-  copyRecursive(path.join(srcDirPath, "odt"), odtStagingPath);
-  mergeXml(path.join(odtStagingPath, "content.xml"), tStrings);
-
-  const docPath = path.join(
-    tmpDocsPath,
-    `${projectId.targetLang}-${lesson}.odt`
-  );
-  zip(odtStagingPath, docPath);
-
-  unlinkRecursive(odtStagingPath);
   return docPath;
 }
 

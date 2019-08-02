@@ -48,6 +48,11 @@ export function unlinkRecursive(filepath: string) {
   }
 }
 
+export function setupDesktopStorage() {
+  mkdirSafe("strings");
+  mkdirSafe(path.join("strings", "translations"));
+}
+
 export function assetsPath(dirName: string) {
   return path.join(__dirname, "..", "..", dirName);
 }

@@ -1,0 +1,25 @@
+<style>
+    input {
+        font-size: larger;
+        width: 800px;
+    }
+    input::placeholder {
+        font-size: large;
+    }
+    button {
+        font-size: large;
+    }
+</style>
+<div id="desktopHome">
+    <h2>Get Translation Project</h2>
+    <form action='/fetch' method='post'>
+        <p>
+            <label>Translation Project Link:</label><br />
+            <input type='text' name='code' placeholder='http://lessonsfromluke.gospelcoding.org/translate/ABC123' />
+        </p>
+        <p class="error">
+            {{errorMessage}}
+        </p>
+        <button type='submit'>Sync</button>
+    </form>
+</div>

@@ -14,6 +14,7 @@ import errorTestController from "./controllers/errorTestController";
 import catchError from "./util/catchError";
 import handle404 from "./util/handle404";
 import documentsController from "./controllers/documentsController";
+import webSyncController from "./controllers/webSyncController";
 
 const app = express();
 app.use(express.static("public"));
@@ -41,6 +42,8 @@ projectsController(app);
 translateController(app);
 
 documentsController(app);
+
+webSyncController(app);
 
 errorTestController(app);
 

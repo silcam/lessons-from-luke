@@ -173,3 +173,16 @@ function findBy<T, K extends keyof T>(list: T[], key: K, value: T[K]) {
 function last<T>(list: T[]) {
   return list[list.length - 1];
 }
+
+export function desktopProjectManifestExists() {
+  return fs.existsSync(projectsManifestPath);
+}
+
+export function readDesktopProject(): Project {
+  const projects = readProjectManifest();
+  return projects[0];
+}
+
+export function writeDesktopProject(project: Project) {
+  fs.writeFileSync(projectsManifestPath, JSON.stringify([project]));
+}

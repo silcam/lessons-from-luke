@@ -8,3 +8,5 @@ lessons/*.odt
 /tmp
 
 src/util/secrets.ts
+
+/desktop
