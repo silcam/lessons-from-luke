@@ -10,6 +10,7 @@ import Mustache from "mustache";
 import { getTemplate } from "../util/getTemplate";
 import updateSrcStrings from "../util/updateSrcStrings";
 import { DocString } from "../xml/parse";
+import assetPath from "../util/assetPath";
 
 const formDataParser = bodyParser.urlencoded({ extended: false });
 
@@ -84,6 +85,7 @@ export default function sourcesController(app: Express) {
       res.send(
         layout(
           Mustache.render(getTemplate("editSrcStrings"), {
+            jsPath: assetPath("editSrcStrings.js"),
             srcStrings: srcStringsForTemplate(srcStrings),
             ...lessonId,
             submitUrl: `/sources/${lessonId.language}/lessons/${
