@@ -36,6 +36,7 @@ export interface Project {
   sourceLang: string;
   targetLang: string;
   datetime: number;
+  lockCode?: string;
   lessons: ProjectLesson[];
 }
 
@@ -129,9 +130,16 @@ export function addProject(sourceLang: string, targetLang: string): Project {
   return project;
 }
 
-// function languageManifest(language: string): Language | undefined {
-//   return readSourceManifest().find(lm => lm.language == language)
-// }
+export function lockProject(datetime: number) {
+  const prjManifest = readProjectManifest();
+  const project = findBy(prjManifest, "datetime", datetime);
+  if (project === undefined) throw "Tried to lock nonexistant project!";
+  project.lockCode = Date.now()
+    .valueOf()
+    .toString();
+  writeProjectManifest(prjManifest);
+  return project;
+}
 
 export function readSourceManifest(language: string, lesson: string): Lesson;
 export function readSourceManifest(language: string): Language;

@@ -40,7 +40,7 @@ app.post("/fetch", formDataParser, async (req, res) => {
   }
 });
 
-translateController(app);
+translateController(app, "desktop");
 
 app.use(handle404);
 

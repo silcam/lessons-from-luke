@@ -36,6 +36,23 @@ test("Submit translation", async () => {
   expect(response.text).toContain("100%");
 });
 
+// Keep this test last
+test("Can't translate locked project", async () => {
+  expect.assertions(3);
+  // Desktop sync locks the project
+  await request(app).get("/desktop/fetch/TPINTII");
+  const lockedMessage = "This project is locked for desktop translation.";
+  let response = await request(app).get("/translate/TPINTII");
+  expect(response.text).toContain(lockedMessage);
+  response = await request(app).get("/translate/TPINTII/lesson/Luke-Q1-L01");
+  expect(response.text).toContain(lockedMessage);
+  response = await request(app)
+    .post("/translate/TPINTII/lesson/Luke-Q1-L01")
+    .type("form")
+    .send(completeTranslationFormData());
+  expect(response.text).toContain(lockedMessage);
+});
+
 function completeTranslationFormData() {
   let data: { [name: string]: string } = {};
   for (let i = 0; i < 89; ++i) {

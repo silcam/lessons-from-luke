@@ -39,7 +39,7 @@ sourcesController(app);
 
 projectsController(app);
 
-translateController(app);
+translateController(app, "web");
 
 documentsController(app);
 

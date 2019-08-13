@@ -8,15 +8,18 @@ import { SyncFetchResponse } from "../../src/util/desktopSync";
   and must not be changed after the initial release of the Desktop app!
 */
 
-beforeAll(() => {
+beforeEach(() => {
   resetTestStorage();
 });
 
 test("Initial Fetch", async () => {
-  expect.assertions(3);
+  expect.assertions(4);
+  const time = Date.now().valueOf();
   const response = await request(app).get("/desktop/fetch/TPINTII");
   const syncData: SyncFetchResponse = JSON.parse(response.text);
-  expect(syncData.project).toEqual({
+  const { lockCode, ...project } = syncData.project;
+  expect(parseInt(lockCode!)).toBeGreaterThanOrEqual(time);
+  expect(project).toEqual({
     targetLang: "Pidgin",
     datetime: 1555081479425,
     sourceLang: "English",
@@ -31,4 +34,15 @@ test("Initial Fetch", async () => {
     targetText: "",
     mtString: true
   });
+});
+
+test("Can't fetch locked project", async () => {
+  expect.assertions(1);
+
+  // First fetch locks the project
+  await request(app).get("/desktop/fetch/TPINTII");
+
+  // Second fetch should not work
+  const response = await request(app).get("/desktop/fetch/TPINTII");
+  expect(response.status).toEqual(403);
 });
