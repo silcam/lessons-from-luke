@@ -146,5 +146,15 @@ function setHiddenInput(id, value) {
 }
 
 function hiddenInputHtml(id, value) {
+  value = escapeHtml(value);
   return "<input type='hidden' name='" + id + "' value='" + value + "' />";
+}
+
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
