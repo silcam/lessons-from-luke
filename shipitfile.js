@@ -30,6 +30,16 @@ module.exports = shipit => {
     }
   });
 
+  shipit.blTask("versionAssets", async () => {
+    try {
+      await shipit.remote(
+        `cd ${shipit.releasePath} && node tasks/versionAssets.js`
+      );
+    } catch (err) {
+      console.error(err.stderr);
+    }
+  });
+
   shipit.blTask("restart", async () => {
     try {
       const tmpDir = shipit.releasePath + "/tmp";
@@ -42,6 +52,6 @@ module.exports = shipit => {
   });
 
   shipit.on("sharedEnd", () => {
-    shipit.start("build", "restart");
+    shipit.start("build", "versionAssets", "restart");
   });
 };
