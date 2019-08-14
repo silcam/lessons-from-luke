@@ -8,6 +8,7 @@ import { getTemplate } from "../util/getTemplate";
 import { decode } from "../util/timestampEncode";
 import i18n from "../util/i18n";
 import assert = require("assert");
+import { push } from "../util/desktopSync";
 
 const formDataParser = bodyParser.urlencoded({ extended: false });
 const maxLengthForInput = 120;
@@ -19,9 +20,7 @@ export default function translateController(
   context: ServerContext
 ) {
   app.get("/translate/:projectCode", lockCheck(context), (req, res) => {
-    const project = Manifest.readProjectManifest(
-      decode(req.params.projectCode)
-    );
+    const project = req.params.project; // Added during lockCheck
     const t = i18n(project.sourceLang);
     res.send(
       layout(
@@ -39,9 +38,7 @@ export default function translateController(
     "/translate/:projectCode/lesson/:lesson",
     lockCheck(context),
     (req, res) => {
-      const project = Manifest.readProjectManifest(
-        decode(req.params.projectCode)
-      );
+      const project = req.params.project; // Added during lockCheck
       const tStrings = Storage.getTStrings(project, req.params.lesson).map(
         tString => {
           const longText = tString.src.length > maxLengthForInput;
@@ -76,10 +73,8 @@ export default function translateController(
     "/translate/:projectCode/lesson/:lesson",
     lockCheck(context),
     formDataParser,
-    (req, res) => {
-      const project = Manifest.readProjectManifest(
-        decode(req.params.projectCode)
-      );
+    async (req, res) => {
+      const project = req.params.project; // Added during lockCheck
       const tStrings = Storage.getTStrings(project, req.params.lesson);
       const newStrings = req.body as { [id: string]: string };
       Object.keys(newStrings).forEach(id => {
@@ -92,6 +87,7 @@ export default function translateController(
       });
       Storage.saveTStrings(project, req.params.lesson, tStrings);
       Manifest.saveProgress(project, req.params.lesson, tStrings);
+      if (context == "desktop") await push();
       res.redirect(`/translate/${req.params.projectCode}`);
     }
   );
@@ -111,24 +107,20 @@ export function extraProgressClass() {
 
 function lockCheck(context: ServerContext) {
   return (req: Request, res: Response, next: NextFunction) => {
-    if (context === "desktop") {
-      next();
-    } else {
-      const project = Manifest.readProjectManifest(
-        decode(req.params.projectCode)
+    const project = Manifest.readProjectManifest(
+      decode(req.params.projectCode)
+    );
+    if (context == "web" && project.lockCode) {
+      res.send(
+        layout(
+          Mustache.render(getTemplate("translateLocked"), {
+            t: i18n(project.sourceLang)
+          })
+        )
       );
-      if (project.lockCode) {
-        res.send(
-          layout(
-            Mustache.render(getTemplate("translateLocked"), {
-              t: i18n(project.sourceLang)
-            })
-          )
-        );
-      } else {
-        // Future enhancement - pass along the project to the next function ?
-        next();
-      }
+    } else {
+      req.params.project = project;
+      next();
     }
   };
 }

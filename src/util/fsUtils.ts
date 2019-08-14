@@ -7,6 +7,14 @@ export function mkdirSafe(dirPath: string) {
   if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath);
 }
 
+export function unlinkSafe(filepath: string) {
+  if (fs.existsSync(filepath)) fs.unlinkSync(filepath);
+}
+
+export function touch(filepath: string) {
+  fs.writeFileSync(filepath, "");
+}
+
 export function unzip(inPath: string, outPath: string) {
   child_process.execSync(`unzip "${inPath}" -d "${outPath}"`);
 }

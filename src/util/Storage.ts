@@ -1,17 +1,9 @@
-import {
-  mkdirSafe,
-  copyRecursive,
-  zip,
-  unlinkRecursive,
-  stringsDirPath,
-  tmpDirPath
-} from "./fsUtils";
+import { mkdirSafe, copyRecursive, zip, stringsDirPath } from "./fsUtils";
 import fs from "fs";
 import path from "path";
 import { DocString } from "../xml/parse";
 import { Project } from "./Manifest";
-import * as Manifest from "./Manifest";
-import { SyncFetchResponse } from "./desktopSync";
+import { SyncPackage } from "./desktopSync";
 
 export interface LessonId {
   language: string;
@@ -80,7 +72,7 @@ export function makeProjectDir(project: Project) {
   });
 }
 
-export function makeDesktopProjectDir(syncData: SyncFetchResponse) {
+export function makeDesktopProjectDir(syncData: SyncPackage) {
   const dirPath = projectDirPath(syncData.project);
   mkdirSafe(dirPath);
   syncData.lessons.forEach(tLesson => {
