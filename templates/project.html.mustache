@@ -6,15 +6,29 @@
         font-size: small;
         padding: 4px 8px;
     }
+    div.unlock {
+        margin-top: 30px;
+    }
+    .redButton {
+        background-color: #800000;
+        margin: 0;
+        font-size: large;
+    }
+    .unlockWarning {
+        font-size: small;
+        color: #800000;
+    }
 </style>
 
 <div id="project">
     <a href="/">&lt;&lt; Home </a>
     <h2>{{targetLang}}</h2>
     <h3 class="subdued">{{projectId}}</h3>
-    <a href="/translate/{{projectCode}}" target="_blank">
-        <h3>Translate</h3>
-    </a>
+    <div data-hide="{{locked}}">
+        <a href="/translate/{{projectCode}}" target="_blank">
+            <h3>Translate</h3>
+        </a>
+    </div>
 
     <table>
         <tbody>
@@ -36,4 +50,12 @@
             {{/lessons}}
         </tbody>
     </table>
+
+    <div data-show="{{locked}}" class="unlock">
+        <form action="/projects/{{projectId}}/unlock" method="post">
+            <h3>Desktop lock in place</h3>
+            <button class="redButton" type="submit">Unlock</button>
+            <p class="unlockWarning">The existing desktop install will no longer have access to this project.</p>
+        </form>
+    </div>
 </div>

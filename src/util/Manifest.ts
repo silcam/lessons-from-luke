@@ -1,15 +1,11 @@
-import {
-  stringsDirPath,
-  ProjectId,
-  projectIdToString,
-  TDocString,
-  LessonId
-} from "./Storage";
+import { ProjectId, projectIdToString, TDocString, LessonId } from "./Storage";
 import fs from "fs";
+import path from "path";
+import { stringsDirPath } from "./fsUtils";
 
 const stringsDir = stringsDirPath();
-const sourceManifestPath = `${stringsDir}/sources.json`;
-const projectsManifestPath = `${stringsDir}/projects.json`;
+const sourceManifestPath = path.join(stringsDir, "sources.json");
+const projectsManifestPath = path.join(stringsDir, "projects.json");
 
 interface LessonVersion {
   version: number;
@@ -40,6 +36,7 @@ export interface Project {
   sourceLang: string;
   targetLang: string;
   datetime: number;
+  lockCode?: string;
   lessons: ProjectLesson[];
 }
 
@@ -133,9 +130,25 @@ export function addProject(sourceLang: string, targetLang: string): Project {
   return project;
 }
 
-// function languageManifest(language: string): Language | undefined {
-//   return readSourceManifest().find(lm => lm.language == language)
-// }
+export function lockProject(datetime: number) {
+  const prjManifest = readProjectManifest();
+  const project = findBy(prjManifest, "datetime", datetime);
+  if (project === undefined) throw "Tried to lock nonexistant project!";
+  project.lockCode = Date.now()
+    .valueOf()
+    .toString();
+  writeProjectManifest(prjManifest);
+  return project;
+}
+
+export function unlockProject(datetime: number) {
+  const prjManifest = readProjectManifest();
+  const project = findBy(prjManifest, "datetime", datetime);
+  if (project === undefined) throw "Tried to unlock nonexistant project!";
+  project.lockCode = undefined;
+  writeProjectManifest(prjManifest);
+  return project;
+}
 
 export function readSourceManifest(language: string, lesson: string): Lesson;
 export function readSourceManifest(language: string): Language;
@@ -176,4 +189,17 @@ function findBy<T, K extends keyof T>(list: T[], key: K, value: T[K]) {
 
 function last<T>(list: T[]) {
   return list[list.length - 1];
+}
+
+export function desktopProjectManifestExists() {
+  return fs.existsSync(projectsManifestPath);
+}
+
+export function readDesktopProject(): Project {
+  const projects = readProjectManifest();
+  return projects[0];
+}
+
+export function writeDesktopProject(project: Project) {
+  fs.writeFileSync(projectsManifestPath, JSON.stringify([project]));
 }

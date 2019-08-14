@@ -1,7 +1,11 @@
 import fs from "fs";
+import path from "path";
+import { assetsPath } from "./fsUtils";
 
 export function getTemplate(name: string) {
-  return fs.readFileSync(`templates/${name}.html.mustache`).toString();
+  return fs
+    .readFileSync(path.join(assetsPath("templates"), `${name}.html.mustache`))
+    .toString();
 }
 
 interface TemplateMap {

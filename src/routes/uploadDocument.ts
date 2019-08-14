@@ -7,6 +7,7 @@ import { UploadedFile } from "express-fileupload";
 import parse from "../xml/parse";
 import * as Storage from "../util/Storage";
 import * as Manifest from "../util/Manifest";
+import path from "path";
 
 export function validateUploadDocument() {
   // Validate that the filename will produce a lesson name
@@ -24,7 +25,7 @@ export default async function uploadDocument(
     version: lessonManifest.versions.length
   };
   const lessonDirPath = Storage.makeLessonDir(lessonId);
-  const docPath = `${lessonDirPath}/${lessonId.lesson}.odt`;
+  const docPath = path.join(lessonDirPath, `${lessonId.lesson}.odt`);
   await file.mv(docPath);
   unpack(lessonId, docPath);
   return lessonId;

@@ -25,6 +25,7 @@ td.progress {
     padding-left: 8px;
     color: #aaa;
     font-size: smaller;
+    text-align: right;
 }
 
 .noShow {
@@ -94,6 +95,19 @@ header {
     width: 100%;
     font-size: larger;
 }
+
+#projectList td {
+    padding-right: 8px;
+}
+
+div[data-hide=true] {
+    display: none;
+}
+
+div[data-show=false] {
+    display: none;
+}
+
 button.big {
     font-size: 18px;
     padding: 8px 16px;
@@ -114,4 +128,20 @@ input::placeholder, textarea::placeholder {
 
 td.otherString {
     color: #666;
+}
+
+p.desktop-sync-message {
+    border: 2px #2e8b57 solid;
+    border-radius: 4px;
+    color: #2e8b57;
+    padding: 6px;
+}
+
+p.desktop-sync-message[data-need-to-sync=true] {
+    border-color: #9a6e46;
+    color: #9a6e46;
+}
+
+p.desktop-sync-message[data-display=false] {
+    display: none;
 }

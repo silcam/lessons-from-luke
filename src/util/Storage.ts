@@ -1,10 +1,9 @@
-import { mkdirSafe, copyRecursive, zip, unlinkRecursive } from "./fsUtils";
+import { mkdirSafe, copyRecursive, zip, stringsDirPath } from "./fsUtils";
 import fs from "fs";
+import path from "path";
 import { DocString } from "../xml/parse";
-import process from "process";
 import { Project } from "./Manifest";
-import * as Manifest from "./Manifest";
-import mergeXml from "../xml/mergeXml";
+import { SyncPackage } from "./desktopSync";
 
 export interface LessonId {
   language: string;
@@ -73,13 +72,24 @@ export function makeProjectDir(project: Project) {
   });
 }
 
+export function makeDesktopProjectDir(syncData: SyncPackage) {
+  const dirPath = projectDirPath(syncData.project);
+  mkdirSafe(dirPath);
+  syncData.lessons.forEach(tLesson => {
+    fs.writeFileSync(
+      tStringsJsonPath(syncData.project, tLesson.lesson),
+      JSON.stringify(tLesson.strings)
+    );
+  });
+}
+
 export function getSrcStrings(lessonId: LessonId) {
   const stringsJson = fs.readFileSync(srcStringsJsonPath(lessonId)).toString();
   return JSON.parse(stringsJson) as DocString[];
 }
 
 export function srcStringsJsonPath(lessonId: LessonId) {
-  return `${lessonDirPath(lessonId)}/strings.json`;
+  return path.join(lessonDirPath(lessonId), "strings.json");
 }
 
 export function getTStrings(
@@ -103,54 +113,21 @@ export function saveTStrings(
 }
 
 function tStringsJsonPath(projectId: ProjectId, lesson: string) {
-  return `${projectDirPath(projectId)}/${lesson}.json`;
+  return path.join(projectDirPath(projectId), `${lesson}.json`);
 }
 
 export function contentXmlPath(lessonId: LessonId) {
-  return `${odtDirPath(lessonId)}/content.xml`;
+  return path.join(odtDirPath(lessonId), "content.xml");
 }
 
 export function odtDirPath(lessonId: LessonId) {
-  return `${lessonDirPath(lessonId)}/odt`;
+  return path.join(lessonDirPath(lessonId), "odt");
 }
 
 export function documentPathForSource(lessonId: LessonId) {
   const dirPath = lessonDirPath(lessonId);
-  const docPath = `${dirPath}/${lessonId.lesson}.odt`;
-  if (!fs.existsSync(docPath)) zip(`${dirPath}/odt`, docPath);
-  return docPath;
-}
-
-export function documentPathForTranslation(
-  projectId: ProjectId,
-  lesson: string
-) {
-  const projectManifest = Manifest.readProjectManifest(projectId.datetime);
-  const lessonManifest = projectManifest.lessons.find(
-    lm => lm.lesson == lesson
-  );
-  if (!lessonManifest)
-    throw `Lesson "${lesson}" not found in Project Manifest for project ${projectIdToString(
-      projectId
-    )}!`;
-  const tStrings = getTStrings(projectId, lesson).filter(str => str.mtString);
-
-  const tmpDocsPath = "tmp/docs";
-  mkdirSafe(tmpDocsPath);
-  const odtStagingPath = `${tmpDocsPath}/${projectIdToString(projectId)}`;
-  mkdirSafe(odtStagingPath);
-
-  const srcDirPath = lessonDirPath({
-    ...lessonManifest,
-    language: projectManifest.sourceLang
-  });
-  copyRecursive(`${srcDirPath}/odt`, odtStagingPath);
-  mergeXml(`${odtStagingPath}/content.xml`, tStrings);
-
-  const docPath = `${tmpDocsPath}/${projectId.targetLang}-${lesson}.odt`;
-  zip(odtStagingPath, docPath);
-
-  unlinkRecursive(odtStagingPath);
+  const docPath = path.join(dirPath, `${lessonId.lesson}.odt`);
+  if (!fs.existsSync(docPath)) zip(path.join(dirPath, "odt"), docPath);
   return docPath;
 }
 
@@ -168,7 +145,7 @@ export function copyLessonDir(oldLessonId: LessonId, newLessonId: LessonId) {
 
 export function lessonDirPath(lessonId: LessonId) {
   const { language, lesson, version } = lessonId;
-  return `${languageDirPath(language)}/${lesson}_${version}`;
+  return path.join(languageDirPath(language), `${lesson}_${version}`);
 }
 
 export function makeLangDir(language: string) {
@@ -178,22 +155,17 @@ export function makeLangDir(language: string) {
 }
 
 export function languageDirPath(language: string) {
-  return `${srcStringsDirPath()}/${language}`;
+  return path.join(srcStringsDirPath(), language);
 }
 
 function projectDirPath(projectId: ProjectId) {
-  return `${tStringsDirPath()}/${projectIdToString(projectId)}`;
+  return path.join(tStringsDirPath(), projectIdToString(projectId));
 }
 
 function tStringsDirPath() {
-  return `${stringsDirPath()}/translations`;
+  return path.join(stringsDirPath(), "translations");
 }
 
 function srcStringsDirPath() {
-  return `${stringsDirPath()}/src`;
-}
-
-export function stringsDirPath() {
-  if (process.env.NODE_ENV == "test") return "test/strings";
-  return "strings";
+  return path.join(stringsDirPath(), "src");
 }
