@@ -9,10 +9,16 @@
                             {{targetLang}}
                         </a>
                     </td>
+                    <td class="progress">
+                        {{projectProgress}}
+                    </td>
                     <td>
-                        <a href="/translate/{{projectCode}}" target="_blank">
-                            Translate
-                        </a>
+                        <div data-hide="{{projectLocked}}">
+                            <a href="/translate/{{projectCode}}" target="_blank">
+                                Translate
+                            </a>
+                        </div>
+                    </td>
                 </tr>
             {{/projects}}
         </tbody>

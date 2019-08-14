@@ -141,6 +141,15 @@ export function lockProject(datetime: number) {
   return project;
 }
 
+export function unlockProject(datetime: number) {
+  const prjManifest = readProjectManifest();
+  const project = findBy(prjManifest, "datetime", datetime);
+  if (project === undefined) throw "Tried to unlock nonexistant project!";
+  project.lockCode = undefined;
+  writeProjectManifest(prjManifest);
+  return project;
+}
+
 export function readSourceManifest(language: string, lesson: string): Lesson;
 export function readSourceManifest(language: string): Language;
 export function readSourceManifest(): SourceManifest;

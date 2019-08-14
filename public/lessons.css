@@ -95,6 +95,19 @@ header {
     width: 100%;
     font-size: larger;
 }
+
+#projectList td {
+    padding-right: 8px;
+}
+
+div[data-hide=true] {
+    display: none;
+}
+
+div[data-show=false] {
+    display: none;
+}
+
 button.big {
     font-size: 18px;
     padding: 8px 16px;

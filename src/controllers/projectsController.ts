@@ -31,9 +31,17 @@ export default function projectsController(app: Express) {
           ...projectManifest,
           projectCode: encode(projectId.datetime),
           projectId: req.params.projectId,
+          locked: projectManifest.lockCode !== undefined,
           extraProgressClass
         })
       )
     );
+  });
+
+  app.post("/projects/:projectId/unlock", requireAdmin, (req, res) => {
+    const projectId = Storage.projectIdFromString(req.params
+      .projectId as string);
+    Manifest.unlockProject(projectId.datetime);
+    res.redirect(`/projects/${req.params.projectId}`);
   });
 }
