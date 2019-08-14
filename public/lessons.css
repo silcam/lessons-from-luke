@@ -116,3 +116,19 @@ input::placeholder, textarea::placeholder {
 td.otherString {
     color: #666;
 }
+
+p.desktop-sync-message {
+    border: 2px #2e8b57 solid;
+    border-radius: 4px;
+    color: #2e8b57;
+    padding: 6px;
+}
+
+p.desktop-sync-message[data-need-to-sync=true] {
+    border-color: #9a6e46;
+    color: #9a6e46;
+}
+
+p.desktop-sync-message[data-display=false] {
+    display: none;
+}

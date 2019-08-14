@@ -6,9 +6,9 @@ import layout from "../util/layout";
 import Mustache from "mustache";
 import { getTemplate } from "../util/getTemplate";
 import { decode } from "../util/timestampEncode";
-import i18n from "../util/i18n";
+import i18n, { Translations } from "../util/i18n";
 import assert = require("assert");
-import { push } from "../util/desktopSync";
+import { push, getSyncStatus } from "../util/desktopSync";
 
 const formDataParser = bodyParser.urlencoded({ extended: false });
 const maxLengthForInput = 120;
@@ -24,12 +24,17 @@ export default function translateController(
     const t = i18n(project.sourceLang);
     res.send(
       layout(
-        Mustache.render(getTemplate("translateIndex"), {
-          lessons: project.lessons,
-          extraProgressClass,
-          t,
-          baseUrl: req.url //`/translate/${req.params.projectCode}`
-        })
+        Mustache.render(
+          getTemplate("translateIndex"),
+          {
+            lessons: project.lessons,
+            extraProgressClass,
+            t,
+            baseUrl: req.url, //`/translate/${req.params.projectCode}`
+            ...syncMessage(context, t)
+          },
+          { syncMessage: getTemplate("syncMessage") }
+        )
       )
     );
   });
@@ -122,5 +127,20 @@ function lockCheck(context: ServerContext) {
       req.params.project = project;
       next();
     }
+  };
+}
+
+function syncMessage(context: ServerContext, t: Translations) {
+  if (context == "web")
+    return {
+      showDesktopSync: false,
+      desktopNeedToSync: false,
+      desktopNeedToSyncMessage: ""
+    };
+  const syncStatus = getSyncStatus();
+  return {
+    showDesktopSync: true,
+    desktopNeedToSync: syncStatus.needToSync,
+    desktopNeedToSyncMessage: syncStatus.needToSync ? t.needToSync : t.synced
   };
 }

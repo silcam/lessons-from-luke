@@ -47,7 +47,7 @@ export async function push(): Promise<SyncStatus> {
     return { needToSync: false, writeLockInvalid: false };
   } catch (err) {
     touch(NEED_TO_SYNC_FILENAME);
-    if (err.response && err.response.code == 403) {
+    if (err.response && err.response.status == 403) {
       touch(WRITE_LOCK_INVALID_FILENAME);
       return { needToSync: true, writeLockInvalid: true };
     } else {
@@ -56,7 +56,7 @@ export async function push(): Promise<SyncStatus> {
   }
 }
 
-export async function syncStatus(): Promise<SyncStatus> {
+export function getSyncStatus(): SyncStatus {
   return {
     needToSync: fs.existsSync(NEED_TO_SYNC_FILENAME),
     writeLockInvalid: fs.existsSync(WRITE_LOCK_INVALID_FILENAME)

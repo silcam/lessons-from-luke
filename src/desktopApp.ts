@@ -5,18 +5,29 @@ import catchError from "./util/catchError";
 import handle404 from "./util/handle404";
 import { getTemplate } from "./util/getTemplate";
 import bodyParser from "body-parser";
-import { fetch } from "./util/desktopSync";
+import { fetch, getSyncStatus, push } from "./util/desktopSync";
 import * as Manifest from "./util/Manifest";
 import { encode } from "./util/timestampEncode";
 import Mustache from "mustache";
 import { assetsPath } from "./util/fsUtils";
 
-const app = express();
-app.use(express.static(assetsPath("public")));
 const formDataParser = bodyParser.urlencoded({ extended: false });
 
-app.get("/", (req, res) => {
+const app = express();
+app.use(express.static(assetsPath("public")));
+
+app.use((req, res, next) => {
+  const syncStatus = getSyncStatus();
+  if (syncStatus.writeLockInvalid) {
+    res.send(layout(Mustache.render(getTemplate("writeLockInvalid"), {})));
+  } else {
+    next();
+  }
+});
+
+app.get("/", async (req, res) => {
   if (Manifest.desktopProjectManifestExists()) {
+    if (getSyncStatus().needToSync) await push();
     redirectToProject(res);
   } else {
     const errorMessage = req.query.failedSync ? "Sorry, that didn't work." : "";
