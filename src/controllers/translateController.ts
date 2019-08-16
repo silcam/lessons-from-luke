@@ -139,7 +139,7 @@ function syncMessage(context: ServerContext, t: Translations) {
     };
   const syncStatus = getSyncStatus();
   return {
-    showDesktopSync: true,
+    showDesktopSync: syncStatus.savedChanges,
     desktopNeedToSync: syncStatus.needToSync,
     desktopNeedToSyncMessage: syncStatus.needToSync ? t.needToSync : t.synced
   };
