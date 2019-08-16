@@ -3,19 +3,27 @@ import * as Manifest from "./Manifest";
 import * as Storage from "./Storage";
 import { unlinkSafe, touch } from "./fsUtils";
 import fs from "fs";
+import { set, unset } from "./arraySet";
 
-const SYNC_STATUS_FILENAME = ".syncStatus.json";
+const UP_SYNC_STATUS_FILENAME = "upSyncStatus.json";
+const DOWN_SYNC_STATUS_FILENAME = "downSyncStatus.json";
 
-export interface SyncPackage {
+export interface UpSyncPackage {
   project: Manifest.Project;
-  lessons: {
+  lesson: {
     lesson: string;
     strings: Storage.TDocString[];
-  }[];
+  };
 }
 
-export interface SyncStatus {
-  needToSync: boolean;
+export interface DownSyncStatus {
+  neededLessons: string[];
+  gotLessons: string[];
+  project: Manifest.Project;
+}
+
+export interface UpSyncStatus {
+  needToSync: string[]; // Lesson names
   writeLockInvalid: boolean;
   savedChanges: boolean;
 }
@@ -27,48 +35,101 @@ const serverUrl =
 
 export async function fetch(code: string) {
   const response = await Axios.get(`${serverUrl}/desktop/fetch/${code}`);
-  const data: SyncPackage = response.data;
-  Manifest.writeDesktopProject(data.project);
-  Storage.makeDesktopProjectDir(data);
+  const project: Manifest.Project = response.data;
+  Manifest.writeDesktopProject(project);
+  Storage.makeDesktopProjectDir(project);
+  writeDownSyncStatus({
+    project,
+    gotLessons: [],
+    neededLessons: project.lessons.map(lesson => lesson.lesson)
+  });
 }
 
-export async function push(): Promise<void> {
+// Return var is TRUE for done
+export async function fetchNextLesson(): Promise<boolean> {
+  const syncStatus = getDownSyncStatus();
+  if (syncStatus === null) return true;
+  const project = syncStatus.project;
+  const lesson = syncStatus.neededLessons.shift();
+  if (!lesson) return downSyncDone();
+  try {
+    const response = await Axios.get(
+      `${serverUrl}/desktop/fetch/${
+        project.datetime
+      }/lesson/${lesson}?lockCode=${project.lockCode}`
+    );
+    const tStrings: Storage.TDocString[] = response.data;
+    Storage.saveTStrings(project, lesson, tStrings);
+    if (syncStatus.neededLessons.length == 0) return downSyncDone();
+    syncStatus.gotLessons.push(lesson);
+    writeDownSyncStatus(syncStatus);
+  } catch (err) {
+    if (err.response && err.response.status == 403) {
+      writeUpSyncStatus({
+        savedChanges: false,
+        needToSync: [],
+        writeLockInvalid: true
+      });
+    }
+    throw err;
+  }
+  return false;
+}
+
+export async function push(lesson: string): Promise<void> {
+  const syncStatus = getUpSyncStatus();
+  syncStatus.savedChanges = true;
   const project = Manifest.readDesktopProject();
-  const lessons = project.lessons
-    .filter(lesson => !!lesson.progress)
-    .map(lesson => ({
-      lesson: lesson.lesson,
-      strings: Storage.getTStrings(project, lesson.lesson)
-    }));
-  const syncPackage: SyncPackage = { project, lessons };
-  const newSyncStatus: SyncStatus = {
-    needToSync: false,
-    writeLockInvalid: false,
-    savedChanges: true
+  const tStrings = Storage.getTStrings(project, lesson);
+  const syncPackage: UpSyncPackage = {
+    project,
+    lesson: {
+      lesson,
+      strings: tStrings
+    }
   };
   try {
     await Axios.put(`${serverUrl}/desktop/push`, syncPackage);
+    unset(syncStatus.needToSync, lesson); // if it was there
+    writeUpSyncStatus(syncStatus);
+    if (syncStatus.needToSync.length > 0) push(syncStatus.needToSync[0]); // But don't wait for it
   } catch (err) {
-    newSyncStatus.needToSync = true;
     if (err.response && err.response.status == 403) {
-      newSyncStatus.writeLockInvalid = true;
+      syncStatus.writeLockInvalid = true;
     }
-  } finally {
-    writeSyncStatus(newSyncStatus);
+    set(syncStatus.needToSync, lesson);
+    writeUpSyncStatus(syncStatus);
   }
 }
 
-export function getSyncStatus(): SyncStatus {
-  if (fs.existsSync(SYNC_STATUS_FILENAME)) {
-    return JSON.parse(fs.readFileSync(SYNC_STATUS_FILENAME).toString());
+function downSyncDone() {
+  unlinkSafe(DOWN_SYNC_STATUS_FILENAME);
+  return true;
+}
+
+export function getDownSyncStatus(): DownSyncStatus | null {
+  if (fs.existsSync(DOWN_SYNC_STATUS_FILENAME)) {
+    return JSON.parse(fs.readFileSync(DOWN_SYNC_STATUS_FILENAME).toString());
+  } else {
+    return null;
+  }
+}
+
+export function getUpSyncStatus(): UpSyncStatus {
+  if (fs.existsSync(UP_SYNC_STATUS_FILENAME)) {
+    return JSON.parse(fs.readFileSync(UP_SYNC_STATUS_FILENAME).toString());
   }
   return {
-    needToSync: false,
+    needToSync: [],
     writeLockInvalid: false,
     savedChanges: false
   };
 }
 
-function writeSyncStatus(syncStatus: SyncStatus) {
-  fs.writeFileSync(SYNC_STATUS_FILENAME, JSON.stringify(syncStatus));
+function writeDownSyncStatus(syncStatus: DownSyncStatus) {
+  fs.writeFileSync(DOWN_SYNC_STATUS_FILENAME, JSON.stringify(syncStatus));
+}
+
+function writeUpSyncStatus(syncStatus: UpSyncStatus) {
+  fs.writeFileSync(UP_SYNC_STATUS_FILENAME, JSON.stringify(syncStatus));
 }

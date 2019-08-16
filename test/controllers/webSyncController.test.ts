@@ -1,7 +1,9 @@
 import { resetTestStorage, loggedInAgent } from "../testHelper";
 import app from "../../src/app";
 import request from "supertest";
-import { SyncPackage } from "../../src/util/desktopSync";
+import { Project } from "../../src/util/Manifest";
+import { UpSyncPackage } from "../../src/util/desktopSync";
+import { TDocString } from "../../src/util/Storage";
 
 /*************
   These tests are for the API used by the Desktop app,
@@ -12,21 +14,30 @@ beforeEach(() => {
   resetTestStorage();
 });
 
-test("Initial Fetch", async () => {
+test("Initial Fetch and Fetch Lesson", async () => {
   expect.assertions(4);
   const time = Date.now().valueOf();
-  const response = await request(app).get("/desktop/fetch/TPINTII");
-  const syncData: SyncPackage = JSON.parse(response.text);
-  const { lockCode, ...project } = syncData.project;
+  let response = await request(app).get("/desktop/fetch/TPINTII");
+  const project: Project = JSON.parse(response.text);
+  const { lockCode, ...projectRest } = project;
   expect(parseInt(lockCode!)).toBeGreaterThanOrEqual(time);
-  expect(project).toEqual({
+  expect(projectRest).toEqual({
     targetLang: "Pidgin",
     datetime: 1555081479425,
     sourceLang: "English",
     lessons: [{ lesson: "Luke-Q1-L01", version: 1 }]
   });
-  expect(syncData.lessons[0].lesson).toEqual("Luke-Q1-L01");
-  expect(syncData.lessons[0].strings[0]).toEqual({
+
+  response = await request(app).get(
+    "/desktop/fetch/1555081479425/lesson/Luke-Q1-L01"
+  );
+  expect(response.status).toBe(403); // Should be unauthorized without lockCode
+
+  response = await request(app).get(
+    `/desktop/fetch/1555081479425/lesson/Luke-Q1-L01?lockCode=${lockCode}`
+  );
+  const tStrings: TDocString[] = JSON.parse(response.text);
+  expect(tStrings[0]).toEqual({
     id: 0,
     xpath:
       "/office:document-content/office:body/office:text/table:table[1]/table:table-row/table:table-cell[2]/text:p[1]/text()[1]",
@@ -50,15 +61,30 @@ test("Can't fetch locked project", async () => {
 test("Push translations", async () => {
   expect.assertions(2);
   let response = await request(app).get("/desktop/fetch/TPINTII");
-  const syncData: SyncPackage = JSON.parse(response.text);
+  const project: Project = JSON.parse(response.text);
+
+  response = await request(app).get(
+    `/desktop/fetch/1555081479425/lesson/Luke-Q1-L01?lockCode=${
+      project.lockCode
+    }`
+  );
+  const tStrings: TDocString[] = JSON.parse(response.text);
 
   // Simulate translating (In real life, the progress element of each lesson in the project object would be updated, but that's not necessary for the API)
-  syncData.lessons[0].strings.forEach(tString => {
+  tStrings.forEach(tString => {
     tString.targetText = tString.src.toLocaleUpperCase();
   });
+
+  const syncPackage: UpSyncPackage = {
+    project,
+    lesson: {
+      lesson: "Luke-Q1-L01",
+      strings: tStrings
+    }
+  };
   response = await request(app)
     .put("/desktop/push")
-    .send(syncData);
+    .send(syncPackage);
   expect(response.status).toBe(204);
 
   const agent = await loggedInAgent();
@@ -69,11 +95,18 @@ test("Push translations", async () => {
 test("Can't push if the lock does not match", async () => {
   expect.assertions(1);
   let response = await request(app).get("/desktop/fetch/TPINTII");
-  const syncData: SyncPackage = JSON.parse(response.text);
-  syncData.project.lockCode = "1234";
+  const project: Project = JSON.parse(response.text);
+  project.lockCode = "1234";
+  const syncPackage: UpSyncPackage = {
+    project,
+    lesson: {
+      lesson: "Luke-Q1-L01",
+      strings: []
+    }
+  };
 
   response = await request(app)
     .put("/desktop/push")
-    .send(syncData);
+    .send(syncPackage);
   expect(response.status).toBe(403);
 });

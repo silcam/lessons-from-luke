@@ -15,7 +15,10 @@ const tStrings: TStrings = {
     Locked: "Locked",
     LockedMessage: "This project is locked for desktop translation.",
     needToSync: "Changes saved on this computer",
-    synced: "Changes saved on this computer and uploaded."
+    synced: "Changes saved on this computer and uploaded.",
+    DownloadingLessons: "Downloading Lessons...",
+    DownloadError: "Download Error",
+    TryAgain: "Try Again"
   },
   Français: {
     Lessons: "Leçons",
@@ -23,7 +26,10 @@ const tStrings: TStrings = {
     Locked: "Verrouillé",
     LockedMessage: "Ce projet est verrouillé pour traduction hors ligne.",
     needToSync: "Changements enregistrés à cet ordinateur.",
-    synced: "Changements enregistrés à cet ordinateur et téléchargés."
+    synced: "Changements enregistrés à cet ordinateur et téléchargés.",
+    DownloadingLessons: "Téléchargement des leçons...",
+    DownloadError: "Erreur de téléchargement",
+    TryAgain: "Réessayer"
   }
 };
 

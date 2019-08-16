@@ -5,19 +5,31 @@ import catchError from "./util/catchError";
 import handle404 from "./util/handle404";
 import { getTemplate } from "./util/getTemplate";
 import bodyParser from "body-parser";
-import { fetch, getSyncStatus, push } from "./util/desktopSync";
+import {
+  fetch,
+  getUpSyncStatus,
+  push,
+  getDownSyncStatus,
+  fetchNextLesson
+} from "./util/desktopSync";
 import * as Manifest from "./util/Manifest";
 import { encode } from "./util/timestampEncode";
 import Mustache from "mustache";
 import { assetsPath } from "./util/fsUtils";
+import i18n from "./util/i18n";
 
 const formDataParser = bodyParser.urlencoded({ extended: false });
 
 const app = express();
 app.use(express.static(assetsPath("public")));
 
+// app.use((req, __, next) => {
+//   console.log(`SERVE: ${req.path}`);
+//   next();
+// });
+
 app.use((req, res, next) => {
-  const syncStatus = getSyncStatus();
+  const syncStatus = getUpSyncStatus();
   if (syncStatus.writeLockInvalid) {
     res.send(layout(Mustache.render(getTemplate("writeLockInvalid"), {})));
   } else {
@@ -26,13 +38,45 @@ app.use((req, res, next) => {
 });
 
 app.get("/", async (req, res) => {
-  if (Manifest.desktopProjectManifestExists()) {
-    if (getSyncStatus().needToSync) await push();
+  if (getDownSyncStatus() !== null) {
+    res.redirect("/syncProgress");
+  } else if (Manifest.desktopProjectManifestExists()) {
+    const upSyncStatus = getUpSyncStatus();
+    if (upSyncStatus.needToSync.length > 0)
+      await push(upSyncStatus.needToSync[0]);
     redirectToProject(res);
   } else {
     const errorMessage = req.query.failedSync ? "Sorry, that didn't work." : "";
     res.send(
       layout(Mustache.render(getTemplate("desktopHome"), { errorMessage }))
+    );
+  }
+});
+
+app.get("/syncProgress", async (req, res) => {
+  const syncStatus = getDownSyncStatus();
+  if (syncStatus === null) {
+    res.redirect("/");
+  } else {
+    res.send(
+      layout(
+        Mustache.render(getTemplate("downSyncProgress"), {
+          t: i18n(syncStatus.project.sourceLang),
+          error: (!!req.query.error).toString(),
+          percent: Math.round(
+            (100 * syncStatus.gotLessons.length) /
+              (syncStatus.gotLessons.length + syncStatus.neededLessons.length)
+          ),
+          lessons: syncStatus.gotLessons
+            .map(lesson => ({ name: lesson, done: true }))
+            .concat(
+              syncStatus.neededLessons.map(lesson => ({
+                name: lesson,
+                done: false
+              }))
+            )
+        })
+      )
     );
   }
 });
@@ -44,10 +88,20 @@ app.post("/fetch", formDataParser, async (req, res) => {
     : codeOrUrl;
   try {
     await fetch(code);
-    redirectToProject(res);
+    res.redirect("/syncProgress");
   } catch (err) {
     console.error(err);
     res.redirect("/?failedSync=true");
+  }
+});
+
+app.get("/fetchLesson", async (req, res) => {
+  try {
+    const done = await fetchNextLesson();
+    const redirect = done ? "/" : "/syncProgress";
+    res.redirect(redirect);
+  } catch (err) {
+    res.redirect("/syncProgress?error=true");
   }
 });
 

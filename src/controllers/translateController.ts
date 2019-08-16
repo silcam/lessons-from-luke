@@ -8,7 +8,7 @@ import { getTemplate } from "../util/getTemplate";
 import { decode } from "../util/timestampEncode";
 import i18n, { Translations } from "../util/i18n";
 import assert = require("assert");
-import { push, getSyncStatus } from "../util/desktopSync";
+import { push, getUpSyncStatus } from "../util/desktopSync";
 
 const formDataParser = bodyParser.urlencoded({ extended: false });
 const maxLengthForInput = 120;
@@ -92,7 +92,7 @@ export default function translateController(
       });
       Storage.saveTStrings(project, req.params.lesson, tStrings);
       Manifest.saveProgress(project, req.params.lesson, tStrings);
-      if (context == "desktop") await push();
+      if (context == "desktop") await push(req.params.lesson);
       res.redirect(`/translate/${req.params.projectCode}`);
     }
   );
@@ -137,10 +137,11 @@ function syncMessage(context: ServerContext, t: Translations) {
       desktopNeedToSync: false,
       desktopNeedToSyncMessage: ""
     };
-  const syncStatus = getSyncStatus();
+  const syncStatus = getUpSyncStatus();
   return {
     showDesktopSync: syncStatus.savedChanges,
-    desktopNeedToSync: syncStatus.needToSync,
-    desktopNeedToSyncMessage: syncStatus.needToSync ? t.needToSync : t.synced
+    desktopNeedToSync: syncStatus.needToSync.length > 0,
+    desktopNeedToSyncMessage:
+      syncStatus.needToSync.length > 0 ? t.needToSync : t.synced
   };
 }

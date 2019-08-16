@@ -3,7 +3,6 @@ import fs from "fs";
 import path from "path";
 import { DocString } from "../xml/parse";
 import { Project } from "./Manifest";
-import { SyncPackage } from "./desktopSync";
 
 export interface LessonId {
   language: string;
@@ -72,15 +71,9 @@ export function makeProjectDir(project: Project) {
   });
 }
 
-export function makeDesktopProjectDir(syncData: SyncPackage) {
-  const dirPath = projectDirPath(syncData.project);
+export function makeDesktopProjectDir(project: Project) {
+  const dirPath = projectDirPath(project);
   mkdirSafe(dirPath);
-  syncData.lessons.forEach(tLesson => {
-    fs.writeFileSync(
-      tStringsJsonPath(syncData.project, tLesson.lesson),
-      JSON.stringify(tLesson.strings)
-    );
-  });
 }
 
 export function getSrcStrings(lessonId: LessonId) {
