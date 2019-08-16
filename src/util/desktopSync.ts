@@ -31,7 +31,7 @@ export interface UpSyncStatus {
 const serverUrl =
   process.env.NODE_ENV == "development"
     ? "http://localhost:8080"
-    : "http://lessonsfromluke.gospelcoding.org";
+    : "https://lessonsfromluke.gospelcoding.org";
 
 export async function fetch(code: string) {
   const response = await Axios.get(`${serverUrl}/desktop/fetch/${code}`);
