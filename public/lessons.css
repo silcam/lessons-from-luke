@@ -100,11 +100,11 @@ header {
     padding-right: 8px;
 }
 
-div[data-hide=true] {
+[data-hide=true] {
     display: none;
 }
 
-div[data-show=false] {
+[data-show=false] {
     display: none;
 }
 

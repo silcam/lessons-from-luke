@@ -1,6 +1,9 @@
 <style>
-    span[data-deleted=true] {
-        display: none;
+    span.versionLnk {
+        font-size: small;
+    }
+    td {
+        padding: 0 8px 4px 0;
     }
 </style>
 
@@ -15,7 +18,7 @@
                     <td>{{lesson}}</td>
                     <td>
                         {{#versions}}
-                            <span data-deleted="{{deleted}}">
+                            <span data-hide="{{deleted}}" class="versionLnk">
                                 <a href="/sources/{{language}}/lessons/{{lesson}}/versions/{{version}}">
                                     Version {{version}}
                                 </a>

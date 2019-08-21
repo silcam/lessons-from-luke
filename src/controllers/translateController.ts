@@ -27,6 +27,8 @@ export default function translateController(
         Mustache.render(
           getTemplate("translateIndex"),
           {
+            contextWeb: context == "web",
+            projectId: Storage.projectIdToString(project),
             lessons: project.lessons,
             extraProgressClass,
             t,

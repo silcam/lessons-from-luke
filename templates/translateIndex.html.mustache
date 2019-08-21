@@ -1,3 +1,9 @@
+<style>
+    td {
+        padding: 4px 8px;
+    }
+</style>
+
 <div id="translateIndex">
     {{> syncMessage}}
     <h2>{{t.Lessons}}</h2>
@@ -11,8 +17,15 @@
                             {{lesson}}
                         </a>
                     </td>
-                    <td class="progress {{extraProgressClass}}">
-                        {{progress}}%
+                    <td class="progress">
+                        <span class="{{extraProgressClass}}">
+                            {{progress}}%
+                        </span>
+                    </td>
+                    <td data-show="{{contextWeb}}" style="font-size:small">
+                        <a href="/documents/translation/{{projectId}}/{{lesson}}.odt">
+                            {{lesson}}.odt
+                        </a>
                     </td>
                 </tr>
             {{/lessons}}
