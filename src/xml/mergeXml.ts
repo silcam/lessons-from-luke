@@ -13,7 +13,7 @@ export default function mergeXml(
     const element = xmlDoc.get(translation.xpath, namespaces);
     if (element) element.text(translation.targetText);
   }
-  const docStr = unDoubleEscapeHack(xmlDoc.toString());
+  const docStr = cleanOpenDocXml(xmlDoc.toString(false));
   fs.writeFileSync(contentXmlFilepath, docStr);
 }
 
@@ -22,7 +22,7 @@ function getXmlDoc(xmlFilpath: string) {
   return libxmljs2.parseXml(xml);
 }
 
-function extractNamespaces(xmlDoc: Document) {
+export function extractNamespaces(xmlDoc: Document) {
   return xmlDoc
     .root()!
     .namespaces()
@@ -35,10 +35,11 @@ function extractNamespaces(xmlDoc: Document) {
     );
 }
 
-function unDoubleEscapeHack(str: string) {
+function cleanOpenDocXml(str: string) {
   return str
     .replace(/&amp;quot;/g, "&quot;")
     .replace(/&amp;lt;/g, "&lt;")
     .replace(/&amp;gt;/g, "&gt;")
-    .replace(/&amp;amp;/g, "&amp;");
+    .replace(/&amp;amp;/g, "&amp;")
+    .replace(/'/g, "&apos;");
 }

@@ -516,6 +516,1899 @@
     <office:body>
         <office:text text:use-soft-page-breaks="true">
             <office:forms form:automatic-focus="false" form:apply-design-mode="false" />
+            <text:tracked-changes>
+                <text:changed-region xml:id="ct2764668198480" text:id="ct2764668198480">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:05:36</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list2330157806" text:style-name="Table_20_Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P1">Fabriquer</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764668198032" text:id="ct2764668198032">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:06:03</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764668195792" text:id="ct2764668195792">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:06:52</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list3072027562" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P2">r</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764668196016" text:id="ct2764668196016">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:06:52</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764669422432" text:id="ct2764669422432">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:06:57</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="Translation_20_français_20_-_20_Table_20_single_20_inset">r</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764669422208" text:id="ct2764669422208">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:06:57</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764669422656" text:id="ct2764669422656">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:07:09</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74822539604964" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">r</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764669423104" text:id="ct2764669423104">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:07:09</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764669423552" text:id="ct2764669423552">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:07:17</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74822495895676" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">dre </text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764669423328" text:id="ct2764669423328">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:07:17</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764669420864" text:id="ct2764669420864">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:07:25</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74822296709738" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">dre</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764669421536" text:id="ct2764669421536">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:07:25</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764669421760" text:id="ct2764669421760">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:07:31</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74823033077931" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">r</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764669421984" text:id="ct2764669421984">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:07:31</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764669433200" text:id="ct2764669433200">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:07:37</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74823743928030" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">r</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764665980832" text:id="ct2764665980832">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:07:38</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764668195568" text:id="ct2764668195568">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:07:47</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74822979551167" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">re </text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764598619904" text:id="ct2764598619904">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:07:47</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764598619008" text:id="ct2764598619008">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:08:09</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list429343776" text:style-name="Bullet_20_-_20_Diamond">
+                            <text:list-item>
+                                <text:p text:style-name="P4">
+                                    <text:span text:style-name="T1">
+                                        <text:s />
+                                    </text:span>
+                                </text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764598619680" text:id="ct2764598619680">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:08:09</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764598621472" text:id="ct2764598621472">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:08:09</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="Translation_20_français_20_-_20_double_20_inset">
+                            <text:span text:style-name="T1">
+                                <text:s />
+                            </text:span>
+                        </text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764598619232" text:id="ct2764598619232">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:08:09</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764598620128" text:id="ct2764598620128">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:09:01</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74823014239730" text:continue-numbering="true" text:style-name="Bullet_20_-_20_Diamond">
+                            <text:list-item>
+                                <text:p text:style-name="P4">
+                                    <text:span text:style-name="T1">S</text:span>
+                                </text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764598620352" text:id="ct2764598620352">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:09:01</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764598621696" text:id="ct2764598621696">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:09:05</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="Translation_20_français_20_-_20_double_20_inset">S</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764598620800" text:id="ct2764598620800">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:09:05</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764598618112" text:id="ct2764598618112">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:08:44</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74822628582727" text:continue-numbering="true" text:style-name="Bullet_20_-_20_Diamond">
+                            <text:list-item>
+                                <text:p text:style-name="P4">
+                                    <text:span text:style-name="T1">S</text:span>
+                                </text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764598621024" text:id="ct2764598621024">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:08:44</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764598618336" text:id="ct2764598618336">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:08:49</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="Translation_20_français_20_-_20_double_20_inset">
+                            <text:span text:style-name="T1">S</text:span>
+                        </text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764598620576" text:id="ct2764598620576">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:08:49</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764598621248" text:id="ct2764598621248">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:09:21</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74823089048760" text:continue-list="list2330157806" text:style-name="Table_20_Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P5">r</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764598619456" text:id="ct2764598619456">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:09:21</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764598618560" text:id="ct2764598618560">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:09:24</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74824052638535" text:continue-numbering="true" text:style-name="Table_20_Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P5">
+                                    <text:s />
+                                </text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764598618784" text:id="ct2764598618784">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:09:24</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764668196688" text:id="ct2764668196688">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:09:24</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="Translation_20_français_20_-_20_tableau">
+                            <text:s />
+                        </text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718084368" text:id="ct2764718084368">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:09:24</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718087728" text:id="ct2764718087728">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:09:50</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74822861289872" text:continue-numbering="true" text:style-name="Table_20_Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P5">)</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718086384" text:id="ct2764718086384">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:09:50</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718086160" text:id="ct2764718086160">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:09:55</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74822802588091" text:continue-numbering="true" text:style-name="Table_20_Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P5">.</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718084592" text:id="ct2764718084592">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:10:10</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="Translation_20_français_20_-_20_tableau">)</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718085040" text:id="ct2764718085040">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:10:10</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718084816" text:id="ct2764718084816">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:10:14</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="Translation_20_français_20_-_20_tableau">.</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718085264" text:id="ct2764718085264">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:10:41</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74823283940965" text:continue-numbering="true" text:style-name="Table_20_Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P5">)</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718087056" text:id="ct2764718087056">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:10:41</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718086832" text:id="ct2764718086832">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:10:52</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="Translation_20_français_20_-_20_tableau">)</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718087952" text:id="ct2764718087952">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:10:52</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718085712" text:id="ct2764718085712">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:12:14</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="P6">S</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718085936" text:id="ct2764718085936">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:12:14</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663517088" text:id="ct2764663517088">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:12:21</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="P7">S</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663517760" text:id="ct2764663517760">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:12:21</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663517984" text:id="ct2764663517984">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:12:29</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="P6">I</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663515968" text:id="ct2764663515968">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:12:29</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663513504" text:id="ct2764663513504">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:12:37</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="P6">r</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663514176" text:id="ct2764663514176">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:12:37</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663515744" text:id="ct2764663515744">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:12:53</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="P6">S</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663516640" text:id="ct2764663516640">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:12:53</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663516864" text:id="ct2764663516864">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:13:01</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="P7">I</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663513280" text:id="ct2764663513280">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:13:01</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663520000" text:id="ct2764663520000">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:13:10</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="P7">r</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663513728" text:id="ct2764663513728">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:13:10</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663517312" text:id="ct2764663517312">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:13:15</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="P7">S</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663513952" text:id="ct2764663513952">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:13:15</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663515072" text:id="ct2764663515072">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:13:33</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="Langue_20_Maternelle">
+                            <text:span text:style-name="T1">I</text:span>
+                        </text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663517536" text:id="ct2764663517536">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:13:33</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663519552" text:id="ct2764663519552">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:13:48</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="P7">I</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663514400" text:id="ct2764663514400">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:13:48</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663518208" text:id="ct2764663518208">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:14:05</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74822333703103" text:continue-list="list74822979551167" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">r</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663514624" text:id="ct2764663514624">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:14:05</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663520672" text:id="ct2764663520672">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:14:23</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74822370012336" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">r u</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663518432" text:id="ct2764663518432">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:14:23</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663514848" text:id="ct2764663514848">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:14:30</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74823624856607" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">r</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663518656" text:id="ct2764663518656">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:14:30</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663519104" text:id="ct2764663519104">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:14:37</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74823493765053" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">r</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663515296" text:id="ct2764663515296">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:14:37</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663516416" text:id="ct2764663516416">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:14:56</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74823440174878" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">r</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663516192" text:id="ct2764663516192">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:14:56</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663519328" text:id="ct2764663519328">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:15:07</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74823090617987" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">r</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663519776" text:id="ct2764663519776">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:15:07</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663520224" text:id="ct2764663520224">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:15:11</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74822034855487" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">
+                                    <text:s />
+                                </text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663513056" text:id="ct2764663513056">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:15:11</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663520448" text:id="ct2764663520448">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:15:38</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74822116177525" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">
+                                    <text:s />
+                                    pas
+                                </text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663512832" text:id="ct2764663512832">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:15:25</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74822495741388" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">r</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764663515520" text:id="ct2764663515520">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:15:25</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671178176" text:id="ct2764671178176">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:15:45</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74822355980100" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">r</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671182432" text:id="ct2764671182432">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:15:45</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671178400" text:id="ct2764671178400">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:15:50</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74823130498846" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">
+                                    <text:s />
+                                    bon
+                                </text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671177056" text:id="ct2764671177056">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:16:04</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74822310631364" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">sportif</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671180864" text:id="ct2764671180864">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:16:04</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671177280" text:id="ct2764671177280">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:16:26</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list77110425" text:style-name="WWNum1">
+                            <text:list-item>
+                                <text:p text:style-name="P8">)</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671179968" text:id="ct2764671179968">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:16:26</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671184672" text:id="ct2764671184672">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:17:04</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="Translation_20_français_20_-_20_single_20_inset">)</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671184000" text:id="ct2764671184000">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:17:04</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671182208" text:id="ct2764671182208">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:17:47</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74824089418138" text:continue-numbering="true" text:style-name="WWNum1">
+                            <text:list-item>
+                                <text:p text:style-name="P8">s</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671181984" text:id="ct2764671181984">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:17:47</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671179520" text:id="ct2764671179520">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:17:26</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74822280494603" text:continue-numbering="true" text:style-name="WWNum1">
+                            <text:list-item>
+                                <text:p text:style-name="P8">S</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671182656" text:id="ct2764671182656">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:17:26</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671176832" text:id="ct2764671176832">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:17:30</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74822283995422" text:continue-numbering="true" text:style-name="WWNum1">
+                            <text:list-item>
+                                <text:p text:style-name="P8">S</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671180192" text:id="ct2764671180192">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:17:30</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671178624" text:id="ct2764671178624">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:18:48</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="Translation_20_français_20_-_20_single_20_inset">
+                            <text:s />
+                        </text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671179744" text:id="ct2764671179744">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:18:48</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671182880" text:id="ct2764671182880">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:18:55</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="Translation_20_français_20_-_20_single_20_inset">S</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671183104" text:id="ct2764671183104">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:18:55</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671177504" text:id="ct2764671177504">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:18:59</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="Translation_20_français_20_-_20_single_20_inset">S</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671178848" text:id="ct2764671178848">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:18:59</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671184448" text:id="ct2764671184448">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:19:14</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74823037758510" text:continue-list="list74822310631364" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">tre</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671180416" text:id="ct2764671180416">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:19:14</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671183328" text:id="ct2764671183328">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:19:22</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74823117417513" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">re</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671183776" text:id="ct2764671183776">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:19:22</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671177728" text:id="ct2764671177728">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:19:34</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="P9">E</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671179072" text:id="ct2764671179072">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:19:34</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671180640" text:id="ct2764671180640">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:20:02</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74822981592904" text:continue-list="list74822283995422" text:style-name="WWNum1">
+                            <text:list-item>
+                                <text:p text:style-name="P10">
+                                    <text:s />
+                                </text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671179296" text:id="ct2764671179296">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:19:59</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74823125932665" text:continue-numbering="true" text:style-name="WWNum1">
+                            <text:list-item>
+                                <text:p text:style-name="P10">mot à</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671177952" text:id="ct2764671177952">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:20:02</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671183552" text:id="ct2764671183552">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:20:11</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74822603633764" text:continue-numbering="true" text:style-name="WWNum1">
+                            <text:list-item>
+                                <text:p text:style-name="P10">mot à</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671181088" text:id="ct2764671181088">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:20:11</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671181312" text:id="ct2764671181312">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:20:14</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="M.T._20_Text_20_-_20_Table_20_Single_20_Inset">n</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671181536" text:id="ct2764671181536">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:20:14</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671184224" text:id="ct2764671184224">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:20:29</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="Translation_20_français_20_-_20_tableau">n</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764671181760" text:id="ct2764671181760">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:20:29</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718873648" text:id="ct2764718873648">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:20:37</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="Translation_20_français_20_-_20_tableau">.</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718874096" text:id="ct2764718874096">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:22:52</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="Translation_20_français_20_-_20_double_20_inset">E</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718873424" text:id="ct2764718873424">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:23:02</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718869840" text:id="ct2764718869840">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:22:52</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718870064" text:id="ct2764718870064">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:22:45</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="Translation_20_français_20_-_20_double_20_inset">:</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718866256" text:id="ct2764718866256">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:22:45</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718871856" text:id="ct2764718871856">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:22:29</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="Translation_20_français_20_-_20_double_20_inset">.</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718872080" text:id="ct2764718872080">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:23:21</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74823981581017" text:continue-numbering="true" text:style-name="WWNum1">
+                            <text:list-item>
+                                <text:p text:style-name="P10">mot à </text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718867152" text:id="ct2764718867152">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:23:22</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718870288" text:id="ct2764718870288">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:23:30</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74822053436125" text:continue-numbering="true" text:style-name="WWNum1">
+                            <text:list-item>
+                                <text:p text:style-name="P10">mot à</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718873872" text:id="ct2764718873872">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:23:30</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718870512" text:id="ct2764718870512">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:23:37</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="P6">I</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718871408" text:id="ct2764718871408">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:23:38</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718868272" text:id="ct2764718868272">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:24:13</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="P6">o</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718866704" text:id="ct2764718866704">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:24:14</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718868496" text:id="ct2764718868496">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:24:18</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="P6">n</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718866480" text:id="ct2764718866480">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:24:18</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718872304" text:id="ct2764718872304">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:24:26</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="P6">S</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718870736" text:id="ct2764718870736">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:24:26</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718872752" text:id="ct2764718872752">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:24:40</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="P7">I</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718867824" text:id="ct2764718867824">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:24:40</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718866928" text:id="ct2764718866928">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:24:54</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="P7">o</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718870960" text:id="ct2764718870960">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:24:54</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718869168" text:id="ct2764718869168">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:24:48</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="P7">n</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718867600" text:id="ct2764718867600">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:24:48</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718871184" text:id="ct2764718871184">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:24:58</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="P7">S</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718867376" text:id="ct2764718867376">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:24:58</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718868720" text:id="ct2764718868720">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:25:11</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="P6">re</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718868048" text:id="ct2764718868048">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:25:11</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718871632" text:id="ct2764718871632">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:25:25</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="P7">re </text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718872528" text:id="ct2764718872528">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:25:25</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718868944" text:id="ct2764718868944">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:25:36</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74823501468588" text:continue-list="list74823117417513" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">r</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718872976" text:id="ct2764718872976">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:25:36</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718869392" text:id="ct2764718869392">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:25:48</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74823251233240" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">r</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718873200" text:id="ct2764718873200">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:25:48</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718869616" text:id="ct2764718869616">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:25:59</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74822111687963" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">re</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718205360" text:id="ct2764718205360">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:25:59</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718201104" text:id="ct2764718201104">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:26:04</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74823127596140" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">r</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718203344" text:id="ct2764718203344">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:26:05</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718202448" text:id="ct2764718202448">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:26:43</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74822362493072" text:continue-list="list74822053436125" text:style-name="WWNum1">
+                            <text:list-item>
+                                <text:p text:style-name="P8">
+                                    <text:s />
+                                </text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718208496" text:id="ct2764718208496">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:26:43</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718203792" text:id="ct2764718203792">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:26:30</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74822540615095" text:continue-numbering="true" text:style-name="WWNum1">
+                            <text:list-item>
+                                <text:p text:style-name="P8">)</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718202224" text:id="ct2764718202224">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:26:30</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718202672" text:id="ct2764718202672">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:26:43</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="Translation_20_français_20_-_20_single_20_inset">
+                            <text:s />
+                        </text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718204240" text:id="ct2764718204240">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:26:43</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718207376" text:id="ct2764718207376">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:26:40</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="Translation_20_français_20_-_20_single_20_inset">)</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718200656" text:id="ct2764718200656">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:26:40</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718201328" text:id="ct2764718201328">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:27:01</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74823561478040" text:continue-list="list74823127596140" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">
+                                    <text:s />
+                                </text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718202000" text:id="ct2764718202000">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:27:02</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718200880" text:id="ct2764718200880">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:27:10</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74823123102745" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">
+                                    <text:s />
+                                    ensemble:
+                                </text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718201552" text:id="ct2764718201552">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:27:10</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718206480" text:id="ct2764718206480">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:27:24</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74823786851338" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">l</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718201776" text:id="ct2764718201776">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:27:24</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718202896" text:id="ct2764718202896">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:27:34</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74823062609304" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">er ensemble:</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718204688" text:id="ct2764718204688">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:27:34</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764664824800" text:id="ct2764664824800">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-14T07:48:11</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74822589186107" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">e</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718208272" text:id="ct2764718208272">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:28:05</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74822529771647" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">
+                                    <text:s />
+                                    r
+                                </text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764664825696" text:id="ct2764664825696">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-14T07:48:13</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718207600" text:id="ct2764718207600">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:28:05</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718206032" text:id="ct2764718206032">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:28:26</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="M.T._20_Text_20_-_20_Single_20_Inset">r</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718203568" text:id="ct2764718203568">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:28:26</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718203120" text:id="ct2764718203120">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:28:31</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="M.T._20_Text_20_-_20_Single_20_Inset">
+                            <text:s />
+                        </text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718205584" text:id="ct2764718205584">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:28:31</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718204016" text:id="ct2764718204016">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:28:41</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="Translation_20_français_20_-_20_single_20_inset">r</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718205808" text:id="ct2764718205808">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:28:41</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718204464" text:id="ct2764718204464">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:28:45</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="Translation_20_français_20_-_20_single_20_inset">
+                            <text:s />
+                        </text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718208048" text:id="ct2764718208048">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:28:45</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718205136" text:id="ct2764718205136">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:28:55</dc:date>
+                        </office:change-info>
+                        <text:list xml:id="list74823052093104" text:continue-numbering="true" text:style-name="Bullet_20_-_20_checkmark">
+                            <text:list-item>
+                                <text:p text:style-name="P3">r</text:p>
+                            </text:list-item>
+                        </text:list>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718206256" text:id="ct2764718206256">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:28:55</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718207824" text:id="ct2764718207824">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:28:58</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="Body">I</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718206704" text:id="ct2764718206704">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:28:58</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718206928" text:id="ct2764718206928">
+                    <text:deletion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:29:03</dc:date>
+                        </office:change-info>
+                        <text:p text:style-name="Body">L</text:p>
+                    </text:deletion>
+                </text:changed-region>
+                <text:changed-region xml:id="ct2764718207152" text:id="ct2764718207152">
+                    <text:insertion>
+                        <office:change-info>
+                            <dc:creator>Unknown Author</dc:creator>
+                            <dc:date>2018-02-10T06:29:03</dc:date>
+                        </office:change-info>
+                    </text:insertion>
+                </text:changed-region>
+            </text:tracked-changes>
             <text:sequence-decls>
                 <text:sequence-decl text:display-outline-level="0" text:name="Illustration" />
                 <text:sequence-decl text:display-outline-level="0" text:name="Table" />

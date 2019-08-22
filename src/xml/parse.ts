@@ -1,5 +1,6 @@
 import libxmljs2, { Document, Element } from "libxmljs2";
 import fs from "fs";
+import { extractNamespaces } from "./mergeXml";
 
 const textNS = "urn:oasis:names:tc:opendocument:xmlns:text:1.0";
 const styleNS = "urn:oasis:names:tc:opendocument:xmlns:style:1.0";
@@ -13,6 +14,9 @@ export interface DocString {
 export default function parse(contentXmlFilepath: string) {
   const xml = fs.readFileSync(contentXmlFilepath).toString();
   const xmlDoc = libxmljs2.parseXml(xml);
+  const namespaces = extractNamespaces(xmlDoc);
+
+  removeTrackedChanges(xmlDoc, namespaces);
 
   const knownStyleNames = ["Lesson_20_Title", "Langue_20_Maternelle"];
   const knownStyleNamePatterns = ["M.T._20_Text", "L.M."];
@@ -125,3 +129,13 @@ function parseNodes(nodes: Element[]) {
 //     return accumStrings;
 //   }, []);
 // }
+
+function removeTrackedChanges(
+  doc: Document,
+  namespaces: { [key: string]: string }
+) {
+  const trackedChangesNodes = doc
+    .root()!
+    .find("//text:tracked-changes", namespaces);
+  trackedChangesNodes.forEach(node => node.remove());
+}
