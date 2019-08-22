@@ -13,10 +13,13 @@
                         {{projectProgress}}
                     </td>
                     <td>
-                        <div data-hide="{{projectLocked}}">
-                            <a href="/translate/{{projectCode}}" target="_blank">
-                                Translate
-                            </a>
+                        <a href="/translate/{{projectCode}}" target="_blank">
+                            Translate
+                        </a>
+                    </td>
+                    <td>
+                        <div data-show="{{projectLocked}}" style="font-size: small">
+                            [Desktop Lock]
                         </div>
                     </td>
                 </tr>

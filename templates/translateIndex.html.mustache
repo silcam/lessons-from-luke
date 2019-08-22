@@ -1,21 +1,30 @@
 <style>
     td {
-        padding: 4px 8px;
+        padding: 0 4px 8px 0;
     }
 </style>
 
 <div id="translateIndex">
     {{> syncMessage}}
-    <h2>{{t.Lessons}}</h2>
+    <h2>{{project.targetLang}}</h2>
+
+    <p data-show="{{projectLocked}}" class="error">
+        {{t.LockedMessage}}
+    </p>
 
     <table>
         <tbody>
-            {{#lessons}}
+            {{#project.lessons}}
                 <tr>
                     <td>
-                        <a href="{{baseUrl}}/lesson/{{lesson}}">
+                        <div data-hide="{{projectLocked}}">
+                            <a href="{{baseUrl}}/lesson/{{lesson}}">
+                                {{lesson}}
+                            </a>
+                        </div>
+                        <div data-show="{{projectLocked}}">
                             {{lesson}}
-                        </a>
+                        </div>
                     </td>
                     <td class="progress">
                         <span class="{{extraProgressClass}}">
@@ -28,7 +37,7 @@
                         </a>
                     </td>
                 </tr>
-            {{/lessons}}
+            {{/project.lessons}}
         </tbody>
     </table>
 </div>

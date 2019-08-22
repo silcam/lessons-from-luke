@@ -19,8 +19,10 @@ export default function translateController(
   app: Express,
   context: ServerContext
 ) {
-  app.get("/translate/:projectCode", lockCheck(context), (req, res) => {
-    const project = req.params.project; // Added during lockCheck
+  app.get("/translate/:projectCode", (req, res) => {
+    const project = Manifest.readProjectManifest(
+      decode(req.params.projectCode)
+    );
     const t = i18n(project.sourceLang);
     res.send(
       layout(
@@ -29,7 +31,8 @@ export default function translateController(
           {
             contextWeb: context == "web",
             projectId: Storage.projectIdToString(project),
-            lessons: project.lessons,
+            project,
+            projectLocked: context == "web" && project.lockCode !== undefined,
             extraProgressClass,
             t,
             baseUrl: req.url, //`/translate/${req.params.projectCode}`
