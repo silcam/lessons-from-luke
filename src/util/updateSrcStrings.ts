@@ -22,10 +22,9 @@ export default function updateSrcStrings(
     ...oldLessonId,
     version: lessonManifest.versions.length
   };
-  Storage.copyLessonDir(oldLessonId, newLessonid);
+  Storage.makeLessonDir(newLessonid);
 
   // Update the xml based on form data
-  const xmlPath = Storage.contentXmlPath(newLessonid);
   const srcStrings = Storage.getSrcStrings(oldLessonId);
   const tStrings: Storage.TDocString[] = Object.keys(strData).map(idStr => {
     const id = parseInt(idStr);
@@ -37,10 +36,14 @@ export default function updateSrcStrings(
       targetText: strData[idStr]
     };
   });
-  mergeXml(xmlPath, tStrings);
+  mergeXml(
+    Storage.documentPathForSource(oldLessonId),
+    Storage.documentPathForSource(newLessonid),
+    tStrings
+  );
 
   // Regenenerate source string json from updated xml
-  const newSrcStrings = parse(xmlPath);
+  const newSrcStrings = parse(Storage.contentXml(newLessonid));
   const stringsJsonPath = Storage.srcStringsJsonPath(newLessonid);
   fs.writeFileSync(stringsJsonPath, JSON.stringify(newSrcStrings));
 }

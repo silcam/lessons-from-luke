@@ -1,12 +1,6 @@
 import * as Storage from "./Storage";
 import * as Manifest from "./Manifest";
-import {
-  tmpDirPath,
-  mkdirSafe,
-  copyRecursive,
-  zip,
-  unlinkRecursive
-} from "./fsUtils";
+import { tmpDirPath, mkdirSafe } from "./fsUtils";
 import path from "path";
 import mergeXml from "../xml/mergeXml";
 
@@ -28,25 +22,13 @@ export default function documentPathForTranslation(
 
   const tmpDocsPath = path.join(tmpDirPath(), "docs");
   mkdirSafe(tmpDocsPath);
-  const odtStagingPath = path.join(
-    tmpDocsPath,
-    Storage.projectIdToString(projectId)
-  );
-  mkdirSafe(odtStagingPath);
 
-  const srcDirPath = Storage.lessonDirPath({
-    ...lessonManifest,
-    language: projectManifest.sourceLang
-  });
-  copyRecursive(path.join(srcDirPath, "odt"), odtStagingPath);
-  mergeXml(path.join(odtStagingPath, "content.xml"), tStrings);
-
+  const lessonId = { ...lessonManifest, language: projectManifest.sourceLang };
   const docPath = path.join(
     tmpDocsPath,
     `${projectId.targetLang}-${lesson}.odt`
   );
-  zip(odtStagingPath, docPath);
+  mergeXml(Storage.documentPathForSource(lessonId), docPath, tStrings);
 
-  unlinkRecursive(odtStagingPath);
   return docPath;
 }

@@ -1,8 +1,26 @@
 import libxmljs2, { Document } from "libxmljs2";
 import fs from "fs";
 import { TDocString } from "../util/Storage";
+import { mkdirSafe, zip, unlinkRecursive } from "../util/fsUtils";
+import { unzip } from "../util/fsUtils";
 
 export default function mergeXml(
+  inDocPath: string,
+  outDocPath: string,
+  translations: TDocString[]
+) {
+  const extractDirPath = inDocPath.replace(/\.odt$/, "_odt");
+  mkdirSafe(extractDirPath);
+  unzip(inDocPath, extractDirPath);
+
+  const contentXmlPath = `${extractDirPath}/content.xml`;
+  mergeTranslations(contentXmlPath, translations);
+
+  zip(extractDirPath, outDocPath);
+  unlinkRecursive(extractDirPath);
+}
+
+function mergeTranslations(
   contentXmlFilepath: string,
   translations: TDocString[]
 ) {

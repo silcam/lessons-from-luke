@@ -1,8 +1,4 @@
-import { Request, Response, NextFunction } from "express";
-import adminHome from "./adminHome";
-import layout from "../util/layout";
 import fs from "fs";
-import { mkdirSafe, unzip } from "../util/fsUtils";
 import { UploadedFile } from "express-fileupload";
 import parse from "../xml/parse";
 import * as Storage from "../util/Storage";
@@ -27,16 +23,13 @@ export default async function uploadDocument(
   const lessonDirPath = Storage.makeLessonDir(lessonId);
   const docPath = path.join(lessonDirPath, `${lessonId.lesson}.odt`);
   await file.mv(docPath);
-  unpack(lessonId, docPath);
+  unpackStrings(lessonId, docPath);
   return lessonId;
 }
 
-function unpack(lessonId: Storage.LessonId, docPath: string) {
-  const extractDir = Storage.odtDirPath(lessonId);
-  mkdirSafe(extractDir);
-  unzip(docPath, extractDir);
-  const contentXmlPath = Storage.contentXmlPath(lessonId);
-  const strings = parse(contentXmlPath);
+function unpackStrings(lessonId: Storage.LessonId, docPath: string) {
+  const xml = Storage.contentXml(lessonId);
+  const strings = parse(xml);
   const stringsJsonPath = Storage.srcStringsJsonPath(lessonId);
   fs.writeFileSync(stringsJsonPath, JSON.stringify(strings));
 }

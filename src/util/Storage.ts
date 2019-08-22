@@ -1,4 +1,11 @@
-import { mkdirSafe, copyRecursive, zip, stringsDirPath } from "./fsUtils";
+import {
+  mkdirSafe,
+  copyRecursive,
+  zip,
+  stringsDirPath,
+  unzip,
+  unlinkRecursive
+} from "./fsUtils";
 import fs from "fs";
 import path from "path";
 import { DocString } from "../xml/parse";
@@ -109,18 +116,9 @@ function tStringsJsonPath(projectId: ProjectId, lesson: string) {
   return path.join(projectDirPath(projectId), `${lesson}.json`);
 }
 
-export function contentXmlPath(lessonId: LessonId) {
-  return path.join(odtDirPath(lessonId), "content.xml");
-}
-
-export function odtDirPath(lessonId: LessonId) {
-  return path.join(lessonDirPath(lessonId), "odt");
-}
-
 export function documentPathForSource(lessonId: LessonId) {
   const dirPath = lessonDirPath(lessonId);
   const docPath = path.join(dirPath, `${lessonId.lesson}.odt`);
-  if (!fs.existsSync(docPath)) zip(path.join(dirPath, "odt"), docPath);
   return docPath;
 }
 
@@ -128,6 +126,17 @@ export function makeLessonDir(lessonId: LessonId) {
   const dirPath = lessonDirPath(lessonId);
   mkdirSafe(dirPath);
   return dirPath;
+}
+
+export function contentXml(lessonId: LessonId) {
+  const extractDirPath = path.join(lessonDirPath(lessonId), "odt");
+  mkdirSafe(extractDirPath);
+  const docPath = documentPathForSource(lessonId);
+  unzip(docPath, extractDirPath);
+  const contentXmlPath = path.join(extractDirPath, "content.xml");
+  const xml = fs.readFileSync(contentXmlPath).toString();
+  unlinkRecursive(extractDirPath);
+  return xml;
 }
 
 export function copyLessonDir(oldLessonId: LessonId, newLessonId: LessonId) {

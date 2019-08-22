@@ -1,5 +1,4 @@
 import libxmljs2, { Document, Element } from "libxmljs2";
-import fs from "fs";
 import { extractNamespaces } from "./mergeXml";
 
 const textNS = "urn:oasis:names:tc:opendocument:xmlns:text:1.0";
@@ -11,9 +10,8 @@ export interface DocString {
   mtString?: boolean;
 }
 
-export default function parse(contentXmlFilepath: string) {
-  const xml = fs.readFileSync(contentXmlFilepath).toString();
-  const xmlDoc = libxmljs2.parseXml(xml);
+export default function parse(contentXml: string) {
+  const xmlDoc = libxmljs2.parseXml(contentXml);
   const namespaces = extractNamespaces(xmlDoc);
 
   removeTrackedChanges(xmlDoc, namespaces);
