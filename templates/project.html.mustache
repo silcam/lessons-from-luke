@@ -24,11 +24,9 @@
     <a href="/">&lt;&lt; Home </a>
     <h2>{{targetLang}}</h2>
     <h3 class="subdued">{{projectId}}</h3>
-    <div data-hide="{{locked}}">
-        <a href="/translate/{{projectCode}}" target="_blank">
-            <h3>Translate</h3>
-        </a>
-    </div>
+    <a href="/translate/{{projectCode}}" target="_blank">
+        <h3>Translate</h3>
+    </a>
 
     <table>
         <tbody>
@@ -42,7 +40,7 @@
                         </span>
                     </td>
                     <td>
-                        <a href="/documents/translation/{{projectId}}/{{lesson}}.odt">
+                        <a href="/documents/translation/{{projectId}}/{{targetLang}}-{{lesson}}.odt">
                             Download
                         </a>
                     </td>
