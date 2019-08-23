@@ -90,16 +90,6 @@ header {
     padding: 2px 24px;
 }
 
-#translateLesson input,
-#translateLesson textarea {
-    width: 100%;
-    font-size: larger;
-}
-
-#projectList td {
-    padding-right: 8px;
-}
-
 [data-hide=true] {
     display: none;
 }

@@ -26,6 +26,16 @@ test("Translate lesson page", async () => {
   );
 });
 
+test("Post string to translate API", async () => {
+  expect.assertions(2);
+  let response = await request(app)
+    .post("/translate-api/TPINTII/lesson/Luke-Q1-L01")
+    .send([{ id: 0, targetText: "Da Book o Luk an" }]);
+  expect(response.status).toBe(204);
+  response = await request(app).get("/translate/TPINTII/lesson/Luke-Q1-L01");
+  expect(response.text).toContain("Da Book o Luk an");
+});
+
 test("Submit translation", async () => {
   expect.assertions(1);
   const response = await request(app)

@@ -12,6 +12,7 @@ const tStrings: TStrings = {
   English: {
     Lessons: "Lessons",
     Save: "Save",
+    Saved: "Saved",
     Locked: "Locked",
     LockedMessage: "This project is locked for desktop translation.",
     needToSync: "Changes saved on this computer",
@@ -23,6 +24,7 @@ const tStrings: TStrings = {
   Français: {
     Lessons: "Leçons",
     Save: "Enregistrer",
+    Saved: "Enregistré",
     Locked: "Verrouillé",
     LockedMessage: "Ce projet est verrouillé pour traduction hors ligne.",
     needToSync: "Changements enregistrés à cet ordinateur.",

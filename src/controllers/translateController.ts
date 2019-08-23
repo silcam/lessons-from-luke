@@ -9,11 +9,14 @@ import { decode } from "../util/timestampEncode";
 import i18n, { Translations } from "../util/i18n";
 import assert = require("assert");
 import { push, getUpSyncStatus } from "../util/desktopSync";
+import staticAssetPath from "../util/assetPath";
 
 const formDataParser = bodyParser.urlencoded({ extended: false });
+const jsonBodyParser = bodyParser.json();
 const maxLengthForInput = 120;
 
 type ServerContext = "desktop" | "web";
+type ApiTStrings = { id: number; targetText: string }[];
 
 export default function translateController(
   app: Express,
@@ -68,9 +71,11 @@ export default function translateController(
           Mustache.render(getTemplate("translateLesson"), {
             sourceLang: project.sourceLang,
             targetLang: project.targetLang,
+            jsPath: staticAssetPath("translate.js"),
             strings: tStrings,
             projectUrl: `/translate/${req.params.projectCode}`,
             lessonUrl: req.url, // `/translate/${req.params.projectCode}/lesson/${lesson}`,
+            apiUrl: req.url.replace("translate", "translate-api"),
             stringInput,
             t: i18n(project.sourceLang)
           })
@@ -99,6 +104,23 @@ export default function translateController(
       Manifest.saveProgress(project, req.params.lesson, tStrings);
       if (context == "desktop") await push(req.params.lesson);
       res.redirect(`/translate/${req.params.projectCode}`);
+    }
+  );
+
+  app.post(
+    "/translate-api/:projectCode/lesson/:lesson",
+    lockCheck(context),
+    jsonBodyParser,
+    (req, res) => {
+      const project = req.params.project; // Added during lockCheck
+      const tStrings = Storage.getTStrings(project, req.params.lesson);
+      const translations: ApiTStrings = req.body;
+      translations.forEach(
+        translation =>
+          (tStrings[translation.id].targetText = translation.targetText.trim())
+      );
+      Storage.saveTStrings(project, req.params.lesson, tStrings);
+      res.status(204).send();
     }
   );
 }
