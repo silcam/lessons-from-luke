@@ -105,9 +105,11 @@ function usfmSubsection(
 }
 
 const USFM_STRIP_PATTERNS = [
-  /\\f.+?\\f\*/g, // Footnotes
-  /\\(v|c) \S+\s/g, // Tags followed by one word: c, v
-  /\\\w+\s/g // Other tags
+  /(\\(rq|ca|va|vp|f|fe|x|sup|fig)).+?\1\*/g, // Markers with a closing marker
+  /\\(rem|h|mt|ms|mr|s|r|d|cl|cp|cd|lit).+?\n/g, // Markers that go with the rest of the line
+  /\\(sts|v|c) \S+\s/g, // Markers followed by one word
+  /\\\w+\s/g, // Other markers
+  /(~|\/\/)/g // Whitespace markers
 ];
 function stripUsfm(usfm: string) {
   let text = usfm;
