@@ -61,7 +61,7 @@ function verseRefFromTString(tString: TDocString): VerseRef | null {
     book: bookName,
     chapter: parseInt(match[2]),
     startVerse,
-    endVerse: match.length > 6 ? parseInt(match[6]) : startVerse
+    endVerse: match[6] ? parseInt(match[6]) : startVerse
   };
 }
 
@@ -80,7 +80,7 @@ function usfmVersesText(usfm: string, ref: VerseRef): string {
   );
   if (versesUsfm === null)
     throw parseError(
-      `Verse ${ref.startVerse} not found in chapter ${ref.chapter}`
+      `Verse ${ref.startVerse} not found in chapter ${ref.chapter}.`
     );
   return versesUsfm;
 }
@@ -106,9 +106,9 @@ function usfmSubsection(
 
 const USFM_STRIP_PATTERNS = [
   /(\\(rq|ca|va|vp|f|fe|x|sup|fig)).+?\1\*/g, // Markers with a closing marker
-  /\\(rem|h|mt|ms|mr|s|r|d|cl|cp|cd|lit).+?\n/g, // Markers that go with the rest of the line
+  /\\(rem|h|mt|ms|mr|s|r|d|cl|cp|cd|lit).*/g, // Markers that go with the rest of the line
   /\\(sts|v|c) \S+\s/g, // Markers followed by one word
-  /\\\w+\s/g, // Other markers
+  /\\[\w*+-]+\s/g, // Other markers
   /(~|\/\/)/g // Whitespace markers
 ];
 function stripUsfm(usfm: string) {
@@ -120,9 +120,9 @@ function stripUsfm(usfm: string) {
   return text.trim();
 }
 
-function indexFromMarker(usfm: string, mrkr: string, startIndex = 0) {
+function indexFromMarker(usfm: string, mrkr: string, startIndex?: number) {
   const pattern = RegExp(`\\\\${mrkr}\\s`);
-  const searchText = usfm.slice(startIndex);
+  const searchText = startIndex ? usfm.slice(startIndex) : usfm;
   const match = searchText.match(pattern);
   if (!match) return null;
   return match.index! + match[0].length;
