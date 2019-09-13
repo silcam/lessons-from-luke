@@ -154,3 +154,13 @@ test("USFM translate Other Books/Languages", () => {
     "Acts 2:49 A chhu ni pugu ŋa, “Pəɨ nì nthɔ ntāʼa a ŋa? Pəɨ shi ki lɔ nji ŋa m̀fāʼo nɔ pɔ nu nda Tǎa a?”"
   );
 });
+
+test("USFM Translator only translates MTStrings", () => {
+  const notMTStrings = [
+    {
+      ...sampleTStrings[5],
+      mtString: false
+    }
+  ];
+  expect(translateFromUsfm(notMTStrings, sampleUSFM)[0].targetText).toEqual("");
+});

@@ -24,6 +24,7 @@ export default function translateFromUsfm(
 
   return tStrings.map(tString => {
     if (tString.targetText.length > 0 && !opts.overwrite) return tString;
+    if (!tString.mtString) return tString;
 
     const ref = verseRefFromTString(tString);
     if (!ref || ref.book !== usfmBook || refOnlyString(tString, ref))
@@ -37,7 +38,7 @@ export default function translateFromUsfm(
   });
 }
 
-function usfmParseBook(usfm: string): BookName {
+export function usfmParseBook(usfm: string): BookName {
   const bookNameIndex = indexFromMarker(usfm, "id");
   if (bookNameIndex === null) throw parseError("\\id not found");
   const bookName = usfm.substr(bookNameIndex, 3);
