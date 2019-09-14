@@ -48,9 +48,9 @@ export default function translateFromUsfm(
 }
 
 export function usfmParseBook(usfm: string): BookName {
-  const bookNameIndex = indexFromMarker(usfm, "id");
-  if (bookNameIndex === null) throw parseError("\\id not found");
-  const bookName = usfm.substr(bookNameIndex, 3);
+  const idMarkerIndex = indexOfMarker(usfm, "id");
+  if (idMarkerIndex === null) throw parseError("\\id not found");
+  const bookName = usfm.substr(idMarkerIndex + 4, 3);
   switch (bookName) {
     case "LUK":
       return "Luke";
@@ -82,17 +82,35 @@ function refOnlyString(tString: TDocString, ref: VerseRef) {
 
 function usfmVersesText(usfm: string, ref: VerseRef): string {
   const chapterUsfm = usfmChapterText(usfm, ref.chapter);
-  const versesUsfm = usfmSubsection(
+  const verseStartIndex = indexOfMarker(
     chapterUsfm,
-    "v",
-    ref.startVerse,
-    ref.endVerse
+    `v ${ref.startVerse}(-\\d+)?`
   );
-  if (versesUsfm === null)
+  if (verseStartIndex === null)
     throw parseError(
       `Verse ${ref.startVerse} not found in chapter ${ref.chapter}.`
     );
-  return versesUsfm;
+
+  // First check for a marker for the endVerse
+  let verseEndIndex = indexOfMarker(
+    chapterUsfm,
+    `v ${ref.endVerse}`,
+    verseStartIndex
+  );
+  // It may be in a \v x-y pattern
+  if (verseEndIndex === null)
+    verseEndIndex = indexOfMarker(chapterUsfm, `v \\d+-${ref.endVerse}`);
+  if (verseEndIndex === null)
+    throw parseError(
+      `Verse ${ref.endVerse} not found in chapter ${ref.chapter}.`
+    );
+
+  // Now find any \v after the end verse marker
+  const endPassageIndex = indexOfMarker(chapterUsfm, "v", verseEndIndex + 2);
+
+  return endPassageIndex
+    ? chapterUsfm.slice(verseStartIndex, endPassageIndex)
+    : chapterUsfm.slice(verseStartIndex); // End verse was the last verse in the chapter
 }
 
 function usfmChapterText(usfm: string, chapter: number) {
@@ -107,9 +125,9 @@ function usfmSubsection(
   start: number,
   end: number
 ) {
-  const startIndex = indexFromMarker(usfm, `${mrkr} ${start}`);
+  const startIndex = indexOfMarker(usfm, `${mrkr} ${start}`);
   if (startIndex === null) return null;
-  let endIndex = indexFromMarker(usfm, `${mrkr} ${end + 1}`);
+  let endIndex = indexOfMarker(usfm, `${mrkr} ${end + 1}`);
   if (endIndex === null) endIndex = usfm.length;
   return usfm.slice(startIndex, endIndex);
 }
@@ -130,12 +148,12 @@ function stripUsfm(usfm: string) {
   return text.trim();
 }
 
-function indexFromMarker(usfm: string, mrkr: string, startIndex?: number) {
+function indexOfMarker(usfm: string, mrkr: string, startIndex?: number) {
   const pattern = RegExp(`\\\\${mrkr}\\s`);
   const searchText = startIndex ? usfm.slice(startIndex) : usfm;
   const match = searchText.match(pattern);
   if (!match) return null;
-  return match.index! + match[0].length;
+  return match.index! + (startIndex || 0);
 }
 
 function parseError(msg: string) {

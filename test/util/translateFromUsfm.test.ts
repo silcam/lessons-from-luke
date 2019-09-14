@@ -177,28 +177,60 @@ test("USFM Translator only translates MTStrings", () => {
 
 const mvSampleTStrings = [
   {
-    id: 95,
+    id: 1,
     xpath: "",
-    src: "Luc 1.47-48 Words",
+    src: "Luc 6.47-48 Words",
     targetText: "",
     mtString: true
   },
   {
-    id: 95,
+    id: 2,
     xpath: "",
-    src: "Luc 1.46-48 Words",
+    src: "Luc 6.46-48 Words",
     targetText: "",
     mtString: true
   },
   {
-    id: 95,
+    id: 3,
     xpath: "",
-    src: "Luc 1.47-49 Words",
+    src: "Luc 6.47-49 Words",
+    targetText: "",
+    mtString: true
+  },
+  {
+    id: 4,
+    xpath: "",
+    src: "Luc 6.46-47 Words",
+    targetText: "",
+    mtString: true
+  },
+  {
+    id: 5,
+    xpath: "",
+    src: "Luc 6.48-49 Words",
     targetText: "",
     mtString: true
   }
 ];
 
-// test("USFM Translator multiverse marker VALID", () => {
-
-// })
+test("USFM Translator multiverse marker", () => {
+  const result = translateFromUsfm(mvSampleTStrings, sampleUSFM);
+  const newTStrings = result.tStrings;
+  expect(newTStrings[0].targetText).toEqual(
+    "Luc 6.47-48 Shesheŋoŋ ŋa a thɔ njəɨ a njaʼo nchrā a nchwīe ndɔ haʼaŋ ǹchhu nɛ, ǹshi nshwei ghɔ ni ŋkwaŋ yaoŋ ŋa a fhi nɛ. A pɔ nɔ ŋoŋ ŋa a gha nthɔ ŋkrao nda, nja ntou kwò yi a shhi, a nūʼɔŋ ŋkuoŋ ŋgùʼɔ. Nɨnəɨ gha mbɨ̄gəɨ, ŋkhǐ thɔ mbɨŋ nda ghɔ ndɔ paʼa ndɔ nchɨʼɨ vi nthɛ ŋa pi ni nja ŋkrao vi shiʼi."
+  );
+  expect(newTStrings[1].targetText).toEqual(
+    "Luc 6.46-48 “A chwīe khɔ ɔ thɔ mɛ̄iŋ a ŋa, ‘Taathɔ, Taathɔ,’ ndɔ paʼa ndɔ nchwīe nnu ŋa ǹchhu vɛ nɛ? Shesheŋoŋ ŋa a thɔ njəɨ a njaʼo nchrā a nchwīe ndɔ haʼaŋ ǹchhu nɛ, ǹshi nshwei ghɔ ni ŋkwaŋ yaoŋ ŋa a fhi nɛ. A pɔ nɔ ŋoŋ ŋa a gha nthɔ ŋkrao nda, nja ntou kwò yi a shhi, a nūʼɔŋ ŋkuoŋ ŋgùʼɔ. Nɨnəɨ gha mbɨ̄gəɨ, ŋkhǐ thɔ mbɨŋ nda ghɔ ndɔ paʼa ndɔ nchɨʼɨ vi nthɛ ŋa pi ni nja ŋkrao vi shiʼi."
+  );
+  expect(newTStrings[2].targetText).toEqual(
+    "Luc 6.47-49 Shesheŋoŋ ŋa a thɔ njəɨ a njaʼo nchrā a nchwīe ndɔ haʼaŋ ǹchhu nɛ, ǹshi nshwei ghɔ ni ŋkwaŋ yaoŋ ŋa a fhi nɛ. A pɔ nɔ ŋoŋ ŋa a gha nthɔ ŋkrao nda, nja ntou kwò yi a shhi, a nūʼɔŋ ŋkuoŋ ŋgùʼɔ. Nɨnəɨ gha mbɨ̄gəɨ, ŋkhǐ thɔ mbɨŋ nda ghɔ ndɔ paʼa ndɔ nchɨʼɨ vi nthɛ ŋa pi ni nja ŋkrao vi shiʼi. Ndɔ ti ŋoŋ ŋa a yaʼo chrà a ki lɔ nchwīe nɛ pɔ nɔ ŋoŋ ŋa a krao nda shhɛ ndɔ ki lɔ nūʼɔŋ kwò yi, nɨnəɨ gha mbɨ̄gəɨ, ŋkhǐ thɔ mbɨŋ nda ghɔ, a gū wuʼɔ ndɨɨ ghɔ nwīʼiŋ ghao.”"
+  );
+  expect(newTStrings[3].targetText).toEqual("");
+  expect(result.errors[0]).toEqual(
+    "USFM Parse Error - Verse 47 not found in chapter 6."
+  );
+  expect(newTStrings[4].targetText).toEqual("");
+  expect(result.errors[1]).toEqual(
+    "USFM Parse Error - Verse 48 not found in chapter 6."
+  );
+});
