@@ -226,7 +226,7 @@
   {
     "id": 32,
     "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[2]/table:table-cell[2]/text:p[1]/text()",
-    "src": "When Herod was king of Judea, there was a Jewish priest named Zechariah. He was a member of the priestly order of Abijah, and his wife, Elizabeth, was also from the priestly line of Aaron. Zechariah and Elizabeth were righteous in God’s eyes, careful to obey all of the Lord’s commandments and regulations. They had no children because Elizabeth was unable to conceive, and they were both very old.",
+    "src": "Luke 1:5-7 When Herod was king of Judea, there was a Jewish priest named Zechariah. He was a member of the priestly order of Abijah, and his wife, Elizabeth, was also from the priestly line of Aaron. Zechariah and Elizabeth were righteous in God’s eyes, careful to obey all of the Lord’s commandments and regulations. They had no children because Elizabeth was unable to conceive, and they were both very old.",
     "targetText": "",
     "mtString": true
   },
