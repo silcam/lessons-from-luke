@@ -64,20 +64,31 @@ export default function projectsController(app: Express) {
         lesson: string;
         diff: { old: string; new: string }[];
       }[] = [];
-      const parseErrors: string[] = [];
+      let parseErrors: string[] = [];
       projectManifest.lessons.forEach(lesson => {
         if (lesson.lesson.startsWith(bookName)) {
           const oldTStrings = Storage.getTStrings(projectId, lesson.lesson);
           try {
-            const newTStrings = translateFromUsfm(oldTStrings, usfm, {
+            const translateResult = translateFromUsfm(oldTStrings, usfm, {
               overwrite: true
             });
             lessonDiffs.push({
               lesson: lesson.lesson,
-              diff: calcLessonDiff(oldTStrings, newTStrings)
+              diff: calcLessonDiff(oldTStrings, translateResult.tStrings)
             });
-            Storage.saveTStrings(projectId, lesson.lesson, newTStrings);
-            Manifest.saveProgress(projectId, lesson.lesson, newTStrings);
+            Storage.saveTStrings(
+              projectId,
+              lesson.lesson,
+              translateResult.tStrings
+            );
+            Manifest.saveProgress(
+              projectId,
+              lesson.lesson,
+              translateResult.tStrings
+            );
+            parseErrors = parseErrors.concat(
+              translateResult.errors.map(e => `${lesson.lesson} : ${e}`)
+            );
           } catch (err) {
             parseErrors.push(`${lesson.lesson} : ${err}`);
           }

@@ -53,7 +53,7 @@ const sampleTStrings = [
 ];
 
 test("USFM Translate: A few valid refs", () => {
-  const result = translateFromUsfm(sampleTStrings, sampleUSFM);
+  const result = translateFromUsfm(sampleTStrings, sampleUSFM).tStrings;
   expect(result[0].targetText.length).toBe(0);
   expect(result[1].targetText).toEqual(
     "Luc 1, 4-7 nɛnnɛ ŋa mimfɛ ɔ ya nji shishiʼi pa nnu haʼaŋ pi shwei ghɔ nɔ nɛ. A ni mbɔ thɔ Hɛrɔ, mbɔ fùoŋ Judia, yichəɨ ŋgaŋ fɛʼiŋgiɛŋ Minnwi ni mbɔ fɔ, ligi yi pɔ Shakaria. A ni ndhɔ moŋ ghrà ghaŋ fɛʼiŋgiɛŋ Minnwi, llɔ moŋ ndaaŋoŋ Abija. A ni mfāʼo ŋgwɛ vi llɔ moŋ ŋgwrɛiŋoŋ Ɛroŋ, ligi yi ni mbɔ Ɛlishabe. Ŋguoŋ vugu ni mbɔ ŋgwa ndɨndɨ shhɨ Minnwi, nthɔ nūʼɔŋ ŋguoŋ kɨ̀na pugu pa gɨ́ Taathɔ ndɔ ki lɔ mfāʼo ntəɨ. Ndɔ paʼa pugu lɔ njiʼi fāʼo muuŋ, nthɛ ŋa Ɛlishabe ni mbɔ pi ŋkhwɛ̄, ndɔ pugu ni ŋkwo ya ndunu."
@@ -90,18 +90,18 @@ test("Reference Errors", () => {
       src: sampleTStrings[5].src.replace("Luc 24.53", "Luc 25.1")
     }
   ];
-  expect(() => {
-    translateFromUsfm(badChapterTStrings, sampleUSFM);
-  }).toThrow("USFM Parse Error - Chapter 25 not found.");
+  expect(translateFromUsfm(badChapterTStrings, sampleUSFM).errors[0]).toEqual(
+    "USFM Parse Error - Chapter 25 not found."
+  );
   const badVerseTStrings = [
     {
       ...badChapterTStrings[0],
       src: badChapterTStrings[0].src.replace("Luc 25.1", "Luc 1.81")
     }
   ];
-  expect(() => {
-    translateFromUsfm(badVerseTStrings, sampleUSFM);
-  }).toThrow("USFM Parse Error - Verse 81 not found in chapter 1.");
+  expect(translateFromUsfm(badVerseTStrings, sampleUSFM).errors[0]).toEqual(
+    "USFM Parse Error - Verse 81 not found in chapter 1."
+  );
 });
 
 test("USFM translate Overwrite flag", () => {
@@ -109,11 +109,11 @@ test("USFM translate Overwrite flag", () => {
     { ...sampleTStrings[1], targetText: "Already Translated!" }
   ];
   expect(
-    translateFromUsfm(alreadyTranslated, sampleUSFM)[0].targetText
+    translateFromUsfm(alreadyTranslated, sampleUSFM).tStrings[0].targetText
   ).toEqual("Already Translated!");
   expect(
-    translateFromUsfm(alreadyTranslated, sampleUSFM, { overwrite: true })[0]
-      .targetText
+    translateFromUsfm(alreadyTranslated, sampleUSFM, { overwrite: true })
+      .tStrings[0].targetText
   ).toEqual(
     "Luc 1, 4-7 nɛnnɛ ŋa mimfɛ ɔ ya nji shishiʼi pa nnu haʼaŋ pi shwei ghɔ nɔ nɛ. A ni mbɔ thɔ Hɛrɔ, mbɔ fùoŋ Judia, yichəɨ ŋgaŋ fɛʼiŋgiɛŋ Minnwi ni mbɔ fɔ, ligi yi pɔ Shakaria. A ni ndhɔ moŋ ghrà ghaŋ fɛʼiŋgiɛŋ Minnwi, llɔ moŋ ndaaŋoŋ Abija. A ni mfāʼo ŋgwɛ vi llɔ moŋ ŋgwrɛiŋoŋ Ɛroŋ, ligi yi ni mbɔ Ɛlishabe. Ŋguoŋ vugu ni mbɔ ŋgwa ndɨndɨ shhɨ Minnwi, nthɔ nūʼɔŋ ŋguoŋ kɨ̀na pugu pa gɨ́ Taathɔ ndɔ ki lɔ mfāʼo ntəɨ. Ndɔ paʼa pugu lɔ njiʼi fāʼo muuŋ, nthɛ ŋa Ɛlishabe ni mbɔ pi ŋkhwɛ̄, ndɔ pugu ni ŋkwo ya ndunu."
   );
@@ -123,7 +123,9 @@ test("USFM translate Book Mismatch", () => {
   const actsTStrings = [
     { ...sampleTStrings[1], src: sampleTStrings[1].src.replace("Luc", "Actes") }
   ];
-  expect(translateFromUsfm(actsTStrings, sampleUSFM)[0].targetText).toEqual("");
+  expect(
+    translateFromUsfm(actsTStrings, sampleUSFM).tStrings[0].targetText
+  ).toEqual("");
 });
 
 test("USFM translate Other Books/Languages", () => {
@@ -133,7 +135,9 @@ test("USFM translate Other Books/Languages", () => {
       src: sampleTStrings[3].src.replace("Luc 2:49", "Luke 2:49")
     }
   ];
-  expect(translateFromUsfm(lukeTStrings, sampleUSFM)[0].targetText).toEqual(
+  expect(
+    translateFromUsfm(lukeTStrings, sampleUSFM).tStrings[0].targetText
+  ).toEqual(
     "Luke 2:49 A chhu ni pugu ŋa, “Pəɨ nì nthɔ ntāʼa a ŋa? Pəɨ shi ki lɔ nji ŋa m̀fāʼo nɔ pɔ nu nda Tǎa a?”"
   );
 
@@ -141,7 +145,9 @@ test("USFM translate Other Books/Languages", () => {
   const actesTStrings = [
     { ...sampleTStrings[1], src: sampleTStrings[1].src.replace("Luc", "Actes") }
   ];
-  expect(translateFromUsfm(actesTStrings, actsUSFM)[0].targetText).toEqual(
+  expect(
+    translateFromUsfm(actesTStrings, actsUSFM).tStrings[0].targetText
+  ).toEqual(
     "Actes 1, 4-7 nɛnnɛ ŋa mimfɛ ɔ ya nji shishiʼi pa nnu haʼaŋ pi shwei ghɔ nɔ nɛ. A ni mbɔ thɔ Hɛrɔ, mbɔ fùoŋ Judia, yichəɨ ŋgaŋ fɛʼiŋgiɛŋ Minnwi ni mbɔ fɔ, ligi yi pɔ Shakaria. A ni ndhɔ moŋ ghrà ghaŋ fɛʼiŋgiɛŋ Minnwi, llɔ moŋ ndaaŋoŋ Abija. A ni mfāʼo ŋgwɛ vi llɔ moŋ ŋgwrɛiŋoŋ Ɛroŋ, ligi yi ni mbɔ Ɛlishabe. Ŋguoŋ vugu ni mbɔ ŋgwa ndɨndɨ shhɨ Minnwi, nthɔ nūʼɔŋ ŋguoŋ kɨ̀na pugu pa gɨ́ Taathɔ ndɔ ki lɔ mfāʼo ntəɨ. Ndɔ paʼa pugu lɔ njiʼi fāʼo muuŋ, nthɛ ŋa Ɛlishabe ni mbɔ pi ŋkhwɛ̄, ndɔ pugu ni ŋkwo ya ndunu."
   );
   const actsTStrings = [
@@ -150,7 +156,9 @@ test("USFM translate Other Books/Languages", () => {
       src: sampleTStrings[3].src.replace("Luc 2:49", "Acts 2:49")
     }
   ];
-  expect(translateFromUsfm(actsTStrings, actsUSFM)[0].targetText).toEqual(
+  expect(
+    translateFromUsfm(actsTStrings, actsUSFM).tStrings[0].targetText
+  ).toEqual(
     "Acts 2:49 A chhu ni pugu ŋa, “Pəɨ nì nthɔ ntāʼa a ŋa? Pəɨ shi ki lɔ nji ŋa m̀fāʼo nɔ pɔ nu nda Tǎa a?”"
   );
 });
@@ -162,5 +170,35 @@ test("USFM Translator only translates MTStrings", () => {
       mtString: false
     }
   ];
-  expect(translateFromUsfm(notMTStrings, sampleUSFM)[0].targetText).toEqual("");
+  expect(
+    translateFromUsfm(notMTStrings, sampleUSFM).tStrings[0].targetText
+  ).toEqual("");
 });
+
+const mvSampleTStrings = [
+  {
+    id: 95,
+    xpath: "",
+    src: "Luc 1.47-48 Words",
+    targetText: "",
+    mtString: true
+  },
+  {
+    id: 95,
+    xpath: "",
+    src: "Luc 1.46-48 Words",
+    targetText: "",
+    mtString: true
+  },
+  {
+    id: 95,
+    xpath: "",
+    src: "Luc 1.47-49 Words",
+    targetText: "",
+    mtString: true
+  }
+];
+
+// test("USFM Translator multiverse marker VALID", () => {
+
+// })

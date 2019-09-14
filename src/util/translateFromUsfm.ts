@@ -19,23 +19,32 @@ export default function translateFromUsfm(
   tStrings: TDocString[],
   usfm: string,
   opts = DEFAULT_OPTS
-): TDocString[] {
+): { tStrings: TDocString[]; errors: string[] } {
   const usfmBook = usfmParseBook(usfm);
+  const errors: string[] = [];
+  const newTStrings = tStrings.map(tString => {
+    try {
+      if (tString.targetText.length > 0 && !opts.overwrite) return tString;
+      if (!tString.mtString) return tString;
 
-  return tStrings.map(tString => {
-    if (tString.targetText.length > 0 && !opts.overwrite) return tString;
-    if (!tString.mtString) return tString;
+      const ref = verseRefFromTString(tString);
+      if (!ref || ref.book !== usfmBook || refOnlyString(tString, ref))
+        return tString;
 
-    const ref = verseRefFromTString(tString);
-    if (!ref || ref.book !== usfmBook || refOnlyString(tString, ref))
+      const passageUsfm = usfmVersesText(usfm, ref);
+      const passageText = stripUsfm(passageUsfm);
+      const passageTextWithRef = ref.asString + " " + passageText;
+
+      return { ...tString, targetText: passageTextWithRef };
+    } catch (err) {
+      errors.push(err.message);
       return tString;
-
-    const passageUsfm = usfmVersesText(usfm, ref);
-    const passageText = stripUsfm(passageUsfm);
-    const passageTextWithRef = ref.asString + " " + passageText;
-
-    return { ...tString, targetText: passageTextWithRef };
+    }
   });
+  return {
+    tStrings: newTStrings,
+    errors
+  };
 }
 
 export function usfmParseBook(usfm: string): BookName {
