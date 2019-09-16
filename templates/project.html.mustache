@@ -25,7 +25,7 @@
     <h2>{{targetLang}}</h2>
     <h3 class="subdued">{{projectId}}</h3>
 
-    <div style="border-left: 1px solid #ddd; padding-left: 16px; margin-top: 40px;">
+    <div style="border-left: 1px solid #ddd; padding-left: 16px; margin-top: 40px;" data-hide="{{locked}}">
         <h3>Upload Bible Text File (*.SFM)</h3>
         <form action="/projects/{{projectId}}/usfm" method="post" encType="multipart/form-data">
             <p><input type="file" name="usfmFile" required /></p>
