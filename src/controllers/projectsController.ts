@@ -56,6 +56,7 @@ export default function projectsController(app: Express) {
     (req, res) => {
       const file = req.files!.usfmFile as UploadedFile;
       const usfm = file.data.toString();
+      const overwrite = !!req.body.overwrite;
       const bookName = usfmParseBook(usfm);
       const projectId = Storage.projectIdFromString(req.params
         .projectId as string);
@@ -70,7 +71,7 @@ export default function projectsController(app: Express) {
           const oldTStrings = Storage.getTStrings(projectId, lesson.lesson);
           try {
             const translateResult = translateFromUsfm(oldTStrings, usfm, {
-              overwrite: true
+              overwrite
             });
             lessonDiffs.push({
               lesson: lesson.lesson,

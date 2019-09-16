@@ -29,6 +29,7 @@
         <h3>Upload Bible Text File (*.SFM)</h3>
         <form action="/projects/{{projectId}}/usfm" method="post" encType="multipart/form-data">
             <p><input type="file" name="usfmFile" required /></p>
+            <p><label><input type="checkbox" name="overwrite" checked />Overwriting Exising Translations</label></p>
             <button type="submit">Upload and Insert Translations</button>
         </form>
     </div>
