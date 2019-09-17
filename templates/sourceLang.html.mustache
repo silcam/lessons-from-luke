@@ -2,9 +2,6 @@
     span.versionLnk {
         font-size: small;
     }
-    td {
-        padding: 0 8px 4px 0;
-    }
 </style>
 
 <div id="sourceLang">
@@ -32,26 +29,24 @@
     </table>
 
     <h4>Upload Lesson</h4>
-    <form action="/sources/{{language}}" method="post" encType="multipart/form-data">
-        <p>
+    <form action="/sources/{{language}}" method="post" encType="multipart/form-data" class="left-bar">
             <label>
-                Lessons from 
+                Lessons from: 
                 <select name='series'>
                     <option value='Luke'>Luke</option>
                     <option value='Acts'>Acts</option>
                 </select>
             </label>
-        </p>
-        <p>
             <input type='file' name='document' accept='application/vnd.oasis.opendocument.text' required />
-        </p>
         <button type="submit">Upload</button>
     </form>
+
+    <hr />
 
     <h3>Projects based on this language</h3>
     <ul>
         {{#projects}}
-            <li>{{.}}</li>
+            <li><a href="/projects/{{.}}">{{.}}</a></li>
         {{/projects}}
     </ul>
 </div>

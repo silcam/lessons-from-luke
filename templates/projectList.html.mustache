@@ -4,11 +4,11 @@
         <tbody>
             {{#projects}}
                 <tr>
-                    <td>
+                    <th>
                         <a href="/projects/{{projectId}}">
                             {{targetLang}}
                         </a>
-                    </td>
+                    </th>
                     <td class="progress">
                         {{projectProgress}}
                     </td>
@@ -27,8 +27,9 @@
         </tbody>
     </table>
 
+
     <h4>Add Project</h4>
-    <form action="/projects" method="post">
+    <form action="/projects" method="post" class="left-bar">
         <label>
             Source:
             <select name="sourceLang">

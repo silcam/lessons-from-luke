@@ -13,11 +13,8 @@
     .delete-in-progress {
         display: none;
     }
-    #editSrcStrings table {
-        border-collapse: collapse;
-    }
     #editSrcStrings td {
-        border-top: 1px solid #eee;
+        border-top: 1px solid #adb1b1;
         padding: 6px 10px;
         vertical-align: top;
     }
@@ -29,15 +26,24 @@
         font-style: italic;
     }
     div.text span.added {
-        color: #028A0F
+        color: #1ea896;
+    }
+    button {
+        display: block;
+        margin: 4px 8px 4px auto;
     }
 </style>
 
 <script src="{{jsPath}}"></script>
 
-<h2>{{lesson}}</h2>
-
 <div id="editSrcStrings">
+    <div class="flex-row sticky-bar">
+        <h2>{{lesson}}</h2>
+        <form action="{{submitUrl}}" method="post" id="editSrcStringsForm">
+            <button type="submit" class="big">Save</button>
+        </form>
+    </div>
+
     <table>
         <tbody>
             {{#srcStrings}}
@@ -76,7 +82,4 @@
             {{/srcStrings}}
         </tbody>
     </table>
-    <form action="{{submitUrl}}" method="post" id="editSrcStringsForm">
-        <button type="submit" class="big">Save</button>
-    </form>
 </div>

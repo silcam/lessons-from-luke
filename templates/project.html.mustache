@@ -9,34 +9,35 @@
     div.unlock {
         margin-top: 30px;
     }
-    .redButton {
-        background-color: #800000;
+    .unlockButton {
         margin: 0;
         font-size: large;
     }
     .unlockWarning {
         font-size: small;
-        color: #800000;
+        color: #ff715b;
     }
 </style>
 
 <div id="project">
     <a href="/">&lt;&lt; Home </a>
-    <h2>{{targetLang}}</h2>
-    <h3 class="subdued">{{projectId}}</h3>
 
-    <div style="border-left: 1px solid #ddd; padding-left: 16px; margin-top: 40px;" data-hide="{{locked}}">
-        <h3>Upload Bible Text File (*.SFM)</h3>
-        <form action="/projects/{{projectId}}/usfm" method="post" encType="multipart/form-data">
-            <p><input type="file" name="usfmFile" required /></p>
-            <p><label><input type="checkbox" name="overwrite" checked />Overwriting Exising Translations</label></p>
-            <button type="submit">Upload and Insert Translations</button>
-        </form>
+    <div class="flex-row">
+        <h2>{{targetLang}}</h2>
+
+        <a href="/translate/{{projectCode}}" target="_blank" style="font-size: x-large;">
+            Translate
+        </a>
     </div>
 
-    <a href="/translate/{{projectCode}}" target="_blank">
-        <h3>Translate</h3>
-    </a>
+    <div data-hide="{{locked}}">
+        <h3>Upload Bible Text File (*.SFM)</h3>
+        <form action="/projects/{{projectId}}/usfm" method="post" encType="multipart/form-data" class="left-bar">
+            <input type="file" name="usfmFile" required />
+            <button type="submit">Upload and Insert Translations</button>
+            <div class="form-input" style="font-size: smaller;"><label><input type="checkbox" name="overwrite" checked />Overwriting Exising Translations</label></div>
+        </form>
+    </div>
 
     <table>
         <tbody>
@@ -62,7 +63,7 @@
     <div data-show="{{locked}}" class="unlock">
         <form action="/projects/{{projectId}}/unlock" method="post">
             <h3>Desktop lock in place</h3>
-            <button class="redButton" type="submit">Unlock</button>
+            <button class="red unlockButton" type="submit">Unlock</button>
             <p class="unlockWarning">The existing desktop install will no longer have access to this project.</p>
         </form>
     </div>

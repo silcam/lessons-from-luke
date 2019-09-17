@@ -6,7 +6,7 @@
     }
     p.saved {
         font-size: xx-small;
-        color: #2e8b57;
+        color: #1ea896;
         font-weight: 200;
         margin-top: 2px;
         display: none;
@@ -24,15 +24,17 @@
 </style>
 
 <div id="translateLesson" data-api-url="{{apiUrl}}">
-    <h3>
-        <a href="{{projectUrl}}">
-            &lt;&lt; Lessons
-        </a>
-    </h3>
-
-    <div>
         <form action="{{lessonUrl}}" method="post">
-            <button class="big" type="submit">{{t.Save}}</button>
+            <div class="sticky-bar">
+                <div class="flex-row">
+                    <h3>
+                        <a href="{{projectUrl}}">
+                            &lt;&lt; Lessons
+                        </a>
+                    </h3>
+                    <button class="big" type="submit">{{t.Save}}</button>
+                </div>
+            </div>
 
             <table class="translation">
                 <tbody>
@@ -63,8 +65,9 @@
                     {{/strings}}
                 </tbody>
             </table>
-
-            <button class="big" type="submit">{{t.Save}}</button>
+            <div style="align-items: flex-end; margin-top: 24px;">
+                <button class="big" type="submit">{{t.Save}}</button>
+            </div>
         </form>
     </div>
 </div>
