@@ -1,17 +1,42 @@
 function blurInput(id) {
   let input = document.querySelector("input[name='" + id + "']");
-  postTranslation(id, input.value);
+  updateIdenticalAndPostTranslations(id, input);
 }
 
 function blurTextarea(id) {
   let input = document.querySelector("textarea[name='" + id + "']");
-  postTranslation(id, input.value);
+  updateIdenticalAndPostTranslations(id, input);
+}
+
+function updateIdenticalAndPostTranslations(id, input) {
+  let translation = input.value;
+  if (translation.length == 0) return;
+  postTranslation(id, translation);
+
+  let baseCell = input.parentElement.parentElement;
+  let src = srcFromCell(baseCell);
+
+  document.querySelectorAll("td.mtString").forEach(cell => {
+    const input = inputOrTextarea(cell);
+    if (srcFromCell(cell) == src && input.value.length == 0) {
+      input.value = translation;
+      postTranslation(parseInt(input.name), translation);
+    }
+  });
+}
+
+function srcFromCell(cell) {
+  return cell.firstChild.textContent.trim();
+}
+
+function inputOrTextarea(cell) {
+  return (
+    cell.querySelector("input:enabled") ||
+    cell.querySelector("textarea:enabled")
+  );
 }
 
 function postTranslation(id, targetText) {
-  if (targetText.length == 0) {
-    return;
-  }
   let req = new XMLHttpRequest();
   req.open("POST", apiUrl());
   req.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
