@@ -150,6 +150,18 @@ export function unlockProject(datetime: number) {
   return project;
 }
 
+export function projectSrcUpdatesAvailable(datetime: number) {
+  const prjManifest = readProjectManifest(datetime);
+  const srcManifest = readSourceManifest(prjManifest.sourceLang);
+  return prjManifest.lessons.some(lesson => {
+    const srcLesson = findBy(srcManifest.lessons, "lesson", lesson.lesson);
+    return (
+      !!srcLesson &&
+      srcLesson.versions[srcLesson.versions.length - 1].version > lesson.version
+    );
+  });
+}
+
 export function readSourceManifest(language: string, lesson: string): Lesson;
 export function readSourceManifest(language: string): Language;
 export function readSourceManifest(): SourceManifest;

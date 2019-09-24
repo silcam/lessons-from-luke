@@ -35,6 +35,9 @@ export default function projectsController(app: Express) {
           projectCode: encode(projectId.datetime),
           projectId: req.params.projectId,
           locked: projectManifest.lockCode !== undefined,
+          updatesAvailable: Manifest.projectSrcUpdatesAvailable(
+            projectId.datetime
+          ),
           extraProgressClass
         })
       )
@@ -107,6 +110,12 @@ export default function projectsController(app: Express) {
       );
     }
   );
+
+  app.get("/projects/:projectId/update/:lessonIndex?", (req, res) => {
+    res.send("Here we are!");
+  });
+
+  app.post("/projects/:projectId/update/:lessonIndex", (req, res) => {});
 }
 
 function calcLessonDiff(

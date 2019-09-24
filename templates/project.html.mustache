@@ -39,6 +39,15 @@
         </form>
     </div>
 
+    <div data-show="{{updatesAvailable}}">
+        <h3>Update this project to the latest sources</h3>
+        <div class="left-bar" style="margin-bottom: 30px">
+            <a href="/projects/{{projectId}}/update">
+                <button>Update</button>
+            </a>
+        </div>
+    </div>
+
     <table>
         <tbody>
             {{#lessons}}

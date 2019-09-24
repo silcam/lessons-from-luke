@@ -74,3 +74,9 @@ test("Add new project", () => {
     targetLang: "Lingala"
   });
 });
+
+test("projectSrcUpdatesAvailable", () => {
+  expect(Manifest.projectSrcUpdatesAvailable(1555081479425)).toBe(false);
+  Manifest.addSourceLesson("English", "Luke-Q1-L01"); // Add a new version of lesson 1
+  expect(Manifest.projectSrcUpdatesAvailable(1555081479425)).toBe(true);
+});
