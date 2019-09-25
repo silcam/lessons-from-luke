@@ -56,19 +56,19 @@ test("USFM Translate: A few valid refs", () => {
   const result = translateFromUsfm(sampleTStrings, sampleUSFM).tStrings;
   expect(result[0].targetText.length).toBe(0);
   expect(result[1].targetText).toEqual(
-    "Luc 1, 4-7 nɛnnɛ ŋa mimfɛ ɔ ya nji shishiʼi pa nnu haʼaŋ pi shwei ghɔ nɔ nɛ. A ni mbɔ thɔ Hɛrɔ, mbɔ fùoŋ Judia, yichəɨ ŋgaŋ fɛʼiŋgiɛŋ Minnwi ni mbɔ fɔ, ligi yi pɔ Shakaria. A ni ndhɔ moŋ ghrà ghaŋ fɛʼiŋgiɛŋ Minnwi, llɔ moŋ ndaaŋoŋ Abija. A ni mfāʼo ŋgwɛ vi llɔ moŋ ŋgwrɛiŋoŋ Ɛroŋ, ligi yi ni mbɔ Ɛlishabe. Ŋguoŋ vugu ni mbɔ ŋgwa ndɨndɨ shhɨ Minnwi, nthɔ nūʼɔŋ ŋguoŋ kɨ̀na pugu pa gɨ́ Taathɔ ndɔ ki lɔ mfāʼo ntəɨ. Ndɔ paʼa pugu lɔ njiʼi fāʼo muuŋ, nthɛ ŋa Ɛlishabe ni mbɔ pi ŋkhwɛ̄, ndɔ pugu ni ŋkwo ya ndunu."
+    "Luka 1, 4-7 nɛnnɛ ŋa mimfɛ ɔ ya nji shishiʼi pa nnu haʼaŋ pi shwei ghɔ nɔ nɛ. A ni mbɔ thɔ Hɛrɔ, mbɔ fùoŋ Judia, yichəɨ ŋgaŋ fɛʼiŋgiɛŋ Minnwi ni mbɔ fɔ, ligi yi pɔ Shakaria. A ni ndhɔ moŋ ghrà ghaŋ fɛʼiŋgiɛŋ Minnwi, llɔ moŋ ndaaŋoŋ Abija. A ni mfāʼo ŋgwɛ vi llɔ moŋ ŋgwrɛiŋoŋ Ɛroŋ, ligi yi ni mbɔ Ɛlishabe. Ŋguoŋ vugu ni mbɔ ŋgwa ndɨndɨ shhɨ Minnwi, nthɔ nūʼɔŋ ŋguoŋ kɨ̀na pugu pa gɨ́ Taathɔ ndɔ ki lɔ mfāʼo ntəɨ. Ndɔ paʼa pugu lɔ njiʼi fāʼo muuŋ, nthɛ ŋa Ɛlishabe ni mbɔ pi ŋkhwɛ̄, ndɔ pugu ni ŋkwo ya ndunu."
   );
   expect(result[2].targetText).toEqual(
-    "Luc 1.46-48 Meri khwɛ̄ ŋa, “Ǹchhu ni ŋguoŋ njùʼɔ a ŋa ndighaʼo pɔ ni Taathɔ. Mbɨnɨ mfāʼo pwanjuʼɔ nthɛ Minnwi mbɔ ŋkwe a, nthɛ ŋa a kwiŋ muuŋ fàʼa yi, yi juju. Līi njəɨ, llɔ ndwɛ ŋgə̄ɨ nu shhɨ ŋguoŋ ŋgwrɛiŋgwa shi mɛ̄iŋ a ni mbrɔthɔ."
+    "Luka 1.46-48 Meri khwɛ̄ ŋa, “Ǹchhu ni ŋguoŋ njùʼɔ a ŋa ndighaʼo pɔ ni Taathɔ. Mbɨnɨ mfāʼo pwanjuʼɔ nthɛ Minnwi mbɔ ŋkwe a, nthɛ ŋa a kwiŋ muuŋ fàʼa yi, yi juju. Līi njəɨ, llɔ ndwɛ ŋgə̄ɨ nu shhɨ ŋguoŋ ŋgwrɛiŋgwa shi mɛ̄iŋ a ni mbrɔthɔ."
   );
   expect(result[3].targetText).toEqual(
-    "Luc 2:49 A chhu ni pugu ŋa, “Pəɨ nì nthɔ ntāʼa a ŋa? Pəɨ shi ki lɔ nji ŋa m̀fāʼo nɔ pɔ nu nda Tǎa a?”"
+    "Luka 2:49 A chhu ni pugu ŋa, “Pəɨ nì nthɔ ntāʼa a ŋa? Pəɨ shi ki lɔ nji ŋa m̀fāʼo nɔ pɔ nu nda Tǎa a?”"
   );
   expect(result[4].targetText).toEqual(
-    "Luc 3.20-21 Hɛrɔ pɨnɨ mbīgi phɨ yi nɔ fɨ̄nɨ nu Jouŋ. Ŋkaoŋ Jouŋ maa ŋgə̄ɨ chə́ɨŋ, ndɨɨ ŋa ŋguoŋ ŋgwa ni ŋkwo kwe ŋkhǐ nɛ, Jishɔ kwe ŋkaa yu, ŋga nchhɔ nduoŋ Minnwi, po ŋaʼaŋ,"
+    "Luka 3.20-21 Hɛrɔ pɨnɨ mbīgi phɨ yi nɔ fɨ̄nɨ nu Jouŋ. Ŋkaoŋ Jouŋ maa ŋgə̄ɨ chə́ɨŋ, ndɨɨ ŋa ŋguoŋ ŋgwa ni ŋkwo kwe ŋkhǐ nɛ, Jishɔ kwe ŋkaa yu, ŋga nchhɔ nduoŋ Minnwi, po ŋaʼaŋ,"
   );
   expect(result[5].targetText).toEqual(
-    "Luc 24.53 Pugu ni ŋkɨna moŋ Nda Minnwi ŋguoŋ llɛ́ nthɔ ntōo Minnwi."
+    "Luka 24.53 Pugu ni ŋkɨna moŋ Nda Minnwi ŋguoŋ llɛ́ nthɔ ntōo Minnwi."
   );
 });
 
@@ -115,7 +115,7 @@ test("USFM translate Overwrite flag", () => {
     translateFromUsfm(alreadyTranslated, sampleUSFM, { overwrite: true })
       .tStrings[0].targetText
   ).toEqual(
-    "Luc 1, 4-7 nɛnnɛ ŋa mimfɛ ɔ ya nji shishiʼi pa nnu haʼaŋ pi shwei ghɔ nɔ nɛ. A ni mbɔ thɔ Hɛrɔ, mbɔ fùoŋ Judia, yichəɨ ŋgaŋ fɛʼiŋgiɛŋ Minnwi ni mbɔ fɔ, ligi yi pɔ Shakaria. A ni ndhɔ moŋ ghrà ghaŋ fɛʼiŋgiɛŋ Minnwi, llɔ moŋ ndaaŋoŋ Abija. A ni mfāʼo ŋgwɛ vi llɔ moŋ ŋgwrɛiŋoŋ Ɛroŋ, ligi yi ni mbɔ Ɛlishabe. Ŋguoŋ vugu ni mbɔ ŋgwa ndɨndɨ shhɨ Minnwi, nthɔ nūʼɔŋ ŋguoŋ kɨ̀na pugu pa gɨ́ Taathɔ ndɔ ki lɔ mfāʼo ntəɨ. Ndɔ paʼa pugu lɔ njiʼi fāʼo muuŋ, nthɛ ŋa Ɛlishabe ni mbɔ pi ŋkhwɛ̄, ndɔ pugu ni ŋkwo ya ndunu."
+    "Luka 1, 4-7 nɛnnɛ ŋa mimfɛ ɔ ya nji shishiʼi pa nnu haʼaŋ pi shwei ghɔ nɔ nɛ. A ni mbɔ thɔ Hɛrɔ, mbɔ fùoŋ Judia, yichəɨ ŋgaŋ fɛʼiŋgiɛŋ Minnwi ni mbɔ fɔ, ligi yi pɔ Shakaria. A ni ndhɔ moŋ ghrà ghaŋ fɛʼiŋgiɛŋ Minnwi, llɔ moŋ ndaaŋoŋ Abija. A ni mfāʼo ŋgwɛ vi llɔ moŋ ŋgwrɛiŋoŋ Ɛroŋ, ligi yi ni mbɔ Ɛlishabe. Ŋguoŋ vugu ni mbɔ ŋgwa ndɨndɨ shhɨ Minnwi, nthɔ nūʼɔŋ ŋguoŋ kɨ̀na pugu pa gɨ́ Taathɔ ndɔ ki lɔ mfāʼo ntəɨ. Ndɔ paʼa pugu lɔ njiʼi fāʼo muuŋ, nthɛ ŋa Ɛlishabe ni mbɔ pi ŋkhwɛ̄, ndɔ pugu ni ŋkwo ya ndunu."
   );
 });
 
@@ -129,6 +129,7 @@ test("USFM translate Book Mismatch", () => {
 });
 
 test("USFM translate Other Books/Languages", () => {
+  const noHdrUsfm = sampleUSFM.replace(/^\\h .+/m, "");
   const lukeTStrings = [
     {
       ...sampleTStrings[3],
@@ -136,12 +137,12 @@ test("USFM translate Other Books/Languages", () => {
     }
   ];
   expect(
-    translateFromUsfm(lukeTStrings, sampleUSFM).tStrings[0].targetText
+    translateFromUsfm(lukeTStrings, noHdrUsfm).tStrings[0].targetText
   ).toEqual(
     "Luke 2:49 A chhu ni pugu ŋa, “Pəɨ nì nthɔ ntāʼa a ŋa? Pəɨ shi ki lɔ nji ŋa m̀fāʼo nɔ pɔ nu nda Tǎa a?”"
   );
 
-  const actsUSFM = sampleUSFM.replace("LUK", "ACT");
+  const actsUSFM = noHdrUsfm.replace("LUK", "ACT");
   const actesTStrings = [
     { ...sampleTStrings[1], src: sampleTStrings[1].src.replace("Luc", "Actes") }
   ];
@@ -217,13 +218,13 @@ test("USFM Translator multiverse marker", () => {
   const result = translateFromUsfm(mvSampleTStrings, sampleUSFM);
   const newTStrings = result.tStrings;
   expect(newTStrings[0].targetText).toEqual(
-    "Luc 6.47-48 Shesheŋoŋ ŋa a thɔ njəɨ a njaʼo nchrā a nchwīe ndɔ haʼaŋ ǹchhu nɛ, ǹshi nshwei ghɔ ni ŋkwaŋ yaoŋ ŋa a fhi nɛ. A pɔ nɔ ŋoŋ ŋa a gha nthɔ ŋkrao nda, nja ntou kwò yi a shhi, a nūʼɔŋ ŋkuoŋ ŋgùʼɔ. Nɨnəɨ gha mbɨ̄gəɨ, ŋkhǐ thɔ mbɨŋ nda ghɔ ndɔ paʼa ndɔ nchɨʼɨ vi nthɛ ŋa pi ni nja ŋkrao vi shiʼi."
+    "Luka 6.47-48 Shesheŋoŋ ŋa a thɔ njəɨ a njaʼo nchrā a nchwīe ndɔ haʼaŋ ǹchhu nɛ, ǹshi nshwei ghɔ ni ŋkwaŋ yaoŋ ŋa a fhi nɛ. A pɔ nɔ ŋoŋ ŋa a gha nthɔ ŋkrao nda, nja ntou kwò yi a shhi, a nūʼɔŋ ŋkuoŋ ŋgùʼɔ. Nɨnəɨ gha mbɨ̄gəɨ, ŋkhǐ thɔ mbɨŋ nda ghɔ ndɔ paʼa ndɔ nchɨʼɨ vi nthɛ ŋa pi ni nja ŋkrao vi shiʼi."
   );
   expect(newTStrings[1].targetText).toEqual(
-    "Luc 6.46-48 “A chwīe khɔ ɔ thɔ mɛ̄iŋ a ŋa, ‘Taathɔ, Taathɔ,’ ndɔ paʼa ndɔ nchwīe nnu ŋa ǹchhu vɛ nɛ? Shesheŋoŋ ŋa a thɔ njəɨ a njaʼo nchrā a nchwīe ndɔ haʼaŋ ǹchhu nɛ, ǹshi nshwei ghɔ ni ŋkwaŋ yaoŋ ŋa a fhi nɛ. A pɔ nɔ ŋoŋ ŋa a gha nthɔ ŋkrao nda, nja ntou kwò yi a shhi, a nūʼɔŋ ŋkuoŋ ŋgùʼɔ. Nɨnəɨ gha mbɨ̄gəɨ, ŋkhǐ thɔ mbɨŋ nda ghɔ ndɔ paʼa ndɔ nchɨʼɨ vi nthɛ ŋa pi ni nja ŋkrao vi shiʼi."
+    "Luka 6.46-48 “A chwīe khɔ ɔ thɔ mɛ̄iŋ a ŋa, ‘Taathɔ, Taathɔ,’ ndɔ paʼa ndɔ nchwīe nnu ŋa ǹchhu vɛ nɛ? Shesheŋoŋ ŋa a thɔ njəɨ a njaʼo nchrā a nchwīe ndɔ haʼaŋ ǹchhu nɛ, ǹshi nshwei ghɔ ni ŋkwaŋ yaoŋ ŋa a fhi nɛ. A pɔ nɔ ŋoŋ ŋa a gha nthɔ ŋkrao nda, nja ntou kwò yi a shhi, a nūʼɔŋ ŋkuoŋ ŋgùʼɔ. Nɨnəɨ gha mbɨ̄gəɨ, ŋkhǐ thɔ mbɨŋ nda ghɔ ndɔ paʼa ndɔ nchɨʼɨ vi nthɛ ŋa pi ni nja ŋkrao vi shiʼi."
   );
   expect(newTStrings[2].targetText).toEqual(
-    "Luc 6.47-49 Shesheŋoŋ ŋa a thɔ njəɨ a njaʼo nchrā a nchwīe ndɔ haʼaŋ ǹchhu nɛ, ǹshi nshwei ghɔ ni ŋkwaŋ yaoŋ ŋa a fhi nɛ. A pɔ nɔ ŋoŋ ŋa a gha nthɔ ŋkrao nda, nja ntou kwò yi a shhi, a nūʼɔŋ ŋkuoŋ ŋgùʼɔ. Nɨnəɨ gha mbɨ̄gəɨ, ŋkhǐ thɔ mbɨŋ nda ghɔ ndɔ paʼa ndɔ nchɨʼɨ vi nthɛ ŋa pi ni nja ŋkrao vi shiʼi. Ndɔ ti ŋoŋ ŋa a yaʼo chrà a ki lɔ nchwīe nɛ pɔ nɔ ŋoŋ ŋa a krao nda shhɛ ndɔ ki lɔ nūʼɔŋ kwò yi, nɨnəɨ gha mbɨ̄gəɨ, ŋkhǐ thɔ mbɨŋ nda ghɔ, a gū wuʼɔ ndɨɨ ghɔ nwīʼiŋ ghao.”"
+    "Luka 6.47-49 Shesheŋoŋ ŋa a thɔ njəɨ a njaʼo nchrā a nchwīe ndɔ haʼaŋ ǹchhu nɛ, ǹshi nshwei ghɔ ni ŋkwaŋ yaoŋ ŋa a fhi nɛ. A pɔ nɔ ŋoŋ ŋa a gha nthɔ ŋkrao nda, nja ntou kwò yi a shhi, a nūʼɔŋ ŋkuoŋ ŋgùʼɔ. Nɨnəɨ gha mbɨ̄gəɨ, ŋkhǐ thɔ mbɨŋ nda ghɔ ndɔ paʼa ndɔ nchɨʼɨ vi nthɛ ŋa pi ni nja ŋkrao vi shiʼi. Ndɔ ti ŋoŋ ŋa a yaʼo chrà a ki lɔ nchwīe nɛ pɔ nɔ ŋoŋ ŋa a krao nda shhɛ ndɔ ki lɔ nūʼɔŋ kwò yi, nɨnəɨ gha mbɨ̄gəɨ, ŋkhǐ thɔ mbɨŋ nda ghɔ, a gū wuʼɔ ndɨɨ ghɔ nwīʼiŋ ghao.”"
   );
   expect(newTStrings[3].targetText).toEqual("");
   expect(result.errors[0]).toEqual(
@@ -233,4 +234,10 @@ test("USFM Translator multiverse marker", () => {
   expect(result.errors[1]).toEqual(
     "USFM Parse Error - Verse 48 not found in chapter 6."
   );
+});
+
+test("Multiword MT Book Name", () => {
+  const usfm2 = sampleUSFM.replace(/^\\h .+/m, "\\h 2 Luka");
+  const result = translateFromUsfm(sampleTStrings, usfm2);
+  expect(result.tStrings[1].targetText).toContain("2 Luka");
 });

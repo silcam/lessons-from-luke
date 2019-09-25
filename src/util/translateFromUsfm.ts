@@ -21,6 +21,7 @@ export default function translateFromUsfm(
   opts = DEFAULT_OPTS
 ): { tStrings: TDocString[]; errors: string[] } {
   const usfmBook = usfmParseBook(usfm);
+  const mtBookName = usfmParseLocalBookName(usfm);
   const errors: string[] = [];
   const newTStrings = tStrings.map(tString => {
     try {
@@ -33,7 +34,7 @@ export default function translateFromUsfm(
 
       const passageUsfm = usfmVersesText(usfm, ref);
       const passageText = stripUsfm(passageUsfm);
-      const passageTextWithRef = ref.asString + " " + passageText;
+      const passageTextWithRef = localRef(ref, mtBookName) + " " + passageText;
 
       return { ...tString, targetText: passageTextWithRef };
     } catch (err) {
@@ -47,6 +48,10 @@ export default function translateFromUsfm(
   };
 }
 
+function localRef(ref: VerseRef, mtBookName: string | null) {
+  return mtBookName ? ref.asString.replace(/^\w+/, mtBookName) : ref.asString;
+}
+
 export function usfmParseBook(usfm: string): BookName {
   const idMarkerIndex = indexOfMarker(usfm, "id");
   if (idMarkerIndex === null) throw parseError("\\id not found");
@@ -58,6 +63,11 @@ export function usfmParseBook(usfm: string): BookName {
       return "Acts";
   }
   throw parseError("File not for Luke or Acts");
+}
+
+export function usfmParseLocalBookName(usfm: string): string | null {
+  const match = /^\\h (.+)/m.exec(usfm);
+  return match && match[1];
 }
 
 function verseRefFromTString(tString: TDocString): VerseRef | null {
