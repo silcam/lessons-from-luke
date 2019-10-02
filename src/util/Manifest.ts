@@ -153,13 +153,42 @@ export function unlockProject(datetime: number) {
 export function projectSrcUpdatesAvailable(datetime: number) {
   const prjManifest = readProjectManifest(datetime);
   const srcManifest = readSourceManifest(prjManifest.sourceLang);
-  return prjManifest.lessons.some(lesson => {
+  return prjManifest.lessons.reduce((indices: number[][], lesson, index) => {
     const srcLesson = findBy(srcManifest.lessons, "lesson", lesson.lesson);
-    return (
-      !!srcLesson &&
-      srcLesson.versions[srcLesson.versions.length - 1].version > lesson.version
-    );
-  });
+    const srcVersion = srcLesson!.versions[srcLesson!.versions.length - 1]
+      .version;
+    if (srcVersion > lesson.version) indices.push([index, srcVersion]);
+    return indices;
+  }, []);
+}
+
+export function updateProjectLessonSrc(
+  datetime: number,
+  lessonIndex: number,
+  targetVersion: number
+) {
+  const projects = readProjectManifest();
+  const project = findBy(projects, "datetime", datetime)!;
+  const prjLesson = project.lessons[lessonIndex];
+  const oldVersion = prjLesson.version;
+  prjLesson.version = targetVersion;
+  writeProjectManifest(projects);
+
+  const sources = readSourceManifest();
+  const source = findBy(sources, "language", project.sourceLang)!;
+  const srcLesson = findBy(source.lessons, "lesson", prjLesson.lesson)!;
+  const oldSrcLessonVersion = findBy(
+    srcLesson.versions,
+    "version",
+    oldVersion
+  )!;
+  const prjId = projectIdToString(project);
+  oldSrcLessonVersion.projects = oldSrcLessonVersion.projects.filter(
+    p => p != prjId
+  );
+  findBy(srcLesson.versions, "version", targetVersion)!.projects.push(prjId);
+  writeSourceManifest(sources);
+  return project;
 }
 
 export function readSourceManifest(language: string, lesson: string): Lesson;

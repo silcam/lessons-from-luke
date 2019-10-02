@@ -76,7 +76,31 @@ test("Add new project", () => {
 });
 
 test("projectSrcUpdatesAvailable", () => {
-  expect(Manifest.projectSrcUpdatesAvailable(1555081479425)).toBe(false);
+  expect(Manifest.projectSrcUpdatesAvailable(1555081479425)).toEqual([]);
   Manifest.addSourceLesson("English", "Luke-Q1-L01"); // Add a new version of lesson 1
-  expect(Manifest.projectSrcUpdatesAvailable(1555081479425)).toBe(true);
+  expect(Manifest.projectSrcUpdatesAvailable(1555081479425)).toEqual([[0, 2]]);
+});
+
+test("updateProjectLessonSrc", () => {
+  Manifest.addSourceLesson("English", "Luke-Q1-L01"); // Add a new version of lesson 1
+  // Check everything before we update
+  let source = Manifest.readSourceManifest("English");
+  expect(source.lessons[0].versions[0].projects).toEqual([
+    "Pidgin_1555081479425"
+  ]);
+  expect(source.lessons[0].versions[1].projects).toEqual([]);
+  let project = Manifest.readProjectManifest(1555081479425);
+  expect(project.lessons[0].version).toEqual(1);
+
+  // Update
+  Manifest.updateProjectLessonSrc(1555081479425, 0, 2);
+
+  // Verify everything is correctly updated
+  source = Manifest.readSourceManifest("English");
+  expect(source.lessons[0].versions[0].projects).toEqual([]);
+  expect(source.lessons[0].versions[1].projects).toEqual([
+    "Pidgin_1555081479425"
+  ]);
+  project = Manifest.readProjectManifest(1555081479425);
+  expect(project.lessons[0].version).toEqual(2);
 });

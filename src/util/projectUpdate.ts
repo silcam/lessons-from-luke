@@ -3,12 +3,16 @@ import * as Storage from "./Storage";
 import bestMatchMap from "./bestMatchMap";
 import { compareTwoStrings } from "string-similarity";
 
+type DiffChangeType = "none" | "add" | "remove" | "change";
+
 type ProjectUpdateDiff = {
-  change: "none" | "add" | "remove" | "change";
+  change: DiffChangeType;
   oldSrc: string;
   newSrc: string;
   oldTranslation: string;
   newTranslation: string;
+  strId: number;
+  mtString?: boolean;
 }[];
 
 export function prjUpdateDiff(
@@ -35,38 +39,59 @@ export function prjUpdateDiff(
   const matchMap = bestMatchMap(oldSrcStrings, newSrcStrings, (a, b) =>
     compareTwoStrings(a.text, b.text)
   );
-  const oldIndex = 0;
-  const newIndex = 0;
-  const mapIndex = 0;
+  let oldIndex = 0;
+  let newIndex = 0;
+  let mapIndex = 0;
   const diff: ProjectUpdateDiff = [];
   while (oldIndex < oldSrcStrings.length || newIndex < newSrcStrings.length) {
     const match = matchMap[mapIndex];
-    if (match[0] == oldIndex && match[1] == newIndex) {
-      if (oldSrcStrings[oldIndex].text == newSrcStrings[newIndex].text) {
-        diff.push({ change: "none", oldSrc: oldSrcStrings[oldIndex] });
-      }
-    }
+    let change: DiffChangeType = "none";
+    if (match && match[0] == oldIndex && match[1] == newIndex) {
+      change = "none";
+      if (oldSrcStrings[oldIndex].text != newSrcStrings[newIndex].text)
+        change = "change";
+    } else if (
+      (!match && oldSrcStrings[oldIndex]) ||
+      (match && oldIndex < match[0])
+    )
+      change = "remove";
+    else change = "add";
+
+    diff.push({
+      change,
+      strId: change == "remove" ? -1 : newIndex,
+      oldSrc: change == "add" ? "" : oldTStrings[oldIndex].src,
+      newSrc: change == "remove" ? "" : newSrcStrings[newIndex].text,
+      oldTranslation: change == "add" ? "" : oldTStrings[oldIndex].targetText,
+      newTranslation: change == "none" ? oldTStrings[oldIndex].targetText : "",
+      mtString:
+        change == "remove"
+          ? oldTStrings[oldIndex].mtString
+          : newSrcStrings[newIndex].mtString
+    });
+    [oldIndex, newIndex, mapIndex] = updateIndices(
+      change,
+      oldIndex,
+      newIndex,
+      mapIndex
+    );
   }
+  return diff;
 }
 
-export function prjUpdate(
-  project: Manifest.Project,
-  lessonIndex: number,
-  srcVersion: number,
-  translations: string[]
+function updateIndices(
+  change: DiffChangeType,
+  oldIndex: number,
+  newIndex: number,
+  mapIndex: number
 ) {
-  const prjLesson = project.lessons[lessonIndex];
-  const srcStrings = Storage.getSrcStrings({
-    language: project.sourceLang,
-    lesson: prjLesson.lesson,
-    version: srcVersion
-  });
-  const newTStrings: Storage.TDocString[] = srcStrings.map((srcStr, index) => ({
-    id: index,
-    xpath: srcStr.xpath,
-    src: srcStr.text,
-    mtString: srcStr.mtString,
-    targetText: translations[index] || ""
-  }));
-  Storage.saveTStrings(project, prjLesson.lesson, newTStrings);
+  switch (change) {
+    case "none":
+    case "change":
+      return [oldIndex + 1, newIndex + 1, mapIndex + 1];
+    case "remove":
+      return [oldIndex + 1, newIndex, mapIndex];
+    case "add":
+      return [oldIndex, newIndex + 1, mapIndex];
+  }
 }
