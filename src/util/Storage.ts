@@ -10,7 +10,7 @@ import fs from "fs";
 import path from "path";
 import { DocString } from "../xml/parse";
 import { Project } from "./Manifest";
-import tStringHistory, { TStringHistory } from "./TStringHistory";
+import tStringHistory, { TStringHistory } from "./tStringHistory";
 
 export interface LessonId {
   language: string;
