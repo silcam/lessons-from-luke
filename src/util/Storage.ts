@@ -10,6 +10,7 @@ import fs from "fs";
 import path from "path";
 import { DocString } from "../xml/parse";
 import { Project } from "./Manifest";
+import tStringHistory from "./TStringHistory";
 
 export interface LessonId {
   language: string;
@@ -106,10 +107,31 @@ export function saveTStrings(
   lesson: string,
   tStrings: TDocString[]
 ) {
+  saveTStringHistory(projectId, lesson, tStrings);
   fs.writeFileSync(
     tStringsJsonPath(projectId, lesson),
     JSON.stringify(tStrings)
   );
+}
+
+function saveTStringHistory(
+  projectId: ProjectId,
+  lesson: string,
+  newTStrings: TDocString[]
+) {
+  const oldTStrings = getTStrings(projectId, lesson);
+  const histFilepath = tStringsHistoryPath(projectId, lesson);
+  const oldHistory = fs.existsSync(histFilepath)
+    ? JSON.parse(fs.readFileSync(histFilepath).toString())
+    : [];
+  const newHistory = tStringHistory(oldHistory, oldTStrings, newTStrings);
+  fs.writeFileSync(histFilepath, JSON.stringify(newHistory));
+}
+
+function tStringsHistoryPath(projectId: ProjectId, lesson: string) {
+  const histDirPath = path.join(projectDirPath(projectId), "history");
+  mkdirSafe(histDirPath);
+  return path.join(histDirPath, `${lesson}.json`);
 }
 
 function tStringsJsonPath(projectId: ProjectId, lesson: string) {

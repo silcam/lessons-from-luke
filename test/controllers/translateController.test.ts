@@ -1,6 +1,7 @@
-import { loggedInAgent, stripSpace, resetTestStorage } from "../testHelper";
+import { stripSpace, resetTestStorage } from "../testHelper";
 import app from "../../src/app";
 import request from "supertest";
+import fs from "fs";
 
 beforeAll(() => {
   resetTestStorage();
@@ -44,6 +45,42 @@ test("Submit translation", async () => {
     .send(completeTranslationFormData())
     .redirects(1);
   expect(response.text).toContain("100%");
+});
+
+test("History is saved", async () => {
+  expect.assertions(1);
+  await request(app)
+    .post("/translate/TPINTII/lesson/Luke-Q1-L01")
+    .type("form")
+    .send({ 0: "Version 1" })
+    .redirects(1);
+  await request(app)
+    .post("/translate/TPINTII/lesson/Luke-Q1-L01")
+    .type("form")
+    .send({ 0: "Version 2" })
+    .redirects(1);
+  expect(
+    fs.existsSync(
+      "test/strings/translations/Pidgin_1555081479425/history/Luke-Q1-L01.json"
+    )
+  );
+  const history = JSON.parse(
+    fs
+      .readFileSync(
+        "test/strings/translations/Pidgin_1555081479425/history/Luke-Q1-L01.json"
+      )
+      .toString()
+  );
+  expect(history[history.length - 1].tStrings).toEqual([
+    {
+      id: 0,
+      xpath:
+        "/office:document-content/office:body/office:text/table:table[1]/table:table-row/table:table-cell[2]/text:p[1]/text()[1]",
+      src: "The Book of Luke and",
+      targetText: "Version 1",
+      mtString: true
+    }
+  ]);
 });
 
 // Keep this test last
