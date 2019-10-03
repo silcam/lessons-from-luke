@@ -1,0 +1,91 @@
+<style>
+    div.src {
+        font-weight: 100;
+    }
+    div.translation {
+        font-weight: 500;
+    }
+    tr.none {
+        color: #adb1b1;
+        font-size: smaller;
+    }
+    textarea {
+        flex-grow: 1;
+    }
+    textarea[disabled] {
+        display: none;
+    }
+    table {
+        table-layout: fixed;
+        width: 100%;
+    }
+    td {
+        border-top: 1px solid #adb1b1;
+        vertical-align: top;
+        height: 100%;
+    }
+    td > div {
+        height: 100%;
+    }
+    div.src,
+    div.translation {
+        padding: 2px 0;
+    }
+    div.translation {
+        flex-grow: 1;
+    }
+</style>
+
+<script>
+    function copyTranslation(event) {
+        event.preventDefault();
+        let tableRow = event.target.closest("tr")
+        let text = tableRow.querySelector("div.translation").textContent;
+        let textArea = tableRow.querySelector("textarea");
+        textArea.value = text.trim();
+    }
+</script>
+
+<div id="updateLesson">
+    <a href="/projects/{{projectId}}">&lt;&lt; {{targetLang}}</a>
+
+    <div class="flex-row">
+        <h2>{{lessonName}}</h2>
+        <h3>
+            <a href="{{skipUrl}}">Skip &gt;&gt;</a>
+        </h3>
+    </div>
+
+    <form action="/projects/{{projectId}}/update/{{lessonIndex}}" method="post">
+        <input type="hidden" name="targetVersion" value={{targetVersion}} />
+
+        <table>
+            <tbody>
+                {{#diff}}
+                    <tr class="{{change}}">
+                        <td class="oldStr">
+                            <div>
+                                <div class="src">{{oldSrc}}</div>
+                                <div class="translation">{{oldTranslation}}</div>
+                                <div class="copyLink" data-show={{displayCopyButton}}>
+                                    <a href="#" onclick="copyTranslation(event)">Copy Translation</a>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="newStr">
+                            <div>
+                                <div class="src">{{newSrc}}</div>
+                                <div class="translation">
+                                    <span class="text">{{newTranslation}}</span>
+                                    <input type="hidden" name="{{strId}}" value="{{newTranslation}}" {{disableHiddenInput}} />
+                                    <textarea name="{{strId}}" {{disableTextInput}}></textarea>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                {{/diff}}
+            </tbody>
+        </table>
+
+        <button type="submit" class="big">Update</button>
+    </form>

@@ -32,3 +32,19 @@ test("uploadDoc", async () => {
     .redirects(1);
   expect(response.text).toContain("The Book of Luke and");
 });
+
+test("Update Src", async () => {
+  resetTestStorage();
+  expect.assertions(1);
+  const agent = await loggedInAgent();
+  await agent
+    .post("/sources/English/lessons/Luke-Q1-L01/versions/1")
+    .type("form")
+    .send({ 0: "The Book of Luke and the Birth of John the Baptizer", 1: "" });
+  const response = await agent.get(
+    "/sources/English/lessons/Luke-Q1-L01/versions/2"
+  );
+  expect(response.text).toContain(
+    "The Book of Luke and the Birth of John the Baptizer"
+  );
+});
