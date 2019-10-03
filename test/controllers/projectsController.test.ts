@@ -15,11 +15,27 @@ test("Create a project", async () => {
   expect(response.text).toContain("Canadian");
 });
 
-test("Show Project", async () => {
-  expect.assertions(1);
+test("Show Project, Project Lesson and Project Lesson History", async () => {
+  expect.assertions(3);
   const agent = await loggedInAgent();
-  const response = await agent.get("/projects/Pidgin_1555081479425");
+  let response = await agent.get("/projects/Pidgin_1555081479425");
   expect(response.text).toContain(`<div id="project">`);
+
+  await agent
+    .post("/translate-api/TPINTII/lesson/Luke-Q1-L01")
+    .send([{ id: 0, targetText: "Version 1" }]);
+  await agent
+    .post("/translate-api/TPINTII/lesson/Luke-Q1-L01")
+    .send([{ id: 0, targetText: "Version 2" }]);
+  response = await agent.get(
+    "/projects/Pidgin_1555081479425/lessons/Luke-Q1-L01"
+  );
+  expect(response.text).toContain("<td>Version 2</td>");
+
+  response = await agent.get(
+    "/projects/Pidgin_1555081479425/lessonHistory/Luke-Q1-L01"
+  );
+  expect(response.text).toContain("<td>Version 1</td>");
 });
 
 test("Unlock project", async () => {

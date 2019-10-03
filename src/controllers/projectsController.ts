@@ -1,4 +1,4 @@
-import { Express } from "express";
+import { Express, Request } from "express";
 import requireAdmin from "../util/requireAdmin";
 import bodyParser from "body-parser";
 import * as Storage from "../util/Storage";
@@ -25,21 +25,57 @@ export default function projectsController(app: Express) {
   });
 
   app.get("/projects/:projectId", requireAdmin, (req, res) => {
-    const projectId = Storage.projectIdFromString(req.params
-      .projectId as string);
-    const projectManifest = Manifest.readProjectManifest(projectId.datetime);
+    const projectManifest = getProjectManifest(req);
     const locked = projectManifest.lockCode !== undefined;
     res.send(
       layout(
         Mustache.render(getTemplate("project"), {
           ...projectManifest,
-          projectCode: encode(projectId.datetime),
+          projectCode: encode(projectManifest.datetime),
           projectId: req.params.projectId,
           locked,
           updatesAvailable:
             !locked &&
-            Manifest.projectSrcUpdatesAvailable(projectId.datetime).length > 0,
+            Manifest.projectSrcUpdatesAvailable(projectManifest.datetime)
+              .length > 0,
           extraProgressClass
+        })
+      )
+    );
+  });
+
+  app.get("/projects/:projectId/lessons/:lesson", (req, res) => {
+    const projectManifest = getProjectManifest(req);
+    const tStrings = Storage.getTStrings(projectManifest, req.params.lesson);
+    res.send(
+      layout(
+        Mustache.render(getTemplate("projectLesson"), {
+          projectId: req.params.projectId,
+          ...projectManifest,
+          lesson: req.params.lesson,
+          tStrings
+        })
+      )
+    );
+  });
+
+  app.get("/projects/:projectId/lessonHistory/:lesson", (req, res) => {
+    const projectManifest = getProjectManifest(req);
+    const history = Storage.getTStringsHistory(
+      projectManifest,
+      req.params.lesson
+    );
+    const viewHistory = history.reverse().map(item => ({
+      ...item,
+      timestamp: new Date(item.time).toString().replace(/:\d\d GMT.*/, "")
+    }));
+    res.send(
+      layout(
+        Mustache.render(getTemplate("projectLessonHistory"), {
+          projectId: req.params.projectId,
+          ...projectManifest,
+          lesson: req.params.lesson,
+          history: viewHistory
         })
       )
     );
@@ -58,9 +94,7 @@ export default function projectsController(app: Express) {
     formDataParser,
     fileUpload(),
     (req, res) => {
-      const projectId = Storage.projectIdFromString(req.params
-        .projectId as string);
-      const projectManifest = Manifest.readProjectManifest(projectId.datetime);
+      const projectManifest = getProjectManifest(req);
       const file = req.files!.usfmFile as UploadedFile;
       const usfm = file.data.toString();
       const overwrite = !!req.body.overwrite;
@@ -78,11 +112,9 @@ export default function projectsController(app: Express) {
   );
 
   app.get("/projects/:projectId/update/:lessonIndex?", (req, res) => {
-    const projectId = Storage.projectIdFromString(req.params
-      .projectId as string);
-    const projectManifest = Manifest.readProjectManifest(projectId.datetime);
+    const projectManifest = getProjectManifest(req);
     const updatesAvailable = Manifest.projectSrcUpdatesAvailable(
-      projectId.datetime
+      projectManifest.datetime
     );
     const lessonIndex =
       parseInt(req.params.lessonIndex) || updatesAvailable[0][0];
@@ -127,15 +159,9 @@ export default function projectsController(app: Express) {
     "/projects/:projectId/update/:lessonIndex",
     formDataParser,
     (req, res) => {
-      const projectId = Storage.projectIdFromString(req.params
-        .projectId as string);
       const targetVersion = parseInt(req.body.targetVersion);
       const lessonIndex = parseInt(req.params.lessonIndex);
-      const projectManifest = Manifest.updateProjectLessonSrc(
-        projectId.datetime,
-        req.params.lessonIndex,
-        targetVersion
-      );
+      const projectManifest = getProjectManifest(req);
       const prjLesson = projectManifest.lessons[lessonIndex];
       const newSrcStrings = Storage.getSrcStrings({
         language: projectManifest.sourceLang,
@@ -164,4 +190,9 @@ export default function projectsController(app: Express) {
       else res.redirect(`/projects/${req.params.projectId}`);
     }
   );
+}
+
+function getProjectManifest(req: Request) {
+  const projectId = Storage.projectIdFromString(req.params.projectId as string);
+  return Manifest.readProjectManifest(projectId.datetime);
 }

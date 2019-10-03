@@ -10,7 +10,7 @@ import fs from "fs";
 import path from "path";
 import { DocString } from "../xml/parse";
 import { Project } from "./Manifest";
-import tStringHistory from "./TStringHistory";
+import tStringHistory, { TStringHistory } from "./TStringHistory";
 
 export interface LessonId {
   language: string;
@@ -121,11 +121,19 @@ function saveTStringHistory(
 ) {
   const oldTStrings = getTStrings(projectId, lesson);
   const histFilepath = tStringsHistoryPath(projectId, lesson);
-  const oldHistory = fs.existsSync(histFilepath)
-    ? JSON.parse(fs.readFileSync(histFilepath).toString())
-    : [];
+  const oldHistory = getTStringsHistory(projectId, lesson);
   const newHistory = tStringHistory(oldHistory, oldTStrings, newTStrings);
   fs.writeFileSync(histFilepath, JSON.stringify(newHistory));
+}
+
+export function getTStringsHistory(
+  projectId: ProjectId,
+  lesson: string
+): TStringHistory {
+  const histFilepath = tStringsHistoryPath(projectId, lesson);
+  return fs.existsSync(histFilepath)
+    ? JSON.parse(fs.readFileSync(histFilepath).toString())
+    : [];
 }
 
 function tStringsHistoryPath(projectId: ProjectId, lesson: string) {
