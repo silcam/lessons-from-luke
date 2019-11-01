@@ -5,9 +5,11 @@
   "scripts": {
     "start": "yarn serve",
     "build": "yarn build-ts",
-    "build-desktop": "yarn build && pkg . --out-path desktop/ -t win-x86,win-x64,mac,linux && yarn mvDesktopBinaries",
+    "build-desktop": "yarn build && yarn build-x64 && yarn build-x86",
+    "build-x64": "pkg . --out-path desktop/ -t win,mac,linux && yarn mvDesktopBinaries",
+    "build-x86": "pkg . -o desktop/win32/lessons-from-luke.exe -t win-x86",
     "deploy": "yarn shipit production deploy",
-    "mvDesktopBinaries": "mv desktop/lessons-from-luke-linux* desktop/linux/lessons-from-luke && mv desktop/lessons-from-luke-win-x64.exe desktop/windows/lessons-from-luke.exe && mv desktop/lessons-from-luke-macos* desktop/macos/lessons-from-luke && mv desktop/lessons-from-luke-win-x86.exe desktop/windows/lessons-from-luke.exe",
+    "mvDesktopBinaries": "mv desktop/lessons-from-luke-linux* desktop/linux/lessons-from-luke && mv desktop/lessons-from-luke-win.exe desktop/windows/lessons-from-luke.exe && mv desktop/lessons-from-luke-macos* desktop/macos/lessons-from-luke",
     "serve": "node dist/server.js",
     "watch": "concurrently -k -p \"[{name}]\" -n \"TypeScript,Node\" -c \"yellow.bold,green.bold\" \"yarn watch-ts\" \"yarn watch-server\"",
     "watch-desktop": "concurrently -k -p \"[{name}]\" -n \"Typescript,Server,Desktop\" -c \"yellow.bold,green.bold,magenta.bold\" \"yarn watch-ts\" \"yarn watch-server\" \"yarn watch-run-desktop\"",
