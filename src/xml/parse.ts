@@ -16,7 +16,12 @@ export default function parse(contentXml: string) {
 
   removeTrackedChanges(xmlDoc, namespaces);
 
-  const knownStyleNames = ["Lesson_20_Title", "Langue_20_Maternelle"];
+  const knownStyleNames = [
+    "Lesson_20_Title",
+    "Langue_20_Maternelle",
+    "Coloring_20_Page_20_-_20_Memory_20_Verse",
+    "Coloring_20_Page_20_-_20_Truth"
+  ];
   const knownStyleNamePatterns = ["M.T._20_Text", "L.M."];
 
   const allStyleNames = knownStyleNames
