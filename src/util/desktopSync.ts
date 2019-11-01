@@ -74,6 +74,7 @@ export async function fetchNextLesson(): Promise<boolean> {
         writeLockInvalid: true
       });
     }
+    console.log(err);
     throw err;
   }
   return false;

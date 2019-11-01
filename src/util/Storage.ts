@@ -97,9 +97,13 @@ export function getTStrings(
   projectId: ProjectId,
   lesson: string
 ): TDocString[] {
-  return JSON.parse(
-    fs.readFileSync(tStringsJsonPath(projectId, lesson)).toString()
-  );
+  try {
+    return JSON.parse(
+      fs.readFileSync(tStringsJsonPath(projectId, lesson)).toString()
+    );
+  } catch (err) {
+    return [];
+  }
 }
 
 export function saveTStrings(
