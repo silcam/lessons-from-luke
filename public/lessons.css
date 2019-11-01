@@ -131,6 +131,11 @@ button:active.red {
     background-color: #d15d4b;
 }
 
+button:disabled {
+    cursor: not-allowed;
+    background-color: #1ea89699;
+}
+
 .error {
     color: #ff715b;
 }

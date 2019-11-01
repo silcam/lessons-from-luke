@@ -2,7 +2,7 @@ import { Express } from "express";
 import * as Manifest from "../util/Manifest";
 import * as Storage from "../util/Storage";
 import { decode } from "../util/timestampEncode";
-import { UpSyncPackage } from "../util/desktopSync";
+import { UpSyncPackage, UnlockPackage } from "../util/desktopSync";
 import bodyParser from "body-parser";
 
 const jsonBodyParser = bodyParser.json({ limit: "50mb" });
@@ -45,6 +45,18 @@ export default function webSyncController(app: Express) {
         syncPackage.lesson.lesson,
         syncPackage.lesson.strings
       );
+      res.status(204).send();
+    }
+  });
+
+  app.post("/desktop/unlock", jsonBodyParser, (req, res) => {
+    const body: UnlockPackage = req.body;
+    const { lockCode, datetime } = body;
+    const project = Manifest.readProjectManifest(datetime);
+    if (project.lockCode && project.lockCode !== lockCode) {
+      res.status(403).send("Invalid write lock");
+    } else {
+      Manifest.unlockProject(datetime);
       res.status(204).send();
     }
   });

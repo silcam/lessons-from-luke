@@ -1,7 +1,7 @@
 import { ProjectId, projectIdToString, TDocString, LessonId } from "./Storage";
 import fs from "fs";
 import path from "path";
-import { stringsDirPath } from "./fsUtils";
+import { stringsDirPath, unlinkSafe } from "./fsUtils";
 
 const stringsDir = stringsDirPath();
 const sourceManifestPath = path.join(stringsDir, "sources.json");
@@ -239,6 +239,10 @@ export function desktopProjectManifestExists() {
 export function readDesktopProject(): Project {
   const projects = readProjectManifest();
   return projects[0];
+}
+
+export function removeDesktopProject() {
+  unlinkSafe(projectsManifestPath);
 }
 
 export function writeDesktopProject(project: Project) {

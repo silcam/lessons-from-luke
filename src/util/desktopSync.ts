@@ -1,7 +1,7 @@
 import Axios from "axios";
 import * as Manifest from "./Manifest";
 import * as Storage from "./Storage";
-import { unlinkSafe, touch } from "./fsUtils";
+import { unlinkSafe } from "./fsUtils";
 import fs from "fs";
 import { set, unset } from "./arraySet";
 
@@ -14,6 +14,11 @@ export interface UpSyncPackage {
     lesson: string;
     strings: Storage.TDocString[];
   };
+}
+
+export interface UnlockPackage {
+  datetime: number;
+  lockCode: string;
 }
 
 export interface DownSyncStatus {
@@ -54,9 +59,7 @@ export async function fetchNextLesson(): Promise<boolean> {
   if (!lesson) return downSyncDone();
   try {
     const response = await Axios.get(
-      `${serverUrl}/desktop/fetch/${
-        project.datetime
-      }/lesson/${lesson}?lockCode=${project.lockCode}`
+      `${serverUrl}/desktop/fetch/${project.datetime}/lesson/${lesson}?lockCode=${project.lockCode}`
     );
     const tStrings: Storage.TDocString[] = response.data;
     Storage.saveTStrings(project, lesson, tStrings);
@@ -102,6 +105,33 @@ export async function push(lesson: string): Promise<void> {
   }
 }
 
+// Returns true for success
+export async function unlock(): Promise<void> {
+  const project = Manifest.readDesktopProject();
+  const body: UnlockPackage = {
+    datetime: project.datetime,
+    lockCode: project.lockCode || "" // Should always exist
+  };
+  try {
+    await Axios.post(`${serverUrl}/desktop/unlock`, body);
+    clearProject();
+  } catch (err) {
+    if (err.response && err.response.status == 403) {
+      // Means our lock was invalid anyway
+      clearProject();
+    } else if (err.request && !err.response) {
+      throw "NoConnection";
+    } else {
+      throw "UnknownError";
+    }
+  }
+}
+
+function clearProject() {
+  Manifest.removeDesktopProject();
+  removeUpSyncStatus();
+}
+
 function downSyncDone() {
   unlinkSafe(DOWN_SYNC_STATUS_FILENAME);
   return true;
@@ -132,4 +162,8 @@ function writeDownSyncStatus(syncStatus: DownSyncStatus) {
 
 function writeUpSyncStatus(syncStatus: UpSyncStatus) {
   fs.writeFileSync(UP_SYNC_STATUS_FILENAME, JSON.stringify(syncStatus));
+}
+
+function removeUpSyncStatus() {
+  unlinkSafe(UP_SYNC_STATUS_FILENAME);
 }

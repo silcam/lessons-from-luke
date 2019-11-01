@@ -2,8 +2,9 @@ import { resetTestStorage, loggedInAgent } from "../testHelper";
 import app from "../../src/app";
 import request from "supertest";
 import { Project } from "../../src/util/Manifest";
-import { UpSyncPackage } from "../../src/util/desktopSync";
+import { UpSyncPackage, UnlockPackage } from "../../src/util/desktopSync";
 import { TDocString } from "../../src/util/Storage";
+import * as Manifest from "../../src/util/Manifest";
 
 /*************
   These tests are for the API used by the Desktop app,
@@ -64,9 +65,7 @@ test("Push translations", async () => {
   const project: Project = JSON.parse(response.text);
 
   response = await request(app).get(
-    `/desktop/fetch/1555081479425/lesson/Luke-Q1-L01?lockCode=${
-      project.lockCode
-    }`
+    `/desktop/fetch/1555081479425/lesson/Luke-Q1-L01?lockCode=${project.lockCode}`
   );
   const tStrings: TDocString[] = JSON.parse(response.text);
 
@@ -109,4 +108,36 @@ test("Can't push if the lock does not match", async () => {
     .put("/desktop/push")
     .send(syncPackage);
   expect(response.status).toBe(403);
+});
+
+test("Unlock project", async () => {
+  expect.assertions(4);
+  let response = await request(app).get("/desktop/fetch/TPINTII");
+  let project: Project = JSON.parse(response.text);
+
+  // Unlock rejected if project is locked and the lock code is wrong
+  const body: UnlockPackage = {
+    datetime: project.datetime,
+    lockCode: "1234" // Wrong
+  };
+  response = await request(app)
+    .post("/desktop/unlock")
+    .send(body);
+  expect(response.status).toBe(403);
+
+  // Unlock works with correct code
+  body.lockCode = project.lockCode!;
+  response = await request(app)
+    .post("/desktop/unlock")
+    .send(body);
+  expect(response.status).toBe(204);
+  // Verify unlocked
+  project = Manifest.readProjectManifest(1555081479425);
+  expect(project.lockCode).toBeUndefined();
+
+  // Unlock returns 204 if the project was already unlocked
+  response = await request(app)
+    .post("/desktop/unlock")
+    .send(body);
+  expect(response.status).toBe(204);
 });

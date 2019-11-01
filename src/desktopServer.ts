@@ -2,7 +2,7 @@ import app from "./desktopApp";
 import { setupDesktopStorage } from "./util/fsUtils";
 
 const port = 8081;
-const version = "1.1";
+const version = "1.2";
 
 setupDesktopStorage();
 

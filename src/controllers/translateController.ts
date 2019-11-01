@@ -39,9 +39,12 @@ export default function translateController(
             extraProgressClass,
             t,
             baseUrl: req.url, //`/translate/${req.params.projectCode}`
-            ...syncMessage(context, t)
+            ...syncMessageAndUnlock(context, t)
           },
-          { syncMessage: getTemplate("syncMessage") }
+          {
+            syncMessage: getTemplate("syncMessage"),
+            desktopUnlock: getTemplate("desktopUnlock")
+          }
         )
       )
     );
@@ -157,18 +160,20 @@ function lockCheck(context: ServerContext) {
   };
 }
 
-function syncMessage(context: ServerContext, t: Translations) {
+function syncMessageAndUnlock(context: ServerContext, t: Translations) {
   if (context == "web")
     return {
       showDesktopSync: false,
       desktopNeedToSync: false,
-      desktopNeedToSyncMessage: ""
+      desktopNeedToSyncMessage: "",
+      showUnlockButton: false
     };
   const syncStatus = getUpSyncStatus();
   return {
     showDesktopSync: syncStatus.savedChanges,
     desktopNeedToSync: syncStatus.needToSync.length > 0,
     desktopNeedToSyncMessage:
-      syncStatus.needToSync.length > 0 ? t.needToSync : t.synced
+      syncStatus.needToSync.length > 0 ? t.needToSync : t.synced,
+    showUnlockButton: syncStatus.needToSync.length === 0
   };
 }

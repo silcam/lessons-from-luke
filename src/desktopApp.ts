@@ -10,28 +10,31 @@ import {
   getUpSyncStatus,
   push,
   getDownSyncStatus,
-  fetchNextLesson
+  fetchNextLesson,
+  unlock
 } from "./util/desktopSync";
 import * as Manifest from "./util/Manifest";
 import { encode } from "./util/timestampEncode";
 import Mustache from "mustache";
 import { assetsPath } from "./util/fsUtils";
-import i18n from "./util/i18n";
+import i18n, { languages } from "./util/i18n";
 
 const formDataParser = bodyParser.urlencoded({ extended: false });
 
 const app = express();
 app.use(express.static(assetsPath("public")));
 
-// app.use((req, __, next) => {
-//   console.log(`SERVE: ${req.path}`);
-//   next();
-// });
-
 app.use((req, res, next) => {
   const syncStatus = getUpSyncStatus();
   if (syncStatus.writeLockInvalid) {
-    res.send(layout(Mustache.render(getTemplate("writeLockInvalid"), {})));
+    res.send(
+      layout(
+        Mustache.render(getTemplate("errorPage"), {
+          messages: languages().map(lang => i18n(lang).writeLockInvalid),
+          showOk: false
+        })
+      )
+    );
   } else {
     next();
   }
@@ -103,6 +106,31 @@ app.get("/fetchLesson", async (req, res) => {
   } catch (err) {
     res.redirect("/syncProgress?error=true");
   }
+});
+
+app.post("/unlock", async (req, res) => {
+  try {
+    await unlock();
+    res.redirect("/");
+  } catch (err) {
+    const message = typeof err === "string" ? err : "UnknownError";
+    res.redirect(`/error?message=${message}`);
+  }
+});
+
+app.get("/error", async (req, res) => {
+  const error = req.query.message || "UnknownError";
+  res.send(
+    layout(
+      Mustache.render(getTemplate("errorPage"), {
+        messages: languages().map(lang => {
+          const t = i18n(lang);
+          return t[error] || t.UnknownError;
+        }),
+        showOk: true
+      })
+    )
+  );
 });
 
 translateController(app, "desktop");
