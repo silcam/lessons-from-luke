@@ -18,7 +18,8 @@ export default function projectsController(app: Express) {
   app.post("/projects", requireAdmin, formDataParser, (req, res) => {
     const project = Manifest.addProject(
       req.body.sourceLang,
-      req.body.targetLang
+      req.body.targetLang,
+      req.body.fullTranslation
     );
     Storage.makeProjectDir(project);
     res.redirect(`/`);

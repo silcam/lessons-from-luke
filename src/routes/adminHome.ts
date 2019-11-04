@@ -9,6 +9,12 @@ import { extraProgressClass } from "../controllers/translateController";
 export default function adminHome() {
   const sourceManifest = Manifest.readSourceManifest();
   const projects = Manifest.readProjectManifest();
+  const regularProjects = projects
+    .filter(p => !p.fullTranslation)
+    .sort(compareProjects);
+  const fullTransProjects = projects
+    .filter(p => p.fullTranslation)
+    .sort(compareProjects);
   const sourceLangs = sourceManifest
     .map(langManifest => langManifest.language)
     .sort();
@@ -16,14 +22,16 @@ export default function adminHome() {
     getTemplate("adminHome"),
     {
       sourceLangs,
-      projects,
+      projects: regularProjects,
+      fullTransProjects,
+      showFullTransProjects: fullTransProjects.length > 0,
       projectCode,
       projectId,
       projectProgress,
       projectLocked,
       extraProgressClass
     },
-    getTemplates(["sourceLangList", "projectList"])
+    getTemplates(["sourceLangList", "projectList", "projectListItem"])
   );
 }
 
@@ -49,4 +57,8 @@ function projectProgress() {
 function projectLocked() {
   const project: Manifest.Project = this;
   return project.lockCode !== undefined;
+}
+
+function compareProjects(a: Manifest.Project, b: Manifest.Project) {
+  return a.targetLang.localeCompare(b.targetLang);
 }

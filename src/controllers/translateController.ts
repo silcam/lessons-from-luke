@@ -61,7 +61,8 @@ export default function translateController(
           return {
             ...tString,
             className: tString.mtString ? "mtString" : "otherString",
-            editDisplay: tString.mtString ? "inline" : "none",
+            editDisplay:
+              project.fullTranslation || tString.mtString ? "inline" : "none",
             inputDisplay: longText ? "none" : "inline-block",
             areaDisplay: longText ? "inline-block" : "none",
             inputDisabled: longText ? "disabled" : "",

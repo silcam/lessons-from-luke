@@ -38,6 +38,7 @@ export interface Project {
   datetime: number;
   lockCode?: string;
   lessons: ProjectLesson[];
+  fullTranslation?: boolean;
 }
 
 export type ProjectManifest = Project[];
@@ -98,7 +99,11 @@ export function deleteLessonVersion(lessonId: LessonId) {
   writeSourceManifest(manifest);
 }
 
-export function addProject(sourceLang: string, targetLang: string): Project {
+export function addProject(
+  sourceLang: string,
+  targetLang: string,
+  fullTranslation?: boolean
+): Project {
   const projects = readProjectManifest();
   const sources = readSourceManifest();
   const source = findBy(sources, "language", sourceLang)!;
@@ -121,7 +126,8 @@ export function addProject(sourceLang: string, targetLang: string): Project {
   const project = {
     ...id,
     sourceLang,
-    lessons: projectLessons
+    lessons: projectLessons,
+    fullTranslation
   };
   projects.push(project);
 

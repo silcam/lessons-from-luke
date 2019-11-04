@@ -1,35 +1,37 @@
+<style>
+    #addProjectForm label {
+        padding-bottom: 6px;
+    }
+    table h4 {
+        margin: 1em 0 0;
+    }
+</style>
+
 <div id="projectList">
     <h2>Projects</h2>
     <table>
         <tbody>
             {{#projects}}
-                <tr>
-                    <th>
-                        <a href="/projects/{{projectId}}">
-                            {{targetLang}}
-                        </a>
-                    </th>
-                    <td class="progress">
-                        {{projectProgress}}
-                    </td>
-                    <td>
-                        <a href="/translate/{{projectCode}}" target="_blank">
-                            Translate
-                        </a>
-                    </td>
-                    <td>
-                        <div data-show="{{projectLocked}}" style="font-size: small">
-                            [Desktop Lock]
-                        </div>
-                    </td>
-                </tr>
+                {{> projectListItem}}
             {{/projects}}
+            <tr>
+                <td colspan="4">
+                    <h4 data-show="{{showFullTransProjects}}">
+                        Full Translations
+                    </h4>
+                </td>
+            </tr>
+            {{#fullTransProjects}}
+                {{> projectListItem}}
+            {{/fullTransProjects}}
         </tbody>
     </table>
 
+    <hr />
 
-    <h4>Add Project</h4>
+    <h2>Add Project</h2>
     <form action="/projects" method="post" class="left-bar">
+    <div id="addProjectForm">
         <label>
             Source:
             <select name="sourceLang">
@@ -38,7 +40,17 @@
                 {{/sourceLangs}}
             </select>
         </label>
-        <input type="text" name="targetLang" placeholder="Target Language" required />
+        <label>
+            Target:
+            <input type="text" name="targetLang" placeholder="Language" required />
+        </label>
+        <label>
+            <input type="checkbox" name="fullTranslation" />
+            Full Translation
+        </label>
+        <p>
         <button type="submit">Create</button>
+        </p>
+        </div>
     </form>
 </div>

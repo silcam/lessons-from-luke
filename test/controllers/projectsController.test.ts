@@ -10,9 +10,27 @@ test("Create a project", async () => {
   const response = await agent
     .post("/projects")
     .type("form")
-    .send({ sourceLang: "English", targetLang: "Canadian" })
+    .send({
+      sourceLang: "English",
+      targetLang: "Canadian"
+    })
     .redirects(1);
-  expect(response.text).toContain("Canadian");
+  expect(response.text).toMatch(/Canadian.+Full Translations/s); // Canadian project should be above the header for Full Translations
+});
+
+test("Create full Translation", async () => {
+  expect.assertions(1);
+  const agent = await loggedInAgent();
+  const response = await agent
+    .post("/projects")
+    .type("form")
+    .send({
+      sourceLang: "English",
+      targetLang: "Canadian",
+      fullTranslation: true
+    })
+    .redirects(1);
+  expect(response.text).toMatch(/Full Translations.+Canadian/s); // Canadian project should be below the header for Full Translations
 });
 
 test("Show Project, Project Lesson and Project Lesson History", async () => {

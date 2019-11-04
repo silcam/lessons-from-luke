@@ -16,9 +16,10 @@ export default function documentPathForTranslation(
     throw `Lesson "${lesson}" not found in Project Manifest for project ${Storage.projectIdToString(
       projectId
     )}!`;
-  const tStrings = Storage.getTStrings(projectId, lesson).filter(
-    str => str.mtString
-  );
+  const allTStrings = Storage.getTStrings(projectId, lesson);
+  const tStrings = projectManifest.fullTranslation
+    ? allTStrings
+    : allTStrings.filter(str => str.mtString);
 
   const tmpDocsPath = path.join(tmpDirPath(), "docs");
   mkdirSafe(tmpDocsPath);
