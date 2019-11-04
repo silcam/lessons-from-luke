@@ -57,6 +57,22 @@ export default function parse(contentXml: string) {
   return mergedStrings;
 }
 
+export function parseMeta(metaXml: string) {
+  const xmlDoc = libxmljs2.parseXml(metaXml);
+  const namespaces = extractNamespaces(xmlDoc);
+
+  const xPath = "//dc:subject";
+  const nodes = xmlDoc.root()!.find(xPath, namespaces);
+  return parseNodes(nodes as Element[]);
+}
+
+export function parseStyles(stylesXml: string) {
+  const xmlDoc = libxmljs2.parseXml(stylesXml);
+  const docStrings = parseNode(xmlDoc.root()!);
+  const justNumberPattern = /^\d+$/;
+  return docStrings.filter(docStr => !justNumberPattern.test(docStr.text));
+}
+
 // parentStyleName is ignored if parentStylePattern is provided
 function findStylesToMatch(
   xmlDoc: Document,

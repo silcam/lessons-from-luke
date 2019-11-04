@@ -1,7 +1,6 @@
 import {
   mkdirSafe,
   copyRecursive,
-  zip,
   stringsDirPath,
   unzip,
   unlinkRecursive
@@ -163,12 +162,25 @@ export function makeLessonDir(lessonId: LessonId) {
 }
 
 export function contentXml(lessonId: LessonId) {
+  return odtXml(lessonId, "content");
+}
+
+export function metaXml(lessonId: LessonId) {
+  return odtXml(lessonId, "meta");
+}
+
+export function stylesXml(lessonId: LessonId) {
+  return odtXml(lessonId, "styles");
+}
+
+type OdtXml = "content" | "styles" | "meta";
+function odtXml(lessonId: LessonId, xmlType: OdtXml) {
   const extractDirPath = path.join(lessonDirPath(lessonId), "odt");
   mkdirSafe(extractDirPath);
   const docPath = documentPathForSource(lessonId);
   unzip(docPath, extractDirPath);
-  const contentXmlPath = path.join(extractDirPath, "content.xml");
-  const xml = fs.readFileSync(contentXmlPath).toString();
+  const xmlPath = path.join(extractDirPath, `${xmlType}.xml`);
+  const xml = fs.readFileSync(xmlPath).toString();
   unlinkRecursive(extractDirPath);
   return xml;
 }

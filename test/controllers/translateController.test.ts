@@ -2,6 +2,7 @@ import { stripSpace, resetTestStorage } from "../testHelper";
 import app from "../../src/app";
 import request from "supertest";
 import fs from "fs";
+import * as Storage from "../../src/util/Storage";
 
 beforeAll(() => {
   resetTestStorage();
@@ -52,12 +53,12 @@ test("History is saved", async () => {
   await request(app)
     .post("/translate/TPINTII/lesson/Luke-Q1-L01")
     .type("form")
-    .send({ 0: "Version 1" })
+    .send({ 1: "Version 1" })
     .redirects(1);
   await request(app)
     .post("/translate/TPINTII/lesson/Luke-Q1-L01")
     .type("form")
-    .send({ 0: "Version 2" })
+    .send({ 1: "Version 2" })
     .redirects(1);
   expect(
     fs.existsSync(
@@ -73,7 +74,7 @@ test("History is saved", async () => {
   );
   expect(history[history.length - 1].tStrings).toEqual([
     {
-      id: 0,
+      id: 1,
       xpath:
         "/office:document-content/office:body/office:text/table:table[1]/table:table-row/table:table-cell[2]/text:p[1]/text()[1]",
       src: "The Book of Luke and",
@@ -101,9 +102,15 @@ test("Can't translate locked project", async () => {
 });
 
 function completeTranslationFormData() {
-  let data: { [name: string]: string } = {};
-  for (let i = 0; i < 89; ++i) {
-    data[`${i}`] = `${i}`;
-  }
-  return data;
+  const data: { [name: string]: string } = {};
+  const tStrings = Storage.getTStrings(
+    Storage.projectIdFromString("Pidgin_1555081479425"),
+    "Luke-Q1-L01"
+  );
+  return tStrings.reduce((data, tString) => {
+    if (tString.mtString) {
+      data[`${tString.id}`] = `${tString.id}`;
+    }
+    return data;
+  }, data);
 }

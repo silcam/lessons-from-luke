@@ -1,624 +1,2323 @@
 [
   {
     "id": 0,
+    "xpath": "/office:document-content/office:body/office:text/table:table[1]/table:table-row/table:table-cell[1]/text:p/text()",
+    "src": "1",
+    "targetText": ""
+  },
+  {
+    "id": 1,
     "xpath": "/office:document-content/office:body/office:text/table:table[1]/table:table-row/table:table-cell[2]/text:p[1]/text()[1]",
     "src": "The Book of Luke and",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 1,
+    "id": 2,
     "xpath": "/office:document-content/office:body/office:text/table:table[1]/table:table-row/table:table-cell[2]/text:p[1]/text()[2]",
     "src": "the Birth of John the Baptizer",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 2,
+    "id": 3,
+    "xpath": "/office:document-content/office:body/office:text/table:table[1]/table:table-row/table:table-cell[2]/text:p[2]/text()",
+    "src": "The Book of Luke and the Birth of John the Baptizer",
+    "targetText": ""
+  },
+  {
+    "id": 4,
+    "xpath": "/office:document-content/office:body/office:text/table:table[1]/table:table-row/table:table-cell[3]/text:p[1]/text()",
+    "src": "Luke 1:5-2",
+    "targetText": ""
+  },
+  {
+    "id": 5,
+    "xpath": "/office:document-content/office:body/office:text/table:table[1]/table:table-row/table:table-cell[3]/text:p[1]/text:span/text()",
+    "src": "3",
+    "targetText": ""
+  },
+  {
+    "id": 6,
+    "xpath": "/office:document-content/office:body/office:text/table:table[1]/table:table-row/table:table-cell[3]/text:p[2]/text()",
+    "src": "Luke 1:57-6",
+    "targetText": ""
+  },
+  {
+    "id": 7,
+    "xpath": "/office:document-content/office:body/office:text/table:table[1]/table:table-row/table:table-cell[3]/text:p[2]/text:span/text()",
+    "src": "4",
+    "targetText": ""
+  },
+  {
+    "id": 8,
+    "xpath": "/office:document-content/office:body/office:text/text:p[2]/text()",
+    "src": "Lesson",
+    "targetText": ""
+  },
+  {
+    "id": 9,
+    "xpath": "/office:document-content/office:body/office:text/text:p[2]/text:span/text()",
+    "src": "Overview",
+    "targetText": ""
+  },
+  {
+    "id": 10,
+    "xpath": "/office:document-content/office:body/office:text/table:table[2]/table:table-row[1]/table:table-cell[1]/text:p/text()",
+    "src": "Today’s Truth",
+    "targetText": ""
+  },
+  {
+    "id": 11,
     "xpath": "/office:document-content/office:body/office:text/table:table[2]/table:table-row[1]/table:table-cell[2]/text:p[1]/text:span[1]/text:span/text()",
     "src": "God hears our prayers.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 3,
+    "id": 12,
+    "xpath": "/office:document-content/office:body/office:text/table:table[2]/table:table-row[1]/table:table-cell[2]/text:p[2]/text:span/text()",
+    "src": "God hears our prayers.",
+    "targetText": ""
+  },
+  {
+    "id": 13,
+    "xpath": "/office:document-content/office:body/office:text/table:table[2]/table:table-row[2]/table:table-cell[1]/text:p/text()",
+    "src": "Objective",
+    "targetText": ""
+  },
+  {
+    "id": 14,
+    "xpath": "/office:document-content/office:body/office:text/table:table[2]/table:table-row[2]/table:table-cell[2]/text:p[1]/text:span/text()",
+    "src": "KNOW",
+    "targetText": ""
+  },
+  {
+    "id": 15,
+    "xpath": "/office:document-content/office:body/office:text/table:table[2]/table:table-row[2]/table:table-cell[2]/text:p[1]/text()",
+    "src": ": The children will know that God hears their prayers.",
+    "targetText": ""
+  },
+  {
+    "id": 16,
+    "xpath": "/office:document-content/office:body/office:text/table:table[2]/table:table-row[2]/table:table-cell[2]/text:p[2]/text:span/text()",
+    "src": "DO",
+    "targetText": ""
+  },
+  {
+    "id": 17,
+    "xpath": "/office:document-content/office:body/office:text/table:table[2]/table:table-row[2]/table:table-cell[2]/text:p[2]/text()[1]",
+    "src": ":",
+    "targetText": ""
+  },
+  {
+    "id": 18,
+    "xpath": "/office:document-content/office:body/office:text/table:table[2]/table:table-row[2]/table:table-cell[2]/text:p[2]/text()[2]",
+    "src": "The children will talk with God.",
+    "targetText": ""
+  },
+  {
+    "id": 19,
+    "xpath": "/office:document-content/office:body/office:text/table:table[2]/table:table-row[3]/table:table-cell[1]/text:p/text()",
+    "src": "Materials",
+    "targetText": ""
+  },
+  {
+    "id": 20,
+    "xpath": "/office:document-content/office:body/office:text/table:table[2]/table:table-row[3]/table:table-cell[2]/text:list/text:list-item[1]/text:p/text()",
+    "src": "Picture book, Bible, chalk, copies of devotion page for children",
+    "targetText": ""
+  },
+  {
+    "id": 21,
+    "xpath": "/office:document-content/office:body/office:text/table:table[2]/table:table-row[3]/table:table-cell[2]/text:list/text:list-item[2]/text:p/text()",
+    "src": "Horn, gong, or drum",
+    "targetText": ""
+  },
+  {
+    "id": 22,
+    "xpath": "/office:document-content/office:body/office:text/table:table[2]/table:table-row[3]/table:table-cell[2]/text:list/text:list-item[3]/text:p/text()",
+    "src": "Ball (Make a ball by tying wrappen into knots many times, or fill an old sock with scrap material.)",
+    "targetText": ""
+  },
+  {
+    "id": 23,
+    "xpath": "/office:document-content/office:body/office:text/table:table[2]/table:table-row[4]/table:table-cell[1]/text:p/text()",
+    "src": "Memory Verse",
+    "targetText": ""
+  },
+  {
+    "id": 24,
     "xpath": "/office:document-content/office:body/office:text/table:table[2]/table:table-row[4]/table:table-cell[2]/text:p[1]/text()[1]",
     "src": "Luke 1:13",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 4,
+    "id": 25,
     "xpath": "/office:document-content/office:body/office:text/table:table[2]/table:table-row[4]/table:table-cell[2]/text:p[1]/text()[2]",
     "src": "But the angel said to him: “Do not be afraid, Zechariah; your prayer has been heard. Your wife Elizabeth will bear you a son, and you are to give him the name John.”",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 5,
+    "id": 26,
+    "xpath": "/office:document-content/office:body/office:text/table:table[2]/table:table-row[4]/table:table-cell[2]/text:p[2]/text()[1]",
+    "src": "Luke 1:13",
+    "targetText": ""
+  },
+  {
+    "id": 27,
+    "xpath": "/office:document-content/office:body/office:text/table:table[2]/table:table-row[4]/table:table-cell[2]/text:p[2]/text()[2]",
+    "src": "But the angel said to him: “Do not be afraid, Zechariah; your prayer has been heard. Your wife Elizabeth will bear you a son, and you are to give him the name John.”",
+    "targetText": ""
+  },
+  {
+    "id": 28,
+    "xpath": "/office:document-content/office:body/office:text/table:table[2]/table:table-row[5]/table:table-cell[1]/text:p/text()",
+    "src": "Homework",
+    "targetText": ""
+  },
+  {
+    "id": 29,
     "xpath": "/office:document-content/office:body/office:text/table:table[2]/table:table-row[5]/table:table-cell[2]/text:p[1]/text()",
     "src": "Talk to God every day this week, and be ready to share all the different places and ways you talked to God.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 6,
+    "id": 30,
+    "xpath": "/office:document-content/office:body/office:text/table:table[2]/table:table-row[5]/table:table-cell[2]/text:p[2]/text()",
+    "src": "Talk to God every day this week, and be ready to share all the different places and ways you talked to God.",
+    "targetText": ""
+  },
+  {
+    "id": 31,
+    "xpath": "/office:document-content/office:body/office:text/text:p[4]/text()",
+    "src": "Detailed Lesson Plan",
+    "targetText": ""
+  },
+  {
+    "id": 32,
+    "xpath": "/office:document-content/office:body/office:text/text:p[5]/text()",
+    "src": "Song",
+    "targetText": ""
+  },
+  {
+    "id": 33,
+    "xpath": "/office:document-content/office:body/office:text/text:p[6]/text()",
+    "src": "Opening",
+    "targetText": ""
+  },
+  {
+    "id": 34,
+    "xpath": "/office:document-content/office:body/office:text/text:p[7]/text()",
+    "src": "Welcome",
+    "targetText": ""
+  },
+  {
+    "id": 35,
+    "xpath": "/office:document-content/office:body/office:text/text:list[1]/text:list-item[1]/text:p/text()",
+    "src": "Be sure the children know you are happy to see them!",
+    "targetText": ""
+  },
+  {
+    "id": 36,
+    "xpath": "/office:document-content/office:body/office:text/text:list[1]/text:list-item[2]/text:p/text()",
+    "src": "Introduce yourself and your helpers.",
+    "targetText": ""
+  },
+  {
+    "id": 37,
+    "xpath": "/office:document-content/office:body/office:text/text:p[8]/text()",
+    "src": "Sharing Time",
+    "targetText": ""
+  },
+  {
+    "id": 38,
     "xpath": "/office:document-content/office:body/office:text/text:p[9]/text()[1]",
     "src": "What is something God has given you?",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 7,
+    "id": 39,
     "xpath": "/office:document-content/office:body/office:text/text:p[9]/text()[2]",
     "src": "(Give children time to share.)",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 8,
+    "id": 40,
+    "xpath": "/office:document-content/office:body/office:text/text:p[10]/text()",
+    "src": "What is something God has given you? (Give children time to share.)",
+    "targetText": ""
+  },
+  {
+    "id": 41,
     "xpath": "/office:document-content/office:body/office:text/text:p[11]/text()",
     "src": "Let's thank God for His gifts to us.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 9,
+    "id": 42,
+    "xpath": "/office:document-content/office:body/office:text/text:p[12]/text()",
+    "src": "Let's thank God for His gifts to us.",
+    "targetText": ""
+  },
+  {
+    "id": 43,
+    "xpath": "/office:document-content/office:body/office:text/text:p[13]/text()",
+    "src": "Prayer",
+    "targetText": ""
+  },
+  {
+    "id": 44,
+    "xpath": "/office:document-content/office:body/office:text/text:list[2]/text:list-item[1]/text:p/text()",
+    "src": "Let the children share praises and prayer requests.",
+    "targetText": ""
+  },
+  {
+    "id": 45,
+    "xpath": "/office:document-content/office:body/office:text/text:list[2]/text:list-item[2]/text:p/text()",
+    "src": "Keep a record of what the children are sharing so you can remember to thank God together for answered prayers.",
+    "targetText": ""
+  },
+  {
+    "id": 46,
+    "xpath": "/office:document-content/office:body/office:text/text:list[2]/text:list-item[3]/text:p/text()[1]",
+    "src": "Spend time praying together. Let children pray out loud if they volunteer.",
+    "targetText": ""
+  },
+  {
+    "id": 47,
+    "xpath": "/office:document-content/office:body/office:text/text:list[2]/text:list-item[3]/text:p/text()[2]",
+    "src": "Do not force anyone to pray out loud.",
+    "targetText": ""
+  },
+  {
+    "id": 48,
+    "xpath": "/office:document-content/office:body/office:text/text:p[14]/text()",
+    "src": "Song",
+    "targetText": ""
+  },
+  {
+    "id": 49,
+    "xpath": "/office:document-content/office:body/office:text/text:p[15]/text()",
+    "src": "Words to Discuss",
+    "targetText": ""
+  },
+  {
+    "id": 50,
+    "xpath": "/office:document-content/office:body/office:text/text:list[3]/text:list-item/text:p/text()",
+    "src": "On the blackboard, write the “Words to Discuss” from the list below.",
+    "targetText": ""
+  },
+  {
+    "id": 51,
     "xpath": "/office:document-content/office:body/office:text/text:p[16]/text()",
     "src": "Let's discuss some words to help us better understand the Bible story for today.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 10,
+    "id": 52,
+    "xpath": "/office:document-content/office:body/office:text/text:p[17]/text()",
+    "src": "Let's discuss some words to help us better understand the Bible story for today.",
+    "targetText": ""
+  },
+  {
+    "id": 53,
     "xpath": "/office:document-content/office:body/office:text/text:list[4]/text:list-item/text:p/text:span/text()",
     "src": "Prayer:",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 11,
+    "id": 54,
     "xpath": "/office:document-content/office:body/office:text/text:list[4]/text:list-item/text:p/text()[1]",
     "src": "Talking to God.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 12,
+    "id": 55,
     "xpath": "/office:document-content/office:body/office:text/text:list[4]/text:list-item/text:p/text()[2]",
     "src": "Where are some places we pray?",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 13,
+    "id": 56,
     "xpath": "/office:document-content/office:body/office:text/text:list[4]/text:list-item/text:p/text()[3]",
     "src": "What are some things we can be doing while we pray?",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 14,
+    "id": 57,
     "xpath": "/office:document-content/office:body/office:text/text:list[4]/text:list-item/text:p/text()[4]",
     "src": "Do we have to use a certain language or voice when we pray?",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 15,
+    "id": 58,
+    "xpath": "/office:document-content/office:body/office:text/text:p[18]/text()[1]",
+    "src": "Prayer:",
+    "targetText": ""
+  },
+  {
+    "id": 59,
+    "xpath": "/office:document-content/office:body/office:text/text:p[18]/text()[2]",
+    "src": "Talking to God.",
+    "targetText": ""
+  },
+  {
+    "id": 60,
+    "xpath": "/office:document-content/office:body/office:text/text:p[18]/text()[3]",
+    "src": "Where are some places we pray?",
+    "targetText": ""
+  },
+  {
+    "id": 61,
+    "xpath": "/office:document-content/office:body/office:text/text:p[18]/text()[4]",
+    "src": "What are some things we can be doing while we pray?",
+    "targetText": ""
+  },
+  {
+    "id": 62,
+    "xpath": "/office:document-content/office:body/office:text/text:p[18]/text()[5]",
+    "src": "Do we have to use a certain language or voice when we pray?",
+    "targetText": ""
+  },
+  {
+    "id": 63,
     "xpath": "/office:document-content/office:body/office:text/text:list[5]/text:list-item/text:p/text:span/text()",
     "src": "Priest:",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 16,
+    "id": 64,
     "xpath": "/office:document-content/office:body/office:text/text:list[5]/text:list-item/text:p/text()",
     "src": "Someone who makes sacrifices to God on behalf of others.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 17,
+    "id": 65,
+    "xpath": "/office:document-content/office:body/office:text/text:p[19]/text()[1]",
+    "src": "Priest:",
+    "targetText": ""
+  },
+  {
+    "id": 66,
+    "xpath": "/office:document-content/office:body/office:text/text:p[19]/text()[2]",
+    "src": "Someone who makes sacrifices to God on behalf of others.",
+    "targetText": ""
+  },
+  {
+    "id": 67,
     "xpath": "/office:document-content/office:body/office:text/text:list[6]/text:list-item/text:p/text:span/text()",
     "src": "Angels:",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 18,
+    "id": 68,
     "xpath": "/office:document-content/office:body/office:text/text:list[6]/text:list-item/text:p/text()[1]",
     "src": "Spiritual beings created by God to serve and worship him.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 19,
+    "id": 69,
     "xpath": "/office:document-content/office:body/office:text/text:list[6]/text:list-item/text:p/text()[2]",
     "src": "Often used by God as His messengers.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 20,
+    "id": 70,
+    "xpath": "/office:document-content/office:body/office:text/text:p[20]/text()[1]",
+    "src": "Angels: Spiritual beings created by God to serve and worship him.",
+    "targetText": ""
+  },
+  {
+    "id": 71,
+    "xpath": "/office:document-content/office:body/office:text/text:p[20]/text()[2]",
+    "src": "Often used by God as His messengers.",
+    "targetText": ""
+  },
+  {
+    "id": 72,
     "xpath": "/office:document-content/office:body/office:text/text:list[7]/text:list-item/text:p/text:span/text()",
     "src": "Prophet:",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 21,
+    "id": 73,
     "xpath": "/office:document-content/office:body/office:text/text:list[7]/text:list-item/text:p/text()",
     "src": "A man or woman God uses as His messenger.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 22,
+    "id": 74,
+    "xpath": "/office:document-content/office:body/office:text/text:p[21]/text()",
+    "src": "Prophet: A man or woman God uses as His messenger.",
+    "targetText": ""
+  },
+  {
+    "id": 75,
+    "xpath": "/office:document-content/office:body/office:text/text:p[22]/text()",
+    "src": "Song",
+    "targetText": ""
+  },
+  {
+    "id": 76,
+    "xpath": "/office:document-content/office:body/office:text/text:p[23]/text()",
+    "src": "Bible Story / Lesson",
+    "targetText": ""
+  },
+  {
+    "id": 77,
+    "xpath": "/office:document-content/office:body/office:text/table:table[3]/table:table-row/table:table-cell[2]/text:p[1]/text:span/text()",
+    "src": "Materials",
+    "targetText": ""
+  },
+  {
+    "id": 78,
+    "xpath": "/office:document-content/office:body/office:text/table:table[3]/table:table-row/table:table-cell[2]/text:p[1]/text()",
+    "src": ": Horn, gong or drum",
+    "targetText": ""
+  },
+  {
+    "id": 79,
+    "xpath": "/office:document-content/office:body/office:text/table:table[3]/table:table-row/table:table-cell[2]/text:list[1]/text:list-item[1]/text:p/text()",
+    "src": "Show the horn, gong or drum to the children.",
+    "targetText": ""
+  },
+  {
+    "id": 80,
     "xpath": "/office:document-content/office:body/office:text/table:table[3]/table:table-row/table:table-cell[2]/text:list[1]/text:list-item[2]/text:p/text()",
     "src": "What do we use this for? (For calling people together for a meeting)",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 23,
+    "id": 81,
+    "xpath": "/office:document-content/office:body/office:text/table:table[3]/table:table-row/table:table-cell[2]/text:p[2]/text()",
+    "src": "What do we use this for? (For calling people together for a meeting)",
+    "targetText": ""
+  },
+  {
+    "id": 82,
     "xpath": "/office:document-content/office:body/office:text/table:table[3]/table:table-row/table:table-cell[2]/text:list[2]/text:list-item/text:p/text()",
     "src": "When the horn is blown, does everyone always hear it? (No, they may be in the farm or they may be sleeping.)",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 24,
+    "id": 83,
+    "xpath": "/office:document-content/office:body/office:text/table:table[3]/table:table-row/table:table-cell[2]/text:p[3]/text()",
+    "src": "When the horn is blown, does everyone always hear it? (No, they may be in the farm or they may be in the farm or they may be sleeping.)",
+    "targetText": ""
+  },
+  {
+    "id": 84,
     "xpath": "/office:document-content/office:body/office:text/table:table[3]/table:table-row/table:table-cell[2]/text:list[3]/text:list-item/text:p/text()",
     "src": "What is prayer? (It is talking to God.)",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 25,
+    "id": 85,
+    "xpath": "/office:document-content/office:body/office:text/table:table[3]/table:table-row/table:table-cell[2]/text:p[4]/text()",
+    "src": "What is prayer? (It is talking to God.)",
+    "targetText": ""
+  },
+  {
+    "id": 86,
     "xpath": "/office:document-content/office:body/office:text/table:table[3]/table:table-row/table:table-cell[2]/text:list[4]/text:list-item/text:p/text()",
     "src": "When you pray or talk to God, do you have to ring a gong to get His attention? (No)",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 26,
+    "id": 87,
+    "xpath": "/office:document-content/office:body/office:text/table:table[3]/table:table-row/table:table-cell[2]/text:p[5]/text()",
+    "src": "When you pray or talk to God, do you have to ring a gong to get His attention? (No)",
+    "targetText": ""
+  },
+  {
+    "id": 88,
     "xpath": "/office:document-content/office:body/office:text/table:table[3]/table:table-row/table:table-cell[2]/text:list[5]/text:list-item/text:p/text()",
     "src": "God is always ready to listen to us. He is never sleeping or too busy to hear us.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 27,
+    "id": 89,
+    "xpath": "/office:document-content/office:body/office:text/table:table[3]/table:table-row/table:table-cell[2]/text:p[6]/text()",
+    "src": "God is always ready to listen to us. He is never sleeping or too busy to hear us.",
+    "targetText": ""
+  },
+  {
+    "id": 90,
     "xpath": "/office:document-content/office:body/office:text/table:table[3]/table:table-row/table:table-cell[2]/text:list[6]/text:list-item/text:p/text()",
     "src": "Today we will be learning about how God hears our prayers.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 28,
+    "id": 91,
+    "xpath": "/office:document-content/office:body/office:text/table:table[3]/table:table-row/table:table-cell[2]/text:p[7]/text()",
+    "src": "Today we will be learning about how God hears our prayers.",
+    "targetText": ""
+  },
+  {
+    "id": 92,
+    "xpath": "/office:document-content/office:body/office:text/text:p[24]/text()",
+    "src": "Introduce Truth",
+    "targetText": ""
+  },
+  {
+    "id": 93,
     "xpath": "/office:document-content/office:body/office:text/text:p[25]/text()",
     "src": "Our truth for today is: God hears our prayers.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 29,
+    "id": 94,
+    "xpath": "/office:document-content/office:body/office:text/text:p[26]/text()",
+    "src": "Our truth for today is: God hears our prayers.",
+    "targetText": ""
+  },
+  {
+    "id": 95,
     "xpath": "/office:document-content/office:body/office:text/text:p[27]/text()",
     "src": "This reminds me of a true story from the Bible.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 30,
-    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[1]/table:table-cell[2]/text:p[2]/text()",
-    "src": "We are going to spend a year learning about one book in the Bible, that book is the Gospel of Luke. The Holy Spirit guided a man named Luke to write the book. Luke was a doctor and a follower of Jesus. The book has many exciting stories about Jesus and His teachings.",
+    "id": 96,
+    "xpath": "/office:document-content/office:body/office:text/text:p[28]/text()",
+    "src": "This reminds me of a true story from the Bible.",
+    "targetText": ""
+  },
+  {
+    "id": 97,
+    "xpath": "/office:document-content/office:body/office:text/text:p[29]/text:span/text()",
+    "src": "Bible Story (Luke 1:5-25; 1:57-66)",
+    "targetText": ""
+  },
+  {
+    "id": 98,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[1]/table:table-cell[1]/text:p/text()",
+    "src": "Picture",
+    "targetText": ""
+  },
+  {
+    "id": 99,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[1]/table:table-cell[2]/text:p[1]/text()",
+    "src": "Story",
+    "targetText": ""
+  },
+  {
+    "id": 100,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[1]/table:table-cell[2]/text:p[2]/text:span[1]/text()",
+    "src": "[",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 31,
-    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[1]/table:table-cell[2]/text:p[3]/text()",
-    "src": "During this time in history, the land of Israel was part of the great Roman Empire. The Jews hoped for freedom. They dreamed of the day when the new kingdom promised by the prophets would come. The Jews were waiting for the promised Messiah (Christ) to save and rule over them.",
+    "id": 101,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[1]/table:table-cell[2]/text:p[2]/text()[1]",
+    "src": "We are going to spend a year learning about one book in the Bible, the Gospel of Luke.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 32,
+    "id": 102,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[1]/table:table-cell[2]/text:p[2]/text:span[2]/text()",
+    "src": "Luke was a doctor and a follower of Jesus.",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 103,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[1]/table:table-cell[2]/text:p[2]/text()[2]",
+    "src": "The Holy Spirit guided a man named Luke to write",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 104,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[1]/table:table-cell[2]/text:p[2]/text:span[3]/text()",
+    "src": "this",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 105,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[1]/table:table-cell[2]/text:p[2]/text()[3]",
+    "src": "book about Jesus and His teachings.",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 106,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[1]/table:table-cell[2]/text:p[3]/text()[1]",
+    "src": "During this time in history, the land of Israel was part of the Roman Empire. The Jews dreamed of the day",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 107,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[1]/table:table-cell[2]/text:p[3]/text:span[1]/text()",
+    "src": "the promised Messiah (Christ) would come to save them and set them free.",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 108,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[1]/table:table-cell[2]/text:p[3]/text:span[2]/text()",
+    "src": "]",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 109,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[1]/table:table-cell[2]/text:p[4]/text()[1]",
+    "src": "[ We are going to spend a year learning about one book in the Bible, the Gospel of Luke. Luke was a doctor and a follower of Jesus. The Holy Spirit guided",
+    "targetText": ""
+  },
+  {
+    "id": 110,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[1]/table:table-cell[2]/text:p[4]/text:span/text()",
+    "src": "him",
+    "targetText": ""
+  },
+  {
+    "id": 111,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[1]/table:table-cell[2]/text:p[4]/text()[2]",
+    "src": "to write about Jesus and His teachings.",
+    "targetText": ""
+  },
+  {
+    "id": 112,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[1]/table:table-cell[2]/text:p[5]/text()",
+    "src": "During this time in history, the land of Israel was part of the Roman Empire. The Jews dreamed of the day the promised Messiah (Christ) would come to save them and set them free. ]",
+    "targetText": ""
+  },
+  {
+    "id": 113,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[2]/table:table-cell[1]/text:p[1]/text()",
+    "src": "1-1",
+    "targetText": ""
+  },
+  {
+    "id": 114,
     "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[2]/table:table-cell[2]/text:p[1]/text()",
+    "src": "[ The first story from the Gospel of Luke is about a priest named Zachariah. ]",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 115,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[2]/table:table-cell[2]/text:p[2]/text:span/text()",
     "src": "Luke 1:5-7 When Herod was king of Judea, there was a Jewish priest named Zechariah. He was a member of the priestly order of Abijah, and his wife, Elizabeth, was also from the priestly line of Aaron. Zechariah and Elizabeth were righteous in God’s eyes, careful to obey all of the Lord’s commandments and regulations. They had no children because Elizabeth was unable to conceive, and they were both very old.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 33,
-    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[1]/text()",
-    "src": "Zechariah’s turn came to serve as a priest in Jerusalem. While he was burning incense in the Temple, he suddenly saw an angel standing by the altar. Zechariah was surprised and frightened.",
+    "id": 116,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[2]/table:table-cell[2]/text:p[3]/text()[1]",
+    "src": "Luke 1:5-7 When Herod was king of Judea, there was a Jewish priest named Zechariah. He was a member of the priestly order of Abijah, and his wife, Elizabeth, was also from the priestly line of Aaron. Zechariah and Elizabeth were righteous in God’s eyes, careful to obey all of the Lord’s commandments and regulations.",
+    "targetText": ""
+  },
+  {
+    "id": 117,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[2]/table:table-cell[2]/text:p[3]/text()[2]",
+    "src": "They had no children because Elizabeth was unable to conceive, and they were both very old.",
+    "targetText": ""
+  },
+  {
+    "id": 118,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[1]/text:p[1]/text()",
+    "src": "1–",
+    "targetText": ""
+  },
+  {
+    "id": 119,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[1]/text:p[1]/text:span/text()",
+    "src": "2",
+    "targetText": ""
+  },
+  {
+    "id": 120,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[1]/text:span/text()",
+    "src": "Luke 1:8-10",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 34,
-    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[2]/text()",
-    "src": "The angel said, “Don’t be afraid. God has heard your prayer. You and Elizabeth will have a baby boy. You will name him John. He will be a great man in God’s sight. He will bring many Israelites back to the Lord. He will go ahead of the Lord like the prophet Elijah, and  he will get the people ready for the Lord.”",
+    "id": 121,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[1]/text()[1]",
+    "src": "Once when Zechariah’s division was on duty and he was serving as priest before God, he was chosen by lot, according to the custom of the priesthood, to go into the temple of the Lord and burn incense.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 35,
+    "id": 122,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[1]/text()[2]",
+    "src": "And when the time for the burning of incense came, all the assembled worshipers were praying outside.",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 123,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[2]/text()[1]",
+    "src": "Luke 1:11-",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 124,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[2]/text:span/text()",
+    "src": "17",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 125,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[2]/text()[2]",
+    "src": "Then an angel of the Lord appeared to him, standing at the right side of the altar of incense.",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 126,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[2]/text()[3]",
+    "src": "When Zechariah saw him, he was startled and was gripped with fear.",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 127,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[2]/text()[4]",
+    "src": "But the angel said to him: “Do not be afraid, Zechariah; your prayer has been heard. Your wife Elizabeth will bear you a son, and you are to give him the name John.",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 128,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[2]/text()[5]",
+    "src": "He will be a joy and delight to you, and many will rejoice because of his birth, for he will be great in the sight of the Lord. He is never to take wine or other fermented drink, and he will be filled with the Holy Spirit even from birth. Many of the people of Israel will he bring back to the Lord their God. And he will go on before the Lord, in the spirit and power of Elijah, to turn the hearts of the fathers to their children and the disobedient to the wisdom of the righteous — to make ready a people prepared for the Lord.”",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 129,
     "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[3]/text()",
-    "src": "Zechariah said, “How can I be sure of this?” The angel said, “It was God who sent me with His good news. Since you have not believed it, you will be unable to speak until it comes true.”",
+    "src": "Luke 1:18 Zechariah asked the angel, “How can I be sure of this? I am an old man and my wife is well along in years.”",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 36,
-    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[4]/table:table-cell[2]/text:p[1]/text()",
-    "src": "The people standing outside the Temple wondered why Zechariah stayed inside so long. When he came out he could not speak, so they knew that he must have seen a vision.",
+    "id": 130,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[4]/text()[1]",
+    "src": "Luke 1:19-",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 37,
-    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[4]/table:table-cell[2]/text:p[2]/text()",
-    "src": "Elizabeth became pregnant just as the angel said. God hears our prayers.",
+    "id": 131,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[4]/text:span/text()",
+    "src": "20",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 38,
-    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[5]/table:table-cell[2]/text:p[1]/text()",
-    "src": "When Elizabeth’s baby was born she said, “We will name him John.” “What?” said their friends. “You are not naming him Zechariah, like his father?” They were surprised and asked Zechariah what he wanted to name the child. Zechariah wrote on a tablet, “His name is John.” At that very moment Zechariah was able to talk again.",
+    "id": 132,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[4]/text()[2]",
+    "src": "The angel answered, “I am Gabriel. I stand in the presence of God, and I have been sent to speak to you and to tell you this good news.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 39,
-    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[5]/table:table-cell[2]/text:p[2]/text()",
-    "src": "The child named John grew up and became strong in body and spirit. He lived apart from other people in the desert until the day he began to preach to the people of Israel.",
+    "id": 133,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[4]/text()[3]",
+    "src": "And now you will be silent and not able to speak until the day this happens, because you did not believe my words, which will come true at their proper time.”",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 40,
+    "id": 134,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[5]/text()[1]",
+    "src": "Luke 1:8-10 Once when Zechariah’s division was on duty and he was serving as priest before God, he was chosen by lot, according to the custom of the priesthood, to go into the temple of the Lord and burn incense.",
+    "targetText": ""
+  },
+  {
+    "id": 135,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[5]/text()[2]",
+    "src": "And when the time for the burning of incense came, all the assembled worshipers were praying outside.",
+    "targetText": ""
+  },
+  {
+    "id": 136,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[6]/text()[1]",
+    "src": "Luke 1:11-17 Then an angel of the Lord appeared to him, standing at the right side of the altar of incense.",
+    "targetText": ""
+  },
+  {
+    "id": 137,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[6]/text()[2]",
+    "src": "When Zechariah saw him, he was startled and was gripped with fear.",
+    "targetText": ""
+  },
+  {
+    "id": 138,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[6]/text()[3]",
+    "src": "But the angel said to him: “Do not be afraid, Zechariah; your prayer has been heard. Your wife Elizabeth will bear you a son, and you are to give him the name John.",
+    "targetText": ""
+  },
+  {
+    "id": 139,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[6]/text()[4]",
+    "src": "He will be a joy and delight to you, and many will rejoice because of his birth, for he will be great in the sight of the Lord. He is never to take wine or other fermented drink, and he will be filled with the Holy Spirit even from birth. Many of the people of Israel will he bring back to the Lord their God. And he will go on before the Lord, in the spirit and power of Elijah, to turn the hearts of the fathers to their children and the disobedient to the wisdom of the righteous — to make ready a people prepared for the Lord.”",
+    "targetText": ""
+  },
+  {
+    "id": 140,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[7]/text()",
+    "src": "Luke 1:18 Zechariah asked the angel, “How can I be sure of this? I am an old man and my wife is well along in years.”",
+    "targetText": ""
+  },
+  {
+    "id": 141,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[8]/text()[1]",
+    "src": "Luke 1:19-20 The angel answered, “I am Gabriel. I stand in the presence of God, and I have been sent to speak to you and to tell you this good news.",
+    "targetText": ""
+  },
+  {
+    "id": 142,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[3]/table:table-cell[2]/text:p[8]/text()[2]",
+    "src": "And now you will be silent and not able to speak until the day this happens, because you did not believe my words, which will come true at their proper time.”",
+    "targetText": ""
+  },
+  {
+    "id": 143,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[4]/table:table-cell[1]/text:p[1]/text()",
+    "src": "1-3",
+    "targetText": ""
+  },
+  {
+    "id": 144,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[4]/table:table-cell[2]/text:p[1]/text()[1]",
+    "src": "Luke 1:21-",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 145,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[4]/table:table-cell[2]/text:p[1]/text:span/text()",
+    "src": "22",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 146,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[4]/table:table-cell[2]/text:p[1]/text()[2]",
+    "src": "Meanwhile, the people were waiting for Zechariah and wondering why he stayed so long in the temple.",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 147,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[4]/table:table-cell[2]/text:p[1]/text()[3]",
+    "src": "When he came out, he could not speak to them. They realized he had seen a vision in the temple, for he kept making signs to them but remained unable to speak.",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 148,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[4]/table:table-cell[2]/text:p[2]/text()[1]",
+    "src": "Luke 1:23-",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 149,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[4]/table:table-cell[2]/text:p[2]/text:span/text()",
+    "src": "25",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 150,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[4]/table:table-cell[2]/text:p[2]/text()[2]",
+    "src": "When his time of service was completed, he returned home. After this his wife Elizabeth became pregnant and for five months remained in seclusion.",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 151,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[4]/table:table-cell[2]/text:p[2]/text()[3]",
+    "src": "“The Lord has done this for me,” she said. “In these days he has shown his favor and taken away my disgrace among the people.”",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 152,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[4]/table:table-cell[2]/text:p[3]/text:span[1]/text()",
+    "src": "[",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 153,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[4]/table:table-cell[2]/text:p[3]/text()",
+    "src": "God hears our prayers.",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 154,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[4]/table:table-cell[2]/text:p[3]/text:span[2]/text()",
+    "src": "]",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 155,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[4]/table:table-cell[2]/text:p[4]/text()[1]",
+    "src": "Luke 1:21-22 Meanwhile, the people were waiting for Zechariah and wondering why he stayed so long in the temple.",
+    "targetText": ""
+  },
+  {
+    "id": 156,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[4]/table:table-cell[2]/text:p[4]/text()[2]",
+    "src": "When he came out, he could not speak to them. They realized he had seen a vision in the temple, for he kept making signs to them but remained unable to speak.",
+    "targetText": ""
+  },
+  {
+    "id": 157,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[4]/table:table-cell[2]/text:p[5]/text()[1]",
+    "src": "Luke 1:23-25 When his time of service was completed, he returned home. After this his wife Elizabeth became pregnant and for five months remained in seclusion.",
+    "targetText": ""
+  },
+  {
+    "id": 158,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[4]/table:table-cell[2]/text:p[5]/text()[2]",
+    "src": "“The Lord has done this for me,” she said. “In these days he has shown his favor and taken away my disgrace among the people.”",
+    "targetText": ""
+  },
+  {
+    "id": 159,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[4]/table:table-cell[2]/text:p[6]/text()",
+    "src": "[ God hears our prayers. ]",
+    "targetText": ""
+  },
+  {
+    "id": 160,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[5]/table:table-cell[1]/text:p[1]/text()",
+    "src": "1–",
+    "targetText": ""
+  },
+  {
+    "id": 161,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[5]/table:table-cell[1]/text:p[1]/text:span/text()",
+    "src": "4",
+    "targetText": ""
+  },
+  {
+    "id": 162,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[5]/table:table-cell[2]/text:p[1]/text()[1]",
+    "src": "Luke 1:57-",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 163,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[5]/table:table-cell[2]/text:p[1]/text:span/text()",
+    "src": "58",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 164,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[5]/table:table-cell[2]/text:p[1]/text()[2]",
+    "src": "When it was time for Elizabeth to have her baby, she gave birth to a son. Her neighbors and relatives heard that the Lord had shown her great mercy, and they",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 165,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[5]/table:table-cell[2]/text:p[1]/text()[3]",
+    "src": "shared her joy.",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 166,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[5]/table:table-cell[2]/text:p[2]/text()[1]",
+    "src": "Luke 1:59-",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 167,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[5]/table:table-cell[2]/text:p[2]/text:span/text()",
+    "src": "60",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 168,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[5]/table:table-cell[2]/text:p[2]/text()[2]",
+    "src": "On the eighth day they came to circumcise the child, and they were going to name him after his father Zechariah, but his mother spoke up and said, “No! He is to be called John.”",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 169,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[5]/table:table-cell[2]/text:p[3]/text()",
+    "src": "Luke 1:61 They said to her, “There is no one among your relatives who has that name.”",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 170,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[5]/table:table-cell[2]/text:p[4]/text()[1]",
+    "src": "Luke 1:62-",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 171,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[5]/table:table-cell[2]/text:p[4]/text:span/text()",
+    "src": "64",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 172,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[5]/table:table-cell[2]/text:p[4]/text()[2]",
+    "src": "Then they made signs to his father, to find out what he would like to name the child.",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 173,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[5]/table:table-cell[2]/text:p[4]/text()[3]",
+    "src": "He asked for a writing tablet, and to everyone’s astonishment he wrote, “His name is John.” Immediately his mouth was opened and his tongue was loosed, and he began to speak, praising God.",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 174,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[5]/table:table-cell[2]/text:p[5]/text()",
+    "src": "Luke 1:57-58 When it was time for Elizabeth to have her baby, she gave birth to a son. Her neighbors and relatives heard that the Lord had shown her great mercy, and they shared her joy.",
+    "targetText": ""
+  },
+  {
+    "id": 175,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[5]/table:table-cell[2]/text:p[6]/text()",
+    "src": "Luke 1:59-60 On the eighth day they came to circumcise the child, and they were going to name him after his father Zechariah, but his mother spoke up and said, “No! He is to be called John.”",
+    "targetText": ""
+  },
+  {
+    "id": 176,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[5]/table:table-cell[2]/text:p[7]/text()",
+    "src": "Luke 1:61 They said to her, “There is no one among your relatives who has that name.”",
+    "targetText": ""
+  },
+  {
+    "id": 177,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[5]/table:table-cell[2]/text:p[8]/text()[1]",
+    "src": "Luke 1:62-64 Then they made signs to his father, to find out what he would like to name the child.",
+    "targetText": ""
+  },
+  {
+    "id": 178,
+    "xpath": "/office:document-content/office:body/office:text/table:table[4]/table:table-row[5]/table:table-cell[2]/text:p[8]/text()[2]",
+    "src": "He asked for a writing tablet, and to everyone’s astonishment he wrote, “His name is John.” Immediately his mouth was opened and his tongue was loosed, and he began to speak, praising God.",
+    "targetText": ""
+  },
+  {
+    "id": 179,
+    "xpath": "/office:document-content/office:body/office:text/text:p[30]/text()",
+    "src": "Application",
+    "targetText": ""
+  },
+  {
+    "id": 180,
     "xpath": "/office:document-content/office:body/office:text/text:p[31]/text()",
     "src": "God hears the prayers of His children. You become a child of God by asking Jesus to be your Lord and Saviour.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 41,
+    "id": 181,
+    "xpath": "/office:document-content/office:body/office:text/text:p[32]/text()",
+    "src": "God hears the prayers of His children. You become a child of God by asking Jesus to be your Lord and Saviour. (Ask if there is anyone who would like to be a part of God’s family. Take time to counsel them after class.)",
+    "targetText": ""
+  },
+  {
+    "id": 182,
+    "xpath": "/office:document-content/office:body/office:text/text:list[8]/text:list-item/text:p/text()",
+    "src": "Ask if there is anyone who would like to be a part of God’s family. Take time to counsel them after class.",
+    "targetText": ""
+  },
+  {
+    "id": 183,
     "xpath": "/office:document-content/office:body/office:text/text:p[33]/text()",
     "src": "If you are a part of God’s family, then God hears your prayers; just like He heard the prayers of Zechariah and Elizabeth. Sometimes God says “yes” to our prayers. Sometimes God says “no” to our prayers. Sometimes God says “wait” to our prayers. But God always answers the prayers of His children.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 42,
+    "id": 184,
+    "xpath": "/office:document-content/office:body/office:text/text:p[34]/text()",
+    "src": "If you are a part of God’s family, then God hears your prayers; just like He heard the prayers of Zechariah and Elizabeth. Sometimes God says “yes” to our prayers. Sometimes God says “no” to our prayers. Sometimes God says “wait” to our prayers. But God always answers the prayers of His children.",
+    "targetText": ""
+  },
+  {
+    "id": 185,
     "xpath": "/office:document-content/office:body/office:text/text:p[35]/text()",
     "src": "God hears our prayers.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 43,
+    "id": 186,
+    "xpath": "/office:document-content/office:body/office:text/text:p[36]/text()",
+    "src": "God hears our prayers.",
+    "targetText": ""
+  },
+  {
+    "id": 187,
+    "xpath": "/office:document-content/office:body/office:text/text:p[37]/text()",
+    "src": "Homework",
+    "targetText": ""
+  },
+  {
+    "id": 188,
     "xpath": "/office:document-content/office:body/office:text/text:p[38]/text:span/text()",
     "src": "This week:",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 44,
+    "id": 189,
     "xpath": "/office:document-content/office:body/office:text/text:p[38]/text()",
     "src": "Talk to God every day this week. You can talk to God anywhere at any time and He will hear you. You can talk to God when you are washing dishes, or when you are walking to visit your neighbours.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 45,
+    "id": 190,
+    "xpath": "/office:document-content/office:body/office:text/text:p[39]/text()",
+    "src": "This week: Talk to God every day this week. You can talk to God anywhere at any time and He will hear you. You can talk to God when you are washing dishes, or when you are walking to visit your neighbours.",
+    "targetText": ""
+  },
+  {
+    "id": 191,
+    "xpath": "/office:document-content/office:body/office:text/text:p[40]/text()",
+    "src": "Prayer / Song",
+    "targetText": ""
+  },
+  {
+    "id": 192,
+    "xpath": "/office:document-content/office:body/office:text/text:p[41]/text()",
+    "src": "Review Game",
+    "targetText": ""
+  },
+  {
+    "id": 193,
+    "xpath": "/office:document-content/office:body/office:text/text:p[42]/text()",
+    "src": "Throw the Ball at the Target on the Wall",
+    "targetText": ""
+  },
+  {
+    "id": 194,
+    "xpath": "/office:document-content/office:body/office:text/table:table[5]/table:table-row/table:table-cell[1]/text:p/text()",
+    "src": "Materials",
+    "targetText": ""
+  },
+  {
+    "id": 195,
+    "xpath": "/office:document-content/office:body/office:text/table:table[5]/table:table-row/table:table-cell[1]/text:list/text:list-item[1]/text:p/text()[1]",
+    "src": "Make a target as shown on the",
+    "targetText": ""
+  },
+  {
+    "id": 196,
+    "xpath": "/office:document-content/office:body/office:text/table:table[5]/table:table-row/table:table-cell[1]/text:list/text:list-item[1]/text:p/text:span/text()",
+    "src": "blackboard",
+    "targetText": ""
+  },
+  {
+    "id": 197,
+    "xpath": "/office:document-content/office:body/office:text/table:table[5]/table:table-row/table:table-cell[1]/text:list/text:list-item[1]/text:p/text()[2]",
+    "src": "or wall.",
+    "targetText": ""
+  },
+  {
+    "id": 198,
+    "xpath": "/office:document-content/office:body/office:text/table:table[5]/table:table-row/table:table-cell[1]/text:list/text:list-item[2]/text:p/text()[1]",
+    "src": "Ball",
+    "targetText": ""
+  },
+  {
+    "id": 199,
+    "xpath": "/office:document-content/office:body/office:text/table:table[5]/table:table-row/table:table-cell[1]/text:list/text:list-item[2]/text:p/text:span[1]/text()",
+    "src": "(Make a ball by tying wrappen into knots many times,",
+    "targetText": ""
+  },
+  {
+    "id": 200,
+    "xpath": "/office:document-content/office:body/office:text/table:table[5]/table:table-row/table:table-cell[1]/text:list/text:list-item[2]/text:p/text()[2]",
+    "src": "or fill an old sock with scrap material",
+    "targetText": ""
+  },
+  {
+    "id": 201,
+    "xpath": "/office:document-content/office:body/office:text/table:table[5]/table:table-row/table:table-cell[1]/text:list/text:list-item[2]/text:p/text:span[2]/text()",
+    "src": ".)",
+    "targetText": ""
+  },
+  {
+    "id": 202,
+    "xpath": "/office:document-content/office:body/office:text/table:table[5]/table:table-row/table:table-cell[1]/text:list/text:list-item[3]/text:p/text()",
+    "src": "Draw a line on the floor for the children to stand behind.",
+    "targetText": ""
+  },
+  {
+    "id": 203,
+    "xpath": "/office:document-content/office:body/office:text/text:p[43]/text()",
+    "src": "How to Play",
+    "targetText": ""
+  },
+  {
+    "id": 204,
+    "xpath": "/office:document-content/office:body/office:text/text:list[9]/text:list-item[1]/text:p/text()",
+    "src": "Divide the class into 2 teams.",
+    "targetText": ""
+  },
+  {
+    "id": 205,
+    "xpath": "/office:document-content/office:body/office:text/text:list[9]/text:list-item[2]/text:p/text()",
+    "src": "The first team tries to answer the first question. The teacher can use this time to explain what the children don’t seem to understand.",
+    "targetText": ""
+  },
+  {
+    "id": 206,
+    "xpath": "/office:document-content/office:body/office:text/text:list[9]/text:list-item[3]/text:p/text()[1]",
+    "src": "The child on that team that answers the question correctly comes to the front and stands behind the line.",
+    "targetText": ""
+  },
+  {
+    "id": 207,
+    "xpath": "/office:document-content/office:body/office:text/text:list[9]/text:list-item[3]/text:p/text()[2]",
+    "src": "If the child only gets part of the question right, the teacher can fill in the rest.",
+    "targetText": ""
+  },
+  {
+    "id": 208,
+    "xpath": "/office:document-content/office:body/office:text/text:list[9]/text:list-item[3]/text:p/text()[3]",
+    "src": "That child can also ask for help from another child on his/her team.",
+    "targetText": ""
+  },
+  {
+    "id": 209,
+    "xpath": "/office:document-content/office:body/office:text/text:list[9]/text:list-item[3]/text:p/text()[4]",
+    "src": "Help the child to have success.",
+    "targetText": ""
+  },
+  {
+    "id": 210,
+    "xpath": "/office:document-content/office:body/office:text/text:list[9]/text:list-item[4]/text:p/text()[1]",
+    "src": "The child then tries to throw the ball at the target.",
+    "targetText": ""
+  },
+  {
+    "id": 211,
+    "xpath": "/office:document-content/office:body/office:text/text:list[9]/text:list-item[4]/text:p/text()[2]",
+    "src": "Wherever the ball hits, shows how many points that team has.",
+    "targetText": ""
+  },
+  {
+    "id": 212,
+    "xpath": "/office:document-content/office:body/office:text/text:list[9]/text:list-item[5]/text:p/text()[1]",
+    "src": "Record the points.",
+    "targetText": ""
+  },
+  {
+    "id": 213,
+    "xpath": "/office:document-content/office:body/office:text/text:list[9]/text:list-item[5]/text:p/text()[2]",
+    "src": "The team with the most points wins.",
+    "targetText": ""
+  },
+  {
+    "id": 214,
+    "xpath": "/office:document-content/office:body/office:text/text:list[9]/text:list-item[6]/text:p/text()[1]",
+    "src": "Be sure to clap for both sides.",
+    "targetText": ""
+  },
+  {
+    "id": 215,
+    "xpath": "/office:document-content/office:body/office:text/text:list[9]/text:list-item[6]/text:p/text()[2]",
+    "src": "No name-calling.",
+    "targetText": ""
+  },
+  {
+    "id": 216,
+    "xpath": "/office:document-content/office:body/office:text/text:list[9]/text:list-item[6]/text:p/text()[3]",
+    "src": "Encourage good sportsmanship.",
+    "targetText": ""
+  },
+  {
+    "id": 217,
+    "xpath": "/office:document-content/office:body/office:text/text:p[44]/text()",
+    "src": "Questions for Review Game",
+    "targetText": ""
+  },
+  {
+    "id": 218,
     "xpath": "/office:document-content/office:body/office:text/text:list[10]/text:list-item/text:p/text()",
     "src": "What was the name of the priest in the first story of Luke? (Zechariah)",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 46,
+    "id": 219,
+    "xpath": "/office:document-content/office:body/office:text/text:p[45]/text()",
+    "src": "What was the name of the priest in the first story of Luke? (Zechariah)",
+    "targetText": ""
+  },
+  {
+    "id": 220,
     "xpath": "/office:document-content/office:body/office:text/text:list[11]/text:list-item/text:p/text()",
     "src": "What was the name of his wife? (Elizabeth)",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 47,
-    "xpath": "/office:document-content/office:body/office:text/text:list[12]/text:list-item/text:p/text()",
-    "src": "What problem did Zechariah and Elizabeth have? (They had no children.)",
+    "id": 221,
+    "xpath": "/office:document-content/office:body/office:text/text:p[46]/text()",
+    "src": "What was the name of his wife? (Elizabeth)",
+    "targetText": ""
+  },
+  {
+    "id": 222,
+    "xpath": "/office:document-content/office:body/office:text/text:list[12]/text:list-item/text:p/text()[1]",
+    "src": "What problem did Z",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 48,
+    "id": 223,
+    "xpath": "/office:document-content/office:body/office:text/text:list[12]/text:list-item/text:p/text:span/text()",
+    "src": "e",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 224,
+    "xpath": "/office:document-content/office:body/office:text/text:list[12]/text:list-item/text:p/text()[2]",
+    "src": "chariah and Elizabeth have? (They had no children.)",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 225,
+    "xpath": "/office:document-content/office:body/office:text/text:p[47]/text()[1]",
+    "src": "What problem did Z",
+    "targetText": ""
+  },
+  {
+    "id": 226,
+    "xpath": "/office:document-content/office:body/office:text/text:p[47]/text:span/text()",
+    "src": "e",
+    "targetText": ""
+  },
+  {
+    "id": 227,
+    "xpath": "/office:document-content/office:body/office:text/text:p[47]/text()[2]",
+    "src": "chariah and Elizabeth have? (They had no children.)",
+    "targetText": ""
+  },
+  {
+    "id": 228,
     "xpath": "/office:document-content/office:body/office:text/text:list[13]/text:list-item/text:p/text()",
     "src": "How did they handle their problem? (The prayed to God.)",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 49,
-    "xpath": "/office:document-content/office:body/office:text/text:list[14]/text:list-item/text:p/text()",
-    "src": "Who visited Zechariah in the temple? (An angel)",
+    "id": 229,
+    "xpath": "/office:document-content/office:body/office:text/text:p[48]/text()",
+    "src": "How did they handle their problem? (They prayed to God.)",
+    "targetText": ""
+  },
+  {
+    "id": 230,
+    "xpath": "/office:document-content/office:body/office:text/text:list[14]/text:list-item/text:p/text()[1]",
+    "src": "Who visited Z",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 50,
+    "id": 231,
+    "xpath": "/office:document-content/office:body/office:text/text:list[14]/text:list-item/text:p/text:span/text()",
+    "src": "e",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 232,
+    "xpath": "/office:document-content/office:body/office:text/text:list[14]/text:list-item/text:p/text()[2]",
+    "src": "chariah in the temple? (An angel)",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 233,
+    "xpath": "/office:document-content/office:body/office:text/text:p[49]/text()[1]",
+    "src": "Who visited Z",
+    "targetText": ""
+  },
+  {
+    "id": 234,
+    "xpath": "/office:document-content/office:body/office:text/text:p[49]/text:span/text()",
+    "src": "e",
+    "targetText": ""
+  },
+  {
+    "id": 235,
+    "xpath": "/office:document-content/office:body/office:text/text:p[49]/text()[2]",
+    "src": "chariah in the temple? (An angel)",
+    "targetText": ""
+  },
+  {
+    "id": 236,
     "xpath": "/office:document-content/office:body/office:text/text:list[15]/text:list-item/text:p/text()",
     "src": "What was his message to Zechariah? (God had heard their prayers, they were going to have a baby.)",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 51,
+    "id": 237,
+    "xpath": "/office:document-content/office:body/office:text/text:p[50]/text()",
+    "src": "What was his message to Zechariah? (God had heard their prayers, they were going to have a baby.)",
+    "targetText": ""
+  },
+  {
+    "id": 238,
     "xpath": "/office:document-content/office:body/office:text/text:list[16]/text:list-item/text:p/text()",
     "src": "What was Zechariah's reaction after receiving this message? (He doubted.)",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 52,
+    "id": 239,
+    "xpath": "/office:document-content/office:body/office:text/text:p[51]/text()",
+    "src": "What was Zechariah’s reaction after receiving this message? (He doubted.)",
+    "targetText": ""
+  },
+  {
+    "id": 240,
     "xpath": "/office:document-content/office:body/office:text/text:list[17]/text:list-item/text:p/text()",
     "src": "What happened to Zechariah when he doubted the angel's message? (He could not speak.)",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 53,
+    "id": 241,
+    "xpath": "/office:document-content/office:body/office:text/text:p[52]/text()",
+    "src": "What happened to Zechariah when he doubted the angel’s message? (He could not speak.)",
+    "targetText": ""
+  },
+  {
+    "id": 242,
     "xpath": "/office:document-content/office:body/office:text/text:list[18]/text:list-item/text:p/text()",
     "src": "What name was to be given to Zechariah's son? (John)",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 54,
+    "id": 243,
+    "xpath": "/office:document-content/office:body/office:text/text:p[53]/text()",
+    "src": "What name was to be given to Zechariah’s son? (John)",
+    "targetText": ""
+  },
+  {
+    "id": 244,
     "xpath": "/office:document-content/office:body/office:text/text:list[19]/text:list-item/text:p/text()",
     "src": "What was John supposed to do? (Lead people back to God, prepare the way for the kingdom of God)",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 55,
+    "id": 245,
+    "xpath": "/office:document-content/office:body/office:text/text:p[54]/text()",
+    "src": "What was John supposed to do? (Lead people back to God, prepare the way for the kingdom of God)",
+    "targetText": ""
+  },
+  {
+    "id": 246,
     "xpath": "/office:document-content/office:body/office:text/text:list[20]/text:list-item/text:p/text()",
     "src": "What was the main truth of our story today? (God answers prayers in His way and in His time.)",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 56,
+    "id": 247,
+    "xpath": "/office:document-content/office:body/office:text/text:p[55]/text()",
+    "src": "What was the main truth of our story today? (God answers prayers in His way and in His time.)",
+    "targetText": ""
+  },
+  {
+    "id": 248,
+    "xpath": "/office:document-content/office:body/office:text/text:p[56]/text()",
+    "src": "Song",
+    "targetText": ""
+  },
+  {
+    "id": 249,
+    "xpath": "/office:document-content/office:body/office:text/text:p[57]/text()",
+    "src": "Memory Verse",
+    "targetText": ""
+  },
+  {
+    "id": 250,
+    "xpath": "/office:document-content/office:body/office:text/text:p[58]/text()",
+    "src": "Materials and Preparations",
+    "targetText": ""
+  },
+  {
+    "id": 251,
+    "xpath": "/office:document-content/office:body/office:text/text:list[21]/text:list-item[1]/text:p/text()",
+    "src": "Put a bookmark in Luke 1:13.",
+    "targetText": ""
+  },
+  {
+    "id": 252,
+    "xpath": "/office:document-content/office:body/office:text/text:list[21]/text:list-item[2]/text:p/text()",
+    "src": "Write memory verse on the blackboard.",
+    "targetText": ""
+  },
+  {
+    "id": 253,
     "xpath": "/office:document-content/office:body/office:text/text:p[59]/text()[1]",
     "src": "Luke 1:13",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 57,
+    "id": 254,
     "xpath": "/office:document-content/office:body/office:text/text:p[59]/text()[2]",
     "src": "But the angel said to him: “Do not be afraid, Zechariah; your prayer has been heard. Your wife Elizabeth will bear you a son, and you are to give him the name John.”",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 58,
-    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[1]/table:table-cell[2]/text:p[1]/text()[1]",
-    "src": "Today our memory verse is found in the Gospel of Luke.",
+    "id": 255,
+    "xpath": "/office:document-content/office:body/office:text/text:p[60]/text()[1]",
+    "src": "Luke 1:13",
+    "targetText": ""
+  },
+  {
+    "id": 256,
+    "xpath": "/office:document-content/office:body/office:text/text:p[60]/text()[2]",
+    "src": "But the angel said to him: “Do not be afraid, Zechariah; your prayer has been heard. Your wife Elizabeth will bear you a son, and you are to give him the name John.”",
+    "targetText": ""
+  },
+  {
+    "id": 257,
+    "xpath": "/office:document-content/office:body/office:text/text:p[61]/text()",
+    "src": "Teach and Explain",
+    "targetText": ""
+  },
+  {
+    "id": 258,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[1]/table:table-cell[2]/text:p[1]/text:span[1]/text()",
+    "src": "Our",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 59,
-    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[1]/table:table-cell[2]/text:p[1]/text()[2]",
-    "src": "It goes with our story and truth for the day.",
+    "id": 259,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[1]/table:table-cell[2]/text:p[1]/text()",
+    "src": "memory verse is in the Gospel of Luke.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 60,
-    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[2]/text:list-item/text:p/text()[1]",
-    "src": "Today’s verse is found in the New Testament.",
+    "id": 260,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[1]/table:table-cell[2]/text:p[1]/text:span[2]/text()",
+    "src": "That is in the New Testament, a part of the Bible.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 61,
-    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[2]/text:list-item/text:p/text()[2]",
-    "src": "All our memory verses will be from the book of Luke.",
+    "id": 261,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[1]/table:table-cell[2]/text:p[2]/text()",
+    "src": "Our memory verse is in the Gospel of Luke. That is in the New Testament, a part of the Bible.",
+    "targetText": ""
+  },
+  {
+    "id": 262,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[1]/text:list-item[1]/text:p/text()",
+    "src": "Read the verse from your Bible.",
+    "targetText": ""
+  },
+  {
+    "id": 263,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[1]/text:list-item[2]/text:p/text()",
+    "src": "Read the verse by yourself as you point to the words.",
+    "targetText": ""
+  },
+  {
+    "id": 264,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[1]/text:list-item[3]/text:p/text()",
+    "src": "Read the verse with the children as you point to the words.",
+    "targetText": ""
+  },
+  {
+    "id": 265,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[1]/text:list-item[4]/text:p/text()",
+    "src": "Explain the verse:",
+    "targetText": ""
+  },
+  {
+    "id": 266,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[2]/text:list-item/text:p/text()",
+    "src": "Our memory verse comes from today’s Bible story.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 62,
+    "id": 267,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:p[1]/text()",
+    "src": "Our memory verse comes from today’s Bible story.",
+    "targetText": ""
+  },
+  {
+    "id": 268,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[3]/text:list-item/text:p/text()[1]",
+    "src": "As you read the verse,",
+    "targetText": ""
+  },
+  {
+    "id": 269,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[3]/text:list-item/text:p/text:span[1]/text()",
+    "src": "circle",
+    "targetText": ""
+  },
+  {
+    "id": 270,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[3]/text:list-item/text:p/text()[2]",
+    "src": "the words shown below",
+    "targetText": ""
+  },
+  {
+    "id": 271,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[3]/text:list-item/text:p/text:span[2]/text()",
+    "src": "on the blackboard",
+    "targetText": ""
+  },
+  {
+    "id": 272,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[3]/text:list-item/text:p/text()[3]",
+    "src": ".",
+    "targetText": ""
+  },
+  {
+    "id": 273,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[3]/text:list-item/text:p/text:span[3]/text()",
+    "src": "Then, e",
+    "targetText": ""
+  },
+  {
+    "id": 274,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[3]/text:list-item/text:p/text()[4]",
+    "src": "xplain each",
+    "targetText": ""
+  },
+  {
+    "id": 275,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[3]/text:list-item/text:p/text:span[4]/text()",
+    "src": "of the circled",
+    "targetText": ""
+  },
+  {
+    "id": 276,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[3]/text:list-item/text:p/text()[5]",
+    "src": "word",
+    "targetText": ""
+  },
+  {
+    "id": 277,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[3]/text:list-item/text:p/text:span[5]/text()",
+    "src": "s",
+    "targetText": ""
+  },
+  {
+    "id": 278,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[3]/text:list-item/text:p/text()[6]",
+    "src": ".",
+    "targetText": ""
+  },
+  {
+    "id": 279,
     "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[4]/text:list-item/text:p/text:span/text()",
     "src": "Angel",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 63,
+    "id": 280,
     "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[4]/text:list-item/text:p/text()",
     "src": ": An angel is a messenger from God.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 64,
+    "id": 281,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:p[2]/text()",
+    "src": "Angel: An angel is a messenger from God.",
+    "targetText": ""
+  },
+  {
+    "id": 282,
     "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[5]/text:list-item/text:p/text:span/text()",
     "src": "Prayer",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 65,
+    "id": 283,
     "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[5]/text:list-item/text:p/text()[1]",
     "src": ": Prayer is talking to God.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 66,
+    "id": 284,
     "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[5]/text:list-item/text:p/text()[2]",
     "src": "We don’t need to use a different voice or a different language.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 67,
+    "id": 285,
     "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[5]/text:list-item/text:p/text()[3]",
     "src": "We should talk to God the way we talk to a good friend. What was Zechariah’s prayer?",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 68,
+    "id": 286,
     "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[5]/text:list-item/text:p/text()[4]",
     "src": "(That he and Elizabeth would have a baby.)",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 69,
+    "id": 287,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:p[3]/text()[1]",
+    "src": "Prayer: Prayer is talking to God.",
+    "targetText": ""
+  },
+  {
+    "id": 288,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:p[3]/text()[2]",
+    "src": "We don’t need to use a different voice, or a different language.",
+    "targetText": ""
+  },
+  {
+    "id": 289,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:p[3]/text()[3]",
+    "src": "We should talk to God the way we talk to a good friend.",
+    "targetText": ""
+  },
+  {
+    "id": 290,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:p[3]/text()[4]",
+    "src": "What was Zechariah’s prayer?",
+    "targetText": ""
+  },
+  {
+    "id": 291,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:p[3]/text()[5]",
+    "src": "(That he and Elizabeth would have a baby.)",
+    "targetText": ""
+  },
+  {
+    "id": 292,
     "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[6]/text:list-item/text:p/text:span/text()",
     "src": "Bear",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 70,
+    "id": 293,
     "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[6]/text:list-item/text:p/text()[1]",
     "src": ": This word means to give birth.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 71,
+    "id": 294,
     "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[6]/text:list-item/text:p/text()[2]",
     "src": "The angel said that Elizabeth was going to have a baby boy.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 72,
+    "id": 295,
     "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[6]/text:list-item/text:p/text()[3]",
     "src": "They were told to name the baby John.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 73,
+    "id": 296,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:p[4]/text()[1]",
+    "src": "Bear: This word means to give birth.",
+    "targetText": ""
+  },
+  {
+    "id": 297,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:p[4]/text()[2]",
+    "src": "The angel said that Elizabeth was going to have a baby boy.",
+    "targetText": ""
+  },
+  {
+    "id": 298,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:p[4]/text()[3]",
+    "src": "They were told to name the baby John.",
+    "targetText": ""
+  },
+  {
+    "id": 299,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[7]/text:list-item[1]/text:p/text()",
+    "src": "Read the verse again by yourself as you point to the words.",
+    "targetText": ""
+  },
+  {
+    "id": 300,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[2]/table:table-cell[2]/text:list[7]/text:list-item[2]/text:p/text()",
+    "src": "Read the verse again with the children as you point to the words.",
+    "targetText": ""
+  },
+  {
+    "id": 301,
     "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[3]/table:table-cell[2]/text:p[1]/text()[1]",
     "src": "If you are a part of God’s family, then God hears your prayers just like He heard the prayers of Zechariah and Elizabeth.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 74,
+    "id": 302,
     "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[3]/table:table-cell[2]/text:p[1]/text()[2]",
-    "src": "Sometimes God says “yes” to our prayers. Sometimes God says “no” to our prayers.",
+    "src": "Sometimes God says “yes” to our prayers. Sometimes God says “no.” Sometimes God says “wait.”",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 75,
+    "id": 303,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[3]/table:table-cell[2]/text:p[1]/text:span[1]/text()",
+    "src": "No matter the answer,",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 304,
     "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[3]/table:table-cell[2]/text:p[1]/text()[3]",
-    "src": "Sometimes God says “wait” to our prayers. But God always answers the prayers of His children.",
+    "src": "God always",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 76,
-    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[3]/table:table-cell[2]/text:p[3]/text()[1]",
+    "id": 305,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[3]/table:table-cell[2]/text:p[1]/text:span[2]/text()",
+    "src": "hears",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 306,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[3]/table:table-cell[2]/text:p[1]/text:span[3]/text()",
+    "src": "our prayers.",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 307,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[3]/table:table-cell[2]/text:p[2]/text()[1]",
+    "src": "If you are a part of God’s family, then God hears your prayers just like He heard the prayers of Zechariah and Elizabeth.",
+    "targetText": ""
+  },
+  {
+    "id": 308,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[3]/table:table-cell[2]/text:p[2]/text()[2]",
+    "src": "Sometimes God says “yes” to our prayers. Sometimes God says “no.” Sometimes God says “wait.” No matter the answer, God always hears our prayers.",
+    "targetText": ""
+  },
+  {
+    "id": 309,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[3]/table:table-cell[2]/text:p[3]/text()",
     "src": "Remember our truth for the day?",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 77,
-    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[3]/table:table-cell[2]/text:p[3]/text()[2]",
-    "src": "(Have everyone say it together.)",
+    "id": 310,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[3]/table:table-cell[2]/text:p[3]/text:span/text()",
+    "src": "Let’s all say it together.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 78,
+    "id": 311,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[3]/table:table-cell[2]/text:p[4]/text()",
+    "src": "Remember our truth for the day?",
+    "targetText": ""
+  },
+  {
+    "id": 312,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[3]/table:table-cell[2]/text:p[4]/text:span/text()",
+    "src": "Let’s all say it together.",
+    "targetText": ""
+  },
+  {
+    "id": 313,
     "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[3]/table:table-cell[2]/text:p[5]/text()",
     "src": "God hears our prayers.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 79,
+    "id": 314,
+    "xpath": "/office:document-content/office:body/office:text/table:table[6]/table:table-row[3]/table:table-cell[2]/text:p[6]/text()",
+    "src": "God hears our prayers.",
+    "targetText": ""
+  },
+  {
+    "id": 315,
+    "xpath": "/office:document-content/office:body/office:text/text:p[62]/text()",
+    "src": "Memory Verse Review",
+    "targetText": ""
+  },
+  {
+    "id": 316,
+    "xpath": "/office:document-content/office:body/office:text/text:p[63]/text()",
+    "src": "Erase the Words of the Verse Written on the Blackboard",
+    "targetText": ""
+  },
+  {
+    "id": 317,
+    "xpath": "/office:document-content/office:body/office:text/text:list[22]/text:list-item[1]/text:p/text()",
+    "src": "Ask the children the first question.",
+    "targetText": ""
+  },
+  {
+    "id": 318,
+    "xpath": "/office:document-content/office:body/office:text/text:list[22]/text:list-item[2]/text:p/text()",
+    "src": "When a question is answered correctly, that child comes to the front and wipes away one or two words from the memory verse on the blackboard.",
+    "targetText": ""
+  },
+  {
+    "id": 319,
+    "xpath": "/office:document-content/office:body/office:text/text:list[22]/text:list-item[3]/text:p/text()",
+    "src": "The verse is said out loud together, making sure to say the missing words.",
+    "targetText": ""
+  },
+  {
+    "id": 320,
+    "xpath": "/office:document-content/office:body/office:text/text:list[22]/text:list-item[4]/text:p/text()",
+    "src": "Then the next question is asked.",
+    "targetText": ""
+  },
+  {
+    "id": 321,
+    "xpath": "/office:document-content/office:body/office:text/text:list[22]/text:list-item[5]/text:p/text()",
+    "src": "When that question is answered correctly, another child comes to the front and wipes more words from the memory verse on the chalkboard.",
+    "targetText": ""
+  },
+  {
+    "id": 322,
+    "xpath": "/office:document-content/office:body/office:text/text:list[22]/text:list-item[6]/text:p/text()",
+    "src": "The verse is said aloud again.",
+    "targetText": ""
+  },
+  {
+    "id": 323,
+    "xpath": "/office:document-content/office:body/office:text/text:list[22]/text:list-item[7]/text:p/text()",
+    "src": "Do this until all the words are gone and the children repeat the verse from memory.",
+    "targetText": ""
+  },
+  {
+    "id": 324,
+    "xpath": "/office:document-content/office:body/office:text/text:p[64]/text()",
+    "src": "Questions for Memory Verse",
+    "targetText": ""
+  },
+  {
+    "id": 325,
     "xpath": "/office:document-content/office:body/office:text/text:list[23]/text:list-item/text:p/text()",
     "src": "Where is today's memory verse found? (Luke 1:13)",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 80,
+    "id": 326,
+    "xpath": "/office:document-content/office:body/office:text/text:p[65]/text()",
+    "src": "Where is today’s memory verse found? (Luke 1:13)",
+    "targetText": ""
+  },
+  {
+    "id": 327,
     "xpath": "/office:document-content/office:body/office:text/text:list[24]/text:list-item/text:p/text()",
     "src": "Who delivered the message from God? (An angel)",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 81,
+    "id": 328,
+    "xpath": "/office:document-content/office:body/office:text/text:p[66]/text()",
+    "src": "Who delivered the message from God? (An angel)",
+    "targetText": ""
+  },
+  {
+    "id": 329,
     "xpath": "/office:document-content/office:body/office:text/text:list[25]/text:list-item/text:p/text()[1]",
     "src": "Who heard Zechariah's prayers?",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 82,
+    "id": 330,
     "xpath": "/office:document-content/office:body/office:text/text:list[25]/text:list-item/text:p/text()[2]",
     "src": "(God)",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 83,
+    "id": 331,
+    "xpath": "/office:document-content/office:body/office:text/text:p[67]/text()",
+    "src": "Who heard Zechariah’s prayers? (God)",
+    "targetText": ""
+  },
+  {
+    "id": 332,
     "xpath": "/office:document-content/office:body/office:text/text:list[26]/text:list-item/text:p/text()",
     "src": "What was going to happen? (Elizabeth was going to have a baby.)",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 84,
+    "id": 333,
+    "xpath": "/office:document-content/office:body/office:text/text:p[68]/text()",
+    "src": "What was going to happen? (Elizabeth was going to have a baby.)",
+    "targetText": ""
+  },
+  {
+    "id": 334,
     "xpath": "/office:document-content/office:body/office:text/text:list[27]/text:list-item/text:p/text()",
     "src": "What were Zechariah and Elizabeth told to name the baby? (John)",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 85,
+    "id": 335,
+    "xpath": "/office:document-content/office:body/office:text/text:p[69]/text()",
+    "src": "What were Zechariah and Elizabeth told to name the baby? (John)",
+    "targetText": ""
+  },
+  {
+    "id": 336,
+    "xpath": "/office:document-content/office:body/office:text/text:p[70]/text()",
+    "src": "Song",
+    "targetText": ""
+  },
+  {
+    "id": 337,
+    "xpath": "/office:document-content/office:body/office:text/text:p[71]/text()",
+    "src": "Closing and Homework",
+    "targetText": ""
+  },
+  {
+    "id": 338,
+    "xpath": "/office:document-content/office:body/office:text/text:list[28]/text:list-item/text:p/text()",
+    "src": "Say the truth together:",
+    "targetText": ""
+  },
+  {
+    "id": 339,
     "xpath": "/office:document-content/office:body/office:text/text:p[72]/text()",
     "src": "God hears our prayers.",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 86,
+    "id": 340,
+    "xpath": "/office:document-content/office:body/office:text/text:p[73]/text()",
+    "src": "God hears our prayers",
+    "targetText": ""
+  },
+  {
+    "id": 341,
+    "xpath": "/office:document-content/office:body/office:text/text:list[29]/text:list-item/text:p/text()",
+    "src": "Say the memory verse together:",
+    "targetText": ""
+  },
+  {
+    "id": 342,
     "xpath": "/office:document-content/office:body/office:text/text:p[74]/text()[1]",
     "src": "Luke 1:13",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 87,
+    "id": 343,
     "xpath": "/office:document-content/office:body/office:text/text:p[74]/text()[2]",
     "src": "But the angel said to him, “Do not be afraid, Zechariah; your prayer has been heard. Your wife Elizabeth will bear you a son, and you are to give him the name John.”",
     "targetText": "",
     "mtString": true
   },
   {
-    "id": 88,
+    "id": 344,
+    "xpath": "/office:document-content/office:body/office:text/text:list[30]/text:list-header/text:p/text()[1]",
+    "src": "Luke 1:13",
+    "targetText": ""
+  },
+  {
+    "id": 345,
+    "xpath": "/office:document-content/office:body/office:text/text:list[30]/text:list-header/text:p/text()[2]",
+    "src": "But the angel said to him, “Do not be afraid, Zechariah; your prayer has been heard. Your wife Elizabeth will bear you a son, and you are to give him the name John.”",
+    "targetText": ""
+  },
+  {
+    "id": 346,
+    "xpath": "/office:document-content/office:body/office:text/text:list[31]/text:list-item/text:p/text()",
+    "src": "Review the homework:",
+    "targetText": ""
+  },
+  {
+    "id": 347,
+    "xpath": "/office:document-content/office:body/office:text/text:p[75]/text()",
+    "src": "Remind the children to talk to God this week and be ready to share their stories next week.",
+    "targetText": ""
+  },
+  {
+    "id": 348,
     "xpath": "/office:document-content/office:body/office:text/text:p[76]/text()",
     "src": "Is God saying “yes”, “no”, or “wait”?",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 349,
+    "xpath": "/office:document-content/office:body/office:text/text:list[32]/text:list-header/text:p/text()",
+    "src": "Is God saying “yes”, “no', or “wait”?",
+    "targetText": ""
+  },
+  {
+    "id": 350,
+    "xpath": "/office:document-content/office:body/office:text/text:list[33]/text:list-item/text:p/text()",
+    "src": "Give any needed announcements.",
+    "targetText": ""
+  },
+  {
+    "id": 351,
+    "xpath": "/office:document-content/office:body/office:text/text:p[77]/text()",
+    "src": "Closing Prayer",
+    "targetText": ""
+  },
+  {
+    "id": 352,
+    "xpath": "/office:document-content/office:body/office:text/text:p[78]/text:span/text()",
+    "src": "Thank God",
+    "targetText": ""
+  },
+  {
+    "id": 353,
+    "xpath": "/office:document-content/office:body/office:text/text:p[78]/text()",
+    "src": "that He ALWAYS hears us when we talk to Him.",
+    "targetText": ""
+  },
+  {
+    "id": 354,
+    "xpath": "/office:document-content/office:body/office:text/text:p[79]/text:span/text()",
+    "src": "Ask God",
+    "targetText": ""
+  },
+  {
+    "id": 355,
+    "xpath": "/office:document-content/office:body/office:text/text:p[79]/text()",
+    "src": "that the children will remember to talk to Him this week, and that their lives will be changed.",
+    "targetText": ""
+  },
+  {
+    "id": 356,
+    "xpath": "/office:document-content/office:body/office:text/text:p[80]/text:span[1]/text()",
+    "src": "Colouring",
+    "targetText": ""
+  },
+  {
+    "id": 357,
+    "xpath": "/office:document-content/office:body/office:text/text:p[80]/text()[1]",
+    "src": "page to colo",
+    "targetText": ""
+  },
+  {
+    "id": 358,
+    "xpath": "/office:document-content/office:body/office:text/text:p[80]/text:span[2]/text()",
+    "src": "u",
+    "targetText": ""
+  },
+  {
+    "id": 359,
+    "xpath": "/office:document-content/office:body/office:text/text:p[80]/text()[2]",
+    "src": "r and take home!",
+    "targetText": ""
+  },
+  {
+    "id": 360,
+    "xpath": "/office:document-content/office:body/office:text/text:p[82]/text()",
+    "src": "God hears our prayers",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 361,
+    "xpath": "/office:document-content/office:body/office:text/text:p[84]/text()",
+    "src": "Do not be afraid, Zechariah; your prayer has been heard. Your wife Elizabeth will bear you a son, and you are to give him the name John. Luke 1:13",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 362,
+    "xpath": "/office:document-content/office:body/office:text/text:p[85]/text()",
+    "src": "God hears our prayers",
+    "targetText": "",
+    "mtString": true
+  },
+  {
+    "id": 363,
+    "xpath": "/office:document-content/office:body/office:text/text:p[87]/text()",
+    "src": "Do not be afraid, Zechariah; your prayer has been heard. Your wife Elizabeth will bear you a son, and you are to give him the name John. Luke 1:13",
     "targetText": "",
     "mtString": true
   }

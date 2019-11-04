@@ -38,8 +38,8 @@ test("Initial Fetch and Fetch Lesson", async () => {
     `/desktop/fetch/1555081479425/lesson/Luke-Q1-L01?lockCode=${lockCode}`
   );
   const tStrings: TDocString[] = JSON.parse(response.text);
-  expect(tStrings[0]).toEqual({
-    id: 0,
+  expect(tStrings[1]).toEqual({
+    id: 1,
     xpath:
       "/office:document-content/office:body/office:text/table:table[1]/table:table-row/table:table-cell[2]/text:p[1]/text()[1]",
     src: "The Book of Luke and",
