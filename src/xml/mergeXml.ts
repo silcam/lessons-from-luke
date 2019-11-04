@@ -40,6 +40,8 @@ function getXmlDoc(xmlFilpath: string) {
   return libxmljs2.parseXml(xml);
 }
 
+export type Namespaces = { [key: string]: string };
+
 export function extractNamespaces(xmlDoc: Document) {
   return xmlDoc
     .root()!
@@ -49,7 +51,7 @@ export function extractNamespaces(xmlDoc: Document) {
         accum[ns.prefix()] = ns.href();
         return accum;
       },
-      {} as { [key: string]: string }
+      {} as Namespaces
     );
 }
 

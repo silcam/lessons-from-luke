@@ -1,8 +1,5 @@
 import libxmljs2, { Document, Element } from "libxmljs2";
-import { extractNamespaces } from "./mergeXml";
-
-const textNS = "urn:oasis:names:tc:opendocument:xmlns:text:1.0";
-const styleNS = "urn:oasis:names:tc:opendocument:xmlns:style:1.0";
+import { extractNamespaces, Namespaces } from "./mergeXml";
 
 export interface DocString {
   xpath: string;
@@ -28,14 +25,14 @@ export default function parse(contentXml: string) {
     .concat(
       knownStyleNames.reduce(
         (styles, styleName) =>
-          styles.concat(findStylesToMatch(xmlDoc, styleName)),
+          styles.concat(findStylesToMatch(xmlDoc, namespaces, styleName)),
         [] as string[]
       )
     )
     .concat(
       knownStyleNamePatterns.reduce(
         (styles, pattern) =>
-          styles.concat(findStylesToMatch(xmlDoc, "", pattern)),
+          styles.concat(findStylesToMatch(xmlDoc, namespaces, "", pattern)),
         [] as string[]
       )
     );
@@ -47,7 +44,7 @@ export default function parse(contentXml: string) {
     " | " +
     allStyleNames.map(name => xPathForPWithStyle(name)).join(" | ");
 
-  const nodes = xmlDoc.root()!.find(xPath, textNS);
+  const nodes = xmlDoc.root()!.find(xPath, namespaces);
 
   const translatableStrings = parseNodes(nodes as Element[]);
   const allStrings = parseNode(xmlDoc.root()!);
@@ -63,6 +60,7 @@ export default function parse(contentXml: string) {
 // parentStyleName is ignored if parentStylePattern is provided
 function findStylesToMatch(
   xmlDoc: Document,
+  namespaces: Namespaces,
   parentStyleName: string,
   parentStylePattern?: string
 ) {
@@ -70,31 +68,31 @@ function findStylesToMatch(
     ? xPathForParentStyleNameContains(parentStylePattern)
     : xPathForParentStyle(parentStyleName);
 
-  const nodes = xmlDoc.root()!.find(xPath, styleNS) as Element[];
+  const nodes = xmlDoc.root()!.find(xPath, namespaces) as Element[];
   let styles: string[] = [];
   for (let i = 0; i < nodes.length; ++i) {
     let style = nodes[i].attr("name")!.value();
     styles.push(style);
-    let childStyles = findStylesToMatch(xmlDoc, style);
+    let childStyles = findStylesToMatch(xmlDoc, namespaces, style);
     styles = styles.concat(childStyles);
   }
   return styles;
 }
 
 function xPathForPWithStyleNameContains(stylePattern: string) {
-  return `//xmlns:p[contains(@xmlns:style-name, '${stylePattern}')]`;
+  return `//text:p[contains(@text:style-name, '${stylePattern}')]`;
 }
 
 function xPathForParentStyleNameContains(stylePattern: string) {
-  return `//xmlns:style[contains(@xmlns:parent-style-name, '${stylePattern}')]`;
+  return `//style:style[contains(@style:parent-style-name, '${stylePattern}')]`;
 }
 
 function xPathForPWithStyle(styleName: string) {
-  return `//xmlns:p[@xmlns:style-name='${styleName}']`;
+  return `//text:p[@text:style-name='${styleName}']`;
 }
 
 function xPathForParentStyle(parentStyleName: string) {
-  return `//xmlns:style[@xmlns:parent-style-name='${parentStyleName}']`;
+  return `//style:style[@style:parent-style-name='${parentStyleName}']`;
 }
 
 function parseNode(node: Element): DocString[] {
@@ -133,10 +131,7 @@ function parseNodes(nodes: Element[]) {
 //   }, []);
 // }
 
-function removeTrackedChanges(
-  doc: Document,
-  namespaces: { [key: string]: string }
-) {
+function removeTrackedChanges(doc: Document, namespaces: Namespaces) {
   const trackedChangesNodes = doc
     .root()!
     .find("//text:tracked-changes", namespaces);
