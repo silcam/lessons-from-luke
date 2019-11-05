@@ -11,6 +11,8 @@ import { getTemplate } from "../util/getTemplate";
 import updateSrcStrings from "../util/updateSrcStrings";
 import { DocString } from "../xml/parse";
 import staticAssetPath from "../util/assetPath";
+import srcCompare from "../util/srcCompare";
+import last from "../util/last";
 
 const formDataParser = bodyParser.urlencoded({ extended: false });
 
@@ -23,7 +25,37 @@ export default function sourcesController(app: Express) {
 
   app.get("/sources/:language", requireAdmin, (req, res) => {
     const langManifest = Manifest.readSourceManifest(req.params.language);
-    res.send(layout(Mustache.render(getTemplate("sourceLang"), langManifest)));
+    const srcManifest = Manifest.readSourceManifest();
+    const langCompare = {
+      name: langManifest.language,
+      lessons: Storage.getAllSrcStrings(langManifest)
+    };
+    res.send(
+      layout(
+        Mustache.render(getTemplate("sourceLang"), {
+          ...langManifest,
+          interchangeability: srcManifest
+            .filter(src => src.language !== langManifest.language)
+            .map(src => {
+              const comp = srcCompare(langCompare, {
+                name: src.language,
+                lessons: Storage.getAllSrcStrings(src)
+              });
+              return {
+                lang: src.language,
+                comp: {
+                  ...comp,
+                  errors: comp.errors.map(err => ({
+                    ...err,
+                    showLink: err.lessonIndex !== undefined,
+                    url: `/sources/${langManifest.language}/compare/${src.language}/${err.lessonIndex}`
+                  }))
+                }
+              };
+            })
+        })
+      )
+    );
   });
 
   app.post(
@@ -40,9 +72,7 @@ export default function sourcesController(app: Express) {
           file
         );
         res.redirect(
-          `/sources/${req.params.language}/lessons/${
-            lessonId.lesson
-          }/versions/${lessonId.version}`
+          `/sources/${req.params.language}/lessons/${lessonId.lesson}/versions/${lessonId.version}`
         );
       } catch (err) {
         next(err);
@@ -88,9 +118,7 @@ export default function sourcesController(app: Express) {
             jsPath: staticAssetPath("editSrcStrings.js"),
             srcStrings: srcStringsForTemplate(srcStrings),
             ...lessonId,
-            submitUrl: `/sources/${lessonId.language}/lessons/${
-              lessonId.lesson
-            }/versions/${lessonId.version}`
+            submitUrl: `/sources/${lessonId.language}/lessons/${lessonId.lesson}/versions/${lessonId.version}`
           })
         )
       );
@@ -116,6 +144,39 @@ export default function sourcesController(app: Express) {
       res.redirect(`/sources/${lessonId.language}`);
     }
   );
+
+  app.get(
+    "/sources/:language/compare/:otherLanguage/:lessonIndex",
+    (req, res) => {
+      const myManifest = Manifest.readSourceManifest(req.params.language);
+      const hisManifest = Manifest.readSourceManifest(req.params.otherLanguage);
+      const lessonIndex = parseInt(req.params.lessonIndex);
+      const myStrings = srcStringsForLessonIndex(
+        myManifest,
+        lessonIndex
+      ).filter(s => s.mtString);
+      const hisStrings = srcStringsForLessonIndex(
+        hisManifest,
+        lessonIndex
+      ).filter(s => s.mtString);
+      const ourStrings: string[][] = [];
+      for (let i = 0; i < Math.max(myStrings.length, hisStrings.length); ++i) {
+        ourStrings.push([
+          myStrings[i] ? myStrings[i].text : "",
+          hisStrings[i] ? hisStrings[i].text : ""
+        ]);
+      }
+      res.send(
+        layout(
+          Mustache.render(getTemplate("srcCompare"), {
+            myManifest,
+            hisManifest,
+            ourStrings
+          })
+        )
+      );
+    }
+  );
 }
 
 function srcStringsForTemplate(srcStrings: DocString[]) {
@@ -124,4 +185,15 @@ function srcStringsForTemplate(srcStrings: DocString[]) {
     id: index,
     tdClass: src.mtString ? "mtString" : "otherString"
   }));
+}
+
+function srcStringsForLessonIndex(
+  manifest: Manifest.Language,
+  lessonIndex: number
+) {
+  return Storage.getSrcStrings({
+    language: manifest.language,
+    lesson: manifest.lessons[lessonIndex].lesson,
+    version: last(manifest.lessons[lessonIndex].versions).version
+  });
 }

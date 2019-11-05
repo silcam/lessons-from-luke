@@ -1,0 +1,23 @@
+<style>
+    tr {
+        border-bottom: 1px solid #adb1b1;
+    }
+</style>
+
+<div id="srcCompare">
+    <table>
+        <tbody>
+            <tr>
+                <td><h4>{{myManifest.language}}</h4></td>
+                <td><h4>{{hisManifest.language}}</h4></td>
+            </tr>
+            {{#ourStrings}}
+                <tr>
+                    {{#.}}
+                        <td>{{.}}</td>
+                    {{/.}}
+                </tr>
+            {{/ourStrings}}
+        </tbody>
+    </table>
+</div>

@@ -2,6 +2,7 @@ import { ProjectId, projectIdToString, TDocString, LessonId } from "./Storage";
 import fs from "fs";
 import path from "path";
 import { stringsDirPath, unlinkSafe } from "./fsUtils";
+import last from "./last";
 
 const stringsDir = stringsDirPath();
 const sourceManifestPath = path.join(stringsDir, "sources.json");
@@ -18,7 +19,7 @@ interface Lesson {
   versions: LessonVersion[];
 }
 
-interface Language {
+export interface Language {
   language: string;
   lessons: Lesson[];
   projects: string[];
@@ -232,10 +233,6 @@ function writeProjectManifest(manifest: ProjectManifest) {
 
 function findBy<T, K extends keyof T>(list: T[], key: K, value: T[K]) {
   return list.find(item => item[key] === value);
-}
-
-function last<T>(list: T[]) {
-  return list[list.length - 1];
 }
 
 export function desktopProjectManifestExists() {

@@ -43,6 +43,25 @@
 
     <hr />
 
+    <h4>Interchangeability</h4>
+    <table>
+        <tbody>
+    {{#interchangeability}}
+        <tr>
+            <th>{{lang}}: {{comp.percent}}%</th>
+        </tr>
+        <tr>
+            <td class="subdued"><ul>{{#comp.errors}}
+                <li>{{error}} <a href="{{url}}" data-show="{{showLink}}">View</a></li>
+            {{/comp.errors}}
+            </ul></td>
+        </tr>
+    {{/interchangeability}}
+    </tbody>
+    </table>
+
+    <hr />
+
     <h3>Projects based on this language</h3>
     <ul>
         {{#projects}}

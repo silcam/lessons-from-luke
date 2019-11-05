@@ -8,8 +8,9 @@ import {
 import fs from "fs";
 import path from "path";
 import { DocString, parseStyles, parseMeta } from "../xml/parse";
-import { Project } from "./Manifest";
+import { Project, Language } from "./Manifest";
 import tStringHistory, { TStringHistory } from "./tStringHistory";
+import last from "./last";
 
 export interface LessonId {
   language: string;
@@ -98,6 +99,16 @@ export function getSrcStrings(lessonId: LessonId, withStylesAndMeta?: boolean) {
       .concat(parseMeta(metaXml(lessonId)))
       .concat(parseStyles(stylesXml(lessonId)));
   return srcStrings;
+}
+
+export function getAllSrcStrings(srcLang: Language) {
+  return srcLang.lessons.map(lesson =>
+    getSrcStrings({
+      language: srcLang.language,
+      lesson: lesson.lesson,
+      version: last(lesson.versions).version
+    })
+  );
 }
 
 export function srcStringsJsonPath(lessonId: LessonId) {
