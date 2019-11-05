@@ -10,6 +10,7 @@ import i18n, { Translations } from "../util/i18n";
 import assert = require("assert");
 import { push, getUpSyncStatus } from "../util/desktopSync";
 import staticAssetPath from "../util/assetPath";
+import copyAheadTranslations from "../util/copyAheadTranslations";
 
 const formDataParser = bodyParser.urlencoded({ extended: false });
 const jsonBodyParser = bodyParser.json();
@@ -106,6 +107,7 @@ export default function translateController(
       });
       Storage.saveTStrings(project, req.params.lesson, tStrings);
       Manifest.saveProgress(project, req.params.lesson, tStrings);
+      copyAheadTranslations(project, req.params.lesson, tStrings);
       if (context == "desktop") await push(req.params.lesson);
       res.redirect(`/translate/${req.params.projectCode}`);
     }

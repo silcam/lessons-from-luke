@@ -1,4 +1,4 @@
-import { stripSpace, resetTestStorage } from "../testHelper";
+import { stripSpace, resetTestStorage, loggedInAgent } from "../testHelper";
 import app from "../../src/app";
 import request from "supertest";
 import fs from "fs";
@@ -82,6 +82,42 @@ test("History is saved", async () => {
       mtString: true
     }
   ]);
+});
+
+test("Copy Translations Ahead", async () => {
+  expect.assertions(1);
+  const agent = await loggedInAgent();
+
+  // Create a lesson 2
+  let response = await agent
+    .post("/sources/English")
+    .field("series", "Luke")
+    .attach("document", "test/data/Q1-L01.odt", { filename: "Q1-L02.odt" })
+    .redirects(1);
+
+  // Create a new English project
+  response = await agent
+    .post("/projects")
+    .type("form")
+    .send({
+      sourceLang: "English",
+      targetLang: "Canadian"
+    })
+    .redirects(1);
+  const canadianCode = /Canadian.+?href="\/translate\/(\w+)"/s.exec(
+    response.text
+  )![1];
+
+  // Translate Lesson 1
+  response = await agent
+    .post(`/translate/${canadianCode}/lesson/Luke-Q1-L01`)
+    .type("form")
+    .send(completeTranslationFormData())
+    .redirects(1);
+
+  // Check that Lesson 2 is partially translated
+  const lesson2Percent = /Luke-Q1-L02.+?(\d*)%/s.exec(response.text)![1];
+  expect(parseInt(lesson2Percent)).toBeGreaterThan(1);
 });
 
 // Keep this test last
