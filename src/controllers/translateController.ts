@@ -58,15 +58,15 @@ export default function translateController(
       const tStrings = Storage.getTStrings(project, req.params.lesson).map(
         tString => {
           const longText = tString.src.length > maxLengthForInput;
+          const editable = project.fullTranslation || tString.mtString;
           return {
             ...tString,
             className: tString.mtString ? "mtString" : "otherString",
-            editDisplay:
-              project.fullTranslation || tString.mtString ? "inline" : "none",
+            editDisplay: editable ? "inline" : "none",
             inputDisplay: longText ? "none" : "inline-block",
             areaDisplay: longText ? "inline-block" : "none",
-            inputDisabled: longText ? "disabled" : "",
-            areaDisabled: longText ? "" : "disabled"
+            inputDisabled: longText || !editable ? "disabled" : "",
+            areaDisabled: !longText || !editable ? "disabled" : ""
           };
         }
       );

@@ -16,24 +16,19 @@ function updateIdenticalAndPostTranslations(id, input) {
   let baseCell = input.parentElement.parentElement;
   let src = srcFromCell(baseCell);
 
-  document.querySelectorAll("td.mtString").forEach(cell => {
-    const input = inputOrTextarea(cell);
-    if (srcFromCell(cell) == src && input.value.length == 0) {
-      input.value = translation;
-      postTranslation(parseInt(input.name), translation);
-    }
-  });
+  document
+    .querySelectorAll("input:enabled, textarea:enabled")
+    .forEach(input => {
+      const cell = input.closest("td");
+      if (srcFromCell(cell) == src && input.value.length == 0) {
+        input.value = translation;
+        postTranslation(parseInt(input.name), translation);
+      }
+    });
 }
 
 function srcFromCell(cell) {
   return cell.firstChild.textContent.trim();
-}
-
-function inputOrTextarea(cell) {
-  return (
-    cell.querySelector("input:enabled") ||
-    cell.querySelector("textarea:enabled")
-  );
 }
 
 function postTranslation(id, targetText) {
