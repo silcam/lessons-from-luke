@@ -28,7 +28,8 @@ test("Parse Meta Xml", () => {
   expect(metaDocStrings).toEqual([
     {
       text: "The Book of Luke and the Birth of John the Baptizer",
-      xpath: "/office:document-meta/office:meta/dc:subject/text()"
+      xpath: "/office:document-meta/office:meta/dc:subject/text()",
+      metaString: true
     }
   ]);
 });

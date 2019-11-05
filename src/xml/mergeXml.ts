@@ -13,11 +13,38 @@ export default function mergeXml(
   mkdirSafe(extractDirPath);
   unzip(inDocPath, extractDirPath);
 
-  const contentXmlPath = `${extractDirPath}/content.xml`;
-  mergeTranslations(contentXmlPath, translations);
+  const sortedTStrings = sortTStrings(translations);
+  addSpacesForStylesStrings(sortedTStrings);
+  const xmlTypes: (keyof SortedTStrings)[] = ["content", "meta", "styles"];
+  xmlTypes.forEach(xmlType => {
+    if (sortedTStrings[xmlType].length > 0) {
+      const xmlPath = `${extractDirPath}/${xmlType}.xml`;
+      mergeTranslations(xmlPath, sortedTStrings[xmlType]);
+    }
+  });
 
   zip(extractDirPath, outDocPath);
   unlinkRecursive(extractDirPath);
+}
+
+interface SortedTStrings {
+  content: TDocString[];
+  meta: TDocString[];
+  styles: TDocString[];
+}
+function sortTStrings(tStrings: TDocString[]): SortedTStrings {
+  return tStrings.reduce(
+    (sorted: SortedTStrings, tStr) => {
+      const key: keyof SortedTStrings = tStr.metaString
+        ? "meta"
+        : tStr.stylesString
+        ? "styles"
+        : "content";
+      sorted[key].push(tStr);
+      return sorted;
+    },
+    { content: [], meta: [], styles: [] }
+  );
 }
 
 function mergeTranslations(
@@ -53,6 +80,13 @@ export function extractNamespaces(xmlDoc: Document) {
       },
       {} as Namespaces
     );
+}
+
+function addSpacesForStylesStrings(sortedTStrings: SortedTStrings) {
+  sortedTStrings.styles = sortedTStrings.styles.map(str => ({
+    ...str,
+    targetText: str.targetText + " "
+  }));
 }
 
 function cleanOpenDocXml(str: string) {

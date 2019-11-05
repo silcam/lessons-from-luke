@@ -5,6 +5,8 @@ export interface DocString {
   xpath: string;
   text: string;
   mtString?: boolean;
+  metaString?: boolean;
+  stylesString?: boolean;
 }
 
 export default function parse(contentXml: string) {
@@ -63,14 +65,19 @@ export function parseMeta(metaXml: string) {
 
   const xPath = "//dc:subject";
   const nodes = xmlDoc.root()!.find(xPath, namespaces);
-  return parseNodes(nodes as Element[]);
+  return parseNodes(nodes as Element[]).map(str => ({
+    ...str,
+    metaString: true
+  }));
 }
 
 export function parseStyles(stylesXml: string) {
   const xmlDoc = libxmljs2.parseXml(stylesXml);
   const docStrings = parseNode(xmlDoc.root()!);
   const justNumberPattern = /^\d+$/;
-  return docStrings.filter(docStr => !justNumberPattern.test(docStr.text));
+  return docStrings
+    .filter(docStr => !justNumberPattern.test(docStr.text))
+    .map(docStr => ({ ...docStr, stylesString: true }));
 }
 
 // parentStyleName is ignored if parentStylePattern is provided

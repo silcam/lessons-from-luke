@@ -12,16 +12,16 @@ test("Create a project", async () => {
     .type("form")
     .send({
       sourceLang: "English",
-      targetLang: "Canadian"
+      targetLang: "American"
     })
     .redirects(1);
-  expect(response.text).toMatch(/Canadian.+Full Translations/s); // Canadian project should be above the header for Full Translations
+  expect(response.text).toMatch(/American.+Full Translations/s); // Canadian project should be above the header for Full Translations
 });
 
 test("Create full Translation", async () => {
-  expect.assertions(1);
+  expect.assertions(2);
   const agent = await loggedInAgent();
-  const response = await agent
+  let response = await agent
     .post("/projects")
     .type("form")
     .send({
@@ -31,6 +31,11 @@ test("Create full Translation", async () => {
     })
     .redirects(1);
   expect(response.text).toMatch(/Full Translations.+Canadian/s); // Canadian project should be below the header for Full Translations
+  const canadianCode = /Canadian.+?href="\/translate\/(\w+)"/s.exec(
+    response.text
+  )![1];
+  response = await agent.get(`/translate/${canadianCode}/lesson/Luke-Q1-L01`);
+  expect(response.text).toContain("Wycliffe"); // Verify that we are translating the footer (styles/meta strings)
 });
 
 test("Show Project, Project Lesson and Project Lesson History", async () => {

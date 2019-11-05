@@ -7,7 +7,7 @@ import {
 } from "./fsUtils";
 import fs from "fs";
 import path from "path";
-import { DocString } from "../xml/parse";
+import { DocString, parseStyles, parseMeta } from "../xml/parse";
 import { Project } from "./Manifest";
 import tStringHistory, { TStringHistory } from "./tStringHistory";
 
@@ -23,6 +23,8 @@ export interface TDocString {
   src: string;
   targetText: string;
   mtString?: boolean;
+  metaString?: boolean;
+  stylesString?: boolean;
 }
 
 export interface ProjectId {
@@ -60,17 +62,22 @@ export function makeProjectDir(project: Project) {
   const dirPath = projectDirPath(project);
   mkdirSafe(dirPath);
   project.lessons.forEach(projectLesson => {
-    const srcStrings = getSrcStrings({
-      language: project.sourceLang,
-      ...projectLesson
+    const srcStrings = getSrcStrings(
+      {
+        language: project.sourceLang,
+        ...projectLesson
+      },
+      project.fullTranslation
+    );
+    const tStrings: TDocString[] = srcStrings.map((srcString, index) => {
+      const { text, ...str } = srcString;
+      return {
+        ...str,
+        id: index,
+        src: text,
+        targetText: ""
+      };
     });
-    const tStrings: TDocString[] = srcStrings.map((srcString, index) => ({
-      id: index,
-      xpath: srcString.xpath,
-      src: srcString.text,
-      targetText: "",
-      mtString: srcString.mtString
-    }));
     fs.writeFileSync(
       tStringsJsonPath(project, projectLesson.lesson),
       JSON.stringify(tStrings)
@@ -83,9 +90,14 @@ export function makeDesktopProjectDir(project: Project) {
   mkdirSafe(dirPath);
 }
 
-export function getSrcStrings(lessonId: LessonId) {
+export function getSrcStrings(lessonId: LessonId, withStylesAndMeta?: boolean) {
   const stringsJson = fs.readFileSync(srcStringsJsonPath(lessonId)).toString();
-  return JSON.parse(stringsJson) as DocString[];
+  const srcStrings = JSON.parse(stringsJson) as DocString[];
+  if (withStylesAndMeta)
+    return srcStrings
+      .concat(parseMeta(metaXml(lessonId)))
+      .concat(parseStyles(stylesXml(lessonId)));
+  return srcStrings;
 }
 
 export function srcStringsJsonPath(lessonId: LessonId) {

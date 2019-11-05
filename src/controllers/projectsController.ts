@@ -37,6 +37,7 @@ export default function projectsController(app: Express) {
           locked,
           updatesAvailable:
             !locked &&
+            !projectManifest.fullTranslation && // Project update does not work with meta and styles strings and probably isn't needed for full translations
             Manifest.projectSrcUpdatesAvailable(projectManifest.datetime)
               .length > 0,
           extraProgressClass
