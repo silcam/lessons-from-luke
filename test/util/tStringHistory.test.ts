@@ -1,13 +1,13 @@
-import { TDocString } from "../../src/util/Storage";
-import tStringHistory from "../../src/util/tStringHistory";
+import { TStrings } from "../../src/core/TString";
+import tStringHistory from "../../src/core/TStringHistory";
 
 test("tStringHistory", () => {
-  const oldTStrings: TDocString[] = [
+  const oldTStrings: TStrings = [
     { id: 0, xpath: "", src: "Dog", targetText: "Chien" },
     { id: 1, xpath: "", src: "Cat", targetText: "Chat" },
     { id: 2, xpath: "", src: "Frog", targetText: "" }
   ];
-  const newTStrings: TDocString[] = [
+  const newTStrings: TStrings = [
     { id: 0, xpath: "", src: "Dog", targetText: "Chien" },
     { id: 1, xpath: "", src: "Cat", targetText: "Le Chat" },
     { id: 2, xpath: "", src: "Frog", targetText: "Grenouille" }
@@ -20,11 +20,11 @@ test("tStringHistory", () => {
 });
 
 test("tStringHistory nothing to save", () => {
-  const oldTStrings: TDocString[] = [
+  const oldTStrings: TStrings = [
     { id: 0, xpath: "", src: "Dog", targetText: "Chien" },
     { id: 1, xpath: "", src: "Cat", targetText: "" }
   ];
-  const newTStrings: TDocString[] = [
+  const newTStrings: TStrings = [
     { id: 0, xpath: "", src: "Dog", targetText: "Chien" },
     { id: 1, xpath: "", src: "Cat", targetText: "Chat" }
   ];

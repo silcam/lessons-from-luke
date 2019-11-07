@@ -1,6 +1,6 @@
 import request from "supertest";
-import app from "../src/app";
-import secrets from "../src/util/secrets";
+import app from "../src/server/app";
+import secrets from "../src/server/util/secrets";
 
 test("api:css", async () => {
   expect.assertions(1);

@@ -1,7 +1,7 @@
-import bestMatchMap from "../../src/util/bestMatchMap";
+import bestMatchMap from "../../src/core/util/bestMatchMap";
 import { compareTwoStrings } from "string-similarity";
 import fs from "fs";
-import { DocString } from "../../src/xml/parse";
+import { SrcStrings } from "../../src/core/SrcString";
 
 test("BMM: Skip one", () => {
   const result = bestMatchMap(
@@ -40,10 +40,10 @@ test("BMM: No zero matches", () => {
 });
 
 test("BMM: Src Strings Comp", () => {
-  const srcA: DocString[] = JSON.parse(
+  const srcA: SrcStrings = JSON.parse(
     fs.readFileSync("test/data/l1v6strings.json").toString()
   );
-  const srcB: DocString[] = JSON.parse(
+  const srcB: SrcStrings = JSON.parse(
     fs.readFileSync("test/data/l1v12strings.json").toString()
   );
   const result = bestMatchMap(srcA, srcB, (a, b) =>

@@ -1,10 +1,10 @@
 import { resetTestStorage, loggedInAgent } from "../testHelper";
-import app from "../../src/app";
+import app from "../../src/server/app";
 import request from "supertest";
-import { Project } from "../../src/util/Manifest";
-import { UpSyncPackage, UnlockPackage } from "../../src/util/desktopSync";
-import { TDocString } from "../../src/util/Storage";
-import * as Manifest from "../../src/util/Manifest";
+import { Project } from "../../src/core/Project";
+import { UpSyncPackage, UnlockPackage } from "../../src/desktop/desktopSync";
+import { TStrings } from "../../src/core/TString";
+import { readProject } from "../../src/server/FileStorage";
 
 /*************
   These tests are for the API used by the Desktop app,
@@ -37,7 +37,7 @@ test("Initial Fetch and Fetch Lesson", async () => {
   response = await request(app).get(
     `/desktop/fetch/1555081479425/lesson/Luke-Q1-L01?lockCode=${lockCode}`
   );
-  const tStrings: TDocString[] = JSON.parse(response.text);
+  const tStrings: TStrings = JSON.parse(response.text);
   expect(tStrings[1]).toEqual({
     id: 1,
     xpath:
@@ -67,7 +67,7 @@ test("Push translations", async () => {
   response = await request(app).get(
     `/desktop/fetch/1555081479425/lesson/Luke-Q1-L01?lockCode=${project.lockCode}`
   );
-  const tStrings: TDocString[] = JSON.parse(response.text);
+  const tStrings: TStrings = JSON.parse(response.text);
 
   // Simulate translating (In real life, the progress element of each lesson in the project object would be updated, but that's not necessary for the API)
   tStrings.forEach(tString => {
@@ -132,7 +132,7 @@ test("Unlock project", async () => {
     .send(body);
   expect(response.status).toBe(204);
   // Verify unlocked
-  project = Manifest.readProjectManifest(1555081479425);
+  project = readProject(1555081479425);
   expect(project.lockCode).toBeUndefined();
 
   // Unlock returns 204 if the project was already unlocked

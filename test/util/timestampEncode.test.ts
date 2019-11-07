@@ -1,4 +1,4 @@
-import { encode, decode } from "../../src/util/timestampEncode";
+import { encode, decode } from "../../src/core/util/timestampEncode";
 import MockDate from "mockdate";
 
 const zero = 1514761200000;

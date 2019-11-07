@@ -7,6 +7,6 @@ lessons/*.odt
 
 /tmp
 
-src/util/secrets.ts
+src/server/util/secrets.ts
 
 /desktop

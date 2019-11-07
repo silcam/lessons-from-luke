@@ -1,8 +1,7 @@
 import request from "supertest";
-import app from "../src/app";
-import secrets from "../src/util/secrets";
-import fs from "fs";
-import { copyRecursive, unlinkRecursive } from "../src/util/fsUtils";
+import app from "../src/server/app";
+import secrets from "../src/server/util/secrets";
+import { copyRecursive, unlinkRecursive } from "../src/core/util/fsUtils";
 
 export async function loggedInAgent() {
   const agent = request.agent(app);

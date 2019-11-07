@@ -1,8 +1,9 @@
 import { stripSpace, resetTestStorage, loggedInAgent } from "../testHelper";
-import app from "../../src/app";
+import app from "../../src/server/app";
 import request from "supertest";
 import fs from "fs";
-import * as Storage from "../../src/util/Storage";
+import { projectIdFromString } from "../../src/core/Project";
+import { getTStrings } from "../../src/server/FileStorage";
 
 beforeAll(() => {
   resetTestStorage();
@@ -139,8 +140,8 @@ test("Can't translate locked project", async () => {
 
 function completeTranslationFormData() {
   const data: { [name: string]: string } = {};
-  const tStrings = Storage.getTStrings(
-    Storage.projectIdFromString("Pidgin_1555081479425"),
+  const tStrings = getTStrings(
+    projectIdFromString("Pidgin_1555081479425"),
     "Luke-Q1-L01"
   );
   return tStrings.reduce((data, tString) => {
