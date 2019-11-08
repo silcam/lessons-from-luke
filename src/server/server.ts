@@ -1,9 +1,13 @@
-import app from "./app";
+import express from "express";
+import { toTString } from "../core/TString";
 
-const port = 8080;
+const app = express();
 
-app.listen(port, () =>
-  console.log(
-    `Translation server is running!\nGo to http://localhost:${port} in your browser`
-  )
-);
+app.get("/api/str", (req, res) => {
+  res.json(toTString("Bears"));
+});
+
+// Serve the files on port 3000.
+app.listen(8081, function() {
+  console.log("Example app listening on port 8081, yo!\n");
+});

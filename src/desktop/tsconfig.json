@@ -1,0 +1,16 @@
+{
+    "compilerOptions": {
+        "module": "commonjs",
+        "esModuleInterop": true,
+        "target": "es2017",
+        "noImplicitAny": true,
+        "moduleResolution": "node",
+        "sourceMap": true,
+        "outDir": "../../dist/desktop",
+        "strictNullChecks": true,
+    },
+    "include": [
+        "./**/*"
+    ],
+    "references": [{"path": "../core"}]
+}
