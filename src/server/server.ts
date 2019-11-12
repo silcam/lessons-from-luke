@@ -1,13 +1,19 @@
 import express from "express";
-import { toTString } from "../core/TString";
+import sourcesController from "./controllers/sourcesController";
+import usersController from "./controllers/usersController";
+import cookieSession from "cookie-session";
+import secrets from "./util/secrets";
+import bodyParser from "body-parser";
+// import sourcesController from "./controllers/sourcesController";
 
 const app = express();
 
-app.get("/api/str", (req, res) => {
-  res.json(toTString("Bears"));
-});
+app.use(cookieSession({ secret: secrets.cookieSecret }));
+app.use(bodyParser.json());
 
-// Serve the files on port 3000.
+sourcesController(app);
+usersController(app);
+
 app.listen(8081, function() {
-  console.log("Example app listening on port 8081, yo!\n");
+  console.log("Lessons from Luke API listening on port 8081.\n");
 });

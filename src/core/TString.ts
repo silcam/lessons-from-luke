@@ -1,9 +1,11 @@
 export interface TString {
+  id: number;
+  xpath: string;
+  src: string;
   targetText: string;
+  mtString?: boolean;
+  metaString?: boolean;
+  stylesString?: boolean;
 }
 
-export function toTString(str: string): TString {
-  return {
-    targetText: str
-  };
-}
+export type TStrings = TString[];
