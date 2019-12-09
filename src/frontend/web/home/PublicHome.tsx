@@ -1,13 +1,19 @@
 import React, { useState } from "react";
-import { LogInFunc } from "../users/useCurrentUser";
+import { usePush } from "../../api/RequestContext";
+import { pushLogin } from "../../common/state/currentUserSlice";
 
-interface IProps {
-  logIn: LogInFunc;
-}
-
-export default function PublicHome(props: IProps) {
+export default function PublicHome() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [loginFailed, setLoginFailed] = useState(false);
+  const logIn = usePush(pushLogin, appError => {
+    if (appError.type == "HTTP" && appError.status == 422) {
+      setLoginFailed(true);
+      return true;
+    }
+    return false;
+  });
+
   return (
     <div>
       <p>Check out some lessons</p>
@@ -15,22 +21,23 @@ export default function PublicHome(props: IProps) {
       <input
         type="text"
         value={username}
-        onChange={e => setUsername(e.target.value)}
+        onChange={e => {
+          setUsername(e.target.value);
+          setLoginFailed(false);
+        }}
         placeholder="Username"
       />
       <input
         type="password"
         value={password}
-        onChange={e => setPassword(e.target.value)}
+        onChange={e => {
+          setPassword(e.target.value);
+          setLoginFailed(false);
+        }}
         placeholder="Password"
       />
-      <button
-        onClick={() =>
-          props.logIn({ username, password }, e => console.error(e))
-        }
-      >
-        Log In
-      </button>
+      <p>{loginFailed && "Login failed"}</p>
+      <button onClick={() => logIn({ username, password })}>Log In</button>
     </div>
   );
 }

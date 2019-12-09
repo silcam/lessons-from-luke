@@ -1,15 +1,7 @@
 {
+    "extends": "../../tsconfig.json",
     "compilerOptions": {
         "composite": true,
-        "module": "commonjs",
-        "esModuleInterop": true,
-        "target": "es2017",
-        "moduleResolution": "node",
-        "sourceMap": true,
         "outDir": "../../dist/core",
-        "strict": true
-    },
-    "include": [
-        "./**/*"
-    ]
+    }
 }

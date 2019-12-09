@@ -1,4 +1,9 @@
-import { GetRoute, PostRoute, APIPost, APIGet } from "../../core/api/Api";
+import {
+  GetRoute,
+  PostRoute,
+  APIPost,
+  APIGet
+} from "../../core/interfaces/Api";
 import { Express, Request } from "express";
 
 export type GetRequestHandler<T extends GetRoute> = (
@@ -25,7 +30,12 @@ export function addPostHandler<T extends PostRoute>(
   handler: PostRequestHandler<T>
 ) {
   app.post(route, async (req, res) => {
-    const result = await handler(req);
-    res.json(result);
+    try {
+      const result = await handler(req);
+      res.json(result);
+    } catch (err) {
+      const status = err.status || 500;
+      res.status(status).send();
+    }
   });
 }

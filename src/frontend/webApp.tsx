@@ -1,33 +1,28 @@
-import React, { useState } from "react";
+import React from "react";
 import ReactDOM from "react-dom";
 import PlatformContext from "./common/PlatformContext";
 import { BrowserRouter } from "react-router-dom";
 import MainRouter from "./web/MainRouter";
-import ErrorContext, { ACError } from "./common/ErrorContext";
-import I18nContext, { Locale } from "./common/I18nContext";
-import { APIContext } from "./api/useAPI";
-import WebAPI from "./web/common/WebAPI";
+import { Provider } from "react-redux";
+import store from "./common/state/appState";
+import { ErrorContextProvider } from "./common/ErrorContext";
+import RequestContext from "./api/RequestContext";
+import { webGet, webPost } from "./web/common/WebAPI";
 
 function WebApp() {
-  const [error, setError] = useState<ACError | null>(null);
-  const [locale, setLocale] = useState<Locale>("en");
-
   return (
-    <BrowserRouter>
-      <PlatformContext.Provider value="web">
-        <ErrorContext.Provider value={{ error, setError }}>
-          <I18nContext.Provider value={{ locale, setLocale }}>
-            <APIContext.Provider value={WebAPI}>
-              <MainRouter />
-            </APIContext.Provider>
-          </I18nContext.Provider>
-        </ErrorContext.Provider>
-      </PlatformContext.Provider>
-    </BrowserRouter>
+    <Provider store={store}>
+      <BrowserRouter>
+        <PlatformContext.Provider value="web">
+          <RequestContext.Provider value={{ get: webGet, post: webPost }}>
+            <MainRouter />
+          </RequestContext.Provider>
+        </PlatformContext.Provider>
+      </BrowserRouter>
+    </Provider>
   );
 }
 
-// const mainElement = document.getElementById("root");
 // Create main element
 const mainElement = document.createElement("div");
 document.body.appendChild(mainElement);

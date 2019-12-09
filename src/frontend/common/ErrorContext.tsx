@@ -1,4 +1,6 @@
-import React from "react";
+// DEPRECATED
+
+import React, { useState } from "react";
 
 export interface ACError {
   msg: string;
@@ -16,3 +18,12 @@ const ErrorContext = React.createContext<IErrorContext>({
 });
 
 export default ErrorContext;
+
+export function ErrorContextProvider(props: { children: React.ReactNode }) {
+  const [error, setError] = useState<ACError | null>(null);
+  return (
+    <ErrorContext.Provider value={{ error, setError }}>
+      {props.children}
+    </ErrorContext.Provider>
+  );
+}

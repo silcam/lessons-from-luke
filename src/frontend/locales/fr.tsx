@@ -16,7 +16,8 @@ const fr: I18nStrings = {
   NoConnection: "Aucune connexion au serveur.",
   UnknownError: "Erreur inattendu",
   writeLockInvalid:
-    "Le projet de traduction n'est plus verrouillé pour cet ordinateur. Veuillez contacter l'administrateur si vous voulez continuer la traduction."
+    "Le projet de traduction n'est plus verrouillé pour cet ordinateur. Veuillez contacter l'administrateur si vous voulez continuer la traduction.",
+  serverError: "Erreur de serveur : %{status}"
 };
 
 export default fr;

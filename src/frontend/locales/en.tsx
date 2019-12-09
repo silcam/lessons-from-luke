@@ -11,10 +11,11 @@ const en = {
   TryAgain: "Try Again",
   DoneWorking: "I'm done working on this project.",
   Finish: "Finish",
-  NoConnection: "No connection to server.",
+  NoConnection: "No connection to server",
   UnknownError: "Unexpected error",
   writeLockInvalid:
-    "The translation project is no longer locked to this computer. Please contact the system administrator to continue translation."
+    "The translation project is no longer locked to this computer. Please contact the system administrator to continue translation.",
+  serverError: "Server Error %{status}"
 };
 
 export type I18nStrings = typeof en;

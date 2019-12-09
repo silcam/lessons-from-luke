@@ -1,4 +1,4 @@
-import { findIndexBy, findBy } from "./util/arrayUtils";
+import { findIndexBy, findBy } from "../util/arrayUtils";
 import update from "immutability-helper";
 
 export interface SourceLessonVersion {

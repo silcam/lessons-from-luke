@@ -1,5 +1,5 @@
 module.exports = {
   preset: "ts-jest",
   testEnvironment: "node",
-  watchPathIgnorePatterns: ["strings"]
+  watchPathIgnorePatterns: ["strings", "old"]
 };

@@ -1,7 +1,7 @@
 import { Express } from "express";
 import { addGetHandler, addPostHandler } from "../api/WebAPI";
 import secrets from "../util/secrets";
-import { LoginAttempt } from "../../core/User";
+import { LoginAttempt } from "../../core/models/User";
 
 export default function usersController(app: Express) {
   addGetHandler(app, "/api/users/current", async req => {
@@ -17,7 +17,7 @@ export default function usersController(app: Express) {
       req.session!.userId = 1;
       return { id: 1 };
     }
-    return null;
+    throw { status: 422 };
   });
 
   addPostHandler(app, "/api/users/logout", async req => {
