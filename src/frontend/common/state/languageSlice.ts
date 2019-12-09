@@ -4,7 +4,7 @@ import {
   Language,
   languageCompare
 } from "../../../core/models/Language";
-import { GetRequest } from "../../api/RequestContext";
+import { GetRequest } from "../api/RequestContext";
 import { AppDispatch } from "./appState";
 
 interface State {

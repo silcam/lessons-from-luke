@@ -3,17 +3,13 @@ import {
   APIGet,
   PostRoute,
   APIPost
-} from "../../core/interfaces/Api";
+} from "../../../core/interfaces/Api";
 import React, { useContext, useEffect } from "react";
-import { AppDispatch } from "../common/state/appState";
+import { AppDispatch } from "../state/appState";
 import { useDispatch } from "react-redux";
-import {
-  AppError,
-  asAppError,
-  AppErrorHandler
-} from "../common/AppError/AppError";
-import { AppBanner, unknownErrorBanner } from "../common/banners/Banner";
-import bannerSlice from "../common/banners/bannerSlice";
+import { AppError, asAppError, AppErrorHandler } from "../AppError/AppError";
+import { AppBanner, unknownErrorBanner } from "../banners/Banner";
+import bannerSlice from "../banners/bannerSlice";
 import loadingSlice from "./loadingSlice";
 
 export type GetRequest = <T extends GetRoute>(

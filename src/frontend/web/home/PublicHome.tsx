@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { usePush } from "../../api/RequestContext";
+import { usePush } from "../../common/api/RequestContext";
 import { pushLogin } from "../../common/state/currentUserSlice";
 
 export default function PublicHome() {

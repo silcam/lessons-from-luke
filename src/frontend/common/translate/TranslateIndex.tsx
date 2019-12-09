@@ -1,7 +1,7 @@
 import React from "react";
 import { useSelector } from "react-redux";
 import { AppState } from "../state/appState";
-import { useLoad } from "../../api/RequestContext";
+import { useLoad } from "../api/RequestContext";
 import { loadLanguages, loadTranslatingLanguage } from "../state/languageSlice";
 
 interface IProps {

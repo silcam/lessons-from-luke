@@ -1,7 +1,7 @@
 import React from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { AppState } from "../state/appState";
-import { useTranslation } from "../state/currentUserSlice";
+import { useTranslation } from "../../common/i18n/I18n";
 import { AppBanner, ErrorBanner } from "./Banner";
 import bannerSlice from "./bannerSlice";
 
