@@ -5,7 +5,6 @@ import { BrowserRouter } from "react-router-dom";
 import MainRouter from "./web/MainRouter";
 import { Provider } from "react-redux";
 import store from "./common/state/appState";
-import { ErrorContextProvider } from "./common/ErrorContext";
 import RequestContext from "./api/RequestContext";
 import { webGet, webPost } from "./web/common/WebAPI";
 
