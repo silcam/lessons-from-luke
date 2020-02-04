@@ -29,11 +29,11 @@ module.exports = {
   plugins: [
     // new CleanWebpackPlugin(),
     new HtmlWebpackPlugin({
-      title: "Output Management",
+      title: "Lessons from Luke",
       chunks: ["web"]
     }),
     new HtmlWebpackPlugin({
-      title: "Output Management",
+      title: "Lessons from Luke",
       filename: "desktop.html",
       chunks: ["desktop"]
     })

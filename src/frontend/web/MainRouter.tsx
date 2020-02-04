@@ -22,7 +22,10 @@ export default function MainRouter() {
       <Banners />
       {loaded ? (
         <Switch>
-          <Route path="/translate" render={() => <TranslateRoute />} />
+          <Route
+            path="/translate/:code"
+            render={({ match }) => <TranslateRoute code={match.params.code} />}
+          />
           <Route render={() => (user ? <AdminHome /> : <PublicHome />)} />
         </Switch>
       ) : (

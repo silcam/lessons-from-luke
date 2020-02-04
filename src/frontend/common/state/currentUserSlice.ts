@@ -1,7 +1,7 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { AppDispatch } from "./appState";
 import { User, LoginAttempt } from "../../../core/models/User";
-import { GetRequest, PostRequest } from "../api/RequestContext";
+import { GetRequest, Pusher } from "../api/RequestContext";
 import { Locale } from "../i18n/I18n";
 
 interface CurrentUserState {
@@ -37,15 +37,15 @@ export function loadCurrentUser(get: GetRequest) {
   };
 }
 
-export function pushLogin(post: PostRequest, login: LoginAttempt) {
-  return async (dispatch: AppDispatch) => {
+export function pushLogin(login: LoginAttempt): Pusher<void> {
+  return async (post, dispatch) => {
     const user = await post("/api/users/login", {}, login);
     dispatch(currentUserSlice.actions.setUser(user));
   };
 }
 
-export function pushLogout(post: PostRequest) {
-  return async (dispatch: AppDispatch) => {
+export function pushLogout(): Pusher<void> {
+  return async (post, dispatch) => {
     await post("/api/users/logout", {}, null);
     dispatch(currentUserSlice.actions.logout());
   };

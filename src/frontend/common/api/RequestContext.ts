@@ -4,7 +4,7 @@ import {
   PostRoute,
   APIPost
 } from "../../../core/interfaces/Api";
-import React, { useContext, useEffect } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { AppDispatch } from "../state/appState";
 import { useDispatch } from "react-redux";
 import { AppError, asAppError, AppErrorHandler } from "../AppError/AppError";
@@ -56,11 +56,14 @@ function networkErrorBannerAction(err: AppError) {
   );
 }
 
-export function useLoad<T>(
-  loader: (get: GetRequest) => (dispatch: AppDispatch) => Promise<T>
-) {
+export type Loader<T> = (
+  get: GetRequest
+) => (dispatch: AppDispatch) => Promise<T>;
+export function useLoad<T>(loader: Loader<T>, deps: any[] = []) {
   const { get } = useContext(RequestContext);
+  const [loading, setLoading] = useState(true);
   const dispatch: AppDispatch = useDispatch();
+
   useEffect(() => {
     dispatch(loadingSlice.actions.addLoading());
     dispatch(loader(get))
@@ -70,19 +73,26 @@ export function useLoad<T>(
       })
       .finally(() => {
         dispatch(loadingSlice.actions.subtractLoading());
+        setLoading(false);
       });
-  }, []);
+  }, deps);
+
+  return loading;
 }
 
-export function usePush<T, U>(
-  pusher: (post: PostRequest, t: T) => (dispatch: AppDispatch) => Promise<U>,
-  errorHandler: AppErrorHandler = () => false
-) {
+export type Pusher<T> = (
+  post: PostRequest,
+  dispatch: AppDispatch
+) => Promise<T | null>;
+export function usePush() {
   const { post } = useContext(RequestContext);
   const dispatch: AppDispatch = useDispatch();
-  const push = (t: T) => {
+  const push = <T>(
+    pusher: Pusher<T>,
+    errorHandler: AppErrorHandler = () => false
+  ) => {
     dispatch(loadingSlice.actions.addLoading());
-    dispatch(pusher(post, t))
+    return pusher(post, dispatch)
       .catch(anyErr => {
         const err = asAppError(anyErr);
         if (!errorHandler(err)) {

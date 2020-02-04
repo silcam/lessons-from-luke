@@ -25,7 +25,7 @@ export interface APIGet {
   ];
   "/api/languages/:languageId/lessonVersions": [
     { languageId: number },
-    LessonVersion[]
+    LanguageLesson[]
   ];
   "/api/languages/:languageId/lessonStrings": [
     { languageId: number },

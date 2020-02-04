@@ -20,3 +20,7 @@ export function isNewLanguageLesson(params: any): params is NewLanguageLesson {
   ];
   return validateFields(params, fields);
 }
+
+export function equal(a: LanguageLesson, b: LanguageLesson) {
+  return a.languageId == b.languageId && a.lessonVersionId == b.lessonVersionId;
+}

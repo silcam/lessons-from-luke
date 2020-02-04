@@ -27,8 +27,10 @@ function serverApp(opts: { silent?: boolean; testController?: boolean } = {}) {
 
   if (!opts.silent) {
     app.use((req, res, next) => {
+      res.on("finish", () => {
+        console.log(`${req.method} ${req.path} => [${res.statusCode}]`);
+      });
       next();
-      console.log(`${req.method} ${req.path} => [${res.statusCode}]`);
     });
   }
 

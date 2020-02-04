@@ -1,35 +1,30 @@
 import React from "react";
-import { useSelector } from "react-redux";
-import { AppState } from "../state/appState";
-import { useLoad } from "../api/RequestContext";
-import { loadLanguages, loadTranslatingLanguage } from "../state/languageSlice";
+import { useAppSelector } from "../state/appState";
+import { Language } from "../../../core/models/Language";
+import { Link } from "react-router-dom";
 
 interface IProps {
-  code: string;
+  language: Language;
 }
 
 export default function TranslateIndex(props: IProps) {
-  const { languages, translating } = useSelector(
-    (state: AppState) => state.languages
+  const lessons = useAppSelector(state =>
+    state.languageLessons.filter(
+      lesson => lesson.languageId == props.language.languageId
+    )
   );
 
-  useLoad(loadTranslatingLanguage(props.code));
-
-  useLoad(loadLanguages());
-
-  if (!translating) return <h1>"Loading..."</h1>;
-
-  return translating ? (
-    <div>
-      <h1>Let's translate {translating.name}!</h1>
-      <h2>Some Languages!</h2>
-      <ul>
-        {languages.map(language => (
-          <li key={language.languageId}>{language.name}</li>
-        ))}
-      </ul>
-    </div>
-  ) : (
-    <h1>"Invalid code!"</h1>
+  return (
+    <ul>
+      {lessons.map(lesson => (
+        <li key={lesson.lessonVersionId}>
+          <Link
+            to={`/translate/${props.language.code}/lesson/${lesson.lessonVersionId}`}
+          >
+            {`${lesson.book} ${lesson.series}-${lesson.lesson}`}
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }

@@ -1,5 +1,6 @@
 import { LessonString } from "./LessonString";
 import { Fields, validateFields } from "../util/objectUtils";
+import { Language } from "./Language";
 
 export interface TString {
   masterId: number;
@@ -27,6 +28,25 @@ export function isTString(t: TString): t is TString {
     ["history", "string[]"]
   ];
   return validateFields(t, fields);
+}
+
+export function newTString(
+  text: string,
+  lessonStr: LessonString,
+  language: Language,
+  srcStr?: TString
+) {
+  let tString: TString = {
+    masterId: lessonStr.masterId,
+    languageId: language.languageId,
+    text,
+    history: []
+  };
+  if (srcStr) {
+    tString.source = srcStr.text;
+    tString.sourceLanguageId = srcStr.languageId;
+  }
+  return tString;
 }
 
 export type LessonTString = LessonString & Partial<TString>;

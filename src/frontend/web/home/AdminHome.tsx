@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from "react";
-import RequestContext from "../../common/api/RequestContext";
+import RequestContext, { usePush } from "../../common/api/RequestContext";
 import { useDispatch } from "react-redux";
 import currentUserSlice, {
   pushLogout
@@ -7,10 +7,8 @@ import currentUserSlice, {
 
 export default function AdminHome() {
   // const [sources, setSources] = useState<SourceManifest>([]);
-  const { get, post } = useContext(RequestContext);
-  const dispatch = useDispatch();
-
-  const logOut = () => dispatch(pushLogout(post));
+  const push = usePush();
+  const logOut = () => push(pushLogout());
 
   // useEffect(() => {
   //   get("/api/sources", {}).then(sources => sources && setSources(sources));

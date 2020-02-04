@@ -2,7 +2,8 @@ import { NewLanguage, Language } from "../models/Language";
 import { Lesson } from "../models/Lesson";
 import {
   NewLanguageLesson,
-  BasicLanguageLesson
+  BasicLanguageLesson,
+  LanguageLesson
 } from "../models/LanguageLesson";
 import { LessonString } from "../models/LessonString";
 import { TString, LessonTString } from "../models/TString";
@@ -14,7 +15,7 @@ export interface Persistence {
   createLanguage: (lang: NewLanguage) => Promise<Language>;
   invalidCode: (code: string, languageId: number) => Promise<boolean>;
   lessons: () => Promise<Lesson[]>;
-  lessonVersions: (languageId: number) => Promise<LessonVersion[]>;
+  lessonVersions: (languageId: number) => Promise<LanguageLesson[]>;
   createLanguageLesson: (
     newLanguageLesson: NewLanguageLesson
   ) => Promise<BasicLanguageLesson>;

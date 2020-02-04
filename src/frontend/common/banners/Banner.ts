@@ -1,4 +1,4 @@
-import { I18nKey } from "../../locales/en";
+import { I18nKey } from "../i18n/locales/en";
 
 export type ErrorBanner = {
   type: "Error";

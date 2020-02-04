@@ -6,13 +6,15 @@ export default function PublicHome() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loginFailed, setLoginFailed] = useState(false);
-  const logIn = usePush(pushLogin, appError => {
-    if (appError.type == "HTTP" && appError.status == 422) {
-      setLoginFailed(true);
-      return true;
-    }
-    return false;
-  });
+  const push = usePush();
+  const logIn = () =>
+    push(pushLogin({ username, password }), appError => {
+      if (appError.type == "HTTP" && appError.status == 422) {
+        setLoginFailed(true);
+        return true;
+      }
+      return false;
+    });
 
   return (
     <div>
@@ -37,7 +39,7 @@ export default function PublicHome() {
         placeholder="Password"
       />
       <p>{loginFailed && "Login failed"}</p>
-      <button onClick={() => logIn({ username, password })}>Log In</button>
+      <button onClick={logIn}>Log In</button>
     </div>
   );
 }
