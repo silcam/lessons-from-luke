@@ -1,4 +1,6 @@
 const en = {
+  Luke: "Luke",
+  Acts: "Acts",
   Lessons: "Lessons",
   Save: "Save",
   Saved: "Saved",
@@ -15,7 +17,14 @@ const en = {
   UnknownError: "Unexpected error",
   writeLockInvalid:
     "The translation project is no longer locked to this computer. Please contact the system administrator to continue translation.",
-  serverError: "Server Error %{status}"
+  serverError: "Server Error %{status}",
+  Log_in: "Log In",
+  Username: "Username",
+  Password: "Password",
+  Log_in_failed: "Login failed.",
+  Code_error:
+    "Translation Project not found. Please check that you have the right web address.",
+  Start_translating_lesson: "Start Translating %{name}"
 };
 
 export type I18nStrings = typeof en;

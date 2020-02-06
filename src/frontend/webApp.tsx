@@ -22,8 +22,14 @@ function WebApp() {
   );
 }
 
+// Inject base styles
+document.getElementsByTagName("html")[0].style.height = "100%";
+document.body.style.height = "100%";
+document.body.style.margin = "0";
+
 // Create main element
 const mainElement = document.createElement("div");
+mainElement.style.height = "100%";
 document.body.appendChild(mainElement);
 
 // Render components

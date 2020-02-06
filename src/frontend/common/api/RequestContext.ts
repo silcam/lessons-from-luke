@@ -80,6 +80,11 @@ export function useLoad<T>(loader: Loader<T>, deps: any[] = []) {
   return loading;
 }
 
+export function useLoadMultiple(loaders: Loader<any>[]) {
+  const loadings = loaders.map(loader => useLoad(loader));
+  return loadings.every(loading => loading);
+}
+
 export type Pusher<T> = (
   post: PostRequest,
   dispatch: AppDispatch

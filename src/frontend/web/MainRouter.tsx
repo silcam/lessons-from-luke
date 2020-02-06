@@ -1,25 +1,21 @@
 import React from "react";
 import { Switch, Route } from "react-router-dom";
-import TranslateRoute from "./translate/TranslateRoute";
+import TranslateRoute from "../common/translate/TranslateHome";
 import AdminHome from "./home/AdminHome";
 import PublicHome from "./home/PublicHome";
 import { useSelector } from "react-redux";
 import { AppState } from "../common/state/appState";
 import { useLoad } from "../common/api/RequestContext";
 import { loadCurrentUser } from "../common/state/currentUserSlice";
-import Banners from "../common/banners/Banners";
+import RootDiv from "../common/base-components/RootDiv";
+import LoadingSnake from "../common/base-components/LoadingSnake";
 
 export default function MainRouter() {
   const { user, loaded } = useSelector((state: AppState) => state.currentUser);
   useLoad(loadCurrentUser);
 
-  const appLoading = useSelector((state: AppState) => state.loading);
-
   return (
-    <div>
-      {appLoading > 0 && "Loading..."}
-      <h1>This is Lessons from Luke</h1>
-      <Banners />
+    <RootDiv>
       {loaded ? (
         <Switch>
           <Route
@@ -29,8 +25,8 @@ export default function MainRouter() {
           <Route render={() => (user ? <AdminHome /> : <PublicHome />)} />
         </Switch>
       ) : (
-        "Loading..."
+        <LoadingSnake />
       )}
-    </div>
+    </RootDiv>
   );
 }

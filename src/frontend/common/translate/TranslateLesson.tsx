@@ -1,31 +1,35 @@
 import React, { useState } from "react";
 import { Language } from "../../../core/models/Language";
 import { useAppSelector } from "../state/appState";
-import { useLoad } from "../api/RequestContext";
+import { useLoadMultiple } from "../api/RequestContext";
 import { loadLessonStrings } from "../state/lessonStringSlice";
 import { loadTStrings } from "../state/tStringSlice";
 import TranslateRow from "./TranslateRow";
-import Loading from "../api/Loading";
+import LoadingSnake from "../base-components/LoadingSnake";
+import { lessonName } from "../../../core/models/Lesson";
+import { LanguageLesson } from "../../../core/models/LanguageLesson";
+import Div from "../base-components/Div";
+import Heading from "../base-components/Heading";
+import PDiv from "../base-components/PDiv";
 
 interface IProps {
   language: Language;
-  lessonVersionId: number;
+  lesson: LanguageLesson;
 }
 
 export default function TranslateLesson(props: IProps) {
+  const lesson = props.lesson;
+  const lessonVersionId = props.lesson.lessonVersionId;
   const [srcLangId, setSrcLangId] = useState(2);
-  const ldg1 = useLoad(
-    loadLessonStrings({ lessonVersionId: props.lessonVersionId })
-  );
-  const ldg2 = useLoad(
-    loadTStrings(props.language.languageId, props.lessonVersionId)
-  );
-  const ldg3 = useLoad(loadTStrings(srcLangId, props.lessonVersionId));
-  const loading = ldg1 || ldg2 || ldg3;
+
+  const loading = useLoadMultiple([
+    loadLessonStrings({ lessonVersionId: lessonVersionId }),
+    loadTStrings(props.language.languageId, lessonVersionId),
+    loadTStrings(srcLangId, lessonVersionId)
+  ]);
+
   const lessonStrings = useAppSelector(state =>
-    state.lessonStrings.filter(
-      str => str.lessonVersionId == props.lessonVersionId
-    )
+    state.lessonStrings.filter(str => str.lessonVersionId == lessonVersionId)
   );
   const tStrings = useAppSelector(state =>
     state.tStrings.filter(str =>
@@ -33,35 +37,24 @@ export default function TranslateLesson(props: IProps) {
     )
   );
 
-  const lesson = useAppSelector(state =>
-    state.languageLessons.find(
-      lesson =>
-        lesson.languageId == props.language.languageId &&
-        lesson.lessonVersionId == props.lessonVersionId
-    )
-  );
-  if (!lesson) return null;
-
-  if (loading) return <Loading />;
+  if (loading) return <LoadingSnake />;
 
   return (
-    <div>
-      <h1>{`${lesson.book} ${lesson.series}-${lesson.lesson}`}</h1>
-      <table style={{ width: "100%" }}>
-        <tbody>
-          {lessonStrings.map(lessonString => (
-            <TranslateRow
-              key={lessonString.lessonStringId}
-              {...{
-                lessonString,
-                tStrings,
-                srcLangId,
-                language: props.language
-              }}
-            />
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <Div>
+      <Heading level={1} text={lessonName(lesson)} />
+      {lessonStrings.map(lessonString => (
+        <PDiv key={lessonString.lessonStringId}>
+          <TranslateRow
+            key={lessonString.lessonStringId}
+            {...{
+              lessonString,
+              tStrings,
+              srcLangId,
+              language: props.language
+            }}
+          />
+        </PDiv>
+      ))}
+    </Div>
   );
 }

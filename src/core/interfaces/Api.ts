@@ -7,7 +7,7 @@ import {
   PublicLanguage
 } from "../models/Language";
 import { Lesson } from "../models/Lesson";
-import { LanguageLesson } from "../models/LanguageLesson";
+import { LanguageLesson, BasicLanguageLesson } from "../models/LanguageLesson";
 import { LessonString } from "../models/LessonString";
 import { LessonVersion } from "../models/LessonVersion";
 
@@ -42,7 +42,7 @@ export interface APIPost {
   "/api/users/login": [{}, LoginAttempt, User | null];
   "/api/users/logout": [{}, null, null];
   "/api/admin/languages": [{}, NewLanguage, Language];
-  "/api/languageLessons": [{}, WithCode<LanguageLesson>, LessonVersion[]];
+  "/api/languageLessons": [{}, WithCode<BasicLanguageLesson>, LessonVersion[]];
   "/api/tStrings": [{}, WithCode<TString>, TString];
 }
 

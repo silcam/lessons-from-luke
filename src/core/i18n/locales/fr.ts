@@ -1,7 +1,10 @@
-import { I18nStrings } from "./en";
+import en, { I18nStrings } from "./en";
 
 const fr: I18nStrings = {
+  ...en,
   Lessons: "Leçons",
+  Luke: "Luc",
+  Acts: "Actes",
   Save: "Enregistrer",
   Saved: "Enregistré",
   Locked: "Verrouillé",

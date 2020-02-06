@@ -1,8 +1,6 @@
-import { I18nKey } from "../i18n/locales/en";
-
 export type ErrorBanner = {
   type: "Error";
-  message: I18nKey;
+  message: string;
   closeable: boolean;
   status: string;
 };

@@ -1,7 +1,5 @@
 import en, { I18nStrings, I18nKey } from "./locales/en";
 import fr from "./locales/fr";
-import { useSelector } from "react-redux";
-import { AppState, AppDispatch } from "../state/appState";
 
 const strings = {
   en,
@@ -29,11 +27,6 @@ function translate(
   }, strings[key]);
 }
 
-function tForLocale(locale: keyof typeof strings): TFunc {
+export function tForLocale(locale: keyof typeof strings): TFunc {
   return (key, subs) => translate(strings[locale], key, subs);
-}
-
-export function useTranslation() {
-  const locale = useSelector((state: AppState) => state.currentUser.locale);
-  return tForLocale(locale);
 }

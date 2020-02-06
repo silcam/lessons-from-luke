@@ -1,24 +1,25 @@
 import React from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { AppState } from "../state/appState";
-import { useTranslation } from "../../common/i18n/I18n";
 import { AppBanner, ErrorBanner } from "./Banner";
 import bannerSlice from "./bannerSlice";
+import Alert from "../base-components/Alert";
+import useTranslation from "../util/useTranslation";
 
 export default function Banners() {
   const banners = useSelector((state: AppState) => state.banners);
 
   return (
-    <ul>
+    <div>
       {banners.map(banner => {
         switch (banner.type) {
           case "Hello World":
-            return <li>Hello World!</li>;
+            return <Alert>Hello World!</Alert>;
           case "Error":
             return <ErrorBanner banner={banner} />;
         }
       })}
-    </ul>
+    </div>
   );
 }
 
@@ -30,7 +31,7 @@ function ErrorBanner(props: { banner: ErrorBanner }) {
 
   return (
     <li>
-      {t(props.banner.message, { status: props.banner.status })}
+      {props.banner.message}
       {props.banner.closeable && <button onClick={removeBanner}>X</button>}
     </li>
   );
