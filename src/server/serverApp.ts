@@ -10,7 +10,6 @@ import requireUser from "./middle/requireUser";
 import tStringsController from "./controllers/tStringsController";
 import { Persistence } from "../core/interfaces/Persistence";
 import testController from "./controllers/testController";
-import lessonStringsController from "./controllers/lessonStringsController";
 
 function serverApp(opts: { silent?: boolean; testController?: boolean } = {}) {
   const app = express();
@@ -37,7 +36,6 @@ function serverApp(opts: { silent?: boolean; testController?: boolean } = {}) {
   usersController(app);
   languagesController(app, storage);
   lessonsController(app, storage);
-  lessonStringsController(app, storage);
   tStringsController(app, storage);
 
   if (opts.testController) {

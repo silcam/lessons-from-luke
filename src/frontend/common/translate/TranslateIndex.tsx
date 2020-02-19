@@ -10,11 +10,7 @@ interface IProps {
 }
 
 export default function TranslateIndex(props: IProps) {
-  const lessons = useAppSelector(state =>
-    state.languageLessons.filter(
-      lesson => lesson.languageId == props.language.languageId
-    )
-  );
+  const lessons = useAppSelector(state => state.lessons);
 
   return (
     <div>
@@ -23,9 +19,9 @@ export default function TranslateIndex(props: IProps) {
       </HeaderBar>
       <ul>
         {lessons.map(lesson => (
-          <li key={lesson.lessonVersionId}>
+          <li key={lesson.lessonId}>
             <Link
-              to={`/translate/${props.language.code}/lesson/${lesson.lessonVersionId}`}
+              to={`/translate/${props.language.code}/lesson/${lesson.lessonId}`}
             >
               {`${lesson.book} ${lesson.series}-${lesson.lesson}`}
             </Link>

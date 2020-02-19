@@ -3,7 +3,6 @@ import { TString, equal } from "../../core/models/TString";
 import { Persistence } from "../../core/interfaces/Persistence";
 import { fixtures } from "./fixtures";
 import { Language } from "../../core/models/Language";
-import { BasicLanguageLesson } from "../../core/models/LanguageLesson";
 import { encode } from "../../core/util/timestampEncode";
 
 let testDb = fixtures();
@@ -35,58 +34,23 @@ const testStorage: Persistence = {
     return testDb.lessons;
   },
 
-  lessonVersions: async languageId => {
-    const langLessonVersions = join(
-      testDb.languageLessons.filter(item => item.languageId === languageId),
-      testDb.lessonVersions,
-      (ll, lv) => ll.lessonVersionId === lv.lessonVersionId
-    );
-    return join(
-      langLessonVersions,
-      testDb.lessons,
-      (llb, l) => llb.lessonId === l.lessonId
-    );
-  },
+  lesson: async id => {
+    const lesson = findBy(testDb.lessons, "lessonId", id);
+    if (!lesson) return null;
 
-  createLanguageLesson: async newLanguageLesson => {
-    const lessonVersion = last(
-      testDb.lessonVersions.filter(
-        lv => lv.lessonId == newLanguageLesson.lessonId
-      )
-    );
-    if (!lessonVersion) throw { message: "Invalid lesson id.", type: "TestDB" };
-    const languageLesson: BasicLanguageLesson = {
-      languageId: newLanguageLesson.languageId,
-      lessonVersionId: lessonVersion.lessonVersionId
+    return {
+      ...lesson,
+      lessonStrings: testDb.lessonStrings.filter(ls => ls.lessonId == id)
     };
-    testDb.languageLessons.push(languageLesson);
-    return languageLesson;
-  },
-
-  lessonStrings: async function(params) {
-    if ("lessonVersionId" in params) {
-      return testDb.lessonStrings.filter(
-        ls => ls.lessonVersionId == params.lessonVersionId
-      );
-    } else {
-      const langLessonVersions = (
-        await this.lessonVersions(params.languageId)
-      ).map(lv => ({ lessonVersionId: lv.lessonVersionId }));
-      return join(
-        testDb.lessonStrings,
-        langLessonVersions,
-        (ls, llv) => ls.lessonVersionId == llv.lessonVersionId
-      );
-    }
   },
 
   tStrings: async params => {
     const langTStrings = testDb.tStrings.filter(
       ts => ts.languageId == params.languageId
     );
-    if (!params.lessonVersionId) return langTStrings;
+    if (!params.lessonId) return langTStrings;
     const masterIds = testDb.lessonStrings
-      .filter(ls => ls.lessonVersionId == params.lessonVersionId)
+      .filter(ls => ls.lessonId == params.lessonId)
       .map(ls => ls.masterId);
     return langTStrings.filter(ts => masterIds.includes(ts.masterId));
   },

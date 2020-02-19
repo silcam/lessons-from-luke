@@ -4,7 +4,7 @@ import {
   APIPost,
   APIGet
 } from "../../core/interfaces/Api";
-import { Express, Request } from "express";
+import { Express, Request, Response } from "express";
 
 export type GetRequestHandler<T extends GetRoute> = (
   req: Request
@@ -19,8 +19,10 @@ export function addGetHandler<T extends GetRoute>(
   handler: GetRequestHandler<T>
 ) {
   app.get(route, async (req, res) => {
-    const result = await handler(req);
-    res.json(result);
+    handleErrors(res, async () => {
+      const result = await handler(req);
+      res.json(result);
+    });
   });
 }
 
@@ -30,12 +32,18 @@ export function addPostHandler<T extends PostRoute>(
   handler: PostRequestHandler<T>
 ) {
   app.post(route, async (req, res) => {
-    try {
+    handleErrors(res, async () => {
       const result = await handler(req);
       res.json(result);
-    } catch (err) {
-      const status = err.status || 500;
-      res.status(status).send();
-    }
+    });
   });
+}
+
+async function handleErrors(res: Response, cb: () => Promise<void>) {
+  try {
+    await cb();
+  } catch (err) {
+    const status = err.status || 500;
+    res.status(status).send();
+  }
 }

@@ -1,16 +1,13 @@
 import { Language } from "../../core/models/Language";
-import { Lesson } from "../../core/models/Lesson";
-import { BasicLessonVersion } from "../../core/models/LessonVersion";
-import { BasicLanguageLesson } from "../../core/models/LanguageLesson";
+import { BaseLesson } from "../../core/models/Lesson";
 import { LessonString } from "../../core/models/LessonString";
 import { TString } from "../../core/models/TString";
 
 interface Fixtures {
   languages: Language[];
-  lessons: Lesson[];
-  lessonVersions: BasicLessonVersion[];
-  languageLessons: BasicLanguageLesson[];
+  lessons: BaseLesson[];
   lessonStrings: LessonString[];
+  oldLessonStrings: LessonString[];
   tStrings: TString[];
 }
 export function fixtures(): Fixtures {
@@ -21,41 +18,18 @@ export function fixtures(): Fixtures {
       { languageId: 3, name: "Batanga", code: "GHI" }
     ],
     lessons: [
-      { lessonId: 11, book: "Luke", series: 1, lesson: 1 },
-      { lessonId: 12, book: "Luke", series: 1, lesson: 2 },
-      { lessonId: 13, book: "Luke", series: 1, lesson: 3 },
-      { lessonId: 14, book: "Luke", series: 1, lesson: 4 },
-      { lessonId: 15, book: "Luke", series: 1, lesson: 5 }
-    ],
-    lessonVersions: [
-      { lessonVersionId: 101, lessonId: 11, version: 1 },
-      { lessonVersionId: 102, lessonId: 12, version: 1 },
-      { lessonVersionId: 103, lessonId: 13, version: 1 },
-      { lessonVersionId: 104, lessonId: 14, version: 1 },
-      { lessonVersionId: 105, lessonId: 15, version: 1 },
-      { lessonVersionId: 106, lessonId: 12, version: 2 }
-    ],
-    languageLessons: [
-      { languageId: 1, lessonVersionId: 101 },
-      { languageId: 1, lessonVersionId: 106 },
-      { languageId: 1, lessonVersionId: 103 },
-      { languageId: 1, lessonVersionId: 104 },
-      { languageId: 1, lessonVersionId: 105 },
-      { languageId: 2, lessonVersionId: 101 },
-      { languageId: 2, lessonVersionId: 106 },
-      { languageId: 2, lessonVersionId: 103 },
-      { languageId: 2, lessonVersionId: 104 },
-      { languageId: 2, lessonVersionId: 105 },
-      { languageId: 3, lessonVersionId: 101 },
-      { languageId: 3, lessonVersionId: 102 },
-      { languageId: 3, lessonVersionId: 103 },
-      { languageId: 3, lessonVersionId: 104 }
+      { lessonId: 11, book: "Luke", series: 1, lesson: 1, version: 2 },
+      { lessonId: 12, book: "Luke", series: 1, lesson: 2, version: 2 },
+      { lessonId: 13, book: "Luke", series: 1, lesson: 3, version: 2 },
+      { lessonId: 14, book: "Luke", series: 1, lesson: 4, version: 2 },
+      { lessonId: 15, book: "Luke", series: 1, lesson: 5, version: 2 }
     ],
     lessonStrings: [
       {
         lessonStringId: 1,
         masterId: 1,
-        lessonVersionId: 101,
+        lessonId: 11,
+        lessonVersion: 2,
         type: "content",
         xpath: "",
         motherTongue: true
@@ -63,7 +37,8 @@ export function fixtures(): Fixtures {
       {
         lessonStringId: 2,
         masterId: 1,
-        lessonVersionId: 101,
+        lessonId: 11,
+        lessonVersion: 2,
         type: "content",
         xpath: "",
         motherTongue: false
@@ -71,7 +46,8 @@ export function fixtures(): Fixtures {
       {
         lessonStringId: 3,
         masterId: 2,
-        lessonVersionId: 101,
+        lessonId: 11,
+        lessonVersion: 2,
         type: "content",
         xpath: "",
         motherTongue: false
@@ -79,7 +55,8 @@ export function fixtures(): Fixtures {
       {
         lessonStringId: 4,
         masterId: 3,
-        lessonVersionId: 101,
+        lessonId: 11,
+        lessonVersion: 2,
         type: "content",
         xpath: "",
         motherTongue: true
@@ -87,7 +64,8 @@ export function fixtures(): Fixtures {
       {
         lessonStringId: 5,
         masterId: 3,
-        lessonVersionId: 101,
+        lessonId: 11,
+        lessonVersion: 2,
         type: "content",
         xpath: "",
         motherTongue: false
@@ -95,12 +73,14 @@ export function fixtures(): Fixtures {
       {
         lessonStringId: 6,
         masterId: 4,
-        lessonVersionId: 103,
+        lessonId: 12,
+        lessonVersion: 2,
         type: "content",
         xpath: "",
         motherTongue: false
       }
     ],
+    oldLessonStrings: [],
     tStrings: [
       {
         masterId: 1,

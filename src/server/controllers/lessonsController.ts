@@ -1,7 +1,6 @@
 import { Express } from "express";
 import { addGetHandler, addPostHandler } from "../api/WebAPI";
 import { Persistence } from "../../core/interfaces/Persistence";
-import { isNewLanguageLesson } from "../../core/models/LanguageLesson";
 import { isWithCode } from "../../core/models/Language";
 
 export default function lessonsController(app: Express, storage: Persistence) {
@@ -9,21 +8,10 @@ export default function lessonsController(app: Express, storage: Persistence) {
     return storage.lessons();
   });
 
-  addGetHandler(app, "/api/languages/:languageId/lessonVersions", async req => {
-    return storage.lessonVersions(parseInt(req.params.languageId));
-  });
+  addGetHandler(app, "/api/lessons/:lessonId", async req => {
+    const lesson = await storage.lesson(parseInt(req.params.lessonId));
+    if (!lesson) throw { status: 404 };
 
-  addPostHandler(app, "/api/languageLessons", async req => {
-    if (!isWithCode(req.body, isNewLanguageLesson)) throw { status: 422 };
-    const { code, ...newLanguageLesson } = req.body;
-    if (await storage.invalidCode(code, newLanguageLesson.languageId))
-      throw { status: 401 };
-    try {
-      await storage.createLanguageLesson(newLanguageLesson);
-      return storage.lessonVersions(newLanguageLesson.languageId);
-    } catch (err) {
-      if (err.type == "TestDB") throw { status: 422 };
-      throw { status: 500 };
-    }
+    return lesson;
   });
 }

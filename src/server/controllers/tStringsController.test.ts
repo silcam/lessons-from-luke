@@ -25,12 +25,10 @@ test("Get TStrings", async () => {
   });
 });
 
-test("Get TStrings by lessonVersion", async () => {
+test("Get TStrings by Lesson", async () => {
   expect.assertions(3);
   const agent = plainAgent();
-  const response = await agent.get(
-    "/api/languages/3/lessonVersions/101/tStrings"
-  );
+  const response = await agent.get("/api/languages/3/lessons/11/tStrings");
   expect(response.status).toBe(200);
   expect(response.body.length).toBe(2);
   expect(response.body[0]).toEqual({
@@ -46,12 +44,10 @@ test("Get TStrings by lessonVersion", async () => {
 test("Get TStrings - invalid ids", async () => {
   expect.assertions(4);
   const agent = plainAgent();
-  let response = await agent.get(
-    "/api/languages/9999/lessonVersions/101/tStrings"
-  );
+  let response = await agent.get("/api/languages/9999/lessons/101/tStrings");
   expect(response.status).toBe(200);
   expect(response.body).toEqual([]);
-  response = await agent.get("/api/languages/3/lessonVersions/9999/tStrings");
+  response = await agent.get("/api/languages/3/lessons/9999/tStrings");
   expect(response.status).toBe(200);
   expect(response.body).toEqual([]);
 });
@@ -159,8 +155,6 @@ test("Save TString - Exception to Master", async () => {
 async function batangaTStringCount(
   agent: SuperTest<supertest.Test>
 ): Promise<number> {
-  const response = await agent.get(
-    "/api/languages/3/lessonVersions/101/tStrings"
-  );
+  const response = await agent.get("/api/languages/3/lessons/11/tStrings");
   return response.body.length;
 }

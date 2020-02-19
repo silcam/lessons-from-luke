@@ -1,6 +1,6 @@
 import { loggedInAgent, plainAgent } from "../testHelper";
 
-test("/lessons", async () => {
+test("GET Lessons", async () => {
   expect.assertions(2);
   const agent = plainAgent();
   const response = await agent.get("/api/lessons");
@@ -9,74 +9,37 @@ test("/lessons", async () => {
     lessonId: 11,
     book: "Luke",
     series: 1,
-    lesson: 1
+    lesson: 1,
+    version: 2
   });
 });
 
-test("Language Lessons", async () => {
+test("GET Lesson by Id", async () => {
   expect.assertions(3);
   const agent = plainAgent();
-  const response = await agent.get("/api/languages/3/lessonVersions");
+  const response = await agent.get("/api/lessons/11");
   expect(response.status).toBe(200);
-  expect(response.body.length).toBe(4);
-  expect(response.body[0]).toEqual({
+  expect(response.body).toMatchObject({
     lessonId: 11,
-    version: 1,
-    languageId: 3,
-    lessonVersionId: 101,
     book: "Luke",
     series: 1,
-    lesson: 1
+    lesson: 1,
+    version: 2
+  });
+  expect(response.body.lessonStrings[0]).toMatchObject({
+    lessonStringId: 1,
+    masterId: 1,
+    lessonId: 11,
+    lessonVersion: 2,
+    type: "content",
+    xpath: "",
+    motherTongue: true
   });
 });
 
-test("Langauge Lessons for nonexistant language", async () => {
-  expect.assertions(2);
-  const agent = plainAgent();
-  const response = await agent.get("/api/languages/5005/lessonVersions");
-  expect(response.status).toBe(200);
-  expect(response.body).toEqual([]);
-});
-
-test("Create Language Lesson", async () => {
-  expect.assertions(2);
-  const agent = plainAgent();
-  const response = await agent
-    .post("/api/languageLessons")
-    .send({ languageId: 3, lessonId: 15, code: "GHI" });
-  expect(response.status).toBe(200);
-  expect(response.body).toContainEqual({
-    lessonId: 15,
-    version: 1,
-    languageId: 3,
-    lessonVersionId: 105,
-    book: "Luke",
-    series: 1,
-    lesson: 5
-  });
-});
-
-test("Create Language Lesson - Invalid Code", async () => {
+test("GET Lesson by Id : 404 for bad id", async () => {
   expect.assertions(1);
   const agent = plainAgent();
-  const response = await agent
-    .post("/api/languageLessons")
-    .send({ languageId: 3, lessonId: 15, code: "WRONG" });
-  expect(response.status).toBe(401);
-});
-
-test("Create Language Lesson - Invalid Type", async () => {
-  expect.assertions(1);
-  const agent = plainAgent();
-  const response = await agent.post("/api/languageLessons");
-  expect(response.status).toBe(422);
-});
-
-test("Create Language Lesson - Invalid Lesson Id", async () => {
-  expect.assertions(1);
-  const agent = plainAgent();
-  const response = await agent
-    .post("/api/languageLessons")
-    .send({ languageId: 3, lessonId: 999 });
-  expect(response.status).toBe(422);
+  const response = await agent.get("/api/lessons/0");
+  expect(response.status).toBe(404);
 });

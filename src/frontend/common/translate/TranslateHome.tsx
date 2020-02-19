@@ -4,23 +4,19 @@ import { useLoad, useLoadMultiple } from "../api/RequestContext";
 import { loadTranslatingLanguage } from "../state/languageSlice";
 import LoadingSnake from "../base-components/LoadingSnake";
 import { Language } from "../../../core/models/Language";
-import { loadLanguageLessons } from "../state/languageLessonSlice";
 import { loadLessons } from "../state/lessonSlice";
 import Heading from "../base-components/Heading";
 import HeaderBar from "../base-components/HeaderBar";
 import Alert from "../base-components/Alert";
 import MiddleOfPage from "../base-components/MiddleOfPage";
 import useTranslation from "../util/useTranslation";
-import { lessonName } from "../../../core/models/Lesson";
+import { lessonName, BaseLesson } from "../../../core/models/Lesson";
 import { FlexCol, FlexRow } from "../base-components/Flex";
 import List from "../base-components/List";
-import { LanguageLesson } from "../../../core/models/LanguageLesson";
 import Button from "../base-components/Button";
 import TranslateLesson from "./TranslateLesson";
 import Scroll from "../base-components/Scroll";
 import LoadingSwirl from "../base-components/LoadingSwirl";
-import LoadingBox from "../base-components/LoadingBox";
-import LoadingDots from "../base-components/LoadingDots";
 import Colors from "../util/Colors";
 
 interface IProps {
@@ -67,18 +63,11 @@ function CodeError() {
 
 function TranslateLanguage(props: { language: Language }) {
   const t = useTranslation();
-  const loading = useLoad(loadLanguageLessons(props.language.languageId));
 
-  const lessons = useAppSelector(state => state.languageLessons).filter(
-    lsn => lsn.languageId == props.language.languageId
-  );
-  const [selectedLesson, setSelectedLesson] = useState<null | LanguageLesson>(
-    null
-  );
+  const lessons = useAppSelector(state => state.lessons);
+  const [selectedLessonId, setSelectedLessonId] = useState(0);
 
-  return loading ? (
-    <LoadingSnake />
-  ) : (
+  return (
     <FlexRow>
       <Scroll noFill style={{ borderRight: `1px solid ${Colors.lightGrey}` }}>
         <List
@@ -86,9 +75,9 @@ function TranslateLanguage(props: { language: Language }) {
           renderItem={lesson => (
             <Button
               link
-              unButton={lesson == selectedLesson}
+              unButton={lesson.lessonId == selectedLessonId}
               text={lessonName(lesson, t)}
-              onClick={() => setSelectedLesson(lesson)}
+              onClick={() => setSelectedLessonId(lesson.lessonId)}
             />
           )}
           itemKey={lesson => lesson.lessonId}
@@ -96,10 +85,10 @@ function TranslateLanguage(props: { language: Language }) {
       </Scroll>
       <FlexCol>
         <Scroll pad>
-          {selectedLesson ? (
+          {selectedLessonId ? (
             <TranslateLesson
               language={props.language}
-              lesson={selectedLesson}
+              lessonId={selectedLessonId}
             />
           ) : (
             <FlexRow>

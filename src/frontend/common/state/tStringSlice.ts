@@ -17,14 +17,14 @@ export default tStringSlice;
 
 export function loadTStrings(
   languageId: number,
-  lessonVersionId?: number
+  lessonId?: number
 ): Loader<void> {
   return get => async dispatch => {
-    const strings = await (lessonVersionId
-      ? get(
-          "/api/languages/:languageId/lessonVersions/:lessonVersionId/tStrings",
-          { languageId, lessonVersionId }
-        )
+    const strings = await (lessonId
+      ? get("/api/languages/:languageId/lessons/:lessonId/tStrings", {
+          languageId,
+          lessonId
+        })
       : get("/api/languages/:languageId/tStrings", { languageId }));
     if (strings) dispatch(tStringSlice.actions.add(strings));
   };

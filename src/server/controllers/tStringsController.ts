@@ -11,11 +11,11 @@ export default function tStringsController(app: Express, storage: Persistence) {
 
   addGetHandler(
     app,
-    "/api/languages/:languageId/lessonVersions/:lessonVersionId/tStrings",
+    "/api/languages/:languageId/lessons/:lessonId/tStrings",
     async req => {
       return storage.tStrings({
         languageId: parseInt(req.params.languageId),
-        lessonVersionId: parseInt(req.params.lessonVersionId)
+        lessonId: parseInt(req.params.lessonId)
       });
     }
   );

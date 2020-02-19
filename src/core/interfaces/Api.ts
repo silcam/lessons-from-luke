@@ -6,10 +6,8 @@ import {
   WithCode,
   PublicLanguage
 } from "../models/Language";
-import { Lesson } from "../models/Lesson";
-import { LanguageLesson, BasicLanguageLesson } from "../models/LanguageLesson";
+import { BaseLesson, Lesson } from "../models/Lesson";
 import { LessonString } from "../models/LessonString";
-import { LessonVersion } from "../models/LessonVersion";
 
 export type Params = { [key: string]: string | number };
 
@@ -19,30 +17,18 @@ export interface APIGet {
   "/api/admin/languages": [{}, Language[]];
   "/api/languages/:languageId/tStrings": [{ languageId: number }, TString[]];
   "/api/languages/code/:code": [{ code: string }, Language | null];
-  "/api/languages/:languageId/lessonVersions/:lessonVersionId/tStrings": [
-    { lessonVersionId: number; languageId: number },
+  "/api/languages/:languageId/lessons/:lessonId/tStrings": [
+    { lessonId: number; languageId: number },
     TString[]
   ];
-  "/api/languages/:languageId/lessonVersions": [
-    { languageId: number },
-    LanguageLesson[]
-  ];
-  "/api/languages/:languageId/lessonStrings": [
-    { languageId: number },
-    LessonString[]
-  ];
-  "/api/lessons": [{}, Lesson[]];
-  "/api/lessonVersions/:lessonVersionId/lessonStrings": [
-    { lessonVersionId: number },
-    LessonString[]
-  ];
+  "/api/lessons": [{}, BaseLesson[]];
+  "/api/lessons/:lessonId": [{ lessonId: number }, Lesson];
 }
 
 export interface APIPost {
   "/api/users/login": [{}, LoginAttempt, User | null];
   "/api/users/logout": [{}, null, null];
   "/api/admin/languages": [{}, NewLanguage, Language];
-  "/api/languageLessons": [{}, WithCode<BasicLanguageLesson>, LessonVersion[]];
   "/api/tStrings": [{}, WithCode<TString>, TString];
 }
 
