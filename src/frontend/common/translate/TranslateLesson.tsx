@@ -5,7 +5,7 @@ import { useLoadMultiple } from "../api/RequestContext";
 import { loadLessonStrings } from "../state/lessonStringSlice";
 import { loadTStrings } from "../state/tStringSlice";
 import TranslateRow from "./TranslateRow";
-import LoadingSnake from "../base-components/LoadingSnake";
+import LoadingSwirl from "../base-components/LoadingSwirl";
 import { lessonName } from "../../../core/models/Lesson";
 import { LanguageLesson } from "../../../core/models/LanguageLesson";
 import Div from "../base-components/Div";
@@ -37,7 +37,7 @@ export default function TranslateLesson(props: IProps) {
     )
   );
 
-  if (loading) return <LoadingSnake />;
+  if (loading) return <LoadingSwirl />;
 
   return (
     <Div>

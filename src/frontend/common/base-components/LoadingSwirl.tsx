@@ -13,6 +13,7 @@ const Bouncy = styled.span`
   font-weight: bold;
 `;
 
+const angles = [-0.8, -0.5, -0.3, 0.3, 0.5, 0.8];
 const colorOptions = [
   Colors.primary,
   Colors.primary,
@@ -20,21 +21,29 @@ const colorOptions = [
   Colors.danger,
   Colors.highlight
 ];
-const numberOfDots = 20;
+const numberOfDots = 25;
 const defaults = new Array(numberOfDots).fill(50);
 const diff = 4;
-export default function LoadingSnake() {
+export default function LoadingSwirl() {
   const [vals, setVals] = useState<[number, number][]>(
     defaults.map(d => [d, d])
   );
+  const [angleDiff, setAngleDiff] = useState(-0.5);
+  const [angle, setAngle] = useState(0);
+  const [tick, setTick] = useState(0);
   const [colors, setColors] = useState(
     new Array(numberOfDots).fill(colorOptions[0])
   );
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      setVals(newValues(vals));
+      setVals(nextValues(vals, angle));
       setColors(nextColors(colors));
+      setAngle(angle + angleDiff);
+      setTick(tick + 1);
+      if (tick % 8 == 0) {
+        setAngleDiff(angles[Math.floor(Math.random() * angles.length)]);
+      }
     }, 100);
     return () => {
       clearTimeout(timer);
@@ -45,7 +54,7 @@ export default function LoadingSnake() {
     <ContainerDiv>
       {vals.map((val, index) => (
         <Bouncy
-          key={index}
+          key={tick - index}
           style={{
             left: `${val[0]}%`,
             top: `${val[1]}%`,
@@ -59,30 +68,18 @@ export default function LoadingSnake() {
   );
 }
 
-function newValues(values: [number, number][]): [number, number][] {
-  const current = values[0];
-  let options: [number, number][] = [];
-  for (let left = -1; left <= 1; ++left) {
-    for (let top = -1; top <= 1; ++top) {
-      const option: [number, number] = [
-        left * diff + current[0],
-        top * diff + current[1]
-      ];
-
-      if (
-        !values.some(point => point[0] == option[0] && point[1] == option[1]) &&
-        option[0] > 0 &&
-        option[1] > 0 &&
-        option[0] < 100 &&
-        option[1] < 100
-      )
-        options.push(option);
-    }
-  }
-  if (options.length == 0) return defaults.map(d => [d, d]);
-
-  const picked = options[Math.floor(Math.random() * options.length)];
-  return [picked, ...values.slice(0, values.length - 1)];
+function nextValues(
+  values: [number, number][],
+  angle: number
+): [number, number][] {
+  const newVal = [
+    diff * Math.cos(angle) + values[0][0],
+    diff * Math.sin(angle) + values[0][1]
+  ];
+  const normalNewVal = newVal.map(val =>
+    val < 0 ? val + 100 : val >= 100 ? val - 100 : val
+  ) as [number, number];
+  return [normalNewVal, ...values.slice(0, values.length - 1)];
 }
 
 function nextColors(colors: string[]) {

@@ -62,16 +62,16 @@ export function modelListMerge<T>(
   return mergedList;
 }
 
-export function randomSelection<T>(list: T[], number: number): T[] {
-  if (number >= list.length) return list;
+// export function randomSelection<T>(list: T[], number: number): T[] {
+//   if (number >= list.length) return list;
 
-  const ids: number[] = [];
-  while (ids.length < number) {
-    const randomId = Math.floor(Math.random() * list.length);
-    if (!ids.includes(randomId)) ids.push(randomId);
-  }
-  return list.filter((_, index) => ids.includes(index));
-}
+//   const ids: number[] = [];
+//   while (ids.length < number) {
+//     const randomId = Math.floor(Math.random() * list.length);
+//     if (!ids.includes(randomId)) ids.push(randomId);
+//   }
+//   return list.filter((_, index) => ids.includes(index));
+// }
 
 // export function zip<A, B>(
 //   aList: A[],

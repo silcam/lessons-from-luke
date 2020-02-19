@@ -18,6 +18,10 @@ import { LanguageLesson } from "../../../core/models/LanguageLesson";
 import Button from "../base-components/Button";
 import TranslateLesson from "./TranslateLesson";
 import Scroll from "../base-components/Scroll";
+import LoadingSwirl from "../base-components/LoadingSwirl";
+import LoadingBox from "../base-components/LoadingBox";
+import LoadingDots from "../base-components/LoadingDots";
+import Colors from "../util/Colors";
 
 interface IProps {
   code: string;
@@ -76,7 +80,7 @@ function TranslateLanguage(props: { language: Language }) {
     <LoadingSnake />
   ) : (
     <FlexRow>
-      <Scroll noFill>
+      <Scroll noFill style={{ borderRight: `1px solid ${Colors.lightGrey}` }}>
         <List
           items={lessons}
           renderItem={lesson => (
@@ -98,7 +102,9 @@ function TranslateLanguage(props: { language: Language }) {
               lesson={selectedLesson}
             />
           ) : (
-            <Heading text="Hi, y'all" level={1} />
+            <FlexRow>
+              <LoadingSwirl />
+            </FlexRow>
           )}
         </Scroll>
       </FlexCol>
