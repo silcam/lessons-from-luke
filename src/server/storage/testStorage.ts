@@ -1,13 +1,15 @@
 import { last, findBy } from "../../core/util/arrayUtils";
-import { equal } from "../../core/models/TString";
-import { Persistence } from "../../core/interfaces/Persistence";
+import { equal, TString } from "../../core/models/TString";
+import { TestPersistence } from "../../core/interfaces/Persistence";
 import { fixtures } from "./fixtures";
-import { Language } from "../../core/models/Language";
+import { Language, ENGLISH_ID } from "../../core/models/Language";
 import { encode } from "../../core/util/timestampEncode";
+import { discriminate } from "../../core/util/arrayUtils";
+import fs from "fs";
 
 let testDb = fixtures();
 
-const testStorage: Persistence = {
+const testStorage: TestPersistence = {
   languages: async () => {
     return testDb.languages;
   },
@@ -44,6 +46,41 @@ const testStorage: Persistence = {
     };
   },
 
+  createLesson: async lesson => {
+    const lessonId = last(testDb.lessons).lessonId + 1;
+    const newLesson = { ...lesson, lessonId, version: 0 };
+    testDb.lessons.push(newLesson);
+    return newLesson;
+  },
+
+  updateLesson: async (id, version, draftLessonStrings) => {
+    const lesson = findBy(testDb.lessons, "lessonId", id);
+    if (!lesson) throw `Lesson with id ${id} not found!`;
+    lesson.version = version;
+
+    let nextLessonStringId = last(testDb.lessonStrings).lessonStringId + 1;
+    const newLessonStrings = draftLessonStrings.map(str => {
+      const lessonStr = {
+        ...str,
+        lessonStringId: nextLessonStringId,
+        lessonVersion: lesson.version
+      };
+      nextLessonStringId += 1;
+      return lessonStr;
+    });
+
+    const [lessonStringsToRemve, lessonStringsToKeep] = discriminate(
+      testDb.lessonStrings,
+      lStr => lStr.lessonId == id
+    );
+    testDb.oldLessonStrings = testDb.oldLessonStrings.concat(
+      lessonStringsToRemve
+    );
+    testDb.lessonStrings = lessonStringsToKeep.concat(newLessonStrings);
+
+    return { ...lesson, lessonStrings: newLessonStrings };
+  },
+
   tStrings: async params => {
     const langTStrings = testDb.tStrings.filter(
       ts => ts.languageId == params.languageId
@@ -72,8 +109,32 @@ const testStorage: Persistence = {
     }
   },
 
+  addOrFindMasterStrings: async texts => {
+    // This `map` has a side effect - just to prove that we're not functional purists ;)
+    return texts.map(text => {
+      const existing = testDb.tStrings.find(
+        tStr => tStr.languageId == ENGLISH_ID && tStr.text == text
+      );
+      if (existing) return existing;
+
+      const newTStr: TString = {
+        masterId: last(testDb.tStrings).masterId + 1,
+        languageId: ENGLISH_ID,
+        text,
+        history: []
+      };
+      testDb.tStrings.push(newTStr);
+      return newTStr;
+    });
+  },
+
   reset: async () => {
     testDb = fixtures();
+  },
+
+  writeToDisk: async () => {
+    const filepath = __dirname + "/fixtures-" + new Date().valueOf() + ".json";
+    fs.writeFileSync(filepath, JSON.stringify(testDb));
   }
 };
 

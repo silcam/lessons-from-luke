@@ -14,7 +14,7 @@ export interface BaseLesson {
 export interface Lesson extends BaseLesson {
   lessonStrings: LessonString[];
 }
-export type DraftLesson = Omit<BaseLesson, "lessonId">;
+export type DraftLesson = Omit<BaseLesson, "lessonId" | "version">;
 
 export function lessonName(lesson: BaseLesson, t: TFunc = (s: string) => s) {
   return `${t(lesson.book)} ${lesson.series}-${lesson.lesson}`;

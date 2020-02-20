@@ -14,7 +14,7 @@ import documentsController from "./controllers/documentsController";
 
 function serverApp(opts: { silent?: boolean; testController?: boolean } = {}) {
   const app = express();
-  const storage: Persistence = testStorage;
+  const storage = testStorage;
 
   app.use(cookieSession({ secret: secrets.cookieSecret }));
   app.use(bodyParser.json());

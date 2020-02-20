@@ -62,6 +62,20 @@ export function modelListMerge<T>(
   return mergedList;
 }
 
+export function discriminate<T>(
+  list: T[],
+  discriminator: (item: T) => boolean
+): [T[], T[]] {
+  return list.reduce(
+    (twoLists: [T[], T[]], item) => {
+      if (discriminator(item)) twoLists[0].push(item);
+      else twoLists[1].push(item);
+      return twoLists;
+    },
+    [[], []]
+  );
+}
+
 // export function randomSelection<T>(list: T[], number: number): T[] {
 //   if (number >= list.length) return list;
 

@@ -9,3 +9,8 @@ export interface LessonString {
   xpath: string;
   motherTongue: boolean;
 }
+
+export type DraftLessonString = Omit<
+  LessonString,
+  "lessonStringId" | "lessonVersion"
+>;

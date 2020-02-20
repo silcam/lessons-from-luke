@@ -7,7 +7,7 @@ import {
   PublicLanguage
 } from "../models/Language";
 import { BaseLesson, Lesson } from "../models/Lesson";
-import { LessonString } from "../models/LessonString";
+import { DocString } from "../models/DocString";
 
 export type Params = { [key: string]: string | number };
 
@@ -30,6 +30,11 @@ export interface APIPost {
   "/api/users/logout": [{}, null, null];
   "/api/admin/languages": [{}, NewLanguage, Language];
   "/api/tStrings": [{}, WithCode<TString>, TString];
+  "/api/admin/lessons/:lessonId/strings": [
+    { lessonId: number },
+    DocString[],
+    { lesson: Lesson; tStrings: TString[] }
+  ];
 }
 
 export type GetRoute = keyof APIGet;

@@ -49,4 +49,4 @@ export function newTString(
   return tString;
 }
 
-export type LessonTString = LessonString & Partial<TString>;
+// export type LessonTString = LessonString & Partial<TString>;

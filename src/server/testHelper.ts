@@ -19,3 +19,7 @@ export function plainAgent() {
 export function stripSpace(text: string) {
   return text.replace(/\s/g, "");
 }
+
+export async function resetStorage() {
+  return plainAgent().post("/api/test/reset-storage");
+}

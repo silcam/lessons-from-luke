@@ -1,17 +1,17 @@
 import { UploadedFile } from "express-fileupload";
 import { EnglishUploadMeta } from "../controllers/documentsController";
 import { Persistence } from "../../core/interfaces/Persistence";
-import { BaseLesson, DraftLesson } from "../../core/models/Lesson";
-import { unset, objKeys } from "../../core/util/objectUtils";
+import { Lesson } from "../../core/models/Lesson";
+import { unset } from "../../core/util/objectUtils";
 import docStorage from "../storage/docStorage";
 import { DocString } from "../../core/models/DocString";
-import parse from "../xml/parse";
+import { saveDocStrings, parseDocStrings } from "./updateLesson";
 
 export async function uploadEnglishDoc(
   file: UploadedFile,
   meta: EnglishUploadMeta,
   storage: Persistence
-): Promise<DocString[]> {
+): Promise<Lesson> {
   const lessons = await storage.lessons();
   const existingLesson = lessons.find(
     lsn =>
@@ -19,34 +19,23 @@ export async function uploadEnglishDoc(
       lsn.series === meta.series &&
       lsn.lesson === meta.lesson
   );
-  const lesson: BaseLesson | DraftLesson = existingLesson
-    ? { ...existingLesson, version: existingLesson.version + 1 }
-    : {
-        ...unset(meta, "languageId"),
-        version: 1
-      };
+  const lesson =
+    existingLesson || (await storage.createLesson(unset(meta, "languageId")));
+  const newVersion = lesson.version + 1;
 
-  const docFilepath = await docStorage.saveDoc(file, lesson);
-  const xmls = docStorage.docXml(docFilepath);
-  const docStrings = objKeys(xmls).reduce(
-    (docStrings: DocString[], xmlType) =>
-      docStrings.concat(parse(xmls[xmlType], xmlType)),
-    []
-  );
+  const docFilepath = await docStorage.saveDoc(file, {
+    ...lesson,
+    version: newVersion
+  });
+  const docStrings = parseDocStrings(docFilepath);
 
-  return docStrings;
+  return saveDocStrings(lesson.lessonId, newVersion, docStrings, storage);
 }
 
 export async function uploadNonenglishDoc(
   file: UploadedFile
 ): Promise<DocString[]> {
-  const xmls = await docStorage.saveTmp(file, async docFilepath => {
-    return docStorage.docXml(docFilepath);
+  return docStorage.saveTmp(file, async docFilepath => {
+    return parseDocStrings(docFilepath);
   });
-  const docStrings = objKeys(xmls).reduce(
-    (docStrings: DocString[], xmlType) =>
-      docStrings.concat(parse(xmls[xmlType], xmlType)),
-    []
-  );
-  return docStrings;
 }

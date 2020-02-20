@@ -1,12 +1,12 @@
-import { plainAgent } from "../testHelper";
-import { TString, LessonTString } from "../../core/models/TString";
+import { plainAgent, resetStorage } from "../testHelper";
+import { TString } from "../../core/models/TString";
 import { SuperTest } from "supertest";
 import supertest = require("supertest");
 import { WithCode } from "../../core/models/Language";
 import { unset } from "../../core/util/objectUtils";
 
 beforeEach(() => {
-  return plainAgent().post("/api/test/reset-storage");
+  return resetStorage();
 });
 
 test("Get TStrings", async () => {
@@ -14,7 +14,7 @@ test("Get TStrings", async () => {
   const agent = plainAgent();
   const response = await agent.get("/api/languages/3/tStrings");
   expect(response.status).toBe(200);
-  expect(response.body.length).toBe(3);
+  expect(response.body.length).toBe(4);
   expect(response.body[0]).toEqual({
     languageId: 3,
     sourceLanguageId: 2,
@@ -30,7 +30,7 @@ test("Get TStrings by Lesson", async () => {
   const agent = plainAgent();
   const response = await agent.get("/api/languages/3/lessons/11/tStrings");
   expect(response.status).toBe(200);
-  expect(response.body.length).toBe(2);
+  expect(response.body.length).toBe(3);
   expect(response.body[0]).toEqual({
     languageId: 3,
     sourceLanguageId: 2,
@@ -86,11 +86,11 @@ test("Save TString - new string", async () => {
   };
   expect.assertions(4);
   const agent = plainAgent();
-  expect(await batangaTStringCount(agent)).toBe(2);
+  expect(await batangaTStringCount(agent)).toBe(3);
   const response = await agent.post("/api/tStrings").send(tString);
   expect(response.status).toBe(200);
   expect(response.body).toEqual(unset(tString, "code"));
-  expect(await batangaTStringCount(agent)).toBe(3);
+  expect(await batangaTStringCount(agent)).toBe(4);
 });
 
 test("Save TString - updated string", async () => {
@@ -105,14 +105,14 @@ test("Save TString - updated string", async () => {
   };
   expect.assertions(4);
   const agent = plainAgent();
-  expect(await batangaTStringCount(agent)).toBe(2);
+  expect(await batangaTStringCount(agent)).toBe(3);
   const response = await agent.post("/api/tStrings").send(tString);
   expect(response.status).toBe(200);
   expect(response.body).toEqual({
     ...unset(tString, "code"),
     history: ["Njambɛ abowandi mahaleya mahu."]
   });
-  expect(await batangaTStringCount(agent)).toBe(2);
+  expect(await batangaTStringCount(agent)).toBe(3);
 });
 
 test("Save TString - blank text", async () => {
@@ -125,11 +125,11 @@ test("Save TString - blank text", async () => {
   };
   expect.assertions(4);
   const agent = plainAgent();
-  expect(await batangaTStringCount(agent)).toBe(2);
+  expect(await batangaTStringCount(agent)).toBe(3);
   const response = await agent.post("/api/tStrings").send(tString);
   expect(response.status).toBe(200);
   expect(response.body).toEqual(unset(tString, "code"));
-  expect(await batangaTStringCount(agent)).toBe(1);
+  expect(await batangaTStringCount(agent)).toBe(2);
 });
 
 test("Save TString - Exception to Master", async () => {
@@ -145,11 +145,11 @@ test("Save TString - Exception to Master", async () => {
   };
   expect.assertions(4);
   const agent = plainAgent();
-  expect(await batangaTStringCount(agent)).toBe(2);
+  expect(await batangaTStringCount(agent)).toBe(3);
   let response = await agent.post("/api/tStrings").send(tString);
   expect(response.status).toBe(200);
   expect(response.body).toEqual(unset(tString, "code"));
-  expect(await batangaTStringCount(agent)).toBe(3);
+  expect(await batangaTStringCount(agent)).toBe(4);
 });
 
 async function batangaTStringCount(

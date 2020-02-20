@@ -2,7 +2,7 @@ import process from "process";
 import fs from "fs";
 import path from "path";
 import { UploadedFile } from "express-fileupload";
-import { DraftLesson } from "../../core/models/Lesson";
+import { BaseLesson } from "../../core/models/Lesson";
 import { zeroPad } from "../../core/util/numberUtils";
 import {
   mkdirSafe,
@@ -12,7 +12,7 @@ import {
 } from "../../core/util/fsUtils";
 import { objKeys } from "../../core/util/objectUtils";
 
-async function saveDoc(file: UploadedFile, lesson: DraftLesson) {
+async function saveDoc(file: UploadedFile, lesson: BaseLesson) {
   const filepath = docFilepath(lesson);
   unlinkSafe(filepath);
   await file.mv(filepath);
@@ -31,8 +31,12 @@ async function saveTmp<T>(
   return val;
 }
 
+// function docXmlForLesson(lesson: BaseLesson) {
+//   return docXml(docFilepath(lesson));
+// }
+
 function docXml(docPath: string) {
-  const extractDirPath = `${docPath}_FILES`;
+  const extractDirPath = `${docPath}_${new Date().valueOf()}_FILES`;
   mkdirSafe(extractDirPath);
   unzip(docPath, extractDirPath);
   const xmls = { content: "", meta: "", styles: "" };
@@ -45,7 +49,7 @@ function docXml(docPath: string) {
   return xmls;
 }
 
-function docFilepath(lesson: DraftLesson) {
+function docFilepath(lesson: BaseLesson) {
   const filename =
     lesson.book +
     "-" +
@@ -65,7 +69,9 @@ function docsTmpPath() {
 }
 
 function docsDirPath() {
-  const docsPath = process.cwd() + "/docs";
+  const docsPath =
+    process.cwd() +
+    (process.env.NODE_ENV === "test" ? "/test/docs/serverDocs" : "/docs");
   if (!fs.existsSync(docsPath)) fs.mkdirSync(docsPath);
   return docsPath;
 }
@@ -73,5 +79,6 @@ function docsDirPath() {
 export default {
   saveDoc,
   saveTmp,
-  docXml
+  docXml,
+  docFilepath
 };

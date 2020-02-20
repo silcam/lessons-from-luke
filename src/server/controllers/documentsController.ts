@@ -38,8 +38,12 @@ export default function documentsController(
         const meta: DocUploadMeta = readPostBody(req.body);
 
         if (isEnglishUpload(meta)) {
-          const docStrings = await uploadEnglishDoc(file, meta, storage);
-          res.send(docStrings);
+          const lesson = await uploadEnglishDoc(file, meta, storage);
+          const tStrings = await storage.tStrings({
+            languageId: ENGLISH_ID,
+            lessonId: lesson.lessonId
+          });
+          res.send({ lesson, tStrings });
         } else {
           const docStrings = await uploadNonenglishDoc(file);
           const lesson = await storage.lesson(meta.lessonId);

@@ -2,6 +2,7 @@ import { Language } from "../../core/models/Language";
 import { BaseLesson } from "../../core/models/Lesson";
 import { LessonString } from "../../core/models/LessonString";
 import { TString } from "../../core/models/TString";
+import fs from "fs";
 
 interface Fixtures {
   languages: Language[];
@@ -11,6 +12,12 @@ interface Fixtures {
   tStrings: TString[];
 }
 export function fixtures(): Fixtures {
+  const jsonFixturesPath = process.cwd() + "/test/fixtures-0.json";
+  if (fs.existsSync(jsonFixturesPath)) {
+    return JSON.parse(fs.readFileSync(jsonFixturesPath).toString());
+  }
+  console.error(`Did not find file: ${jsonFixturesPath}`);
+
   return {
     languages: [
       { languageId: 1, name: "English", code: "ABC" },

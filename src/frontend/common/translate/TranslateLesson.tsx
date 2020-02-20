@@ -22,7 +22,7 @@ interface IProps {
 
 export default function TranslateLesson(props: IProps) {
   const lessonId = props.lessonId;
-  const [srcLangId, setSrcLangId] = useState(2);
+  const [srcLangId, setSrcLangId] = useState(1);
 
   const loading = useLoadMultiple([
     loadLesson(lessonId),
