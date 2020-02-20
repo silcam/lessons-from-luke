@@ -1,5 +1,5 @@
 import { last, findBy } from "../../core/util/arrayUtils";
-import { TString, equal } from "../../core/models/TString";
+import { equal } from "../../core/models/TString";
 import { Persistence } from "../../core/interfaces/Persistence";
 import { fixtures } from "./fixtures";
 import { Language } from "../../core/models/Language";

@@ -1,5 +1,7 @@
 import { Fields, validateFields } from "../util/objectUtils";
 
+export const ENGLISH_ID = 1;
+
 export interface Language {
   languageId: number;
   name: string;

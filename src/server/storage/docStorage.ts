@@ -1,0 +1,77 @@
+import process from "process";
+import fs from "fs";
+import path from "path";
+import { UploadedFile } from "express-fileupload";
+import { DraftLesson } from "../../core/models/Lesson";
+import { zeroPad } from "../../core/util/numberUtils";
+import {
+  mkdirSafe,
+  unzip,
+  unlinkRecursive,
+  unlinkSafe
+} from "../../core/util/fsUtils";
+import { objKeys } from "../../core/util/objectUtils";
+
+async function saveDoc(file: UploadedFile, lesson: DraftLesson) {
+  const filepath = docFilepath(lesson);
+  unlinkSafe(filepath);
+  await file.mv(filepath);
+  return filepath;
+}
+
+async function saveTmp<T>(
+  file: UploadedFile,
+  cb: (filepath: string) => Promise<T>
+): Promise<T> {
+  const filename = new Date().valueOf().toString() + ".odt";
+  const filepath = `${docsTmpPath()}/${filename}`;
+  await file.mv(filepath);
+  const val = await cb(filepath);
+  unlinkSafe(filepath);
+  return val;
+}
+
+function docXml(docPath: string) {
+  const extractDirPath = `${docPath}_FILES`;
+  mkdirSafe(extractDirPath);
+  unzip(docPath, extractDirPath);
+  const xmls = { content: "", meta: "", styles: "" };
+  objKeys(xmls).forEach(xmlType => {
+    const xmlPath = path.join(extractDirPath, `${xmlType}.xml`);
+    const xml = fs.readFileSync(xmlPath).toString();
+    xmls[xmlType] = xml;
+  });
+  unlinkRecursive(extractDirPath);
+  return xmls;
+}
+
+function docFilepath(lesson: DraftLesson) {
+  const filename =
+    lesson.book +
+    "-" +
+    lesson.series +
+    "-" +
+    zeroPad(lesson.lesson, 2) +
+    "v" +
+    zeroPad(lesson.version, 2) +
+    ".odt";
+  return `${docsDirPath()}/${filename}`;
+}
+
+function docsTmpPath() {
+  const tmpPath = docsDirPath() + "/tmp";
+  if (!fs.existsSync(tmpPath)) fs.mkdirSync(tmpPath);
+  return tmpPath;
+}
+
+function docsDirPath() {
+  const docsPath = process.cwd() + "/docs";
+  if (!fs.existsSync(docsPath)) fs.mkdirSync(docsPath);
+  return docsPath;
+}
+
+export default {
+  saveDoc,
+  saveTmp,
+  docXml
+};

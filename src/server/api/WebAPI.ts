@@ -39,11 +39,12 @@ export function addPostHandler<T extends PostRoute>(
   });
 }
 
-async function handleErrors(res: Response, cb: () => Promise<void>) {
+export async function handleErrors(res: Response, cb: () => Promise<void>) {
   try {
     await cb();
   } catch (err) {
     const status = err.status || 500;
     res.status(status).send();
+    if (status == 500) console.error(err);
   }
 }

@@ -1,8 +1,8 @@
-// import libxmljs2, { Document } from "libxmljs2";
-// import fs from "fs";
+import libxmljs2, { Document } from "libxmljs2";
+import fs from "fs";
 // import { TStrings } from "../../core/TString";
-// import { mkdirSafe, zip, unlinkRecursive } from "../../core/util/fsUtils";
-// import { unzip } from "../../core/util/fsUtils";
+import { mkdirSafe, zip, unlinkRecursive } from "../../core/util/fsUtils";
+import { unzip } from "../../core/util/fsUtils";
 
 // export default function mergeXml(
 //   inDocPath: string,
@@ -64,20 +64,17 @@
 //   return libxmljs2.parseXml(xml);
 // }
 
-// export type Namespaces = { [key: string]: string };
+export type Namespaces = { [key: string]: string };
 
-// export function extractNamespaces(xmlDoc: Document) {
-//   return xmlDoc
-//     .root()!
-//     .namespaces()
-//     .reduce(
-//       (accum, ns) => {
-//         accum[ns.prefix()] = ns.href();
-//         return accum;
-//       },
-//       {} as Namespaces
-//     );
-// }
+export function extractNamespaces(xmlDoc: Document) {
+  return xmlDoc
+    .root()!
+    .namespaces()
+    .reduce((accum, ns) => {
+      accum[ns.prefix()] = ns.href();
+      return accum;
+    }, {} as Namespaces);
+}
 
 // function addSpacesForStylesStrings(sortedTStrings: SortedTStrings) {
 //   sortedTStrings.styles = sortedTStrings.styles.map(str => ({

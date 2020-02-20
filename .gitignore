@@ -1,4 +1,5 @@
 node_modules
 /dist
+/docs
 /strings
 /src/server/util/secrets.ts
