@@ -4,24 +4,28 @@ import {
   Language,
   languageCompare
 } from "../../../core/models/Language";
-import { GetRequest } from "../api/RequestContext";
+import { GetRequest, Pusher } from "../api/RequestContext";
 import { AppDispatch } from "./appState";
 
 interface State {
   languages: MaybePublicLanguage[];
+  adminLanguages: Language[];
   translating?: Language;
 }
 
 const languageSlice = createSlice({
   name: "languages",
-  initialState: { languages: [] } as State,
+  initialState: { languages: [], adminLanguages: [] } as State,
   reducers: {
     setLanguages: (state, action: PayloadAction<MaybePublicLanguage[]>) => {
       state.languages = action.payload.sort(languageCompare);
     },
-    addLanguage: (state, action: PayloadAction<MaybePublicLanguage>) => {
-      state.languages.push(action.payload);
-      state.languages.sort(languageCompare);
+    setAdminLanguages: (state, action: PayloadAction<Language[]>) => {
+      state.adminLanguages = action.payload.sort(languageCompare);
+    },
+    addLanguage: (state, action: PayloadAction<Language>) => {
+      state.adminLanguages.push(action.payload);
+      state.adminLanguages.sort(languageCompare);
     },
     setTranslating: (state, action: PayloadAction<Language>) => {
       state.translating = action.payload;
@@ -31,10 +35,16 @@ const languageSlice = createSlice({
 
 export default languageSlice;
 
-export function loadLanguages() {
-  return (get: GetRequest) => async (dispath: AppDispatch) => {
-    const languages = await get("/api/languages", {});
-    if (languages) dispath(languageSlice.actions.setLanguages(languages));
+export function loadLanguages(admin: boolean) {
+  return (get: GetRequest) => async (dispatch: AppDispatch) => {
+    if (admin) {
+      const languages = await get("/api/admin/languages", {});
+      if (languages)
+        dispatch(languageSlice.actions.setAdminLanguages(languages));
+    } else {
+      const languages = await get("/api/languages", {});
+      if (languages) dispatch(languageSlice.actions.setLanguages(languages));
+    }
   };
 }
 
@@ -42,5 +52,13 @@ export function loadTranslatingLanguage(code: string) {
   return (get: GetRequest) => async (dispatch: AppDispatch) => {
     const language = await get("/api/languages/code/:code", { code });
     if (language) dispatch(languageSlice.actions.setTranslating(language));
+  };
+}
+
+export function pushLanguage(name: string): Pusher<Language> {
+  return async (post, dispatch) => {
+    const language = await post("/api/admin/languages", {}, { name });
+    if (language) dispatch(languageSlice.actions.addLanguage(language));
+    return language;
   };
 }

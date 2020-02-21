@@ -14,6 +14,7 @@ export async function webGet<T extends GetRoute>(
 ): Promise<APIGet[T][1] | null> {
   const finalRoute = interpolateParams(route, params);
   try {
+    console.log(`GET ${finalRoute}`);
     const response = await Axios.get(finalRoute);
     return response.data;
   } catch (err) {
@@ -28,7 +29,28 @@ export async function webPost<T extends PostRoute>(
 ): Promise<APIPost[T][2] | null> {
   const finalRoute = interpolateParams(route, params);
   try {
+    console.log(`POST ${finalRoute}`);
     const response = await Axios.post(finalRoute, data);
+    return response.data;
+  } catch (err) {
+    throwAppError(err);
+  }
+}
+
+export async function postFile(
+  route: string,
+  name: string,
+  file: File,
+  data: { [key: string]: any }
+) {
+  try {
+    console.log(`POST ${route}`);
+    const formData = new FormData();
+    Object.keys(data).forEach(key => formData.set(key, data[key]));
+    formData.set(name, file);
+    const response = await Axios.post(route, formData, {
+      headers: { "Content-Type": "multipart/form-data" }
+    });
     return response.data;
   } catch (err) {
     throwAppError(err);

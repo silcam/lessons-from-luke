@@ -4,7 +4,7 @@ import { FlexCol } from "./Flex";
 
 const Scroll = styled(FlexCol)`
   overflow: scroll;
-  flex-shrink: 1;
+  /* flex-shrink: 1; */
 `;
 
 export default Scroll;

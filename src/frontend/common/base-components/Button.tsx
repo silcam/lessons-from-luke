@@ -6,6 +6,8 @@ interface SBProps {
   red?: boolean;
   bigger?: boolean;
   unButton?: boolean;
+  disabled?: boolean;
+  className?: string;
 }
 
 interface IProps extends SBProps {
@@ -83,7 +85,7 @@ export default function Button(props: IProps) {
   return (
     <SButton
       onMouseUp={e => (e.target as HTMLButtonElement).blur()}
-      disabled={sbProps.unButton}
+      disabled={sbProps.disabled || sbProps.unButton}
       {...sbProps}
     >
       {text}

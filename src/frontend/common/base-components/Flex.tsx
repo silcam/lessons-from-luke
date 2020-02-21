@@ -10,6 +10,7 @@ export const FlexCol = styled(Div)<FlexProps>`
   display: flex;
   flex-direction: column;
   flex-grow: ${props => (props.noFill ? 0 : 1)};
+  flex-shrink: ${props => (props.noFill ? 0 : 1)};
   overflow: hidden;
   height: ${props => (props.flexRoot ? "100%" : "auto")};
 
@@ -23,6 +24,7 @@ export const FlexRow = styled(Div)<FlexProps>`
   flex-direction: row;
   overflow: hidden;
   flex-grow: ${props => (props.noFill ? 0 : 1)};
+  flex-shrink: ${props => (props.noFill ? 0 : 1)};
   height: ${props => (props.flexRoot ? "100%" : "auto")};
 `;
 

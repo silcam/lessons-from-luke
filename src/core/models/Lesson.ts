@@ -1,7 +1,8 @@
 import { TFunc } from "../i18n/I18n";
 import { LessonString } from "./LessonString";
 
-export type Book = "Luke" | "Acts";
+export const AllBooks = <const>["Luke", "Acts"];
+export type Book = typeof AllBooks[number];
 
 export interface BaseLesson {
   lessonId: number;

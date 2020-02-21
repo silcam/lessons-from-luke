@@ -3,24 +3,15 @@ import fileUpload, { UploadedFile } from "express-fileupload";
 import { handleErrors } from "../api/WebAPI";
 import { Persistence } from "../../core/interfaces/Persistence";
 import { ENGLISH_ID } from "../../core/models/Language";
-import { Book } from "../../core/models/Lesson";
 import {
   uploadEnglishDoc,
   uploadNonenglishDoc
 } from "../actions/uploadDocument";
 import bodyParser from "body-parser";
-
-export interface EnglishUploadMeta {
-  languageId: number;
-  book: Book;
-  series: number;
-  lesson: number;
-}
-interface OtherUploadMeta {
-  languageId: number;
-  lessonId: number;
-}
-type DocUploadMeta = EnglishUploadMeta | OtherUploadMeta;
+import {
+  DocUploadMeta,
+  isEnglishUpload
+} from "../../core/models/DocUploadMeta";
 
 const formDataParser = bodyParser.urlencoded({ extended: false });
 
@@ -63,8 +54,4 @@ function readPostBody(body: any) {
     if (key in body) body = { ...body, [key]: parseInt(body[key]) };
   });
   return body;
-}
-
-function isEnglishUpload(meta: DocUploadMeta): meta is EnglishUploadMeta {
-  return meta.languageId === ENGLISH_ID;
 }

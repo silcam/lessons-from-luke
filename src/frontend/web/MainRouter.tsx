@@ -9,6 +9,7 @@ import { useLoad } from "../common/api/RequestContext";
 import { loadCurrentUser } from "../common/state/currentUserSlice";
 import RootDiv from "../common/base-components/RootDiv";
 import LoadingSnake from "../common/base-components/LoadingSnake";
+import LessonPage from "./lessons/LessonPage";
 
 export default function MainRouter() {
   const { user, loaded } = useSelector((state: AppState) => state.currentUser);
@@ -21,6 +22,12 @@ export default function MainRouter() {
           <Route
             path="/translate/:code"
             render={({ match }) => <TranslateRoute code={match.params.code} />}
+          />
+          <Route
+            path="/lessons/:id"
+            render={({ match }) => (
+              <LessonPage id={parseInt(match.params.id)} />
+            )}
           />
           <Route render={() => (user ? <AdminHome /> : <PublicHome />)} />
         </Switch>

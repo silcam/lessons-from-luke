@@ -24,7 +24,18 @@ const en = {
   Log_in_failed: "Login failed.",
   Code_error:
     "Translation Project not found. Please check that you have the right web address.",
-  Start_translating_lesson: "Start Translating %{name}"
+  Start_translating_lesson: "Start Translating %{name}",
+  Languages: "Languages",
+  Add_language: "Add Language",
+  Language_name: "Language Name",
+  Cancel: "Cancel",
+  Add_lesson: "Add Lesson",
+  Upload_new_lesson: "Upload New Lesson",
+  Series: "Series",
+  Lesson: "Lesson",
+  Add_file: "Add File",
+  Book: "Book",
+  Edit: "Edit"
 };
 
 export type I18nStrings = typeof en;
