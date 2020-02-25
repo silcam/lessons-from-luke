@@ -20,9 +20,27 @@ export function fixtures(): Fixtures {
 
   return {
     languages: [
-      { languageId: 1, name: "English", code: "ABC" },
-      { languageId: 2, name: "Français", code: "DEF" },
-      { languageId: 3, name: "Batanga", code: "GHI" }
+      {
+        languageId: 1,
+        name: "English",
+        code: "ABC",
+        motherTongue: false,
+        progress: []
+      },
+      {
+        languageId: 2,
+        name: "Français",
+        code: "DEF",
+        motherTongue: false,
+        progress: []
+      },
+      {
+        languageId: 3,
+        name: "Batanga",
+        code: "GHI",
+        motherTongue: true,
+        progress: []
+      }
     ],
     lessons: [
       { lessonId: 11, book: "Luke", series: 1, lesson: 1, version: 2 },

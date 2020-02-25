@@ -1,34 +1,23 @@
-import React, { useState, useEffect, useContext } from "react";
-import RequestContext, {
-  usePush,
-  useLoad
-} from "../../common/api/RequestContext";
-import { useDispatch } from "react-redux";
-import currentUserSlice, {
-  pushLogout
-} from "../../common/state/currentUserSlice";
-import Foldable from "../../common/base-components/Foldable";
+import React from "react";
+import { usePush } from "../../common/api/RequestContext";
+import { pushLogout } from "../../common/state/currentUserSlice";
 import useTranslation from "../../common/util/useTranslation";
-import { useAppSelector } from "../../common/state/appState";
-import { loadLanguages } from "../../common/state/languageSlice";
-import List from "../../common/base-components/List";
 import LanguagesBox from "../languages/LanguagesBox";
 import LessonsBox from "../lessons/LessonsBox";
+import { StdHeaderBar } from "../../common/base-components/HeaderBar";
+import Button from "../../common/base-components/Button";
 
 export default function AdminHome() {
-  // const [sources, setSources] = useState<SourceManifest>([]);
   const push = usePush();
   const logOut = () => push(pushLogout());
   const t = useTranslation();
 
-  // useEffect(() => {
-  //   get("/api/sources", {}).then(sources => sources && setSources(sources));
-  // }, []);
-
   return (
     <div>
-      <h1>Hi Chris!</h1>
-      <button onClick={logOut}>Log out</button>
+      <StdHeaderBar
+        title={t("Home")}
+        renderRight={() => <Button text={t("Log_out")} onClick={logOut} />}
+      />
       <LanguagesBox />
       <LessonsBox />
     </div>

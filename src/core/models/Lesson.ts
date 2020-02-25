@@ -17,7 +17,11 @@ export interface Lesson extends BaseLesson {
 }
 export type DraftLesson = Omit<BaseLesson, "lessonId" | "version">;
 
-export function lessonName(lesson: BaseLesson, t: TFunc = (s: string) => s) {
+export function lessonName(
+  lesson: BaseLesson | undefined | null,
+  t: TFunc = (s: string) => s
+) {
+  if (!lesson) return "";
   return `${t(lesson.book)} ${lesson.series}-${lesson.lesson}`;
 }
 

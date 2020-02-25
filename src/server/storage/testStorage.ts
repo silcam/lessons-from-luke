@@ -5,9 +5,12 @@ import { fixtures } from "./fixtures";
 import { Language, ENGLISH_ID } from "../../core/models/Language";
 import { encode } from "../../core/util/timestampEncode";
 import { discriminate } from "../../core/util/arrayUtils";
+import { percent } from "../../core/util/numberUtils";
 import fs from "fs";
+import { LessonProgress } from "../../core/models/Language";
 
 let testDb = fixtures();
+updateProgress(); // We could await this if it seemed necessary
 
 const testStorage: TestPersistence = {
   languages: async () => {
@@ -22,7 +25,13 @@ const testStorage: TestPersistence = {
     const languageId = last(testDb.languages).languageId + 1;
     let code = encode();
     while (testDb.languages.find(lng => lng.code == code)) code = encode();
-    const lang: Language = { ...newLanguage, languageId, code };
+    const lang: Language = {
+      ...newLanguage,
+      languageId,
+      code,
+      motherTongue: true,
+      progress: []
+    };
     testDb.languages.push(lang);
     return lang;
   },
@@ -53,33 +62,34 @@ const testStorage: TestPersistence = {
     return newLesson;
   },
 
-  updateLesson: async (id, version, draftLessonStrings) => {
-    const lesson = findBy(testDb.lessons, "lessonId", id);
-    if (!lesson) throw `Lesson with id ${id} not found!`;
-    lesson.version = version;
+  updateLesson: async (id, version, draftLessonStrings) =>
+    withProgressUpdate(async () => {
+      const lesson = findBy(testDb.lessons, "lessonId", id);
+      if (!lesson) throw `Lesson with id ${id} not found!`;
+      lesson.version = version;
 
-    let nextLessonStringId = last(testDb.lessonStrings).lessonStringId + 1;
-    const newLessonStrings = draftLessonStrings.map(str => {
-      const lessonStr = {
-        ...str,
-        lessonStringId: nextLessonStringId,
-        lessonVersion: lesson.version
-      };
-      nextLessonStringId += 1;
-      return lessonStr;
-    });
+      let nextLessonStringId = last(testDb.lessonStrings).lessonStringId + 1;
+      const newLessonStrings = draftLessonStrings.map(str => {
+        const lessonStr = {
+          ...str,
+          lessonStringId: nextLessonStringId,
+          lessonVersion: lesson.version
+        };
+        nextLessonStringId += 1;
+        return lessonStr;
+      });
 
-    const [lessonStringsToRemve, lessonStringsToKeep] = discriminate(
-      testDb.lessonStrings,
-      lStr => lStr.lessonId == id
-    );
-    testDb.oldLessonStrings = testDb.oldLessonStrings.concat(
-      lessonStringsToRemve
-    );
-    testDb.lessonStrings = lessonStringsToKeep.concat(newLessonStrings);
+      const [lessonStringsToRemve, lessonStringsToKeep] = discriminate(
+        testDb.lessonStrings,
+        lStr => lStr.lessonId == id
+      );
+      testDb.oldLessonStrings = testDb.oldLessonStrings.concat(
+        lessonStringsToRemve
+      );
+      testDb.lessonStrings = lessonStringsToKeep.concat(newLessonStrings);
 
-    return { ...lesson, lessonStrings: newLessonStrings };
-  },
+      return { ...lesson, lessonStrings: newLessonStrings };
+    }),
 
   tStrings: async params => {
     const langTStrings = testDb.tStrings.filter(
@@ -92,44 +102,47 @@ const testStorage: TestPersistence = {
     return langTStrings.filter(ts => masterIds.includes(ts.masterId));
   },
 
-  saveTString: async tString => {
-    if (tString.text.length == 0) {
-      testDb.tStrings = testDb.tStrings.filter(t => !equal(t, tString));
-      return tString;
-    }
-    const existing = testDb.tStrings.find(t => equal(t, tString));
-    if (existing) {
-      if (existing.text !== tString.text)
-        tString.history = [...existing.history, existing.text];
-      Object.assign(existing, tString);
-      return existing;
-    } else {
-      testDb.tStrings.push(tString);
-      return tString;
-    }
-  },
+  saveTString: async tString =>
+    withProgressUpdate(async () => {
+      if (tString.text.length == 0) {
+        testDb.tStrings = testDb.tStrings.filter(t => !equal(t, tString));
+        return tString;
+      }
+      const existing = testDb.tStrings.find(t => equal(t, tString));
+      if (existing) {
+        if (existing.text !== tString.text)
+          tString.history = [...existing.history, existing.text];
+        Object.assign(existing, tString);
+        return existing;
+      } else {
+        testDb.tStrings.push(tString);
+        return tString;
+      }
+    }),
 
-  addOrFindMasterStrings: async texts => {
-    // This `map` has a side effect - just to prove that we're not functional purists ;)
-    return texts.map(text => {
-      const existing = testDb.tStrings.find(
-        tStr => tStr.languageId == ENGLISH_ID && tStr.text == text
-      );
-      if (existing) return existing;
+  addOrFindMasterStrings: async texts =>
+    withProgressUpdate(async () => {
+      // This `map` has a side effect - just to prove that we're not functional purists ;)
+      return texts.map(text => {
+        const existing = testDb.tStrings.find(
+          tStr => tStr.languageId == ENGLISH_ID && tStr.text == text
+        );
+        if (existing) return existing;
 
-      const newTStr: TString = {
-        masterId: last(testDb.tStrings).masterId + 1,
-        languageId: ENGLISH_ID,
-        text,
-        history: []
-      };
-      testDb.tStrings.push(newTStr);
-      return newTStr;
-    });
-  },
+        const newTStr: TString = {
+          masterId: last(testDb.tStrings).masterId + 1,
+          languageId: ENGLISH_ID,
+          text,
+          history: []
+        };
+        testDb.tStrings.push(newTStr);
+        return newTStr;
+      });
+    }),
 
   reset: async () => {
     testDb = fixtures();
+    updateProgress(); // We could await this if it seemed necessary
   },
 
   writeToDisk: async () => {
@@ -137,6 +150,39 @@ const testStorage: TestPersistence = {
     fs.writeFileSync(filepath, JSON.stringify(testDb));
   }
 };
+
+async function withProgressUpdate<T>(cb: () => Promise<T>) {
+  const val = await cb();
+  updateProgress();
+  return val;
+}
+
+async function updateProgress() {
+  testDb.languages.forEach(language => {
+    const newProgress: LessonProgress[] = [];
+    const tStrings = testDb.tStrings.filter(
+      tStr => tStr.languageId == language.languageId
+    );
+    testDb.lessons.forEach(lesson => {
+      const lessonStrings = testDb.lessonStrings.filter(
+        lStr =>
+          lStr.lessonId == lesson.lessonId &&
+          (!language.motherTongue || lStr.motherTongue)
+      );
+      const progress = percent(
+        lessonStrings.filter(lStr =>
+          tStrings.find(tStr => tStr.masterId == lStr.masterId)
+        ).length,
+        lessonStrings.length
+      );
+      newProgress.push({
+        lessonId: lesson.lessonId,
+        progress
+      });
+    });
+    language.progress = newProgress;
+  });
+}
 
 function join<A, B>(
   alist: A[],

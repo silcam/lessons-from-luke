@@ -1,30 +1,25 @@
-import React, { useState, CSSProperties } from "react";
-import { LessonString } from "../../../core/models/LessonString";
-import { TString, newTString } from "../../../core/models/TString";
+import React, { useState } from "react";
+import { newTString } from "../../../core/models/TString";
 import { Language } from "../../../core/models/Language";
 import { usePush } from "../api/RequestContext";
 import { pushTString } from "../state/tStringSlice";
-import { StatusfulTextInput } from "../base-components/TextInput";
 import { StatusfulTextArea } from "../base-components/TextArea";
 import Div from "../base-components/Div";
+import TStringSpan from "../base-components/TStringSpan";
+import PDiv from "../base-components/PDiv";
+import { LessonTString } from "./useLessonTStrings";
 
 interface IProps {
-  lessonString: LessonString;
-  tStrings: TString[];
-  srcLangId: number;
+  lessonTString: LessonTString;
   language: Language;
 }
 
 export default function TranslateRow(props: IProps) {
-  const { lessonString, tStrings, srcLangId, language } = props;
-  const srcStr = tStrings.find(
-    str => str.languageId == srcLangId && str.masterId == lessonString.masterId
-  );
-  const tStr = tStrings.find(
-    str =>
-      str.languageId == language.languageId &&
-      str.masterId == lessonString.masterId
-  );
+  const { lessonTString, language } = props;
+  const lessonString = lessonTString.lStr;
+  const srcStr = lessonTString.tStrs[0];
+  const tStr = lessonTString.tStrs[1];
+
   const [text, _setText] = useState(tStr ? tStr.text : "");
   const [inputState, setInputState] = useState<
     "none" | "clean" | "dirty" | "working"
@@ -44,15 +39,16 @@ export default function TranslateRow(props: IProps) {
     );
     setInputState(savedStr ? "clean" : "dirty");
   };
-  if (!srcStr) return <span>"-----------"</span>;
 
   return (
     <Div>
-      <div
-        style={{ fontWeight: lessonString.motherTongue ? "bold" : "normal" }}
-      >
-        {srcStr.text}
-      </div>
+      <PDiv>
+        <TStringSpan
+          text={srcStr?.text}
+          motherTongue={lessonString.motherTongue}
+        />
+      </PDiv>
+
       {lessonString.motherTongue && (
         <StatusfulTextArea
           value={inputState == "none" ? tStr?.text || "" : text}

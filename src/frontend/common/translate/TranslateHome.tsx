@@ -1,16 +1,15 @@
 import React, { useState } from "react";
 import { useAppSelector } from "../state/appState";
-import { useLoad, useLoadMultiple } from "../api/RequestContext";
+import { useLoadMultiple } from "../api/RequestContext";
 import { loadTranslatingLanguage } from "../state/languageSlice";
 import LoadingSnake from "../base-components/LoadingSnake";
-import { Language } from "../../../core/models/Language";
+import { Language, lessonProgress } from "../../../core/models/Language";
 import { loadLessons } from "../state/lessonSlice";
-import Heading from "../base-components/Heading";
-import HeaderBar from "../base-components/HeaderBar";
+import { StdHeaderBar } from "../base-components/HeaderBar";
 import Alert from "../base-components/Alert";
 import MiddleOfPage from "../base-components/MiddleOfPage";
 import useTranslation from "../util/useTranslation";
-import { lessonName, BaseLesson } from "../../../core/models/Lesson";
+import { lessonName } from "../../../core/models/Lesson";
 import { FlexCol, FlexRow } from "../base-components/Flex";
 import List from "../base-components/List";
 import Button from "../base-components/Button";
@@ -18,6 +17,8 @@ import TranslateLesson from "./TranslateLesson";
 import Scroll from "../base-components/Scroll";
 import LoadingSwirl from "../base-components/LoadingSwirl";
 import Colors from "../util/Colors";
+import ProgressBar from "../base-components/ProgressBar";
+import styled from "styled-components";
 
 interface IProps {
   code: string;
@@ -33,12 +34,7 @@ export default function TranslateHome(props: IProps) {
 
   return (
     <FlexCol flexRoot>
-      <HeaderBar>
-        <Heading
-          text={language ? language.name : "Lessons from Luke"}
-          level={2}
-        />
-      </HeaderBar>
+      <StdHeaderBar title={language ? language.name : ""} logoNoLink />
       <FlexCol>
         {loading ? (
           <LoadingSnake />
@@ -73,12 +69,20 @@ function TranslateLanguage(props: { language: Language }) {
         <List
           items={lessons}
           renderItem={lesson => (
-            <Button
-              link
-              unButton={lesson.lessonId == selectedLessonId}
-              text={lessonName(lesson, t)}
-              onClick={() => setSelectedLessonId(lesson.lessonId)}
-            />
+            <div>
+              <Button
+                link
+                unButton={lesson.lessonId == selectedLessonId}
+                text={lessonName(lesson, t)}
+                onClick={() => setSelectedLessonId(lesson.lessonId)}
+              />
+              <LessonProgressBar
+                percent={lessonProgress(
+                  props.language.progress,
+                  lesson.lessonId
+                )}
+              />
+            </div>
           )}
           itemKey={lesson => lesson.lessonId}
         />
@@ -87,6 +91,7 @@ function TranslateLanguage(props: { language: Language }) {
         <Scroll pad>
           {selectedLessonId ? (
             <TranslateLesson
+              key={selectedLessonId}
               language={props.language}
               lessonId={selectedLessonId}
             />
@@ -100,3 +105,8 @@ function TranslateLanguage(props: { language: Language }) {
     </FlexRow>
   );
 }
+
+const LessonProgressBar = styled(ProgressBar)`
+  margin-top: 6px;
+  display: ${props => (props.percent == 0 ? "none" : "block")};
+`;

@@ -39,7 +39,9 @@ const en = {
   Ok: "Ok",
   Merge_next: "Merge Next",
   Merge_next_with_space: "Merge Next with Space",
-  Delete: "Delete"
+  Delete: "Delete",
+  Home: "Home",
+  Log_out: "Log Out"
 };
 
 export type I18nStrings = typeof en;

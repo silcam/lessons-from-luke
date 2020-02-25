@@ -5,10 +5,11 @@ import { TString } from "../../../core/models/TString";
 import { lessonStringsFromLesson } from "../../../core/models/Lesson";
 import { useMemo } from "react";
 
-export type LessonTStrings = {
+export type LessonTString = {
   lStr: LessonString;
   tStrs: (TString | undefined)[];
-}[];
+};
+export type LessonTStrings = LessonTString[];
 
 export default function useLessonTStrings(
   lessonId: number,

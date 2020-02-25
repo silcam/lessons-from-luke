@@ -8,6 +8,8 @@ import { loadLanguages } from "../../common/state/languageSlice";
 import Button from "../../common/base-components/Button";
 import Div from "../../common/base-components/Div";
 import AddLanguageForm from "./AddLanguageForm";
+import { totalProgress, Language } from "../../../core/models/Language";
+import LanguageView from "./LanguageView";
 
 export default function LanguagesBox() {
   const t = useTranslation();
@@ -15,7 +17,10 @@ export default function LanguagesBox() {
 
   useLoad(loadLanguages(true));
 
-  const [folded, setFolded] = useState(true);
+  const [folded, setFolded] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState<Language | null>(
+    null
+  );
   const [showAddForm, _setShowAddForm] = useState(false);
   const setShowAddForm = (doShow: boolean) => {
     _setShowAddForm(doShow);
@@ -35,8 +40,22 @@ export default function LanguagesBox() {
             </div>
           ) : showAddForm ? (
             <AddLanguageForm done={() => setShowAddForm(false)} />
+          ) : selectedLanguage ? (
+            <LanguageView language={selectedLanguage} />
           ) : (
-            <List items={languages} renderItem={lang => lang.name} />
+            <List
+              items={languages}
+              renderItem={lang => (
+                <div>
+                  <Button
+                    link
+                    text={lang.name}
+                    onClick={() => setSelectedLanguage(lang)}
+                  />
+                  {` ${totalProgress(lang.progress)}%`}
+                </div>
+              )}
+            />
           )}
           {!showAddForm && (
             <Button

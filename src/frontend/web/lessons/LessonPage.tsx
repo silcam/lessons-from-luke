@@ -4,7 +4,7 @@ import useTranslation from "../../common/util/useTranslation";
 import { loadLesson, pushLessonStrings } from "../../common/state/lessonSlice";
 import { useLoad, usePush } from "../../common/api/RequestContext";
 import Div from "../../common/base-components/Div";
-import { FlexCol, FlexRow } from "../../common/base-components/Flex";
+import { FlexCol } from "../../common/base-components/Flex";
 import Button from "../../common/base-components/Button";
 import List from "../../common/base-components/List";
 import { loadTStrings } from "../../common/state/tStringSlice";
@@ -12,8 +12,7 @@ import { ENGLISH_ID } from "../../../core/models/Language";
 import TStringSpan from "../../common/base-components/TStringSpan";
 import useLessonTStrings from "../../common/translate/useLessonTStrings";
 import LessonEditor, { docStringsFromLessonTStrings } from "./LessonEditor";
-import HeaderBar from "../../common/base-components/HeaderBar";
-import Heading from "../../common/base-components/Heading";
+import { StdHeaderBar } from "../../common/base-components/HeaderBar";
 import Scroll from "../../common/base-components/Scroll";
 import { DocString } from "../../../core/models/DocString";
 
@@ -43,28 +42,23 @@ export default function LessonPage(props: IProps) {
 
   return (
     <FlexCol flexRoot>
-      <HeaderBar>
-        <FlexRow spaceBetween>
-          <Heading
-            level={2}
-            text={lesson ? lessonName(lesson) : "Lessons from Luke"}
-          />
-          {editing ? (
-            <FlexRow flexZero>
+      <StdHeaderBar
+        title={lesson ? lessonName(lesson) : ""}
+        renderRight={() =>
+          editing ? (
+            <React.Fragment>
               <Button text={t("Save")} onClick={save} />
               <Button
                 red
                 text={t("Cancel")}
                 onClick={() => setEditing(false)}
               />
-            </FlexRow>
+            </React.Fragment>
           ) : (
-            <FlexRow flexZero>
-              <Button text={t("Edit")} onClick={startEditing} />
-            </FlexRow>
-          )}
-        </FlexRow>
-      </HeaderBar>
+            <Button text={t("Edit")} onClick={startEditing} />
+          )
+        }
+      />
       <Scroll>
         {lesson && editing ? (
           <LessonEditor {...{ docStrings, setDocStrings }} />

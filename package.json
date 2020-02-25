@@ -30,6 +30,7 @@
     "electron": "^7.1.0",
     "express": "^4.17.1",
     "express-fileupload": "^1.1.6-alpha.6",
+    "file-loader": "^5.1.0",
     "immutability-helper": "^3.0.1",
     "jest": "^24.9.0",
     "libxmljs2": "^0.22.0",
