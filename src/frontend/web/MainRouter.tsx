@@ -10,6 +10,7 @@ import { loadCurrentUser } from "../common/state/currentUserSlice";
 import RootDiv from "../common/base-components/RootDiv";
 import LoadingSnake from "../common/base-components/LoadingSnake";
 import LessonPage from "./lessons/LessonPage";
+import AppLoadingBar from "../common/api/AppLoadingBar";
 
 export default function MainRouter() {
   const { user, loaded } = useSelector((state: AppState) => state.currentUser);
@@ -17,6 +18,7 @@ export default function MainRouter() {
 
   return (
     <RootDiv>
+      <AppLoadingBar />
       {loaded ? (
         <Switch>
           <Route

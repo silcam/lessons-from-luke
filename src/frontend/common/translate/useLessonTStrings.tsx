@@ -1,0 +1,38 @@
+import { useAppSelector } from "../state/appState";
+import { findBy } from "../../../core/util/arrayUtils";
+import { LessonString } from "../../../core/models/LessonString";
+import { TString } from "../../../core/models/TString";
+import { lessonStringsFromLesson } from "../../../core/models/Lesson";
+import { useMemo } from "react";
+
+export type LessonTStrings = {
+  lStr: LessonString;
+  tStrs: (TString | undefined)[];
+}[];
+
+export default function useLessonTStrings(
+  lessonId: number,
+  languageIds: number[]
+) {
+  const lesson = useAppSelector(state =>
+    findBy(state.lessons, "lessonId", lessonId)
+  );
+  const allTStrings = useAppSelector(state => state.tStrings);
+
+  const lessonTStrings = useMemo(() => {
+    const lessonStrings = lesson ? lessonStringsFromLesson(lesson) : [];
+    const tStrings = allTStrings.filter(str =>
+      languageIds.includes(str.languageId)
+    );
+    return lessonStrings.map(lStr => ({
+      lStr,
+      tStrs: languageIds.map(id =>
+        tStrings.find(
+          tStr => tStr.masterId == lStr.masterId && tStr.languageId == id
+        )
+      )
+    }));
+  }, [lesson, allTStrings]);
+
+  return { lesson, lessonTStrings };
+}

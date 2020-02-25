@@ -5,7 +5,7 @@ import { LoginAttempt } from "../../core/models/User";
 
 export default function usersController(app: Express) {
   addGetHandler(app, "/api/users/current", async req => {
-    return req.session?.userId ? { id: req.session.userId } : null;
+    return req.session?.userId ? { id: req.session.userId, admin: true } : null;
   });
 
   addPostHandler(app, "/api/users/login", async req => {
@@ -15,7 +15,7 @@ export default function usersController(app: Express) {
       loginAttempt.password === secrets.adminPassword
     ) {
       req.session!.userId = 1;
-      return { id: 1 };
+      return { id: 1, admin: true };
     }
     throw { status: 422 };
   });

@@ -69,7 +69,7 @@ function TranslateLanguage(props: { language: Language }) {
 
   return (
     <FlexRow>
-      <Scroll noFill style={{ borderRight: `1px solid ${Colors.lightGrey}` }}>
+      <Scroll flexZero style={{ borderRight: `1px solid ${Colors.lightGrey}` }}>
         <List
           items={lessons}
           renderItem={lesson => (

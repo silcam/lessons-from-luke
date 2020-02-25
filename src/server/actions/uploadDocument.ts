@@ -1,5 +1,5 @@
 import { UploadedFile } from "express-fileupload";
-import { EnglishUploadMeta } from "../controllers/documentsController";
+import { EnglishUploadMeta } from "../../core/models/DocUploadMeta";
 import { Persistence } from "../../core/interfaces/Persistence";
 import { Lesson } from "../../core/models/Lesson";
 import { unset } from "../../core/util/objectUtils";

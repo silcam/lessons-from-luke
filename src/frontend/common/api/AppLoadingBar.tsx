@@ -16,12 +16,14 @@ const BarContainer = styled.div`
   width: 100%;
   height: 2px;
   overflow: hidden;
+  position: absolute;
+  top: 0;
 `;
 
 const Bar = styled.div`
   height: 2px;
   width: 33%;
-  background-color: ${Colors.primary};
+  background-color: ${Colors.warning};
   animation: ${flyAcross} 2s linear infinite;
 `;
 

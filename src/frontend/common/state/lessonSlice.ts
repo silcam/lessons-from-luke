@@ -1,18 +1,23 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { Lesson, BaseLesson } from "../../../core/models/Lesson";
+import { Lesson, BaseLesson, lessonCompare } from "../../../core/models/Lesson";
 import { modelListMerge } from "../../../core/util/arrayUtils";
 import { Loader, Pusher } from "../api/RequestContext";
 import { EnglishUploadMeta } from "../../../core/models/DocUploadMeta";
 import { postFile } from "../../web/common/WebAPI";
 import { TString } from "../../../core/models/TString";
 import tStringSlice from "./tStringSlice";
+import { DocString } from "../../../core/models/DocString";
 
 const lessonSlice = createSlice({
   name: "lessons",
   initialState: [] as Array<BaseLesson | Lesson>,
   reducers: {
     add: (state, action: PayloadAction<BaseLesson[]>) =>
-      modelListMerge(state, action.payload, (a, b) => a.lessonId == b.lessonId)
+      modelListMerge(
+        state,
+        action.payload,
+        (a, b) => a.lessonId == b.lessonId
+      ).sort(lessonCompare)
   }
 });
 
@@ -42,6 +47,25 @@ export function pushLesson(
       "document",
       file,
       meta
+    );
+    if (data) {
+      dispatch(lessonSlice.actions.add([data.lesson]));
+      dispatch(tStringSlice.actions.add(data.tStrings));
+      return data.lesson;
+    }
+    return null;
+  };
+}
+
+export function pushLessonStrings(
+  lessonId: number,
+  docStrings: DocString[]
+): Pusher<Lesson> {
+  return async (post, dispatch) => {
+    const data = await post(
+      "/api/admin/lessons/:lessonId/strings",
+      { lessonId },
+      docStrings
     );
     if (data) {
       dispatch(lessonSlice.actions.add([data.lesson]));

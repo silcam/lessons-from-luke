@@ -24,3 +24,9 @@ export function lessonName(lesson: BaseLesson, t: TFunc = (s: string) => s) {
 export function lessonStringsFromLesson(lesson: BaseLesson | Lesson) {
   return "lessonStrings" in lesson ? lesson.lessonStrings : [];
 }
+
+export function lessonCompare(a: BaseLesson, b: BaseLesson) {
+  const compVal = (lsn: BaseLesson) =>
+    AllBooks.indexOf(lsn.book) * 10000 + lsn.series * 100 + lsn.lesson;
+  return compVal(a) - compVal(b);
+}

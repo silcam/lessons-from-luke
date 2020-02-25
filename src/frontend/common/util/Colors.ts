@@ -1,10 +1,13 @@
+import { zeroPad } from "../../../core/util/numberUtils";
+
 // https://coolors.co/1c3144-d00000-ffba08-a2aebb-3f88c5
 
 const Colors = {
   primary: "#3f88c5",
   highlight: "#ffba08",
   darkBG: "#1c3144",
-  lightGrey: "#a2aebb",
+  // lightGrey: "#a2aebb",
+  lightGrey: "#eee",
   success: "#39b54a",
   warning: "#ffba08",
   danger: "#d00000"
@@ -31,7 +34,10 @@ export function darker(color: string) {
     "#" +
     [1, 3, 5]
       .map(i =>
-        Math.round(parseInt(color.substr(i, 2), 16) * 0.82).toString(16)
+        zeroPad(
+          Math.round(parseInt(color.substr(i, 2), 16) * 0.82).toString(16),
+          2
+        )
       )
       .join("")
   );

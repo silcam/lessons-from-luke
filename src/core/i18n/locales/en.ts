@@ -35,7 +35,11 @@ const en = {
   Lesson: "Lesson",
   Add_file: "Add File",
   Book: "Book",
-  Edit: "Edit"
+  Edit: "Edit",
+  Ok: "Ok",
+  Merge_next: "Merge Next",
+  Merge_next_with_space: "Merge Next with Space",
+  Delete: "Delete"
 };
 
 export type I18nStrings = typeof en;

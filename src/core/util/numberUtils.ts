@@ -3,7 +3,7 @@ export function randInt(size: number) {
   return Math.floor(Math.random() * size);
 }
 
-export function zeroPad(num: number, digits: number) {
+export function zeroPad(num: number | string, digits: number) {
   const s = num.toString();
   if (s.length >= digits) return s;
 
