@@ -1,8 +1,7 @@
 import { Express } from "express";
 import { addGetHandler, addPostHandler } from "../api/WebAPI";
 import { Persistence } from "../../core/interfaces/Persistence";
-import { isTString } from "../../core/models/TString";
-import { isWithCode } from "../../core/models/Language";
+import { isTString, TString } from "../../core/models/TString";
 
 export default function tStringsController(app: Express, storage: Persistence) {
   addGetHandler(app, "/api/languages/:languageId/tStrings", async req => {
@@ -21,10 +20,27 @@ export default function tStringsController(app: Express, storage: Persistence) {
   );
 
   addPostHandler(app, "/api/tStrings", async req => {
-    if (!isWithCode(req.body, isTString)) throw { status: 422 };
-    const { code, ...tString } = req.body;
-    if (await storage.invalidCode(code, tString.languageId))
+    const { code, tStrings } = validateTStringPost(req.body);
+    if (
+      await storage.invalidCode(
+        code,
+        tStrings.map(tStr => tStr.languageId)
+      )
+    )
       throw { status: 401 };
-    return storage.saveTString(tString);
+    return storage.saveTStrings(tStrings);
   });
+}
+
+function validateTStringPost(body: {
+  code: unknown;
+  tStrings: unknown;
+}): { code: string; tStrings: TString[] } {
+  const { code, tStrings } = body;
+  if (!(typeof code === "string") || !Array.isArray(tStrings))
+    throw { status: 422 };
+  if (!tStrings.every(tStr => isTString(tStr))) throw { status: 422 };
+  if (tStrings.length == 0) throw { status: 422 };
+
+  return { code, tStrings };
 }

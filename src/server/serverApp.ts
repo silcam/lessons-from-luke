@@ -17,7 +17,7 @@ function serverApp(opts: { silent?: boolean; testController?: boolean } = {}) {
   const storage = testStorage;
 
   app.use(cookieSession({ secret: secrets.cookieSecret }));
-  app.use(bodyParser.json());
+  app.use(bodyParser.json({ limit: "2MB" }));
   app.use("/api/admin", requireUser);
 
   // Simulate slow server

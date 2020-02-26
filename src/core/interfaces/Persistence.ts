@@ -5,9 +5,12 @@ import { DraftLessonString } from "../models/LessonString";
 
 export interface Persistence {
   languages: () => Promise<Language[]>;
-  language: (params: { code: string }) => Promise<Language | null>;
+  language: (
+    params: { code: string } | { languageId: number }
+  ) => Promise<Language | null>;
   createLanguage: (lang: NewLanguage) => Promise<Language>;
-  invalidCode: (code: string, languageId: number) => Promise<boolean>;
+  updateLanguage: (id: number, update: Partial<Language>) => Promise<Language>;
+  invalidCode: (code: string, languageIds: number[]) => Promise<boolean>;
   lessons: () => Promise<BaseLesson[]>;
   lesson: (id: number) => Promise<Lesson | null>;
   createLesson: (lesson: DraftLesson) => Promise<BaseLesson>;
@@ -20,8 +23,12 @@ export interface Persistence {
     languageId: number;
     lessonId?: number;
   }) => Promise<TString[]>;
+  englishScriptureTStrings: () => Promise<TString[]>;
   addOrFindMasterStrings: (texts: string[]) => Promise<TString[]>;
-  saveTString: (tStr: TString) => Promise<TString>;
+  saveTStrings: (
+    tStrings: TString[],
+    opts?: { awaitProgress?: boolean }
+  ) => Promise<TString[]>;
 }
 
 export interface TestPersistence extends Persistence {

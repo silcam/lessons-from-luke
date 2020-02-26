@@ -1,8 +1,9 @@
 import { Express } from "express";
 import { addGetHandler, addPostHandler } from "../api/WebAPI";
-import { NewLanguage, isNewLanguage } from "../../core/models/Language";
+import { isNewLanguage } from "../../core/models/Language";
 import { Persistence } from "../../core/interfaces/Persistence";
-import { unset } from "../../core/util/objectUtils";
+import { unset, objFilter } from "../../core/util/objectUtils";
+import importUsfm from "../usfm/importUsfm";
 
 export default function languagesController(
   app: Express,
@@ -26,5 +27,18 @@ export default function languagesController(
       throw { status: 422 };
     }
     return storage.createLanguage(newLanguage);
+  });
+
+  addPostHandler(app, "/api/admin/languages/:languageId", async req => {
+    const langUpdate = objFilter(req.body, ["motherTongue"]);
+    return storage.updateLanguage(parseInt(req.params.languageId), langUpdate);
+  });
+
+  addPostHandler(app, "/api/admin/languages/:languageId/usfm", async req => {
+    const languageId = parseInt(req.params.languageId);
+    const { errors } = await importUsfm(req.body.usfm, languageId, storage);
+    const language = await storage.language({ languageId });
+    if (!language) throw { status: 404 };
+    return { language, errors };
   });
 }

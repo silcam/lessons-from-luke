@@ -1,4 +1,4 @@
-import { last, findBy } from "../../core/util/arrayUtils";
+import { last, findBy, findByStrict } from "../../core/util/arrayUtils";
 import { equal, TString } from "../../core/models/TString";
 import { TestPersistence } from "../../core/interfaces/Persistence";
 import { fixtures } from "./fixtures";
@@ -8,6 +8,7 @@ import { discriminate } from "../../core/util/arrayUtils";
 import { percent } from "../../core/util/numberUtils";
 import fs from "fs";
 import { LessonProgress } from "../../core/models/Language";
+import { VerseStringPattern } from "../usfm/translateFromUsfm";
 
 let testDb = fixtures();
 updateProgress(); // We could await this if it seemed necessary
@@ -18,7 +19,11 @@ const testStorage: TestPersistence = {
   },
 
   language: async params => {
-    return findBy(testDb.languages, "code", params.code) || null;
+    return (
+      ("code" in params
+        ? findBy(testDb.languages, "code", params.code)
+        : findBy(testDb.languages, "languageId", params.languageId)) || null
+    );
   },
 
   createLanguage: async newLanguage => {
@@ -36,9 +41,17 @@ const testStorage: TestPersistence = {
     return lang;
   },
 
-  invalidCode: async (code, languageId) => {
-    const language = findBy(testDb.languages, "languageId", languageId);
-    return !language || language.code !== code;
+  updateLanguage: async (languageId, update) => {
+    const language = findByStrict(testDb.languages, "languageId", languageId);
+    Object.assign(language, update);
+    await updateProgress();
+    return findByStrict(testDb.languages, "languageId", languageId);
+  },
+
+  invalidCode: async (code, languageIds) => {
+    const language = findBy(testDb.languages, "code", code);
+    if (!language) return true;
+    return !languageIds.every(id => id == language.languageId);
   },
 
   lessons: async () => {
@@ -102,11 +115,18 @@ const testStorage: TestPersistence = {
     return langTStrings.filter(ts => masterIds.includes(ts.masterId));
   },
 
-  saveTString: async tString =>
-    withProgressUpdate(async () => {
+  englishScriptureTStrings: async () => {
+    return testDb.tStrings.filter(
+      tStr =>
+        tStr.languageId == ENGLISH_ID && VerseStringPattern.test(tStr.text)
+    );
+  },
+
+  saveTStrings: async (tStrings, opts = {}) => {
+    const newTStrings = tStrings.map(tString => {
       if (tString.text.length == 0) {
         testDb.tStrings = testDb.tStrings.filter(t => !equal(t, tString));
-        return tString;
+        return null;
       }
       const existing = testDb.tStrings.find(t => equal(t, tString));
       if (existing) {
@@ -118,7 +138,11 @@ const testStorage: TestPersistence = {
         testDb.tStrings.push(tString);
         return tString;
       }
-    }),
+    });
+    if (opts.awaitProgress) await updateProgress();
+    else updateProgress();
+    return newTStrings.filter(tStr => tStr) as TString[];
+  },
 
   addOrFindMasterStrings: async texts =>
     withProgressUpdate(async () => {

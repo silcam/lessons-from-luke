@@ -1,11 +1,6 @@
 import { User, LoginAttempt } from "../models/User";
 import { TString } from "../models/TString";
-import {
-  Language,
-  NewLanguage,
-  WithCode,
-  PublicLanguage
-} from "../models/Language";
+import { Language, NewLanguage, PublicLanguage } from "../models/Language";
 import { BaseLesson, Lesson } from "../models/Lesson";
 import { DocString } from "../models/DocString";
 
@@ -29,7 +24,17 @@ export interface APIPost {
   "/api/users/login": [{}, LoginAttempt, User | null];
   "/api/users/logout": [{}, null, null];
   "/api/admin/languages": [{}, NewLanguage, Language];
-  "/api/tStrings": [{}, WithCode<TString>, TString];
+  "/api/admin/languages/:languageId": [
+    { languageId: number },
+    { motherTongue: boolean },
+    Language
+  ];
+  "/api/admin/languages/:languageId/usfm": [
+    { languageId: number },
+    { usfm: string },
+    { language: Language; errors: string[] }
+  ];
+  "/api/tStrings": [{}, { code: string; tStrings: TString[] }, TString[]];
   "/api/admin/lessons/:lessonId/strings": [
     { lessonId: number },
     DocString[],
