@@ -7,7 +7,9 @@
     "serve": "nodemon -w dist/server/ dist/server/server.js",
     "desktop": "concurrently -k -p \"[{name}]\" -n \"Server,Desktop\" -c \"yellow.bold,blue.bold\" \"yarn serve\" \"yarn run-desktop\"",
     "run-desktop": "nodemon -w dist/desktop/ --exec yarn electron dist/desktop/main.js",
-    "test": "NODE_ENV=test jest --watchAll --runInBand"
+    "test": "NODE_ENV=test jest --watchAll --runInBand",
+    "deploy": "bundle exec cap production deploy",
+    "build-server": "tsc -b ./src/server && webpack"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^1.1.0",

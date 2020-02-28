@@ -21,6 +21,10 @@ function serverApp(opts: { silent?: boolean } = {}) {
   app.use(bodyParser.json({ limit: "2MB" }));
   app.use("/api/admin", requireUser);
 
+  if (PRODUCTION) {
+    app.use(express.static("dist/frontend"));
+  }
+
   // Simulate slow server
   // app.use((res, req, next) => {
   //   setTimeout(next, 2000);

@@ -21,6 +21,7 @@ import { uniq, discriminate, findBy } from "../../core/util/arrayUtils";
 import { VerseStringPattern } from "../usfm/translateFromUsfm";
 import { percent } from "../../core/util/numberUtils";
 import pgLoadFixtures from "./pgLoadFixtures";
+import secrets from "../util/secrets";
 
 export default class PGStorage implements Persistence {
   sql: SqlFunc;
@@ -294,28 +295,20 @@ export class PGTestStorage extends PGStorage implements TestPersistence {
 }
 
 function dbConnect() {
-  const opts: Options =
-    process.env.NODE_ENV == "production"
-      ? {}
-      : {
-          database: "lessons-from-luke",
-          username: "lessons-from-luke",
-          password: "lessons-from-luke",
-          transform: {
-            column: transformCol
-          },
-          debug: (con, query, params) => {
-            // if (
-            //   query.includes("begin") ||
-            //   query.includes("rollback") ||
-            //   query.includes("commit") ||
-            //   true
-            // ) {
-            //   console.log(`QUERY: ${query}`);
-            //   console.log(JSON.stringify(params));
-            // }
-          }
-        };
+  const opts: Options = {
+    ...secrets.db,
+    transform: {
+      column: transformCol
+    },
+    debug: (con, query, params) => {
+      // if (
+      //   some condition
+      // ) {
+      //   console.log(`QUERY: ${query}`);
+      //   console.log(JSON.stringify(params));
+      // }
+    }
+  };
   return postgres(opts);
 }
 
