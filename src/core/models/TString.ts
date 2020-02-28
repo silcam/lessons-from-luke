@@ -5,18 +5,18 @@ import { Language } from "./Language";
 export interface TString {
   masterId: number;
   languageId: number;
-  sourceLanguageId?: number;
-  source?: string;
+  sourceLanguageId?: number | null;
+  source?: string | null;
   text: string;
   history: string[];
-  lessonStringId?: number;
+  lessonStringId?: number | null;
 }
 
 export function equal(a: TString, b: TString) {
   return (
-    a.masterId === b.masterId &&
-    a.languageId === b.languageId &&
-    a.lessonStringId === b.lessonStringId
+    a.masterId == b.masterId &&
+    a.languageId == b.languageId &&
+    a.lessonStringId == b.lessonStringId
   );
 }
 
@@ -49,4 +49,11 @@ export function newTString(
   return tString;
 }
 
-// export type LessonTString = LessonString & Partial<TString>;
+export function sqlizeTString(ts: Partial<TString>) {
+  return {
+    ...ts,
+    history: JSON.stringify(ts.history),
+    source: ts.source || null,
+    sourceLanguageId: ts.sourceLanguageId || null
+  };
+}

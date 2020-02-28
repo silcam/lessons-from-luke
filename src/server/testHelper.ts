@@ -2,6 +2,8 @@ import request from "supertest";
 import serverApp from "./serverApp";
 import secrets from "./util/secrets";
 
+export const USE_PG = true;
+
 const app = serverApp({ silent: true, testController: true });
 
 export async function loggedInAgent() {
@@ -22,4 +24,8 @@ export function stripSpace(text: string) {
 
 export async function resetStorage() {
   return plainAgent().post("/api/test/reset-storage");
+}
+
+export async function closeStorage() {
+  return plainAgent().post("/api/test/close-storage");
 }

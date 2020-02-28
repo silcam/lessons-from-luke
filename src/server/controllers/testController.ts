@@ -11,4 +11,9 @@ export default function testController(app: Express, storage: TestPersistence) {
     await storage.writeToDisk();
     res.status(204).send();
   });
+
+  app.post("/api/test/close-storage", async (req, res) => {
+    await storage.close();
+    res.status(204).send();
+  });
 }

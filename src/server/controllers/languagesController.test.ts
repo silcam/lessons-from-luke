@@ -1,22 +1,33 @@
-import { plainAgent, loggedInAgent } from "../testHelper";
+import {
+  plainAgent,
+  loggedInAgent,
+  resetStorage,
+  closeStorage
+} from "../testHelper";
 import {
   isLanguage,
   LessonProgress,
   Language
 } from "../../core/models/Language";
 import fs from "fs";
+import { findByStrict } from "../../core/util/arrayUtils";
 
 const usfm = fs.readFileSync("test/43LUKBMO.SFM").toString();
+
+afterAll(closeStorage);
 
 test("Public Languages", async () => {
   expect.assertions(2);
   const agent = plainAgent();
   const response = await agent.get("/api/languages");
   expect(response.status).toBe(200);
-  expect(response.body[0]).toMatchObject({
+  expect(
+    findByStrict(response.body as Language[], "name", "English")
+  ).toMatchObject({
     languageId: 1,
     name: "English"
   });
+  expect(response.body.length).toBe(3);
 });
 
 test("Admin Languages", async () => {
@@ -24,7 +35,9 @@ test("Admin Languages", async () => {
   const agent = await loggedInAgent();
   const response = await agent.get("/api/admin/languages");
   expect(response.status).toBe(200);
-  expect(response.body[0]).toMatchObject({
+  expect(
+    findByStrict(response.body as Language[], "name", "English")
+  ).toMatchObject({
     languageId: 1,
     name: "English",
     code: "ABC"
@@ -56,10 +69,18 @@ test("Get language progress", async () => {
   const agent = plainAgent();
   const response = await agent.get("/api/languages");
   expect(response.status).toBe(200);
-  const englishProgess: LessonProgress[] = response.body[0].progress;
+  const englishProgess: LessonProgress[] = findByStrict(
+    response.body as Language[],
+    "name",
+    "English"
+  ).progress;
   expect(englishProgess.length).toBe(5);
   expect(englishProgess.every(p => p.progress == 100)).toBe(true);
-  const batangaProgress = response.body[2].progress;
+  const batangaProgress = findByStrict(
+    response.body as Language[],
+    "languageId",
+    3
+  ).progress;
   expect(batangaProgress[0]).toEqual({
     lessonId: 11,
     progress: 6
@@ -94,7 +115,6 @@ test("POST /api/languages validation", async () => {
 });
 
 test("POST update language mother tongue status", async () => {
-  expect.assertions(3);
   const agent = await loggedInAgent();
   const response = await agent
     .post("/api/admin/languages/3")
@@ -103,6 +123,8 @@ test("POST update language mother tongue status", async () => {
   const batanga: Language = response.body;
   expect(batanga.motherTongue).toBe(false);
   expect(batanga.progress[0].progress).toBe(5); // Was 6
+
+  await resetStorage();
 });
 
 test("POST usfm", async () => {
@@ -112,8 +134,13 @@ test("POST usfm", async () => {
     .post("/api/admin/languages/3/usfm")
     .send({ usfm });
   expect(response.status).toBe(200);
-  expect(response.body.language.progress[0].progress).toBe(14); // Was 6
+  expect(response.body.language.progress[0]).toEqual({
+    lessonId: 11,
+    progress: 23 // Was 6
+  });
   expect(response.body.errors).toEqual([]);
+
+  await resetStorage();
 });
 
 test("POST usfm with error expected", async () => {
@@ -127,4 +154,6 @@ test("POST usfm with error expected", async () => {
   expect(response.body.errors[0]).toEqual(
     "USFM Parse Error - Verse 37 not found in chapter 1."
   );
+
+  await resetStorage();
 });

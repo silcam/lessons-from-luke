@@ -3,7 +3,6 @@ import usersController from "./controllers/usersController";
 import cookieSession from "cookie-session";
 import secrets from "./util/secrets";
 import bodyParser from "body-parser";
-import testStorage from "./storage/testStorage";
 import languagesController from "./controllers/languagesController";
 import lessonsController from "./controllers/lessonsController";
 import requireUser from "./middle/requireUser";
@@ -11,10 +10,11 @@ import tStringsController from "./controllers/tStringsController";
 import { Persistence } from "../core/interfaces/Persistence";
 import testController from "./controllers/testController";
 import documentsController from "./controllers/documentsController";
+import PGStorage, { PGTestStorage } from "./storage/PGStorage";
 
 function serverApp(opts: { silent?: boolean; testController?: boolean } = {}) {
   const app = express();
-  const storage = testStorage;
+  const storage = new PGTestStorage();
 
   app.use(cookieSession({ secret: secrets.cookieSecret }));
   app.use(bodyParser.json({ limit: "2MB" }));

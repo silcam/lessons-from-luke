@@ -58,3 +58,7 @@ export function lessonProgress(
 export function totalProgress(progress: LessonProgress[]) {
   return Math.round(average(progress.map(p => p.progress)));
 }
+
+export function sqlizeLang(lang: Language) {
+  return { ...lang, progress: JSON.stringify(lang.progress) };
+}

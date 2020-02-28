@@ -1,15 +1,18 @@
-import { loggedInAgent, plainAgent, resetStorage } from "../testHelper";
+import {
+  loggedInAgent,
+  plainAgent,
+  resetStorage,
+  closeStorage
+} from "../testHelper";
 import { LessonString } from "../../core/models/LessonString";
 import { TString } from "../../core/models/TString";
 import { DocString } from "../../core/models/DocString";
 import { unlinkSafe } from "../../core/util/fsUtils";
+import { findByStrict } from "../../core/util/arrayUtils";
 
-beforeEach(() => {
-  return resetStorage();
-});
-
-afterAll(() => {
+afterAll(async () => {
   unlinkSafe("test/docs/serverDocs/Luke-1-01v04.odt");
+  await closeStorage();
 });
 
 test("GET Lessons", async () => {
@@ -93,10 +96,17 @@ test("Update Lesson 1", async () => {
   );
 
   // The one we edited
-  expect(response.body.tStrings).toContainEqual({
+  expect(
+    findByStrict(
+      response.body.tStrings as TString[],
+      "text",
+      "The Book of Luke and the Birth of John the Dude"
+    )
+  ).toMatchObject({
     history: [],
     languageId: 1,
-    masterId: 654,
     text: "The Book of Luke and the Birth of John the Dude"
   });
+
+  await resetStorage();
 });

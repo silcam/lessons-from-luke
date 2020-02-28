@@ -1,4 +1,4 @@
-import { last, modelListMerge, discriminate } from "./arrayUtils";
+import { last, modelListMerge, discriminate, uniq } from "./arrayUtils";
 
 test("last", () => {
   expect(last([1, 2, 3])).toBe(3);
@@ -25,4 +25,10 @@ test("discriminate", () => {
   expect(odds).toEqual([1, 3, 5, 7]);
 
   expect(discriminate([], isEven)).toEqual([[], []]);
+});
+
+test("uniq", () => {
+  expect(uniq([5, 1, 1, 2, 3, 4, 4, 3, 1, 2, 8])).toEqual([5, 1, 2, 3, 4, 8]);
+  expect(uniq([])).toEqual([]);
+  expect(uniq(["a", "b", "a"])).toEqual(["a", "b"]);
 });

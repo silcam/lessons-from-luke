@@ -1,8 +1,44 @@
 {
   "languages": [
-    { "languageId": 1, "name": "English", "code": "ABC", "motherTongue": false, "progress": [] },
-    { "languageId": 2, "name": "Français", "code": "DEF", "motherTongue": false, "progress": [] },
-    { "languageId": 3, "name": "Batanga", "code": "GHI", "motherTongue": true, "progress": [] }
+    {
+      "languageId": 3,
+      "name": "Batanga",
+      "code": "GHI",
+      "motherTongue": true,
+      "progress": [
+        { "lessonId": 11, "progress": 6 },
+        { "lessonId": 12, "progress": 9 },
+        { "lessonId": 13, "progress": 1 },
+        { "lessonId": 14, "progress": 0 },
+        { "lessonId": 15, "progress": 0 }
+      ]
+    },
+    {
+      "languageId": 2,
+      "name": "Français",
+      "code": "DEF",
+      "motherTongue": false,
+      "progress": [
+        { "lessonId": 11, "progress": 5 },
+        { "lessonId": 12, "progress": 6 },
+        { "lessonId": 13, "progress": 1 },
+        { "lessonId": 14, "progress": 1 },
+        { "lessonId": 15, "progress": 1 }
+      ]
+    },
+    {
+      "languageId": 1,
+      "name": "English",
+      "code": "ABC",
+      "motherTongue": false,
+      "progress": [
+        { "lessonId": 11, "progress": 100 },
+        { "lessonId": 12, "progress": 100 },
+        { "lessonId": 13, "progress": 100 },
+        { "lessonId": 14, "progress": 100 },
+        { "lessonId": 15, "progress": 100 }
+      ]
+    }
   ],
   "lessons": [
     { "lessonId": 11, "book": "Luke", "series": 1, "lesson": 1, "version": 3 },

@@ -1,13 +1,11 @@
-import { plainAgent, resetStorage } from "../testHelper";
+import { plainAgent, resetStorage, closeStorage } from "../testHelper";
 import { TString } from "../../core/models/TString";
 import { SuperTest } from "supertest";
 import supertest = require("supertest");
 import { WithCode } from "../../core/models/Language";
 import { unset } from "../../core/util/objectUtils";
 
-beforeEach(() => {
-  return resetStorage();
-});
+afterAll(closeStorage);
 
 test("Get TStrings", async () => {
   expect.assertions(3);
@@ -21,7 +19,8 @@ test("Get TStrings", async () => {
     text: "Pɔh eyamu ya Lukasi etilinɔ na iyabɛnɛ dá Yohanesi Nkahɛdɛni",
     source: "Le livre de Luc et la naissance de Jean Baptiste",
     history: [],
-    masterId: 1
+    masterId: 1,
+    lessonStringId: null
   });
 });
 
@@ -37,7 +36,8 @@ test("Get TStrings by Lesson", async () => {
     text: "Pɔh eyamu ya Lukasi etilinɔ na iyabɛnɛ dá Yohanesi Nkahɛdɛni",
     source: "Le livre de Luc et la naissance de Jean Baptiste",
     history: [],
-    masterId: 1
+    masterId: 1,
+    lessonStringId: null
   });
 });
 
@@ -96,6 +96,8 @@ test("Save TString - new string", async () => {
   expect(response.status).toBe(200);
   expect(response.body[0]).toEqual(tString);
   expect(await batangaTStringCount(agent)).toBe(4);
+
+  await resetStorage();
 });
 
 test("Save TString - updated string", async () => {
@@ -121,6 +123,8 @@ test("Save TString - updated string", async () => {
     history: ["Njambɛ abowandi mahaleya mahu."]
   });
   expect(await batangaTStringCount(agent)).toBe(3);
+
+  await resetStorage();
 });
 
 test("Save TString - blank text", async () => {
@@ -141,6 +145,8 @@ test("Save TString - blank text", async () => {
   expect(response.status).toBe(200);
   expect(response.body).toEqual([]);
   expect(await batangaTStringCount(agent)).toBe(2);
+
+  await resetStorage();
 });
 
 // test("Save TString - Exception to Master", async () => {

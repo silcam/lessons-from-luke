@@ -76,6 +76,13 @@ export function discriminate<T>(
   );
 }
 
+export function uniq<T>(list: T[]): T[] {
+  return list.reduce(
+    (final: T[], item) => (final.includes(item) ? final : [...final, item]),
+    []
+  );
+}
+
 // export function randomSelection<T>(list: T[], number: number): T[] {
 //   if (number >= list.length) return list;
 

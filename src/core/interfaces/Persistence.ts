@@ -32,6 +32,7 @@ export interface Persistence {
 }
 
 export interface TestPersistence extends Persistence {
-  reset: () => Promise<void>;
+  reset: () => Promise<any>;
   writeToDisk: () => Promise<void>;
+  close: () => Promise<void>;
 }
