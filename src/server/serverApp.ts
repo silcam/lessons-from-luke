@@ -7,14 +7,15 @@ import languagesController from "./controllers/languagesController";
 import lessonsController from "./controllers/lessonsController";
 import requireUser from "./middle/requireUser";
 import tStringsController from "./controllers/tStringsController";
-import { Persistence } from "../core/interfaces/Persistence";
 import testController from "./controllers/testController";
 import documentsController from "./controllers/documentsController";
 import PGStorage, { PGTestStorage } from "./storage/PGStorage";
 
-function serverApp(opts: { silent?: boolean; testController?: boolean } = {}) {
+const PRODUCTION = process.env.NODE_ENV == "production";
+
+function serverApp(opts: { silent?: boolean } = {}) {
   const app = express();
-  const storage = new PGTestStorage();
+  const storage = PRODUCTION ? new PGStorage() : new PGTestStorage();
 
   app.use(cookieSession({ secret: secrets.cookieSecret }));
   app.use(bodyParser.json({ limit: "2MB" }));
@@ -40,8 +41,8 @@ function serverApp(opts: { silent?: boolean; testController?: boolean } = {}) {
   tStringsController(app, storage);
   documentsController(app, storage);
 
-  if (opts.testController) {
-    testController(app, storage);
+  if (!PRODUCTION) {
+    testController(app, storage as PGTestStorage);
   }
 
   return app;

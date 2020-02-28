@@ -1,7 +1,7 @@
 import { Express } from "express";
-import { TestPersistence } from "../../core/interfaces/Persistence";
+import { PGTestStorage } from "../storage/PGStorage";
 
-export default function testController(app: Express, storage: TestPersistence) {
+export default function testController(app: Express, storage: PGTestStorage) {
   app.post("/api/test/reset-storage", async (req, res) => {
     await storage.reset();
     res.status(204).send();

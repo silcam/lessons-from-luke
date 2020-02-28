@@ -17,7 +17,6 @@ const usfm = fs.readFileSync("test/43LUKBMO.SFM").toString();
 afterAll(closeStorage);
 
 test("Public Languages", async () => {
-  expect.assertions(2);
   const agent = plainAgent();
   const response = await agent.get("/api/languages");
   expect(response.status).toBe(200);

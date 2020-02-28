@@ -172,7 +172,9 @@ const testStorage: TestPersistence = {
   writeToDisk: async () => {
     const filepath = __dirname + "/fixtures-" + new Date().valueOf() + ".json";
     fs.writeFileSync(filepath, JSON.stringify(testDb));
-  }
+  },
+
+  close: async () => {}
 };
 
 async function withProgressUpdate<T>(cb: () => Promise<T>) {

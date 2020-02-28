@@ -4,7 +4,7 @@ import secrets from "./util/secrets";
 
 export const USE_PG = true;
 
-const app = serverApp({ silent: true, testController: true });
+const app = serverApp({ silent: true });
 
 export async function loggedInAgent() {
   const agent = request.agent(app);

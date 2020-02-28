@@ -10,6 +10,7 @@ import { DocString } from "../../core/models/DocString";
 import { unlinkSafe } from "../../core/util/fsUtils";
 import { findByStrict } from "../../core/util/arrayUtils";
 
+beforeAll(resetStorage);
 afterAll(async () => {
   unlinkSafe("test/docs/serverDocs/Luke-1-01v04.odt");
   await closeStorage();
@@ -20,7 +21,7 @@ test("GET Lessons", async () => {
   const agent = plainAgent();
   const response = await agent.get("/api/lessons");
   expect(response.status).toBe(200);
-  expect(response.body[0]).toEqual({
+  expect(response.body).toContainEqual({
     lessonId: 11,
     book: "Luke",
     series: 1,
