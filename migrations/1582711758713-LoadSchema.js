@@ -1,5 +1,6 @@
 "use strict";
 const postgres = require("postgres");
+const fs = require("fs");
 
 async function up() {
   await dbConnect(async sql => {
@@ -81,14 +82,8 @@ async function down() {
 }
 
 async function dbConnect(cb) {
-  const opts =
-    process.env.NODE_ENV == "production"
-      ? {}
-      : {
-          database: "lessons-from-luke",
-          username: "lessons-from-luke",
-          password: "lessons-from-luke"
-        };
+  const secrets = JSON.parse(fs.readFileSync("secrets.json"));
+  const opts = secrets.db;
   const sql = postgres(opts);
   await cb(sql);
   await sql.end();
