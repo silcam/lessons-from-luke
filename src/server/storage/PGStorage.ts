@@ -159,20 +159,25 @@ export default class PGStorage implements Persistence {
   async addOrFindMasterStrings(texts: string[]) {
     return this.withProgressUpdate(async () => {
       const engStrings = await this.tStrings({ languageId: ENGLISH_ID });
-      const existing: TString[] = [];
-      const toAdd: Omit<TString, "masterId">[] = [];
-      texts.forEach(text => {
-        const found = findBy(engStrings, "text", text);
-        if (found) existing.push(found);
-        else toAdd.push({ languageId: ENGLISH_ID, text, history: [] });
-      });
+      // const existing: TString[] = [];
+      // const toAdd: Omit<TString, "masterId">[] = [];
+      return Promise.all(
+        texts.map(async text => {
+          const found = findBy(engStrings, "text", text);
+          if (found) return found;
 
-      const newTStrings = await this.sql`
-      INSERT INTO tstrings ${this.sql(toAdd.map(sqlizeTString))}
-      returning *
-    `;
-
-      return existing.concat(newTStrings);
+          const draftTString: Omit<TString, "masterId"> = {
+            languageId: ENGLISH_ID,
+            text,
+            history: []
+          };
+          const [newTString]: TString[] = await this.sql`
+          INSERT INTO tstrings ${this.sql(sqlizeTString(draftTString))}
+          returning *
+        `;
+          return newTString;
+        })
+      );
     });
   }
 
