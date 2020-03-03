@@ -1,4 +1,4 @@
-import React, { createRef, useEffect } from "react";
+import React, { useEffect, useRef, MutableRefObject } from "react";
 import styled, { css } from "styled-components";
 import Colors from "../util/Colors";
 
@@ -10,6 +10,7 @@ interface IProps extends STAProps {
   setValue: (v: string) => void;
   onBlur?: () => void;
   autoFocus?: boolean;
+  taRef?: MutableRefObject<HTMLTextAreaElement | null>;
 }
 
 const StyledTextArea = styled.textarea<STAProps>`
@@ -29,8 +30,9 @@ const StyledTextArea = styled.textarea<STAProps>`
 `;
 
 export default function TextArea(props: IProps) {
-  const { setValue, ...inputProps } = props;
-  const ref = createRef<HTMLTextAreaElement>();
+  const { setValue, taRef, ...inputProps } = props;
+  const localRef = useRef<HTMLTextAreaElement | null>(null);
+  const ref = taRef || localRef;
 
   useEffect(() => {
     if (ref.current) {

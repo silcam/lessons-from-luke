@@ -32,7 +32,7 @@ export interface APIPost {
   "/api/admin/languages/:languageId/usfm": [
     { languageId: number },
     { usfm: string },
-    { language: Language; errors: string[] }
+    { language: Language; tStrings: TString[]; errors: string[] }
   ];
   "/api/tStrings": [{}, { code: string; tStrings: TString[] }, TString[]];
   "/api/admin/lessons/:lessonId/strings": [

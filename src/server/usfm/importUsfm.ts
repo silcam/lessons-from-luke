@@ -15,6 +15,8 @@ export default async function importUsfm(
     text: translation.text,
     history: []
   }));
-  await storage.saveTStrings(newTStrings, { awaitProgress: true });
-  return { errors };
+  const finalTStrings = await storage.saveTStrings(newTStrings, {
+    awaitProgress: true
+  });
+  return { errors, tStrings: finalTStrings };
 }

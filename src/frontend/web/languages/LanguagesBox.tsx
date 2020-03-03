@@ -41,28 +41,30 @@ export default function LanguagesBox() {
           ) : showAddForm ? (
             <AddLanguageForm done={() => setShowAddForm(false)} />
           ) : selectedLanguage ? (
-            <LanguageView language={selectedLanguage} />
+            <LanguageView
+              language={selectedLanguage}
+              done={() => setSelectedLanguage(null)}
+            />
           ) : (
-            <List
-              items={languages}
-              renderItem={lang => (
-                <div>
-                  <Button
-                    link
-                    text={lang.name}
-                    onClick={() => setSelectedLanguage(lang)}
-                  />
-                  {` ${totalProgress(lang.progress)}%`}
-                </div>
-              )}
-            />
-          )}
-          {!showAddForm && (
-            <Button
-              onClick={() => setShowAddForm(true)}
-              text={t("Add_language")}
-              link
-            />
+            <React.Fragment>
+              <Button
+                onClick={() => setShowAddForm(true)}
+                text={t("Add_language")}
+              />
+              <List
+                items={languages}
+                renderItem={lang => (
+                  <div>
+                    <Button
+                      link
+                      text={lang.name}
+                      onClick={() => setSelectedLanguage(lang)}
+                    />
+                    {` ${totalProgress(lang.progress)}%`}
+                  </div>
+                )}
+              />
+            </React.Fragment>
           )}
         </Div>
       )}

@@ -41,7 +41,17 @@ const en = {
   Merge_next_with_space: "Merge Next with Space",
   Delete: "Delete",
   Home: "Home",
-  Log_out: "Log Out"
+  Log_out: "Log Out",
+  Translate: "Translate",
+  Upload_usfm: "Upload USFM",
+  Upload_document: "Upload Document",
+  X_scripture: "%{language} Scripture",
+  Errors: "Errors",
+  Imported_texts: "Imported Texts",
+  Split: "Split",
+  Split_instructions:
+    "Place the cursor where you want the split and then press the Split button.",
+  Upload: "Upload"
 };
 
 export type I18nStrings = typeof en;

@@ -6,10 +6,17 @@ import {
 } from "../../../core/models/Language";
 import { GetRequest, Pusher } from "../api/RequestContext";
 import { AppDispatch } from "./appState";
+import tStringSlice from "./tStringSlice";
+import { TString } from "../../../core/models/TString";
 
 interface State {
   languages: MaybePublicLanguage[];
   adminLanguages: Language[];
+  usfmImportResult?: {
+    language: Language;
+    errors: string[];
+    tStrings: TString[];
+  };
   translating?: Language;
 }
 
@@ -29,6 +36,16 @@ const languageSlice = createSlice({
     },
     setTranslating: (state, action: PayloadAction<Language>) => {
       state.translating = action.payload;
+    },
+    setUsfmImportResult: (
+      state,
+      action: PayloadAction<{
+        language: Language;
+        tStrings: TString[];
+        errors: string[];
+      }>
+    ) => {
+      state.usfmImportResult = action.payload;
     }
   }
 });
@@ -60,5 +77,25 @@ export function pushLanguage(name: string): Pusher<Language> {
     const language = await post("/api/admin/languages", {}, { name });
     if (language) dispatch(languageSlice.actions.addLanguage(language));
     return language;
+  };
+}
+
+export function pushUsfm(
+  languageId: number,
+  usfm: string
+): Pusher<{ errors: string[] }> {
+  return async (post, dispatch) => {
+    const data = await post(
+      "/api/admin/languages/:languageId/usfm",
+      { languageId },
+      { usfm }
+    );
+    if (data) {
+      dispatch(languageSlice.actions.addLanguage(data.language));
+      dispatch(languageSlice.actions.setUsfmImportResult(data));
+      dispatch(tStringSlice.actions.add(data.tStrings));
+      return data;
+    }
+    return null;
   };
 }

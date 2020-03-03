@@ -30,15 +30,15 @@ export function loadTStrings(
   };
 }
 
-export function pushTString(
-  tString: TString,
+export function pushTStrings(
+  tStrings: TString[],
   language: Language
 ): Pusher<TString[]> {
   return async (post, dispatch) => {
     const savedTStrings = await post(
       "/api/tStrings",
       {},
-      { tStrings: [tString], code: language.code }
+      { tStrings, code: language.code }
     );
     if (savedTStrings) dispatch(tStringSlice.actions.add(savedTStrings));
     return savedTStrings;

@@ -36,9 +36,13 @@ export default function languagesController(
 
   addPostHandler(app, "/api/admin/languages/:languageId/usfm", async req => {
     const languageId = parseInt(req.params.languageId);
-    const { errors } = await importUsfm(req.body.usfm, languageId, storage);
+    const { errors, tStrings } = await importUsfm(
+      req.body.usfm,
+      languageId,
+      storage
+    );
     const language = await storage.language({ languageId });
     if (!language) throw { status: 404 };
-    return { language, errors };
+    return { language, tStrings, errors };
   });
 }

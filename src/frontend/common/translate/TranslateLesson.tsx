@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Language } from "../../../core/models/Language";
+import { Language, languageCompare } from "../../../core/models/Language";
 import { useLoadMultiple } from "../api/RequestContext";
 import { loadTStrings } from "../state/tStringSlice";
 import TranslateRow from "./TranslateRow";
@@ -18,10 +18,11 @@ interface IProps {
 export default function TranslateLesson(props: IProps) {
   const lessonId = props.lessonId;
   const [srcLangId, setSrcLangId] = useState(1);
-  const { lesson, lessonTStrings } = useLessonTStrings(props.lessonId, [
-    srcLangId,
-    props.language.languageId
-  ]);
+  const { lesson, lessonTStrings } = useLessonTStrings(
+    props.lessonId,
+    [srcLangId, props.language.languageId],
+    { contentOnly: props.language.motherTongue }
+  );
 
   const loading = useLoadMultiple([
     loadLesson(lessonId),

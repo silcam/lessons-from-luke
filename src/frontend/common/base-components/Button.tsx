@@ -48,6 +48,7 @@ const LinkStyledButton = styled.button<SBProps>`
   background-color: inherit;
   border: none;
   cursor: pointer;
+  padding: 0;
 
   &:hover {
     text-decoration: underline;

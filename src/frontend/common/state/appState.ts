@@ -6,6 +6,7 @@ import loadingSlice from "../api/loadingSlice";
 import { TypedUseSelectorHook, useSelector } from "react-redux";
 import tStringSlice from "./tStringSlice";
 import lessonSlice from "./lessonSlice";
+import docStringSlice from "./docStringSlice";
 
 const reducer = combineReducers({
   languages: languageSlice.reducer,
@@ -13,7 +14,8 @@ const reducer = combineReducers({
   currentUser: currentUserSlice.reducer,
   banners: bannerSlice.reducer,
   loading: loadingSlice.reducer,
-  lessons: lessonSlice.reducer
+  lessons: lessonSlice.reducer,
+  docStrings: docStringSlice.reducer
 });
 
 const store = configureStore({ reducer });

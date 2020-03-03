@@ -82,6 +82,7 @@ const LSEdDiv = styled.div`
 
   .buttonRow button {
     display: none;
+    margin: 0 0.5em;
   }
 
   /* &:hover {

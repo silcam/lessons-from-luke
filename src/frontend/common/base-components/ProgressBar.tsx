@@ -12,7 +12,8 @@ const ProgressBarContainer = styled.div<IProps>`
   width: 100%;
 
   .bar {
-    background-color: ${Colors.warning};
+    background-color: ${props =>
+      props.percent == 100 ? Colors.success : Colors.warning};
     height: 100%;
     width: ${props => props.percent}%;
   }

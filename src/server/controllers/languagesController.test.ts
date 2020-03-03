@@ -127,7 +127,6 @@ test("POST update language mother tongue status", async () => {
 });
 
 test("POST usfm", async () => {
-  expect.assertions(3);
   const agent = await loggedInAgent();
   const response = await agent
     .post("/api/admin/languages/3/usfm")
@@ -138,6 +137,14 @@ test("POST usfm", async () => {
     progress: 23 // Was 6
   });
   expect(response.body.errors).toEqual([]);
+  expect(response.body.tStrings.length).toBe(60);
+  expect(response.body.tStrings).toContainEqual({
+    history: [],
+    languageId: 3,
+    masterId: 179,
+    text:
+      "Luka 1:13 Ndɔ ŋgaŋ ntaoŋ ghɔ chhu ŋa, “Kiʼi mfāʼo pɔgɔ gu, ma Shakaria. Minnwi yaʼo luoŋ yɔ. Ɛlishabe ŋgwɛ ghɔ shi mbhi muuŋ mimbia ɔ chhɔ̄ ligi yi ni Jouŋ."
+  });
 
   await resetStorage();
 });

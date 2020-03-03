@@ -13,7 +13,8 @@ export type LessonTStrings = LessonTString[];
 
 export default function useLessonTStrings(
   lessonId: number,
-  languageIds: number[]
+  languageIds: number[],
+  opts: { contentOnly?: boolean } = {}
 ) {
   const lesson = useAppSelector(state =>
     findBy(state.lessons, "lessonId", lessonId)
@@ -21,7 +22,9 @@ export default function useLessonTStrings(
   const allTStrings = useAppSelector(state => state.tStrings);
 
   const lessonTStrings = useMemo(() => {
-    const lessonStrings = lesson ? lessonStringsFromLesson(lesson) : [];
+    let lessonStrings = lesson ? lessonStringsFromLesson(lesson) : [];
+    if (opts.contentOnly)
+      lessonStrings = lessonStrings.filter(ls => ls.type == "content");
     const tStrings = allTStrings.filter(str =>
       languageIds.includes(str.languageId)
     );

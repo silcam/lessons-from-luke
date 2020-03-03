@@ -21,7 +21,7 @@ export default function Foldable(props: IProps) {
 
   return (
     <FoldableDiv>
-      <FlexRow>
+      <FlexRow className="foldableHeader">
         <PlusMinusButton plus={folded} setPlus={setFolded} />
         <Heading level={3} text={props.title} />
       </FlexRow>
@@ -34,4 +34,8 @@ const FoldableDiv = styled.div`
   border: 1px solid ${Colors.lightGrey};
   border-radius: 8px;
   margin: 1em;
+
+  .foldableHeader h1 {
+    margin: 0.3em;
+  }
 `;

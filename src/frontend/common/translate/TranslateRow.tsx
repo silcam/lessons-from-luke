@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { newTString } from "../../../core/models/TString";
 import { Language } from "../../../core/models/Language";
 import { usePush } from "../api/RequestContext";
-import { pushTString } from "../state/tStringSlice";
+import { pushTStrings } from "../state/tStringSlice";
 import { StatusfulTextArea } from "../base-components/TextArea";
 import Div from "../base-components/Div";
 import TStringSpan from "../base-components/TStringSpan";
@@ -35,7 +35,7 @@ export default function TranslateRow(props: IProps) {
 
     setInputState("working");
     const savedStr = await push(
-      pushTString(newTString(text, lessonString, language, srcStr), language)
+      pushTStrings([newTString(text, lessonString, language, srcStr)], language)
     );
     setInputState(savedStr ? "clean" : "dirty");
   };
