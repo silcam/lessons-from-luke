@@ -54,10 +54,12 @@
   },
   "devDependencies": {
     "concurrently": "^5.0.0",
+    "cypress": "^4.1.0",
     "electron": "^7.1.0",
     "nodemon": "^1.19.4",
     "ts-jest": "^24.1.0",
     "webpack": "^4.41.2",
+    "webpack-bundle-analyzer": "^3.6.0",
     "webpack-dev-middleware": "^3.7.2",
     "webpack-dev-server": "^3.9.0"
   }

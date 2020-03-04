@@ -49,6 +49,13 @@ function serverApp(opts: { silent?: boolean } = {}) {
     testController(app, storage as PGTestStorage);
   }
 
+  if (PRODUCTION) {
+    // Handle client-side routes
+    app.get("*", (req, res) => {
+      res.sendFile(`${process.cwd()}/dist/frontend/index.html`);
+    });
+  }
+
   return app;
 }
 

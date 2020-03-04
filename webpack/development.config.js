@@ -1,4 +1,5 @@
 const baseConfig = require("./base.config");
+const path = require("path");
 
 module.exports = {
   ...baseConfig,
@@ -11,5 +12,10 @@ module.exports = {
       "/api": "http://localhost:8081"
     },
     historyApiFallback: true
+  },
+  output: {
+    filename: "[name].bundle.js",
+    path: path.resolve(__dirname, "..", "dist", "frontend"),
+    publicPath: "/"
   }
 };

@@ -1,22 +1,11 @@
-const path = require("path");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 // const { CleanWebpackPlugin } = require("clean-webpack-plugin");
 
 module.exports = {
-  // mode: "development",
   entry: {
     desktop: "./src/frontend/desktopApp.tsx",
     web: "./src/frontend/webApp.tsx"
   },
-  // devtool: "inline-source-map",
-  // devServer: {
-  //   contentBase: false,
-  //   port: 8080,
-  //   proxy: {
-  //     "/api": "http://localhost:8081"
-  //   },
-  //   historyApiFallback: true
-  // },
   module: {
     rules: [
       {
@@ -44,10 +33,5 @@ module.exports = {
   ],
   resolve: {
     extensions: [".tsx", ".ts", ".js"]
-  },
-  output: {
-    filename: "[name].bundle.js",
-    path: path.resolve(__dirname, "..", "dist", "frontend"),
-    publicPath: "/"
   }
 };
