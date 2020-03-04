@@ -26,7 +26,8 @@ test("Get languages", async () => {
     name: "English",
     languageId: 1,
     code: "ABC",
-    motherTongue: false
+    motherTongue: false,
+    defaultSrcLang: 1
   });
   expect(english.progress[0]).toEqual({
     lessonId: 11,
@@ -59,11 +60,15 @@ test("Get language by missing", async () => {
 });
 
 test("Create Language", async () => {
-  const german = await storage.createLanguage({ name: "German" });
+  const german = await storage.createLanguage({
+    name: "German",
+    defaultSrcLang: 2
+  });
   expect(german).toMatchObject({
     motherTongue: true,
     name: "German",
-    progress: []
+    progress: [],
+    defaultSrcLang: 2
   });
   expect(german.languageId).toBeGreaterThan(3);
   expect(german.code.length).toBeGreaterThan(3);
@@ -72,11 +77,15 @@ test("Create Language", async () => {
 });
 
 test("Update Language", async () => {
-  const batanga = await storage.updateLanguage(3, { motherTongue: false });
+  const batanga = await storage.updateLanguage(3, {
+    motherTongue: false,
+    defaultSrcLang: 2
+  });
   expect(batanga).toMatchObject({
     languageId: 3,
     name: "Batanga",
-    motherTongue: false
+    motherTongue: false,
+    defaultSrcLang: 2
   });
   expect(batanga.progress[0]).toEqual({
     lessonId: 11,

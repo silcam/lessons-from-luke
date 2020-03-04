@@ -26,7 +26,7 @@ export interface APIPost {
   "/api/admin/languages": [{}, NewLanguage, Language];
   "/api/admin/languages/:languageId": [
     { languageId: number },
-    { motherTongue: boolean },
+    { motherTongue?: boolean; defaultSrcLang?: number },
     Language
   ];
   "/api/admin/languages/:languageId/usfm": [

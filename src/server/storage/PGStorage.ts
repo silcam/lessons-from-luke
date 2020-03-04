@@ -325,7 +325,8 @@ function transformCol(col: string) {
     "lessonStringId",
     "masterId",
     "lessonVersion",
-    "sourceLanguageId"
+    "sourceLanguageId",
+    "defaultSrcLang"
   ];
   return cols.find(colName => colName.toLocaleLowerCase() == col) || col;
 }

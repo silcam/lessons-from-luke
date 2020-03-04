@@ -12,6 +12,8 @@ import useTranslation from "../../common/util/useTranslation";
 import LinkButtonRow from "../../common/base-components/LinkButtonRow";
 import UploadUsfmForm from "./UploadUsfmForm";
 import { UploadDocForTranslationForm } from "../lessons/UploadLessonForm";
+import ToggleMotherTongue from "./ToggleMotherTongue";
+import Div from "../../common/base-components/Div";
 
 interface IProps {
   language: Language;
@@ -35,6 +37,9 @@ export default function LanguageView(props: IProps) {
           [t("Upload_document"), () => setUploadDocForm(true)]
         ]}
       />
+      <Div padVert>
+        <ToggleMotherTongue language={props.language} />
+      </Div>
       {uploadUsfmForm ? (
         <UploadUsfmForm
           language={props.language}

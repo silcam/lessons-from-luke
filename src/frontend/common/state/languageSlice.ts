@@ -2,12 +2,14 @@ import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import {
   MaybePublicLanguage,
   Language,
-  languageCompare
+  languageCompare,
+  NewLanguage
 } from "../../../core/models/Language";
 import { GetRequest, Pusher } from "../api/RequestContext";
 import { AppDispatch } from "./appState";
 import tStringSlice from "./tStringSlice";
 import { TString } from "../../../core/models/TString";
+import { modelListMerge } from "../../../core/util/arrayUtils";
 
 interface State {
   languages: MaybePublicLanguage[];
@@ -31,8 +33,12 @@ const languageSlice = createSlice({
       state.adminLanguages = action.payload.sort(languageCompare);
     },
     addLanguage: (state, action: PayloadAction<Language>) => {
-      state.adminLanguages.push(action.payload);
-      state.adminLanguages.sort(languageCompare);
+      state.adminLanguages = modelListMerge(
+        state.adminLanguages,
+        [action.payload],
+        (a, b) => a.languageId == b.languageId,
+        languageCompare
+      );
     },
     setTranslating: (state, action: PayloadAction<Language>) => {
       state.translating = action.payload;
@@ -72,11 +78,24 @@ export function loadTranslatingLanguage(code: string) {
   };
 }
 
-export function pushLanguage(name: string): Pusher<Language> {
+export function pushLanguage(newLanguage: NewLanguage): Pusher<Language> {
   return async (post, dispatch) => {
-    const language = await post("/api/admin/languages", {}, { name });
+    const language = await post("/api/admin/languages", {}, newLanguage);
     if (language) dispatch(languageSlice.actions.addLanguage(language));
     return language;
+  };
+}
+
+export function pushLanguageUpdate(language: Language): Pusher<Language> {
+  return async (post, dispatch) => {
+    const updatedLanguage = await post(
+      "/api/admin/languages/:languageId",
+      { languageId: language.languageId },
+      { motherTongue: language.motherTongue }
+    );
+    if (updatedLanguage)
+      dispatch(languageSlice.actions.addLanguage(updatedLanguage));
+    return updatedLanguage;
   };
 }
 

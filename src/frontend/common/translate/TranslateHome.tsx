@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useAppSelector } from "../state/appState";
 import { useLoadMultiple } from "../api/RequestContext";
-import { loadTranslatingLanguage } from "../state/languageSlice";
+import { loadTranslatingLanguage, loadLanguages } from "../state/languageSlice";
 import LoadingSnake from "../base-components/LoadingSnake";
 import { Language, lessonProgress } from "../../../core/models/Language";
 import { loadLessons } from "../state/lessonSlice";
@@ -15,10 +15,10 @@ import List from "../base-components/List";
 import Button from "../base-components/Button";
 import TranslateLesson from "./TranslateLesson";
 import Scroll from "../base-components/Scroll";
-import LoadingSwirl from "../base-components/LoadingSwirl";
 import Colors from "../util/Colors";
 import ProgressBar from "../base-components/ProgressBar";
 import styled from "styled-components";
+import Heading from "../base-components/Heading";
 
 interface IProps {
   code: string;
@@ -29,8 +29,11 @@ export default function TranslateHome(props: IProps) {
   const lessons = useAppSelector(state => state.lessons);
 
   const loading =
-    useLoadMultiple([loadTranslatingLanguage(props.code), loadLessons()]) ||
-    lessons.length == 0;
+    useLoadMultiple([
+      loadTranslatingLanguage(props.code),
+      loadLessons(),
+      loadLanguages(false)
+    ]) || lessons.length == 0;
 
   return (
     <FlexCol flexRoot>
@@ -61,7 +64,9 @@ function TranslateLanguage(props: { language: Language }) {
   const t = useTranslation();
 
   const lessons = useAppSelector(state => state.lessons);
-  const [selectedLessonId, setSelectedLessonId] = useState(0);
+  const [selectedLessonId, setSelectedLessonId] = useState(
+    props.language.progress.find(p => p.progress < 100)?.lessonId || 0
+  );
 
   return (
     <FlexRow>
@@ -96,9 +101,9 @@ function TranslateLanguage(props: { language: Language }) {
               lessonId={selectedLessonId}
             />
           ) : (
-            <FlexRow>
-              <LoadingSwirl />
-            </FlexRow>
+            <MiddleOfPage>
+              <Heading level={2} text={t("Pick_a_lesson")} />
+            </MiddleOfPage>
           )}
         </Scroll>
       </FlexCol>

@@ -10,10 +10,11 @@ export interface Language {
   code: string;
   motherTongue: boolean;
   progress: LessonProgress[];
+  defaultSrcLang: number;
 }
 
 export type PublicLanguage = Omit<Language, "code">;
-export type NewLanguage = { name: string };
+export type NewLanguage = { name: string; defaultSrcLang: number };
 export type MaybePublicLanguage = Language | PublicLanguage;
 
 export type WithCode<T> = T & { code: string };
@@ -28,7 +29,10 @@ export function isLanguage(language: any): language is Language {
 }
 
 export function isNewLanguage(language: any): language is NewLanguage {
-  const fields: Fields<Language> = [["name", "string"]];
+  const fields: Fields<Language> = [
+    ["name", "string"],
+    ["defaultSrcLang", "number"]
+  ];
   return validateFields(language, fields);
 }
 

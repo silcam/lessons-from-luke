@@ -51,7 +51,10 @@ const en = {
   Split: "Split",
   Split_instructions:
     "Place the cursor where you want the split and then press the Split button.",
-  Upload: "Upload"
+  Upload: "Upload",
+  Mother_tongue: "Mother Tongue",
+  Pick_a_lesson: "Pick a lesson",
+  Source_language: "Source Language"
 };
 
 export type I18nStrings = typeof en;

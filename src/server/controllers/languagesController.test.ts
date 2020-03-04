@@ -91,10 +91,10 @@ test("POST /api/languages", async () => {
   const agent = await loggedInAgent();
   const response = await agent
     .post("/api/admin/languages")
-    .send({ name: "Klingon" });
+    .send({ name: "Klingon", defaultSrcLang: 2 });
   expect(response.status).toBe(200);
   expect(isLanguage(response.body)).toBe(true);
-  expect(response.body.name).toEqual("Klingon");
+  expect(response.body).toMatchObject({ name: "Klingon", defaultSrcLang: 2 });
 });
 
 test("POST /api/languages requires login", async () => {
@@ -124,6 +124,18 @@ test("POST update language mother tongue status", async () => {
   expect(batanga.progress[0].progress).toBe(5); // Was 6
 
   await resetStorage();
+});
+
+test("POST update language defaultSrcLang", async () => {
+  const agent = await loggedInAgent();
+  const response = await agent
+    .post("/api/admin/languages/3")
+    .send({ defaultSrcLang: 2 });
+  expect(response.status).toBe(200);
+  expect(response.body).toMatchObject({
+    name: "Batanga",
+    defaultSrcLang: 2
+  });
 });
 
 test("POST usfm", async () => {

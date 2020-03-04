@@ -20,7 +20,8 @@ const fr: I18nStrings = {
   UnknownError: "Erreur inattendu",
   writeLockInvalid:
     "Le projet de traduction n'est plus verrouillé pour cet ordinateur. Veuillez contacter l'administrateur si vous voulez continuer la traduction.",
-  serverError: "Erreur de serveur : %{status}"
+  serverError: "Erreur de serveur : %{status}",
+  Pick_a_lesson: "Choisissez une leçon"
 };
 
 export default fr;

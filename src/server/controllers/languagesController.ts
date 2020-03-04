@@ -30,7 +30,7 @@ export default function languagesController(
   });
 
   addPostHandler(app, "/api/admin/languages/:languageId", async req => {
-    const langUpdate = objFilter(req.body, ["motherTongue"]);
+    const langUpdate = objFilter(req.body, ["motherTongue", "defaultSrcLang"]);
     return storage.updateLanguage(parseInt(req.params.languageId), langUpdate);
   });
 
