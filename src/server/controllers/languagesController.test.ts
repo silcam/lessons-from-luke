@@ -12,7 +12,7 @@ import {
 import fs from "fs";
 import { findByStrict } from "../../core/util/arrayUtils";
 
-const usfm = fs.readFileSync("test/43LUKBMO.SFM").toString();
+const usfm = fs.readFileSync("cypress/fixtures/43LUKBMO.SFM").toString();
 
 afterAll(closeStorage);
 
@@ -169,7 +169,7 @@ test("POST usfm with error expected", async () => {
     .post("/api/admin/languages/3/usfm")
     .send({ usfm: tweakedUsfm });
   expect(response.status).toBe(200);
-  expect(response.body.errors[0]).toEqual(
+  expect(response.body.errors).toContain(
     "USFM Parse Error - Verse 37 not found in chapter 1."
   );
 

@@ -19,6 +19,7 @@ import Colors from "../util/Colors";
 import ProgressBar from "../base-components/ProgressBar";
 import styled from "styled-components";
 import Heading from "../base-components/Heading";
+import { findBy } from "../../../core/util/arrayUtils";
 
 interface IProps {
   code: string;
@@ -65,7 +66,11 @@ function TranslateLanguage(props: { language: Language }) {
 
   const lessons = useAppSelector(state => state.lessons);
   const [selectedLessonId, setSelectedLessonId] = useState(
-    props.language.progress.find(p => p.progress < 100)?.lessonId || 0
+    lessons.find(
+      lsn =>
+        (findBy(props.language.progress, "lessonId", lsn.lessonId)?.progress ||
+          101) < 100
+    )?.lessonId || 0
   );
 
   return (

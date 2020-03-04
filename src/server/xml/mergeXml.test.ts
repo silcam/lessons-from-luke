@@ -3,7 +3,7 @@ import parse from "./parse";
 import mergeXml from "./mergeXml";
 import { unlinkSafe } from "../../core/util/fsUtils";
 
-const odtPath = process.cwd() + "/test/docs/English_Luke-Q1-L06.odt";
+const odtPath = process.cwd() + "/cypress/fixtures/English_Luke-Q1-L06.odt";
 const newOdtPath = odtPath.replace(".odt", "v02.odt");
 let xmls: ReturnType<typeof docStorage.docXml>;
 

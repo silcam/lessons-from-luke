@@ -19,7 +19,7 @@ test("Upload new English Lesson", async () => {
     .field("book", "Luke")
     .field("series", 1)
     .field("lesson", 6)
-    .attach("document", "test/docs/English_Luke-Q1-L06.odt");
+    .attach("document", "cypress/fixtures/English_Luke-Q1-L06.odt");
   expect(response.status).toBe(200);
   expect(response.body.lesson).toMatchObject({
     version: 1,
@@ -60,7 +60,7 @@ test("Upload French version", async () => {
     .post("/api/admin/documents")
     .field("languageId", 2)
     .field("lessonId", 11)
-    .attach("document", "test/docs/Français_Luke-T1-L01.odt");
+    .attach("document", "cypress/fixtures/Français_Luke-T1-L01.odt");
   expect(response.status).toBe(200);
   expect(response.body.docStrings[1]).toEqual({
     motherTongue: true,

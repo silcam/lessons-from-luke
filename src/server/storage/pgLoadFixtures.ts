@@ -10,12 +10,15 @@ export default async function pgLoadFixtures(sql: SqlFunc) {
   await sql.begin(async sql => {
     await sql`DELETE FROM languages`;
     await sql`INSERT INTO languages ${sql(fixtures.languages.map(sqlizeLang))}`;
+    await sql`ALTER SEQUENCE languages_languageid_seq RESTART 4`;
 
     await sql`DELETE FROM lessons`;
     await sql`INSERT INTO lessons ${sql(fixtures.lessons)}`;
+    await sql`ALTER SEQUENCE lessons_lessonid_seq RESTART 16`;
 
     await sql`DELETE FROM lessonStrings`;
     await sql`INSERT INTO lessonStrings ${sql(fixtures.lessonStrings)}`;
+    await sql`ALTER SEQUENCE lessonstrings_lessonstringid_seq RESTART 1404`;
 
     await sql`DELETE FROM oldLessonStrings`;
     await sql`INSERT INTO oldLessonStrings ${sql(fixtures.oldLessonStrings)}`;
@@ -24,6 +27,7 @@ export default async function pgLoadFixtures(sql: SqlFunc) {
     await sql`INSERT INTO tStrings ${sql(
       fixtures.tStrings.map(sqlizeTString)
     )}`;
+    await sql`ALTER SEQUENCE tstrings_masterid_seq RESTART 654`;
   });
 
   // console.log("PG Fixtures Loaded");

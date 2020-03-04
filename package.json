@@ -55,6 +55,7 @@
   "devDependencies": {
     "concurrently": "^5.0.0",
     "cypress": "^4.1.0",
+    "cypress-file-upload": "^3.5.3",
     "electron": "^7.1.0",
     "nodemon": "^1.19.4",
     "ts-jest": "^24.1.0",

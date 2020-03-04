@@ -3,7 +3,7 @@ import translateFromUsfm from "./translateFromUsfm";
 import { TString } from "../../core/models/TString";
 import { ENGLISH_ID } from "../../core/models/Language";
 
-const sampleUSFM = fs.readFileSync("test/43LUKBMO.SFM").toString();
+const sampleUSFM = fs.readFileSync("cypress/fixtures/43LUKBMO.SFM").toString();
 
 function englishTStrings(texts: string[]): TString[] {
   return texts.map((text, index) => ({

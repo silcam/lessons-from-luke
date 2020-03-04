@@ -1,7 +1,7 @@
 import docStorage from "../storage/docStorage";
 import parse from "./parse";
 
-const odtPath = process.cwd() + "/test/docs/English_Luke-Q1-L06.odt";
+const odtPath = process.cwd() + "/cypress/fixtures/English_Luke-Q1-L06.odt";
 let xmls: ReturnType<typeof docStorage.docXml>;
 
 beforeAll(() => {

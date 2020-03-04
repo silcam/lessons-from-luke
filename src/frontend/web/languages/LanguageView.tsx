@@ -30,16 +30,7 @@ export default function LanguageView(props: IProps) {
     <div>
       <Button link text={`< ${t("Languages")}`} onClick={props.done} />
       <Heading text={props.language.name} level={3} />
-      <LinkButtonRow
-        buttons={[
-          [t("Translate"), `/translate/${props.language.code}`],
-          [t("Upload_usfm"), () => setUploadUsfmForm(true)],
-          [t("Upload_document"), () => setUploadDocForm(true)]
-        ]}
-      />
-      <Div padVert>
-        <ToggleMotherTongue language={props.language} />
-      </Div>
+
       {uploadUsfmForm ? (
         <UploadUsfmForm
           language={props.language}
@@ -51,17 +42,29 @@ export default function LanguageView(props: IProps) {
           done={() => setUploadDocForm(false)}
         />
       ) : (
-        <List
-          items={props.language.progress.filter(prg => prg.progress > 0)}
-          renderItem={progress => (
-            <FlexRow>
-              <div>
-                {lessonName(findBy(lessons, "lessonId", progress.lessonId))}
-              </div>
-              <ProgressBar percent={progress.progress} />
-            </FlexRow>
-          )}
-        />
+        <React.Fragment>
+          <LinkButtonRow
+            buttons={[
+              [t("Translate"), `/translate/${props.language.code}`],
+              [t("Upload_usfm"), () => setUploadUsfmForm(true)],
+              [t("Upload_document"), () => setUploadDocForm(true)]
+            ]}
+          />
+          <Div padVert>
+            <ToggleMotherTongue language={props.language} />
+          </Div>
+          <List
+            items={props.language.progress.filter(prg => prg.progress > 0)}
+            renderItem={progress => (
+              <FlexRow>
+                <div>
+                  {lessonName(findBy(lessons, "lessonId", progress.lessonId))}
+                </div>
+                <ProgressBar percent={progress.progress} />
+              </FlexRow>
+            )}
+          />
+        </React.Fragment>
       )}
     </div>
   );
