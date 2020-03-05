@@ -18,13 +18,14 @@ export default function Banners() {
 
   return (
     <div>
-      {banners.map(banner => {
+      {banners.map((banner, index) => {
         switch (banner.type) {
           case "Error":
             return (
               <AppBannerError
                 error={banner.error}
                 close={() => dispatch(bannerSlice.actions.reset())}
+                key={index}
               />
             );
         }

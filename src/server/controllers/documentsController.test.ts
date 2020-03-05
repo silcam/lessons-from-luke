@@ -1,4 +1,9 @@
-import { loggedInAgent, resetStorage, closeStorage } from "../testHelper";
+import {
+  loggedInAgent,
+  resetStorage,
+  closeStorage,
+  plainAgent
+} from "../testHelper";
 import { ENGLISH_ID } from "../../core/models/Language";
 import { last, findBy } from "../../core/util/arrayUtils";
 import { LessonString } from "../../core/models/LessonString";
@@ -84,4 +89,18 @@ test("Upload French version", async () => {
   });
 
   await resetStorage();
+});
+
+test("Download English Lesson", async () => {
+  const agent = plainAgent();
+  const response = await agent.get("/api/languages/1/lessons/12/document");
+  expect(response.status).toBe(200);
+  expect(response.type).toBe("application/vnd.oasis.opendocument.text");
+});
+
+test("Download Batanga Lesson", async () => {
+  const agent = plainAgent();
+  const response = await agent.get("/api/languages/3/lessons/11/document");
+  expect(response.status).toBe(200);
+  expect(response.type).toBe("application/vnd.oasis.opendocument.text");
 });

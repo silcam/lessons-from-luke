@@ -59,7 +59,8 @@ const en = {
   No_connection: "No Connection",
   Unknown_error: "Unknown Error",
   Unsaved_changes: "Unsaved Changes",
-  Changes_saved: "Changes Saved"
+  Changes_saved: "Changes Saved",
+  Download: "Download"
 };
 
 export type I18nStrings = typeof en;

@@ -31,6 +31,21 @@ async function saveTmp<T>(
   return val;
 }
 
+function tmpFilePath(baseName: string) {
+  cleanTmpDir();
+  const timestamp = new Date().valueOf().toString();
+  const filepath = `${docsTmpPath()}/${timestamp}_${baseName}`;
+  return filepath;
+}
+
+function cleanTmpDir() {
+  const old = new Date().valueOf() - 1000 * 60 * 60 * 24;
+  const filenames = fs.readdirSync(docsTmpPath());
+  filenames.forEach(filename => {
+    if (parseInt(filename) < old) unlinkSafe(`${docsTmpPath()}/${filename}`);
+  });
+}
+
 // function docXmlForLesson(lesson: BaseLesson) {
 //   return docXml(docFilepath(lesson));
 // }
@@ -79,6 +94,7 @@ function docsDirPath() {
 export default {
   saveDoc,
   saveTmp,
+  tmpFilePath,
   docXml,
   docFilepath
 };

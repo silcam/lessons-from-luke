@@ -49,31 +49,40 @@ export type Loader<T> = (
   get: GetRequest
 ) => (dispatch: AppDispatch) => Promise<T>;
 
-export function useLoad<T>(loader: Loader<T>, deps: any[] = []) {
+export function useJustLoad(): [(ldr: Loader<any>) => void, boolean] {
   const { get } = useContext(RequestContext);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const dispatch: AppDispatch = useDispatch();
   const { onConnectionRestored } = useNetworkConnectionRestored();
 
-  const load = () => {
+  const load = (loader: Loader<any>) => {
+    setLoading(true);
     dispatch(loadingSlice.actions.addLoading());
     dispatch(loader(get))
       .catch(anyErr => {
         const err = asAppError(anyErr);
         dispatchError(get, dispatch, err);
-        if (err.type == "No Connection") onConnectionRestored(load);
+        if (err.type == "No Connection")
+          onConnectionRestored(() => load(loader));
       })
       .finally(() => {
         dispatch(loadingSlice.actions.subtractLoading());
         setLoading(false);
       });
   };
+  return [load, loading];
+}
+
+export function useLoad<T>(loader: Loader<T>, deps: any[] = []) {
+  const [load, loading] = useJustLoad();
+  const [notYetStarted, setNotYetStarted] = useState(true);
 
   useEffect(() => {
-    load();
+    load(loader);
+    setNotYetStarted(false);
   }, deps);
 
-  return loading;
+  return loading || notYetStarted;
 }
 
 export function useLoadMultiple(loaders: Loader<any>[]) {

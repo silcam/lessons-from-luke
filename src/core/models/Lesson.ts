@@ -1,5 +1,6 @@
 import { TFunc } from "../i18n/I18n";
 import { LessonString } from "./LessonString";
+import { zeroPad } from "../util/numberUtils";
 
 export const AllBooks = <const>["Luke", "Acts"];
 export type Book = typeof AllBooks[number];
@@ -23,6 +24,13 @@ export function lessonName(
 ) {
   if (!lesson) return "";
   return `${t(lesson.book)} ${lesson.series}-${lesson.lesson}`;
+}
+
+export function documentName(languageName: string, lesson: BaseLesson) {
+  return `${languageName}_${lesson.book}-Q${lesson.series}-L${zeroPad(
+    lesson.lesson,
+    2
+  )}.odt`;
 }
 
 export function lessonStringsFromLesson(lesson: BaseLesson | Lesson) {

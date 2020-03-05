@@ -1,8 +1,6 @@
 import React, { useState } from "react";
 import { Language } from "../../../core/models/Language";
 import Heading from "../../common/base-components/Heading";
-import List from "../../common/base-components/List";
-import { FlexRow } from "../../common/base-components/Flex";
 import { useAppSelector } from "../../common/state/appState";
 import { lessonName } from "../../../core/models/Lesson";
 import { findBy } from "../../../core/util/arrayUtils";
@@ -14,6 +12,8 @@ import UploadUsfmForm from "./UploadUsfmForm";
 import { UploadDocForTranslationForm } from "../lessons/UploadLessonForm";
 import ToggleMotherTongue from "./ToggleMotherTongue";
 import Div from "../../common/base-components/Div";
+import Table from "../../common/base-components/Table";
+import useGetDocument, { GetDocumentButton } from "../documents/useGetDocument";
 
 interface IProps {
   language: Language;
@@ -53,19 +53,30 @@ export default function LanguageView(props: IProps) {
           <Div padVert>
             <ToggleMotherTongue language={props.language} />
           </Div>
-          <List
-            items={props.language.progress.filter(prg => prg.progress > 0)}
-            noBorders
-            noXPad
-            renderItem={progress => (
-              <FlexRow alignCenter>
-                <Div marginRight>
-                  {lessonName(findBy(lessons, "lessonId", progress.lessonId))}
-                </Div>
-                <ProgressBar percent={progress.progress} fixed />
-              </FlexRow>
-            )}
-          />
+          <Table>
+            {lessons.map(lesson => {
+              const progress = findBy(
+                props.language.progress,
+                "lessonId",
+                lesson.lessonId
+              )?.progress;
+              if (!progress) return null;
+              return (
+                <tr key={lesson.lessonId}>
+                  <td>{lessonName(lesson, t)}</td>
+                  <td>
+                    <ProgressBar percent={progress} fixed />
+                  </td>
+                  <td>
+                    <GetDocumentButton
+                      language={props.language}
+                      lesson={lesson}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </Table>
         </React.Fragment>
       )}
     </div>

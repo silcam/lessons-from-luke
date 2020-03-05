@@ -122,4 +122,15 @@ describe("Admin Languages", () => {
       "Prière : Parler avec Dieu. Où peut-on prier? Quelles sont les choses qu'on peut faire tout en priant? Devons-nous utiliser un langage ou une voix spéciale quand nous prions?"
     );
   });
+
+  it("Downloads Documents", () => {
+    cy.visit("/");
+    cy.contains("button", "Batanga").click();
+    cy.contains("tr", "Luke 1-1").within(tr => {
+      cy.contains("button", "Download").click();
+      cy.contains("button", "Download").should("not.exist");
+      cy.contains("td", "Download").should("exist");
+      cy.contains("button", "Download").should("exist");
+    });
+  });
 });

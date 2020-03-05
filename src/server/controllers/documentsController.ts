@@ -12,6 +12,10 @@ import {
   DocUploadMeta,
   isEnglishUpload
 } from "../../core/models/DocUploadMeta";
+import docStorage from "../storage/docStorage";
+import { lessonName } from "../../core/models/Lesson";
+import mergeXml from "../xml/mergeXml";
+import { makeDocStrings } from "../../core/models/DocString";
 
 const formDataParser = bodyParser.urlencoded({ extended: false });
 
@@ -19,6 +23,45 @@ export default function documentsController(
   app: Express,
   storage: Persistence
 ) {
+  app.get(
+    "/api/languages/:languageId/lessons/:lessonId/document",
+    async (req, res) => {
+      handleErrors(res, async () => {
+        const language = await storage.language({
+          languageId: parseInt(req.params.languageId)
+        });
+        const lesson = await storage.lesson(parseInt(req.params.lessonId));
+        if (!lesson || !language) throw { status: 404 };
+
+        const engFilePath = docStorage.docFilepath(lesson);
+        if (language.languageId == ENGLISH_ID) {
+          res.sendFile(engFilePath);
+        } else {
+          const mtTStrings = await storage.tStrings({
+            languageId: language.languageId,
+            lessonId: lesson.lessonId
+          });
+          const otherTStrings = language.motherTongue
+            ? await storage.tStrings({
+                languageId: language.defaultSrcLang,
+                lessonId: lesson.lessonId
+              })
+            : mtTStrings;
+          const docStrings = makeDocStrings(
+            lesson.lessonStrings,
+            mtTStrings,
+            otherTStrings
+          );
+          const filepath = docStorage.tmpFilePath(
+            `${language.name}_${lessonName(lesson)}.odt`
+          );
+          mergeXml(engFilePath, filepath, docStrings);
+          res.sendFile(filepath);
+        }
+      });
+    }
+  );
+
   app.post(
     "/api/admin/documents",
     formDataParser,
