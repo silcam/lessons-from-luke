@@ -7,24 +7,20 @@ type AppAction = (dispatch: AppDispatch) => void;
 
 interface NetworkState {
   connected: boolean;
-  queuedActions: AppAction[];
 }
 
 const networkSlice = createSlice({
   name: "network",
   initialState: {
-    connected: true,
-    queuedActions: []
+    connected: true
   } as NetworkState,
   reducers: {},
   extraReducers: {
-    NetworkConnectionLost: (state, action: NetworkConnectionLostAction) => {
+    NetworkConnectionLost: state => {
       state.connected = false;
-      if (action.payload) state.queuedActions.push(action.payload);
     },
     NetworkConnectionRestored: state => {
       state.connected = true;
-      state.queuedActions = [];
     }
   }
 });
@@ -32,18 +28,13 @@ export default networkSlice;
 
 type NetworkConnectionLostAction = {
   type: "NetworkConnectionLost";
-  payload: AppAction | undefined;
 };
-export function networkConnectionLostAction(
-  get: GetRequest,
-  loader?: AppAction
-) {
+export function networkConnectionLostAction(get: GetRequest) {
   return async (dispatch: AppDispatch, getState: () => AppState) => {
     const wasConnected = getState().network.connected;
 
     const action: NetworkConnectionLostAction = {
-      type: "NetworkConnectionLost",
-      payload: loader
+      type: "NetworkConnectionLost"
     };
     dispatch(action);
 
@@ -69,9 +60,7 @@ async function tryToReconnect(get: GetRequest, onReconnect: () => void) {
 
 function networkConnectionRestoredAction() {
   return async (dispatch: AppDispatch, getState: () => AppState) => {
-    const queuedActions = getState().network.queuedActions;
     dispatch({ type: "NetworkConnectionRestored" });
-    queuedActions.forEach(action => dispatch(action));
   };
 }
 

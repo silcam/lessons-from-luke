@@ -10,7 +10,10 @@ import { useDispatch } from "react-redux";
 import { AppError, asAppError, AppErrorHandler } from "../AppError/AppError";
 import bannerSlice from "../banners/bannerSlice";
 import loadingSlice from "./loadingSlice";
-import { networkConnectionLostAction } from "../state/networkSlice";
+import {
+  networkConnectionLostAction,
+  useNetworkConnectionRestored
+} from "../state/networkSlice";
 
 export type GetRequest = <T extends GetRoute>(
   route: T,
@@ -36,11 +39,9 @@ export default RequestContext;
 function dispatchError(
   get: GetRequest,
   dispatch: AppDispatch,
-  error: AppError,
-  action?: (dispatch: AppDispatch) => void
+  error: AppError
 ) {
-  if (error.type == "No Connection")
-    dispatch(networkConnectionLostAction(get, action));
+  if (error.type == "No Connection") dispatch(networkConnectionLostAction(get));
   else dispatch(bannerSlice.actions.add({ type: "Error", error }));
 }
 
@@ -52,18 +53,24 @@ export function useLoad<T>(loader: Loader<T>, deps: any[] = []) {
   const { get } = useContext(RequestContext);
   const [loading, setLoading] = useState(true);
   const dispatch: AppDispatch = useDispatch();
+  const { onConnectionRestored } = useNetworkConnectionRestored();
 
-  useEffect(() => {
+  const load = () => {
     dispatch(loadingSlice.actions.addLoading());
     dispatch(loader(get))
       .catch(anyErr => {
         const err = asAppError(anyErr);
-        dispatchError(get, dispatch, err, loader(get));
+        dispatchError(get, dispatch, err);
+        if (err.type == "No Connection") onConnectionRestored(load);
       })
       .finally(() => {
         dispatch(loadingSlice.actions.subtractLoading());
         setLoading(false);
       });
+  };
+
+  useEffect(() => {
+    load();
   }, deps);
 
   return loading;
@@ -83,7 +90,7 @@ interface PushOpts {
   noConnectionRetry?: boolean;
 }
 
-export function usePush(opts: PushOpts = {}) {
+export function usePush() {
   const { get, post } = useContext(RequestContext);
   const dispatch: AppDispatch = useDispatch();
   const push = <T>(
@@ -95,11 +102,7 @@ export function usePush(opts: PushOpts = {}) {
       .catch(anyErr => {
         const err = asAppError(anyErr);
         if (!errorHandler(err)) {
-          opts.noConnectionRetry
-            ? dispatchError(get, dispatch, err, dispatch =>
-                pusher(post, dispatch)
-              )
-            : dispatchError(get, dispatch, err);
+          dispatchError(get, dispatch, err);
         }
       })
       .finally(() => {
