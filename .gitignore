@@ -6,3 +6,4 @@ node_modules
 /.migrate
 /secrets.json
 /log/capistrano.log
+/test/docs/serverDocs
