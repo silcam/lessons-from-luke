@@ -17,6 +17,9 @@ const currentUserSlice = createSlice({
     setLocale: (state, action: PayloadAction<Locale>) => {
       state.locale = action.payload;
     },
+    setLocaleIfNoUser: (state, action: PayloadAction<Locale>) => {
+      if (!state.user) state.locale = action.payload;
+    },
     setUser: (state, action: PayloadAction<User | null>) => {
       state.user = action.payload;
       state.loaded = true;

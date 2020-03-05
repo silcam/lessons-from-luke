@@ -1,9 +1,10 @@
 import React from "react";
-import styled from "styled-components";
+import styled, { CSSProperties } from "styled-components";
 
 interface HProps {
   level: number;
   text: string;
+  style?: CSSProperties;
 }
 
 const StyledHeading = styled.h1<HProps>`

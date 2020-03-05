@@ -1,16 +1,8 @@
-export type ErrorBanner = {
-  type: "Error";
-  message: string;
-  closeable: boolean;
-  status: string;
-};
-export type AppBanner = ErrorBanner | { type: "Hello World" };
+import { AppError } from "../AppError/AppError";
 
-export function unknownErrorBanner(): AppBanner {
-  return {
-    type: "Error",
-    message: "UnknownError",
-    closeable: true,
-    status: ""
-  };
-}
+export type AppBanner =
+  | {
+      type: "Error";
+      error: AppError;
+    }
+  | { type: "Success"; message: string; networkConnectionRestored?: boolean };

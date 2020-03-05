@@ -8,9 +8,9 @@ import React, { useContext, useEffect, useState } from "react";
 import { AppDispatch } from "../state/appState";
 import { useDispatch } from "react-redux";
 import { AppError, asAppError, AppErrorHandler } from "../AppError/AppError";
-import { AppBanner, unknownErrorBanner } from "../banners/Banner";
 import bannerSlice from "../banners/bannerSlice";
 import loadingSlice from "./loadingSlice";
+import { networkConnectionLostAction } from "../state/networkSlice";
 
 export type GetRequest = <T extends GetRoute>(
   route: T,
@@ -33,32 +33,21 @@ const RequestContext = React.createContext<{
 
 export default RequestContext;
 
-const noConnectionBanner: AppBanner = {
-  type: "Error",
-  message: "NoConnection",
-  closeable: false,
-  status: ""
-};
-const serverErrorBanner = (status: number): AppBanner => ({
-  type: "Error",
-  message: "serverError",
-  closeable: true,
-  status: status.toString()
-});
-
-function networkErrorBannerAction(err: AppError) {
-  return bannerSlice.actions.add(
-    err.type == "No Connection"
-      ? noConnectionBanner
-      : err.type == "HTTP"
-      ? serverErrorBanner(err.status)
-      : unknownErrorBanner()
-  );
+function dispatchError(
+  get: GetRequest,
+  dispatch: AppDispatch,
+  error: AppError,
+  action?: (dispatch: AppDispatch) => void
+) {
+  if (error.type == "No Connection")
+    dispatch(networkConnectionLostAction(get, action));
+  else dispatch(bannerSlice.actions.add({ type: "Error", error }));
 }
 
 export type Loader<T> = (
   get: GetRequest
 ) => (dispatch: AppDispatch) => Promise<T>;
+
 export function useLoad<T>(loader: Loader<T>, deps: any[] = []) {
   const { get } = useContext(RequestContext);
   const [loading, setLoading] = useState(true);
@@ -69,7 +58,7 @@ export function useLoad<T>(loader: Loader<T>, deps: any[] = []) {
     dispatch(loader(get))
       .catch(anyErr => {
         const err = asAppError(anyErr);
-        dispatch(networkErrorBannerAction(err));
+        dispatchError(get, dispatch, err, loader(get));
       })
       .finally(() => {
         dispatch(loadingSlice.actions.subtractLoading());
@@ -89,8 +78,13 @@ export type Pusher<T> = (
   post: PostRequest,
   dispatch: AppDispatch
 ) => Promise<T | null>;
-export function usePush() {
-  const { post } = useContext(RequestContext);
+
+interface PushOpts {
+  noConnectionRetry?: boolean;
+}
+
+export function usePush(opts: PushOpts = {}) {
+  const { get, post } = useContext(RequestContext);
   const dispatch: AppDispatch = useDispatch();
   const push = <T>(
     pusher: Pusher<T>,
@@ -101,7 +95,11 @@ export function usePush() {
       .catch(anyErr => {
         const err = asAppError(anyErr);
         if (!errorHandler(err)) {
-          dispatch(networkErrorBannerAction(err));
+          opts.noConnectionRetry
+            ? dispatchError(get, dispatch, err, dispatch =>
+                pusher(post, dispatch)
+              )
+            : dispatchError(get, dispatch, err);
         }
       })
       .finally(() => {

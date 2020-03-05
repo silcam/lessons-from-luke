@@ -1,5 +1,6 @@
 import en, { I18nStrings, I18nKey } from "./locales/en";
 import fr from "./locales/fr";
+import { FRENCH_ID, ENGLISH_ID } from "../models/Language";
 
 const strings = {
   en,
@@ -29,4 +30,14 @@ function translate(
 
 export function tForLocale(locale: keyof typeof strings): TFunc {
   return (key, subs) => translate(strings[locale], key, subs);
+}
+
+export function localeByLanguageId(id: number): Locale {
+  switch (id) {
+    case FRENCH_ID:
+      return "fr";
+    case ENGLISH_ID:
+    default:
+      return "en";
+  }
 }

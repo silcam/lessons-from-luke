@@ -10,6 +10,8 @@ import { AppDispatch } from "./appState";
 import tStringSlice from "./tStringSlice";
 import { TString } from "../../../core/models/TString";
 import { modelListMerge } from "../../../core/util/arrayUtils";
+import { localeByLanguageId } from "../../../core/i18n/I18n";
+import currentUserSlice from "./currentUserSlice";
 
 interface State {
   languages: MaybePublicLanguage[];
@@ -74,7 +76,14 @@ export function loadLanguages(admin: boolean) {
 export function loadTranslatingLanguage(code: string) {
   return (get: GetRequest) => async (dispatch: AppDispatch) => {
     const language = await get("/api/languages/code/:code", { code });
-    if (language) dispatch(languageSlice.actions.setTranslating(language));
+    if (language) {
+      dispatch(languageSlice.actions.setTranslating(language));
+      dispatch(
+        currentUserSlice.actions.setLocaleIfNoUser(
+          localeByLanguageId(language.defaultSrcLang)
+        )
+      );
+    }
   };
 }
 

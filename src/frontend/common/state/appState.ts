@@ -7,6 +7,7 @@ import { TypedUseSelectorHook, useSelector } from "react-redux";
 import tStringSlice from "./tStringSlice";
 import lessonSlice from "./lessonSlice";
 import docStringSlice from "./docStringSlice";
+import networkSlice from "./networkSlice";
 
 const reducer = combineReducers({
   languages: languageSlice.reducer,
@@ -15,7 +16,8 @@ const reducer = combineReducers({
   banners: bannerSlice.reducer,
   loading: loadingSlice.reducer,
   lessons: lessonSlice.reducer,
-  docStrings: docStringSlice.reducer
+  docStrings: docStringSlice.reducer,
+  network: networkSlice.reducer
 });
 
 const store = configureStore({ reducer });

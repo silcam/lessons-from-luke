@@ -4,7 +4,7 @@ import { usePush } from "../../common/api/RequestContext";
 import { useAppSelector } from "../../common/state/appState";
 import { findBy } from "../../../core/util/arrayUtils";
 import { Redirect, useHistory } from "react-router-dom";
-import { StdHeaderBar } from "../../common/base-components/HeaderBar";
+import { StdHeaderBarPage } from "../../common/base-components/HeaderBar";
 import { lessonName } from "../../../core/models/Lesson";
 import { DocString } from "../../../core/models/DocString";
 import styled from "styled-components";
@@ -123,27 +123,24 @@ export default function DocStringsPage(props: IProps) {
   };
 
   return (
-    <FlexCol flexRoot>
-      <StdHeaderBar
-        title={`${language.name} ${lessonName(lesson)}`}
-        renderRight={() => <Button text={t("Save")} onClick={save} />}
-      />
-      <Scroll>
-        <LsnDocStrTable>
-          <tbody>
-            {lessonDocStrings.map((lsnDocStr, index) => (
-              <LessonDocStringTR
-                lessonDocStr={lsnDocStr}
-                key={index}
-                split={splitIndex => split(index, splitIndex)}
-                mergeNext={sep => merge(index, sep)}
-                edit={text => edit(index, text)}
-              />
-            ))}
-          </tbody>
-        </LsnDocStrTable>
-      </Scroll>
-    </FlexCol>
+    <StdHeaderBarPage
+      title={`${language.name} ${lessonName(lesson)}`}
+      renderRight={() => <Button text={t("Save")} onClick={save} />}
+    >
+      <LsnDocStrTable>
+        <tbody>
+          {lessonDocStrings.map((lsnDocStr, index) => (
+            <LessonDocStringTR
+              lessonDocStr={lsnDocStr}
+              key={index}
+              split={splitIndex => split(index, splitIndex)}
+              mergeNext={sep => merge(index, sep)}
+              edit={text => edit(index, text)}
+            />
+          ))}
+        </tbody>
+      </LsnDocStrTable>
+    </StdHeaderBarPage>
   );
 }
 

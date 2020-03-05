@@ -1,38 +1,103 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { AppState } from "../state/appState";
-import { AppBanner, ErrorBanner } from "./Banner";
+import { AppState, useAppSelector } from "../state/appState";
+import { AppBanner } from "./Banner";
 import bannerSlice from "./bannerSlice";
 import Alert from "../base-components/Alert";
 import useTranslation from "../util/useTranslation";
+import { AppError } from "../AppError/AppError";
+import LoadingDots from "../base-components/LoadingDots";
+import Button from "../base-components/Button";
+import { TFunc } from "../../../core/i18n/I18n";
+import styled from "styled-components";
+import Colors from "../util/Colors";
 
 export default function Banners() {
-  const banners = useSelector((state: AppState) => state.banners);
+  const dispatch = useDispatch();
+  let banners = useAppSelector(state => state.banners);
 
   return (
     <div>
       {banners.map(banner => {
         switch (banner.type) {
-          case "Hello World":
-            return <Alert>Hello World!</Alert>;
           case "Error":
-            return <ErrorBanner banner={banner} />;
+            return (
+              <AppBannerError
+                error={banner.error}
+                close={() => dispatch(bannerSlice.actions.reset())}
+              />
+            );
         }
       })}
     </div>
   );
 }
 
-function ErrorBanner(props: { banner: ErrorBanner }) {
+function AppBannerError(props: { error: AppError; close: () => void }) {
   const t = useTranslation();
-  const dispatch = useDispatch();
-
-  const removeBanner = () => dispatch(bannerSlice.actions.remove(props.banner));
 
   return (
-    <li>
-      {props.banner.message}
-      {props.banner.closeable && <button onClick={removeBanner}>X</button>}
-    </li>
+    <ErrBanner>
+      <div className="message">
+        {errorMessage(t, props.error)}
+        {props.error.type == "No Connection" && <Dots />}
+      </div>
+      {allowClose(props.error) && (
+        <Button link text="X" onClick={props.close} />
+      )}
+    </ErrBanner>
   );
 }
+
+function errorMessage(t: TFunc, err: AppError): string {
+  switch (err.type) {
+    case "HTTP":
+      return t("Server_error", { status: `${err.status}` });
+    case "No Connection":
+      return t("No_connection");
+    case "Unknown":
+    default:
+      return t("Unknown_error");
+  }
+}
+
+function allowClose(err: AppError) {
+  return ["Alphachart", "HTTP", "Other", "Unknown"].includes(err.type);
+}
+
+function Dots() {
+  const [dots, setDots] = useState("");
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDots(dots.length == 3 ? "" : dots + ".");
+    }, 500);
+    return () => {
+      clearInterval(interval);
+    };
+  });
+  return <div style={{ display: "inline-block", width: "2em" }}>{dots}</div>;
+}
+
+const ErrBanner = styled.div`
+  background-color: ${Colors.danger};
+  color: white;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  padding: 0.5em 0;
+
+  button {
+    color: white;
+    font-weight: bold;
+    margin-left: 0.7em;
+
+    &:hover {
+      color: white;
+    }
+
+    &:active {
+      color: ${Colors.grey};
+      outline: none;
+    }
+  }
+`;

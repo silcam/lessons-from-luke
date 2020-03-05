@@ -12,7 +12,7 @@ import { ENGLISH_ID } from "../../../core/models/Language";
 import TStringSpan from "../../common/base-components/TStringSpan";
 import useLessonTStrings from "../../common/translate/useLessonTStrings";
 import LessonEditor, { docStringsFromLessonTStrings } from "./LessonEditor";
-import { StdHeaderBar } from "../../common/base-components/HeaderBar";
+import { StdHeaderBarPage } from "../../common/base-components/HeaderBar";
 import Scroll from "../../common/base-components/Scroll";
 import { DocString } from "../../../core/models/DocString";
 
@@ -41,41 +41,34 @@ export default function LessonPage(props: IProps) {
   };
 
   return (
-    <FlexCol flexRoot>
-      <StdHeaderBar
-        title={lesson ? lessonName(lesson) : ""}
-        renderRight={() =>
-          editing ? (
-            <React.Fragment>
-              <Button text={t("Save")} onClick={save} />
-              <Button
-                red
-                text={t("Cancel")}
-                onClick={() => setEditing(false)}
-              />
-            </React.Fragment>
-          ) : (
-            <Button text={t("Edit")} onClick={startEditing} />
-          )
-        }
-      />
-      <Scroll>
-        {lesson && editing ? (
-          <LessonEditor {...{ docStrings, setDocStrings }} />
+    <StdHeaderBarPage
+      title={lesson ? lessonName(lesson) : ""}
+      renderRight={() =>
+        editing ? (
+          <React.Fragment>
+            <Button text={t("Save")} onClick={save} />
+            <Button red text={t("Cancel")} onClick={() => setEditing(false)} />
+          </React.Fragment>
         ) : (
-          <Div>
-            <List
-              items={lessonTStrings}
-              renderItem={ltStr => (
-                <TStringSpan
-                  text={ltStr.tStrs[0]?.text}
-                  motherTongue={ltStr.lStr.motherTongue}
-                />
-              )}
-            />
-          </Div>
-        )}
-      </Scroll>
-    </FlexCol>
+          <Button text={t("Edit")} onClick={startEditing} />
+        )
+      }
+    >
+      {lesson && editing ? (
+        <LessonEditor {...{ docStrings, setDocStrings }} />
+      ) : (
+        <Div>
+          <List
+            items={lessonTStrings}
+            renderItem={ltStr => (
+              <TStringSpan
+                text={ltStr.tStrs[0]?.text}
+                motherTongue={ltStr.lStr.motherTongue}
+              />
+            )}
+          />
+        </Div>
+      )}
+    </StdHeaderBarPage>
   );
 }

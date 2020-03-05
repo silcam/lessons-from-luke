@@ -4,7 +4,7 @@ import { pushLogout } from "../../common/state/currentUserSlice";
 import useTranslation from "../../common/util/useTranslation";
 import LanguagesBox from "../languages/LanguagesBox";
 import LessonsBox from "../lessons/LessonsBox";
-import { StdHeaderBar } from "../../common/base-components/HeaderBar";
+import { StdHeaderBarPage } from "../../common/base-components/HeaderBar";
 import Button from "../../common/base-components/Button";
 
 export default function AdminHome() {
@@ -13,13 +13,12 @@ export default function AdminHome() {
   const t = useTranslation();
 
   return (
-    <div>
-      <StdHeaderBar
-        title={t("Home")}
-        renderRight={() => <Button text={t("Log_out")} onClick={logOut} />}
-      />
+    <StdHeaderBarPage
+      title={t("Home")}
+      renderRight={() => <Button text={t("Log_out")} onClick={logOut} />}
+    >
       <LanguagesBox />
       <LessonsBox />
-    </div>
+    </StdHeaderBarPage>
   );
 }

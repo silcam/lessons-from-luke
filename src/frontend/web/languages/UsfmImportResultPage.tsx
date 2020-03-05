@@ -1,7 +1,7 @@
 import React from "react";
 import useTranslation from "../../common/util/useTranslation";
 import { useAppSelector } from "../../common/state/appState";
-import { StdHeaderBar } from "../../common/base-components/HeaderBar";
+import { StdHeaderBarPage } from "../../common/base-components/HeaderBar";
 import Heading from "../../common/base-components/Heading";
 import List from "../../common/base-components/List";
 import Div from "../../common/base-components/Div";
@@ -21,8 +21,7 @@ export default function UsfmImportResultPage() {
   const { language, tStrings, errors } = usfmImportResult;
 
   return (
-    <Div>
-      <StdHeaderBar title={t("X_scripture", { language: language.name })} />
+    <StdHeaderBarPage title={t("X_scripture", { language: language.name })}>
       <Div pad>
         {errors.length > 0 && (
           <div>
@@ -35,6 +34,6 @@ export default function UsfmImportResultPage() {
           <List items={tStrings} renderItem={tString => tString.text} />
         </div>
       </Div>
-    </Div>
+    </StdHeaderBarPage>
   );
 }

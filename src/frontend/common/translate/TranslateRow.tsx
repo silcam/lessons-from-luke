@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { newTString } from "../../../core/models/TString";
 import { Language } from "../../../core/models/Language";
 import { usePush } from "../api/RequestContext";
@@ -8,10 +8,13 @@ import Div from "../base-components/Div";
 import TStringSpan from "../base-components/TStringSpan";
 import PDiv from "../base-components/PDiv";
 import { LessonTString } from "./useLessonTStrings";
+import { useNetworkConnectionRestored } from "../../common/state/networkSlice";
 
 interface IProps {
   lessonTString: LessonTString;
   language: Language;
+  markDirty: () => void;
+  markClean: () => void;
 }
 
 export default function TranslateRow(props: IProps) {
@@ -30,15 +33,28 @@ export default function TranslateRow(props: IProps) {
   };
 
   const push = usePush();
+  const { onConnectionRestored } = useNetworkConnectionRestored();
   const save = async () => {
     if (inputState == "none") return;
 
     setInputState("working");
     const savedStr = await push(
-      pushTStrings([newTString(text, lessonString, language, srcStr)], language)
+      pushTStrings(
+        [newTString(text, lessonString, language, srcStr)],
+        language
+      ),
+      err => {
+        if (err.type == "No Connection") onConnectionRestored(save);
+        return false;
+      }
     );
     setInputState(savedStr ? "clean" : "dirty");
   };
+
+  useEffect(() => {
+    if (inputState == "dirty") props.markDirty();
+    if (inputState == "clean") props.markClean();
+  }, [inputState]);
 
   return (
     <Div>
@@ -51,7 +67,9 @@ export default function TranslateRow(props: IProps) {
 
       {lessonString.motherTongue && (
         <StatusfulTextArea
-          value={inputState == "none" ? tStr?.text || "" : text}
+          value={
+            ["none", "clean"].includes(inputState) ? tStr?.text || "" : text
+          }
           setValue={setText}
           status={inputState}
           onBlur={save}

@@ -13,10 +13,15 @@ import Label from "../base-components/Label";
 import useTranslation from "../util/useTranslation";
 import SelectInput from "../base-components/SelectInput";
 import { useAppSelector } from "../state/appState";
+import { unset } from "../../../core/util/objectUtils";
+import styled from "styled-components";
+import Colors from "../util/Colors";
+import { SetHdrMessage } from "./TranslateHome";
 
 interface IProps {
   language: Language;
   lessonId: number;
+  setHdrMessage: SetHdrMessage;
 }
 
 export default function TranslateLesson(props: IProps) {
@@ -24,6 +29,15 @@ export default function TranslateLesson(props: IProps) {
   const lessonId = props.lessonId;
   const languages = useAppSelector(state => state.languages.languages);
   const [srcLangId, setSrcLangId] = useState(props.language.defaultSrcLang);
+  const [dirtyLessonStrings, _setDirtyLessonStrings] = useState<{
+    [id: number]: boolean;
+  }>({});
+  const setDirtyLessonStrings = (dls: typeof dirtyLessonStrings) => {
+    props.setHdrMessage(
+      Object.keys(dls).length > 0 ? "unsavedChanges" : "changesSaved"
+    );
+    _setDirtyLessonStrings(dls);
+  };
   const { lesson, lessonTStrings } = useLessonTStrings(
     props.lessonId,
     [srcLangId, props.language.languageId],
@@ -37,8 +51,8 @@ export default function TranslateLesson(props: IProps) {
   loading = useLoad(loadTStrings(srcLangId, lessonId), [srcLangId]) || loading;
 
   return (
-    <Div>
-      <Heading level={1} text={lessonName(lesson)} />
+    <Div pad>
+      <Heading level={1} text={lessonName(lesson, t)} />
       <Label text={t("Source_language")}>
         <SelectInput
           value={`${srcLangId}`}
@@ -48,7 +62,21 @@ export default function TranslateLesson(props: IProps) {
       </Label>
       {lessonTStrings.map(ltStr => (
         <PDiv key={ltStr.lStr.lessonStringId}>
-          <TranslateRow lessonTString={ltStr} language={props.language} />
+          <TranslateRow
+            lessonTString={ltStr}
+            language={props.language}
+            markDirty={() =>
+              setDirtyLessonStrings({
+                ...dirtyLessonStrings,
+                [ltStr.lStr.lessonId]: true
+              })
+            }
+            markClean={() =>
+              setDirtyLessonStrings(
+                unset(dirtyLessonStrings, ltStr.lStr.lessonId)
+              )
+            }
+          />
         </PDiv>
       ))}
     </Div>

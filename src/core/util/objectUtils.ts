@@ -1,6 +1,6 @@
 export function unset<T, F extends keyof T>(obj: T, field: F): Omit<T, F> {
   return (Object.keys(obj) as (keyof T)[]).reduce((newObj, key) => {
-    if (key === field) return newObj;
+    if (key === `${field}`) return newObj;
     newObj[key] = obj[key];
     return newObj;
   }, {} as Partial<T>) as Omit<T, F>;

@@ -3,6 +3,7 @@ import { findBy } from "../util/arrayUtils";
 import { average } from "../util/numberUtils";
 
 export const ENGLISH_ID = 1;
+export const FRENCH_ID = 2;
 
 export interface Language {
   languageId: number;

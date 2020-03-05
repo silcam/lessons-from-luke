@@ -5,7 +5,7 @@ import { loadTranslatingLanguage, loadLanguages } from "../state/languageSlice";
 import LoadingSnake from "../base-components/LoadingSnake";
 import { Language, lessonProgress } from "../../../core/models/Language";
 import { loadLessons } from "../state/lessonSlice";
-import { StdHeaderBar } from "../base-components/HeaderBar";
+import { StdHeaderBarPage } from "../base-components/HeaderBar";
 import Alert from "../base-components/Alert";
 import MiddleOfPage from "../base-components/MiddleOfPage";
 import useTranslation from "../util/useTranslation";
@@ -25,9 +25,14 @@ interface IProps {
   code: string;
 }
 
+export type HdrMessage = "none" | "unsavedChanges" | "changesSaved";
+export type SetHdrMessage = (hm: HdrMessage) => void;
+
 export default function TranslateHome(props: IProps) {
+  const t = useTranslation();
   const language = useAppSelector(state => state.languages.translating);
   const lessons = useAppSelector(state => state.lessons);
+  const [hdrMessage, setHdrMessage] = useState<HdrMessage>("none");
 
   const loading =
     useLoadMultiple([
@@ -37,18 +42,39 @@ export default function TranslateHome(props: IProps) {
     ]) || lessons.length == 0;
 
   return (
-    <FlexCol flexRoot>
-      <StdHeaderBar title={language ? language.name : ""} logoNoLink />
+    <StdHeaderBarPage
+      title={language ? language.name : ""}
+      logoNoLink
+      renderRight={() =>
+        hdrMessage == "none" ? null : (
+          <Heading
+            level={4}
+            style={{
+              color:
+                hdrMessage == "unsavedChanges" ? Colors.warning : Colors.success
+            }}
+            text={
+              hdrMessage == "unsavedChanges"
+                ? t("Unsaved_changes")
+                : t("Changes_saved")
+            }
+          />
+        )
+      }
+    >
       <FlexCol>
         {loading ? (
           <LoadingSnake />
         ) : language ? (
-          <TranslateLanguage language={language} />
+          <TranslateLanguage
+            language={language}
+            setHdrMessage={setHdrMessage}
+          />
         ) : (
           <CodeError />
         )}
       </FlexCol>
-    </FlexCol>
+    </StdHeaderBarPage>
   );
 }
 
@@ -61,7 +87,10 @@ function CodeError() {
   );
 }
 
-function TranslateLanguage(props: { language: Language }) {
+function TranslateLanguage(props: {
+  language: Language;
+  setHdrMessage: SetHdrMessage;
+}) {
   const t = useTranslation();
 
   const lessons = useAppSelector(state => state.lessons);
@@ -98,12 +127,13 @@ function TranslateLanguage(props: { language: Language }) {
         />
       </Scroll>
       <FlexCol>
-        <Scroll pad>
+        <Scroll>
           {selectedLessonId ? (
             <TranslateLesson
               key={selectedLessonId}
               language={props.language}
               lessonId={selectedLessonId}
+              setHdrMessage={props.setHdrMessage}
             />
           ) : (
             <MiddleOfPage>

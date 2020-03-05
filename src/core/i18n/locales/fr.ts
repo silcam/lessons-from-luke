@@ -21,7 +21,13 @@ const fr: I18nStrings = {
   writeLockInvalid:
     "Le projet de traduction n'est plus verrouillé pour cet ordinateur. Veuillez contacter l'administrateur si vous voulez continuer la traduction.",
   serverError: "Erreur de serveur : %{status}",
-  Pick_a_lesson: "Choisissez une leçon"
+  Source_language: "Langue source :",
+  Pick_a_lesson: "Choisissez une leçon",
+  Server_error: "Erreur de serveur (%{status})",
+  No_connection: "Aucune connexion",
+  Unknown_error: "Erreur inconnu",
+  Unsaved_changes: "Modifications non enregistrées",
+  Changes_saved: "Enregistré"
 };
 
 export default fr;

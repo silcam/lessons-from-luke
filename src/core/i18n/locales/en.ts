@@ -54,7 +54,12 @@ const en = {
   Upload: "Upload",
   Mother_tongue: "Mother Tongue",
   Pick_a_lesson: "Pick a lesson",
-  Source_language: "Source Language"
+  Source_language: "Source Language",
+  Server_error: "Server Error (%{status})",
+  No_connection: "No Connection",
+  Unknown_error: "Unknown Error",
+  Unsaved_changes: "Unsaved Changes",
+  Changes_saved: "Changes Saved"
 };
 
 export type I18nStrings = typeof en;
