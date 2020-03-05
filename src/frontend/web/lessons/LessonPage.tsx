@@ -2,7 +2,11 @@ import React, { useState } from "react";
 import { lessonName } from "../../../core/models/Lesson";
 import useTranslation from "../../common/util/useTranslation";
 import { loadLesson, pushLessonStrings } from "../../common/state/lessonSlice";
-import { useLoad, usePush } from "../../common/api/RequestContext";
+import {
+  useLoad,
+  usePush,
+  useLoadMultiple
+} from "../../common/api/RequestContext";
 import Div from "../../common/base-components/Div";
 import { FlexCol } from "../../common/base-components/Flex";
 import Button from "../../common/base-components/Button";
@@ -25,8 +29,10 @@ export default function LessonPage(props: IProps) {
   const push = usePush();
   const { lesson, lessonTStrings } = useLessonTStrings(props.id, [ENGLISH_ID]);
 
-  useLoad(loadLesson(props.id));
-  useLoad(loadTStrings(ENGLISH_ID, props.id));
+  const loading = useLoadMultiple([
+    loadLesson(props.id),
+    loadTStrings(ENGLISH_ID, props.id)
+  ]);
 
   const [editing, setEditing] = useState(false);
   const [docStrings, setDocStrings] = useState<DocString[]>([]);
@@ -49,7 +55,7 @@ export default function LessonPage(props: IProps) {
             <Button text={t("Save")} onClick={save} />
             <Button red text={t("Cancel")} onClick={() => setEditing(false)} />
           </React.Fragment>
-        ) : (
+        ) : loading ? null : (
           <Button text={t("Edit")} onClick={startEditing} />
         )
       }

@@ -27,7 +27,7 @@ function serverApp(opts: { silent?: boolean } = {}) {
 
   // Simulate slow server
   // app.use((res, req, next) => {
-  //   setTimeout(next, 2000);
+  //   setTimeout(next, 1000);
   // });
 
   if (!opts.silent) {
