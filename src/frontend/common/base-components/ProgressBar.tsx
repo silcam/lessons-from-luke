@@ -4,12 +4,13 @@ import Colors from "../util/Colors";
 
 interface IProps {
   percent: number;
+  fixed?: boolean;
 }
 
 const ProgressBarContainer = styled.div<IProps>`
   background-color: ${Colors.lightGrey};
-  height: 2px;
-  width: 100%;
+  height: ${props => (props.fixed ? "6px" : "2px")};
+  width: ${props => (props.fixed ? "100px" : "100%")};
 
   .bar {
     background-color: ${props =>

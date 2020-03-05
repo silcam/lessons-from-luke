@@ -7,7 +7,7 @@ const Colors = {
   highlight: "#ffba08",
   darkBG: "#1c3144",
   // lightGrey: "#a2aebb",
-  lightGrey: "#eee",
+  lightGrey: "#ddd",
   grey: "#999",
   success: "#39b54a",
   warning: "#ffba08",

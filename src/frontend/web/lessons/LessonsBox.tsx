@@ -34,6 +34,7 @@ export default function LessonsBox() {
             />
             <List
               items={lessons}
+              noBorders
               renderItem={lesson => (
                 <AppLink to={`/lessons/${lesson.lessonId}`}>
                   {lessonName(lesson)}

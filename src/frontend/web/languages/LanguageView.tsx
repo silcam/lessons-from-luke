@@ -55,12 +55,14 @@ export default function LanguageView(props: IProps) {
           </Div>
           <List
             items={props.language.progress.filter(prg => prg.progress > 0)}
+            noBorders
+            noXPad
             renderItem={progress => (
-              <FlexRow>
-                <div>
+              <FlexRow alignCenter>
+                <Div marginRight>
                   {lessonName(findBy(lessons, "lessonId", progress.lessonId))}
-                </div>
-                <ProgressBar percent={progress.progress} />
+                </Div>
+                <ProgressBar percent={progress.progress} fixed />
               </FlexRow>
             )}
           />

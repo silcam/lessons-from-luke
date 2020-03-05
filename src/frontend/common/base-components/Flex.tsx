@@ -5,6 +5,7 @@ interface FlexProps {
   flexZero?: boolean;
   flexRoot?: boolean;
   spaceBetween?: boolean;
+  alignCenter?: boolean;
 }
 
 export const FlexCol = styled(Div)<FlexProps>`
@@ -14,6 +15,7 @@ export const FlexCol = styled(Div)<FlexProps>`
   flex-shrink: ${props => (props.flexZero ? 0 : 1)};
   overflow: hidden;
   height: ${props => (props.flexRoot ? "100%" : "auto")};
+  align-items: ${props => (props.alignCenter ? "center" : "stretch")};
 
   button {
     align-self: flex-start;
@@ -29,6 +31,7 @@ export const FlexRow = styled(Div)<FlexProps>`
   flex-grow: ${props => (props.flexZero ? 0 : 1)};
   flex-shrink: ${props => (props.flexZero ? 0 : 1)};
   height: ${props => (props.flexRoot ? "100%" : "auto")};
+  align-items: ${props => (props.alignCenter ? "center" : "stretch")};
 `;
 
 // export const FlexFill = styled(Div)`

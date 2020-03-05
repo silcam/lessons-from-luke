@@ -53,6 +53,7 @@ export default function LanguagesBox() {
               />
               <List
                 items={languages}
+                noBorders
                 renderItem={lang => (
                   <div>
                     <Button
