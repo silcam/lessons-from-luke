@@ -46,16 +46,10 @@ export default function TranslateWithPreview(props: IProps) {
   const scrollDivRef = usePreviewScroll(selectedLTStr);
 
   const save = async (text: string) => {
+    const ltStr = selectedLTStr;
     const savedStr = await push(
       pushTStrings(
-        [
-          newTString(
-            text,
-            selectedLTStr.lStr,
-            props.language,
-            selectedLTStr.tStrs[0]
-          )
-        ],
+        [newTString(text, ltStr.lStr, props.language, ltStr.tStrs[0])],
         props.language
       ),
       err => {
@@ -63,6 +57,7 @@ export default function TranslateWithPreview(props: IProps) {
         return false;
       }
     );
+    if (savedStr) setClean(ltStr.lStr.lessonStringId);
     return !!savedStr;
   };
 
