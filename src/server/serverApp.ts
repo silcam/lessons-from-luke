@@ -10,6 +10,7 @@ import tStringsController from "./controllers/tStringsController";
 import testController from "./controllers/testController";
 import documentsController from "./controllers/documentsController";
 import PGStorage, { PGTestStorage } from "./storage/PGStorage";
+import docStorage from "./storage/docStorage";
 
 const PRODUCTION = process.env.NODE_ENV == "production";
 
@@ -24,6 +25,8 @@ function serverApp(opts: { silent?: boolean } = {}) {
   if (PRODUCTION) {
     app.use(express.static("dist/frontend"));
   }
+
+  app.use("/webified", express.static(docStorage.webifyPath()));
 
   // Simulate slow server
   // app.use((res, req, next) => {

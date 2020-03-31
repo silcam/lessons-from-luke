@@ -16,6 +16,7 @@ import docStorage from "../storage/docStorage";
 import { lessonName } from "../../core/models/Lesson";
 import mergeXml from "../xml/mergeXml";
 import { makeDocStrings } from "../../core/models/DocString";
+import webifyLesson from "../actions/webifyLesson";
 
 const formDataParser = bodyParser.urlencoded({ extended: false });
 
@@ -78,6 +79,7 @@ export default function documentsController(
             lessonId: lesson.lessonId
           });
           res.send({ lesson, tStrings });
+          webifyLesson(lesson);
         } else {
           const docStrings = await uploadNonenglishDoc(file);
           const lesson = await storage.lesson(meta.lessonId);

@@ -1,22 +1,15 @@
 import React, { useState } from "react";
 import { Language } from "../../../core/models/Language";
-import { useLoadMultiple, useLoad } from "../api/RequestContext";
+import { useLoad } from "../api/RequestContext";
 import { loadTStrings } from "../state/tStringSlice";
-import TranslateRow from "./TranslateRow";
-import { lessonName } from "../../../core/models/Lesson";
-import Div from "../base-components/Div";
-import Heading from "../base-components/Heading";
-import PDiv from "../base-components/PDiv";
 import { loadLesson } from "../state/lessonSlice";
 import useLessonTStrings from "./useLessonTStrings";
-import Label from "../base-components/Label";
 import useTranslation from "../util/useTranslation";
-import SelectInput from "../base-components/SelectInput";
 import { useAppSelector } from "../state/appState";
-import { unset } from "../../../core/util/objectUtils";
-import styled from "styled-components";
-import Colors from "../util/Colors";
 import { SetHdrMessage } from "./TranslateHome";
+import { loadDocPreview } from "../state/docPreviewSlice";
+import TranslateFallback from "./TranslateFallback";
+import TranslateWithPreview from "./TranslateWithPreview";
 
 interface IProps {
   language: Language;
@@ -25,60 +18,51 @@ interface IProps {
 }
 
 export default function TranslateLesson(props: IProps) {
-  const t = useTranslation();
   const lessonId = props.lessonId;
-  const languages = useAppSelector(state => state.languages.languages);
   const [srcLangId, setSrcLangId] = useState(props.language.defaultSrcLang);
-  const [dirtyLessonStrings, _setDirtyLessonStrings] = useState<{
-    [id: number]: boolean;
-  }>({});
-  const setDirtyLessonStrings = (dls: typeof dirtyLessonStrings) => {
-    props.setHdrMessage(
-      Object.keys(dls).length > 0 ? "unsavedChanges" : "changesSaved"
-    );
-    _setDirtyLessonStrings(dls);
-  };
+
   const { lesson, lessonTStrings } = useLessonTStrings(
     props.lessonId,
     [srcLangId, props.language.languageId],
     { contentOnly: props.language.motherTongue }
   );
+  const docHtml: string | undefined = useAppSelector(
+    state => state.docPreview[props.lessonId]
+  );
 
-  let loading = useLoadMultiple([
-    loadLesson(lessonId),
-    loadTStrings(props.language.languageId, lessonId)
-  ]);
-  loading = useLoad(loadTStrings(srcLangId, lessonId), [srcLangId]) || loading;
+  const onDirtyStateChange = (dirty: boolean) =>
+    props.setHdrMessage(dirty ? "unsavedChanges" : "changesSaved");
 
-  return (
-    <Div pad>
-      <Heading level={1} text={lessonName(lesson, t)} />
-      <Label text={t("Source_language")}>
-        <SelectInput
-          value={`${srcLangId}`}
-          setValue={v => setSrcLangId(parseInt(v))}
-          options={languages.map(lng => [`${lng.languageId}`, lng.name])}
-        />
-      </Label>
-      {lessonTStrings.map(ltStr => (
-        <PDiv key={ltStr.lStr.lessonStringId}>
-          <TranslateRow
-            lessonTString={ltStr}
-            language={props.language}
-            markDirty={() =>
-              setDirtyLessonStrings({
-                ...dirtyLessonStrings,
-                [ltStr.lStr.lessonId]: true
-              })
-            }
-            markClean={() =>
-              setDirtyLessonStrings(
-                unset(dirtyLessonStrings, ltStr.lStr.lessonId)
-              )
-            }
-          />
-        </PDiv>
-      ))}
-    </Div>
+  useLoad(loadLesson(lessonId));
+  useLoad(loadTStrings(props.language.languageId, lessonId));
+  useLoad(loadTStrings(srcLangId, lessonId), [srcLangId]);
+  useLoad(loadDocPreview(lessonId), [lessonId], err => {
+    if (err.type == "HTTP" && err.status == 404) return true; // Ignore 404's
+    return false;
+  });
+
+  return lesson && docHtml ? (
+    <TranslateWithPreview
+      {...{
+        lesson,
+        lessonTStrings,
+        language: props.language,
+        srcLangId,
+        setSrcLangId,
+        onDirtyStateChange,
+        docHtml
+      }}
+    />
+  ) : (
+    <TranslateFallback
+      {...{
+        lesson,
+        lessonTStrings,
+        language: props.language,
+        srcLangId,
+        setSrcLangId,
+        onDirtyStateChange
+      }}
+    />
   );
 }

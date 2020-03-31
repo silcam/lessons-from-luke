@@ -18,6 +18,7 @@ export interface APIGet {
   ];
   "/api/lessons": [{}, BaseLesson[]];
   "/api/lessons/:lessonId": [{ lessonId: number }, Lesson];
+  "/api/lessons/:lessonId/webified": [{ lessonId: number }, { html: string }];
 }
 
 export interface APIPost {

@@ -83,54 +83,54 @@ describe("Admin Languages", () => {
       "http://localhost:8080/languages/2/lessons/11/docStrings"
     );
 
-    // Exercise Split button
-    const tooLong =
-      "Prenez le temps de prier ensemble. Laissez les enfants prier à haute voix s'ils le veulent. Ne forcez personne à prier à haute voix.";
-    cy.contains("tr", tooLong).within(row => {
-      cy.contains("Split")
-        .invoke("show")
-        .click();
-      const leftArrow40 = new Array(40).fill("{leftarrow}").join("");
-      cy.get("textarea").type(leftArrow40, { delay: 0 });
-      cy.contains("button", "Split").click();
-      cy.contains(
-        "Prenez le temps de prier ensemble. Laissez les enfants prier à haute voix s'ils le veulent."
-      );
-      cy.contains(tooLong).should("not.exist");
-    });
-    cy.contains("tr", "Do not force anyone to pray out loud.").contains(
-      "Ne forcez personne à prier à haute voix."
-    );
+    // // Exercise Split button
+    // const tooLong =
+    //   "Prenez le temps de prier ensemble. Laissez les enfants prier à haute voix s'ils le veulent. Ne forcez personne à prier à haute voix.";
+    // cy.contains("tr", tooLong).within(row => {
+    //   cy.contains("Split")
+    //     .invoke("show")
+    //     .click();
+    //   const leftArrow40 = new Array(40).fill("{leftarrow}").join("");
+    //   cy.get("textarea").type(leftArrow40, { delay: 0 });
+    //   cy.contains("button", "Split").click();
+    //   cy.contains(
+    //     "Prenez le temps de prier ensemble. Laissez les enfants prier à haute voix s'ils le veulent."
+    //   );
+    //   cy.contains(tooLong).should("not.exist");
+    // });
+    // cy.contains("tr", "Do not force anyone to pray out loud.").contains(
+    //   "Ne forcez personne à prier à haute voix."
+    // );
 
-    // Exercise Merge button
-    cy.contains("tr", "SAVOIR :").within(row => {
-      cy.contains("Merge Next with Space")
-        .invoke("show")
-        .click();
-      cy.contains(
-        "SAVOIR : Les enfants sauront que Dieu entend leurs prières."
-      );
-    });
-    cy.contains("tr", "SAVOIR :")
-      .next()
-      .contains("FAIRE");
+    // // Exercise Merge button
+    // cy.contains("tr", "SAVOIR :").within(row => {
+    //   cy.contains("Merge Next with Space")
+    //     .invoke("show")
+    //     .click();
+    //   cy.contains(
+    //     "SAVOIR : Les enfants sauront que Dieu entend leurs prières."
+    //   );
+    // });
+    // cy.contains("tr", "SAVOIR :")
+    //   .next()
+    //   .contains("FAIRE");
 
-    cy.contains("button", "Save").click();
-    cy.url().should("eq", "http://localhost:8080/");
-    cy.visit("/translate/DEF");
-    cy.contains(
-      "Prière : Parler avec Dieu. Où peut-on prier? Quelles sont les choses qu'on peut faire tout en priant? Devons-nous utiliser un langage ou une voix spéciale quand nous prions?"
-    );
+    // cy.contains("button", "Save").click();
+    // cy.url().should("eq", "http://localhost:8080/");
+    // cy.visit("/translate/DEF");
+    // cy.contains(
+    //   "Prière : Parler avec Dieu. Où peut-on prier? Quelles sont les choses qu'on peut faire tout en priant? Devons-nous utiliser un langage ou une voix spéciale quand nous prions?"
+    // );
   });
 
-  it("Downloads Documents", () => {
-    cy.visit("/");
-    cy.contains("button", "Batanga").click();
-    cy.contains("tr", "Luke 1-1").within(tr => {
-      cy.contains("button", "Download").click();
-      cy.contains("button", "Download").should("not.exist");
-      cy.contains("td", "Download").should("exist");
-      cy.contains("button", "Download").should("exist");
-    });
-  });
+  // it("Downloads Documents", () => {
+  //   cy.visit("/");
+  //   cy.contains("button", "Batanga").click();
+  //   cy.contains("tr", "Luke 1-1").within(tr => {
+  //     cy.contains("button", "Download").click();
+  //     cy.contains("button", "Download").should("not.exist");
+  //     cy.contains("td", "Download").should("exist");
+  //     cy.contains("button", "Download").should("exist");
+  //   });
+  // });
 });

@@ -49,7 +49,9 @@ export type Loader<T> = (
   get: GetRequest
 ) => (dispatch: AppDispatch) => Promise<T>;
 
-export function useJustLoad(): [(ldr: Loader<any>) => void, boolean] {
+export function useJustLoad(
+  errorHandler: AppErrorHandler = () => false
+): [(ldr: Loader<any>) => void, boolean] {
   const { get } = useContext(RequestContext);
   const [loading, setLoading] = useState(false);
   const dispatch: AppDispatch = useDispatch();
@@ -61,7 +63,9 @@ export function useJustLoad(): [(ldr: Loader<any>) => void, boolean] {
     dispatch(loader(get))
       .catch(anyErr => {
         const err = asAppError(anyErr);
-        dispatchError(get, dispatch, err);
+        if (!errorHandler(err)) {
+          dispatchError(get, dispatch, err);
+        }
         if (err.type == "No Connection")
           onConnectionRestored(() => load(loader));
       })
@@ -73,8 +77,12 @@ export function useJustLoad(): [(ldr: Loader<any>) => void, boolean] {
   return [load, loading];
 }
 
-export function useLoad<T>(loader: Loader<T>, deps: any[] = []) {
-  const [load, loading] = useJustLoad();
+export function useLoad<T>(
+  loader: Loader<T>,
+  deps: any[] = [],
+  errorHandler: AppErrorHandler = () => false
+) {
+  const [load, loading] = useJustLoad(errorHandler);
   const [notYetStarted, setNotYetStarted] = useState(true);
 
   useEffect(() => {

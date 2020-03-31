@@ -1,3 +1,5 @@
+/// <reference types="jest" />
+
 import {
   loggedInAgent,
   plainAgent,
@@ -56,6 +58,22 @@ test("GET Lesson by Id : 404 for bad id", async () => {
   expect.assertions(1);
   const agent = plainAgent();
   const response = await agent.get("/api/lessons/0");
+  expect(response.status).toBe(404);
+});
+
+test("GET Lesson HTML", async () => {
+  const agent = plainAgent();
+  const response = await agent.get("/api/lessons/11/webified");
+  expect(response.status).toBe(200);
+  expect(response.body.html).toContain("<title>Lessons from Luke</title>");
+  expect(response.body.html).toContain(
+    '<img src="/webified/1585663144340_1-01_htm_9f2086952548eae4.png" name="graphics14" align="middle" width="71" height="71" border="0"/>'
+  );
+});
+
+test("GET nonexistant Lesson HTML", async () => {
+  const agent = plainAgent();
+  const response = await agent.get("/api/lessons/12/webified");
   expect(response.status).toBe(404);
 });
 

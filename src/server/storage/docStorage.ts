@@ -11,6 +11,7 @@ import {
   unlinkSafe
 } from "../../core/util/fsUtils";
 import { objKeys } from "../../core/util/objectUtils";
+import waitFor from "../../core/util/waitFor";
 
 async function saveDoc(file: UploadedFile, lesson: BaseLesson) {
   const filepath = docFilepath(lesson);
@@ -77,18 +78,49 @@ function docFilepath(lesson: BaseLesson) {
   return `${docsDirPath()}/${filename}`;
 }
 
+function webifiedHtml(lessonId: number): string | null {
+  const htmPath = webifiedHtmPath(lessonId);
+  if (!fs.existsSync(htmPath)) return null;
+  const html = fs.readFileSync(htmPath).toString();
+  return html.replace(/<img src="/g, '<img src="/webified/');
+}
+
+async function mvWebifiedHtml(tmpOdtPath: string, lessonId: number) {
+  const inPath = `${webifyPath()}/${path
+    .basename(tmpOdtPath)
+    .replace(/odt$/, "htm")}`;
+  try {
+    await waitFor(() => fs.existsSync(inPath));
+
+    const outPath = webifiedHtmPath(lessonId);
+    fs.renameSync(inPath, outPath);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+function webifiedHtmPath(lessonId: number) {
+  return `${webifyPath()}/${lessonId}.htm`;
+}
+
 function docsTmpPath() {
-  const tmpPath = docsDirPath() + "/tmp";
-  if (!fs.existsSync(tmpPath)) fs.mkdirSync(tmpPath);
-  return tmpPath;
+  return requireDir(docsDirPath() + "/tmp");
+}
+
+function webifyPath() {
+  return requireDir(docsDirPath() + "/web");
 }
 
 function docsDirPath() {
   const docsPath =
     process.cwd() +
     (process.env.NODE_ENV === "test" ? "/test/docs/serverDocs" : "/docs");
-  if (!fs.existsSync(docsPath)) fs.mkdirSync(docsPath);
-  return docsPath;
+  return requireDir(docsPath);
+}
+
+function requireDir(dirPath: string) {
+  if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath);
+  return dirPath;
 }
 
 export default {
@@ -96,5 +128,8 @@ export default {
   saveTmp,
   tmpFilePath,
   docXml,
-  docFilepath
+  docFilepath,
+  webifyPath,
+  mvWebifiedHtml,
+  webifiedHtml
 };

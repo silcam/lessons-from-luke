@@ -4,6 +4,8 @@ import { Persistence } from "../../core/interfaces/Persistence";
 import { ENGLISH_ID } from "../../core/models/Language";
 import { DocString } from "../../core/models/DocString";
 import updateLesson from "../actions/updateLesson";
+import docStorage from "../storage/docStorage";
+import webifyLesson from "../actions/webifyLesson";
 
 export default function lessonsController(app: Express, storage: Persistence) {
   addGetHandler(app, "/api/lessons", async req => {
@@ -15,6 +17,18 @@ export default function lessonsController(app: Express, storage: Persistence) {
     if (!lesson) throw { status: 404 };
 
     return lesson;
+  });
+
+  addGetHandler(app, "/api/lessons/:lessonId/webified", async req => {
+    const html = docStorage.webifiedHtml(parseInt(req.params.lessonId));
+    if (!html) {
+      if (process.env.NODE_ENV == "production") {
+        const lesson = await storage.lesson(parseInt(req.params.lessonId));
+        if (lesson) webifyLesson(lesson);
+      }
+      throw { status: 404 };
+    }
+    return { html };
   });
 
   addPostHandler(app, "/api/admin/lessons/:lessonId/strings", async req => {

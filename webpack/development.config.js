@@ -9,7 +9,8 @@ module.exports = {
     contentBase: false,
     port: 8080,
     proxy: {
-      "/api": "http://localhost:8081"
+      "/api": "http://localhost:8081",
+      "/webified": "http://localhost:8081"
     },
     historyApiFallback: true
   },

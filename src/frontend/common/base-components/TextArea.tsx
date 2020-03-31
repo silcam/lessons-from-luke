@@ -49,16 +49,3 @@ export default function TextArea(props: IProps) {
     />
   );
 }
-
-interface SSTAProps extends IProps {
-  status: "none" | "clean" | "dirty" | "working";
-}
-export const StatusfulTextArea = styled(TextArea)<SSTAProps>`
-  ${props =>
-    props.status == "none"
-      ? ""
-      : css`
-          border-color: ${(props: SSTAProps) =>
-            props.status == "clean" ? Colors.success : Colors.warning};
-        `}
-`;

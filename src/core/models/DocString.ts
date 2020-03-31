@@ -26,3 +26,14 @@ export function makeDocStrings(
       )?.text || ""
   }));
 }
+
+export function makeWebifyDocStrings(
+  lessonStrings: LessonString[]
+): DocString[] {
+  return lessonStrings.map(lsnStr => ({
+    type: lsnStr.type,
+    xpath: lsnStr.xpath,
+    motherTongue: lsnStr.motherTongue,
+    text: `##${lsnStr.lessonStringId}##`
+  }));
+}
