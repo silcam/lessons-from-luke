@@ -1,6 +1,4 @@
 import React from "react";
-import { findBy } from "../../../core/util/arrayUtils";
-import { TString } from "../../../core/models/TString";
 import { LessonTString } from "./useLessonTStrings";
 import styled from "styled-components";
 import Colors from "../util/Colors";
@@ -24,17 +22,22 @@ export default function DocPreview(props: IProps) {
             : ltStr.tStrs[0]?.text || "[...]"
         }</span>`
       ),
-    props.docHtml
+    preprocessHtml(props.docHtml)
   );
 
   return <PreviewDiv dangerouslySetInnerHTML={{ __html: finalHtml }} />;
 }
 
 const PreviewDiv = styled.div`
-  width: 670px;
+  width: min-content;
+  padding: 12px;
   border-left: 1px solid ${Colors.lightGrey};
 
   .lessonString.selected {
     outline: ${Colors.primary} auto 5px;
   }
 `;
+
+function preprocessHtml(html: string) {
+  return html.replace(/<meta.*?>/g, "");
+}
