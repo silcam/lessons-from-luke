@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useAppSelector } from "../state/appState";
-import { useLoadMultiple } from "../api/RequestContext";
+import { useLoadMultiple } from "../api/useLoad";
 import { loadTranslatingLanguage, loadLanguages } from "../state/languageSlice";
 import LoadingSnake from "../base-components/LoadingSnake";
 import { Language, lessonProgress } from "../../../core/models/Language";

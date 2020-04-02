@@ -17,6 +17,8 @@ const fr: I18nStrings = {
   DoneWorking: "J'ai terminé mon travail sur ce projet.",
   Finish: "Terminer",
   NoConnection: "Aucune connexion au serveur.",
+  No_connection_check:
+    "Aucune connexion au serveur. Veuillez vérifier votre connexion internet.",
   UnknownError: "Erreur inattendu",
   writeLockInvalid:
     "Le projet de traduction n'est plus verrouillé pour cet ordinateur. Veuillez contacter l'administrateur si vous voulez continuer la traduction.",
@@ -27,7 +29,15 @@ const fr: I18nStrings = {
   No_connection: "Aucune connexion",
   Unknown_error: "Erreur inconnu",
   Unsaved_changes: "Modifications non enregistrées",
-  Changes_saved: "Enregistré"
+  Changes_saved: "Enregistré",
+  Enter_your_code: "Saisir le code que vous avez reçu :",
+  Language: "Langue",
+  Online: "En ligne",
+  Offline: "Hors ligne",
+  Code_error:
+    "Échec de trouver un projet de traduction. Veuillez vérifier que vous avez le bon adresse.",
+  Code_error_for_desktop:
+    "Échec de trouver un projet de traduction. Veuillez vérifier que vous avez le bon code."
 };
 
 export default fr;

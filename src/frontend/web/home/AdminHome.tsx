@@ -1,5 +1,5 @@
 import React from "react";
-import { usePush } from "../../common/api/RequestContext";
+import { usePush } from "../../common/api/useLoad";
 import { pushLogout } from "../../common/state/currentUserSlice";
 import useTranslation from "../../common/util/useTranslation";
 import LanguagesBox from "../languages/LanguagesBox";

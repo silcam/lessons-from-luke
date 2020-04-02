@@ -2,11 +2,7 @@ import React, { useState } from "react";
 import { lessonName } from "../../../core/models/Lesson";
 import useTranslation from "../../common/util/useTranslation";
 import { loadLesson, pushLessonStrings } from "../../common/state/lessonSlice";
-import {
-  useLoad,
-  usePush,
-  useLoadMultiple
-} from "../../common/api/RequestContext";
+import { useLoad, usePush, useLoadMultiple } from "../../common/api/useLoad";
 import Div from "../../common/base-components/Div";
 import { FlexCol } from "../../common/base-components/Flex";
 import Button from "../../common/base-components/Button";

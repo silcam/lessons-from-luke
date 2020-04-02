@@ -1,4 +1,4 @@
-import React, { PropsWithChildren } from "react";
+import React, { PropsWithChildren, useContext } from "react";
 import styled from "styled-components";
 import Colors from "../util/Colors";
 import { FlexRow, FlexCol } from "./Flex";
@@ -8,6 +8,9 @@ import Heading from "./Heading";
 import { Link } from "react-router-dom";
 import Banners from "../banners/Banners";
 import Scroll from "./Scroll";
+import PlatformContext from "../PlatformContext";
+import { useAppSelector } from "../state/appState";
+import useTranslation from "../util/useTranslation";
 
 const HeaderBar = styled.div`
   background-color: ${Colors.darkBG};
@@ -37,11 +40,13 @@ interface IProps {
 }
 
 export function StdHeaderBar(props: IProps) {
+  const forDesktop = useContext(PlatformContext) == "desktop";
+
   return (
     <div>
       <HeaderBar>
         <FlexRow className="hdrFlexRow">
-          {props.logoNoLink ? (
+          {props.logoNoLink || forDesktop ? (
             <img src={logoImg} alt="Lessons from Luke" />
           ) : (
             <Link to="/">
@@ -50,6 +55,7 @@ export function StdHeaderBar(props: IProps) {
           )}
           <Heading level={1} text={props.title} />
           <FlexCol />
+          {forDesktop && <OfflineIndicator />}
           {props.renderRight && props.renderRight()}
         </FlexRow>
       </HeaderBar>
@@ -65,5 +71,18 @@ export function StdHeaderBarPage(props: PropsWithChildren<IProps>) {
       <StdHeaderBar {...hdrProps} />
       <Scroll>{children}</Scroll>
     </FlexCol>
+  );
+}
+
+function OfflineIndicator() {
+  // Only applies to Desktop
+  const t = useTranslation();
+  const online = useAppSelector(state => state.syncState.connected);
+  return (
+    <Heading
+      level={4}
+      style={{ color: online ? Colors.success : Colors.warning }}
+      text={t(online ? "Online" : "Offline")}
+    />
   );
 }

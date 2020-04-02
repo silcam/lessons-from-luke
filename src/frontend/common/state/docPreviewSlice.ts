@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { Loader } from "../api/RequestContext";
+import { Loader } from "../api/useLoad";
 
 interface DocPreviewState {
   [lessonId: number]: string;

@@ -3,7 +3,7 @@ import Foldable from "../../common/base-components/Foldable";
 import useTranslation from "../../common/util/useTranslation";
 import List from "../../common/base-components/List";
 import { useAppSelector } from "../../common/state/appState";
-import { useLoad } from "../../common/api/RequestContext";
+import { useLoad } from "../../common/api/useLoad";
 import { loadLanguages } from "../../common/state/languageSlice";
 import Button from "../../common/base-components/Button";
 import Div from "../../common/base-components/Div";

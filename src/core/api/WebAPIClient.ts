@@ -4,9 +4,9 @@ import {
   Params,
   APIPost,
   PostRoute
-} from "../../../core/interfaces/Api";
+} from "../interfaces/Api";
 import Axios from "axios";
-import { AppError } from "../../common/AppError/AppError";
+import { AppError } from "../models/AppError";
 
 export async function webGet<T extends GetRoute>(
   route: T,
@@ -67,8 +67,19 @@ function throwAppError(err: any): never {
 }
 
 function interpolateParams(route: string, params: Params) {
-  return Object.keys(params).reduce(
-    (route: string, key) => route.replace(`:${key}`, `${params[key]}`),
-    route
+  return (
+    baseUrl() +
+    Object.keys(params).reduce(
+      (route: string, key) => route.replace(`:${key}`, `${params[key]}`),
+      route
+    )
   );
+}
+
+function baseUrl() {
+  const nodeEnv = process?.env?.NODE_ENV;
+  if (!nodeEnv) return ""; // Appropriate for browser
+  return nodeEnv == "production"
+    ? "https://beta.lessonsfromluke.gospelcoding.org"
+    : "http://localhost:8081";
 }

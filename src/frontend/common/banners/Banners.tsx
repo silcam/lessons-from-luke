@@ -5,7 +5,7 @@ import { AppBanner } from "./Banner";
 import bannerSlice from "./bannerSlice";
 import Alert from "../base-components/Alert";
 import useTranslation from "../util/useTranslation";
-import { AppError } from "../AppError/AppError";
+import { AppError } from "../../../core/models/AppError";
 import LoadingDots from "../base-components/LoadingDots";
 import Button from "../base-components/Button";
 import { TFunc } from "../../../core/i18n/I18n";

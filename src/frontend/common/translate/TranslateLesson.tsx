@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Language } from "../../../core/models/Language";
-import { useLoad } from "../api/RequestContext";
+import { useLoad } from "../api/useLoad";
 import { loadTStrings } from "../state/tStringSlice";
 import { loadLesson } from "../state/lessonSlice";
 import useLessonTStrings from "./useLessonTStrings";

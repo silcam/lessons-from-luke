@@ -14,6 +14,7 @@ const en = {
   DoneWorking: "I'm done working on this project.",
   Finish: "Finish",
   NoConnection: "No connection to server",
+  No_connection_check: "No connection to server. Please check your internet.",
   UnknownError: "Unexpected error",
   writeLockInvalid:
     "The translation project is no longer locked to this computer. Please contact the system administrator to continue translation.",
@@ -24,6 +25,8 @@ const en = {
   Log_in_failed: "Login failed.",
   Code_error:
     "Translation Project not found. Please check that you have the right web address.",
+  Code_error_for_desktop:
+    "Translation Project not found. Please check that you have the right code.",
   Start_translating_lesson: "Start Translating %{name}",
   Languages: "Languages",
   Add_language: "Add Language",
@@ -60,7 +63,11 @@ const en = {
   Unknown_error: "Unknown Error",
   Unsaved_changes: "Unsaved Changes",
   Changes_saved: "Changes Saved",
-  Download: "Download"
+  Download: "Download",
+  Enter_your_code: "Enter the code you were given:",
+  Language: "Language",
+  Online: "Online",
+  Offline: "Offline"
 };
 
 export type I18nStrings = typeof en;

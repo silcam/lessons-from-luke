@@ -3,7 +3,7 @@ import useTranslation from "../../common/util/useTranslation";
 import Foldable from "../../common/base-components/Foldable";
 import Div from "../../common/base-components/Div";
 import { useAppSelector } from "../../common/state/appState";
-import { useLoad } from "../../common/api/RequestContext";
+import { useLoad } from "../../common/api/useLoad";
 import { loadLessons } from "../../common/state/lessonSlice";
 import { lessonName } from "../../../core/models/Lesson";
 import List from "../../common/base-components/List";

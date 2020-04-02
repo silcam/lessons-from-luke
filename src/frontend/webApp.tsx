@@ -6,7 +6,7 @@ import MainRouter from "./web/MainRouter";
 import { Provider } from "react-redux";
 import store from "./common/state/appState";
 import RequestContext from "./common/api/RequestContext";
-import { webGet, webPost } from "./web/common/WebAPI";
+import { webGet, webPost } from "../core/api/WebAPIClient";
 
 function WebApp() {
   return (

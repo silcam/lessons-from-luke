@@ -3,10 +3,12 @@ import { TString } from "../models/TString";
 import { Language, NewLanguage, PublicLanguage } from "../models/Language";
 import { BaseLesson, Lesson } from "../models/Lesson";
 import { DocString } from "../models/DocString";
+import { SyncState } from "../models/SyncState";
 
 export type Params = { [key: string]: string | number };
 
 export interface APIGet {
+  // Web Only
   "/api/users/current": [{}, User | null];
   "/api/languages": [{}, PublicLanguage[]];
   "/api/admin/languages": [{}, Language[]];
@@ -19,6 +21,9 @@ export interface APIGet {
   "/api/lessons": [{}, BaseLesson[]];
   "/api/lessons/:lessonId": [{ lessonId: number }, Lesson];
   "/api/lessons/:lessonId/webified": [{ lessonId: number }, { html: string }];
+
+  // Desktop Only
+  "/api/syncState": [{}, SyncState];
 }
 
 export interface APIPost {
@@ -41,6 +46,9 @@ export interface APIPost {
     DocString[],
     { lesson: Lesson; tStrings: TString[] }
   ];
+
+  // Desktop Only
+  "/api/syncState/code": [{}, { code: string }, SyncState];
 }
 
 export type GetRoute = keyof APIGet;

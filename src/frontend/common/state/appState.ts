@@ -9,6 +9,7 @@ import lessonSlice from "./lessonSlice";
 import docStringSlice from "./docStringSlice";
 import networkSlice from "./networkSlice";
 import docPreviewSlice from "./docPreviewSlice";
+import syncStateSlice from "./syncStateSlice";
 
 const reducer = combineReducers({
   languages: languageSlice.reducer,
@@ -19,7 +20,8 @@ const reducer = combineReducers({
   lessons: lessonSlice.reducer,
   docStrings: docStringSlice.reducer,
   network: networkSlice.reducer,
-  docPreview: docPreviewSlice.reducer
+  docPreview: docPreviewSlice.reducer,
+  syncState: syncStateSlice.reducer
 });
 
 const store = configureStore({ reducer });

@@ -1,4 +1,4 @@
-import { objKeys } from "../../../core/util/objectUtils";
+import { objKeys } from "../util/objectUtils";
 
 export type AppError =
   | { type: "No Connection" }

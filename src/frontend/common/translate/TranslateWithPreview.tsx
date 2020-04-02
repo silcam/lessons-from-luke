@@ -17,7 +17,7 @@ import usePreviewScroll from "./usePreviewScroll";
 import StatusfulTextArea from "../base-components/StatusfulTextArea";
 import { newTString } from "../../../core/models/TString";
 import { useNetworkConnectionRestored } from "../state/networkSlice";
-import { usePush } from "../api/RequestContext";
+import { usePush } from "../api/useLoad";
 
 interface IProps {
   lesson: BaseLesson;
@@ -63,7 +63,7 @@ export default function TranslateWithPreview(props: IProps) {
 
   return (
     <FlexRow>
-      <FlexCol pad>
+      <FlexCol pad style={{ minWidth: "200px" }}>
         <Label text={t("Source_language")}>
           <SelectInput
             value={`${props.srcLangId}`}

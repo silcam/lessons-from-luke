@@ -1,7 +1,7 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { TString, equal } from "../../../core/models/TString";
 import { modelListMerge } from "../../../core/util/arrayUtils";
-import { Loader, Pusher } from "../api/RequestContext";
+import { Loader, Pusher } from "../api/useLoad";
 import { Language } from "../../../core/models/Language";
 
 const tStringSlice = createSlice({

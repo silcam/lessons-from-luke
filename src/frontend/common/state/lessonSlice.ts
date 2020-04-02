@@ -1,13 +1,13 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { Lesson, BaseLesson, lessonCompare } from "../../../core/models/Lesson";
 import { modelListMerge } from "../../../core/util/arrayUtils";
-import { Loader, Pusher } from "../api/RequestContext";
+import { Loader, Pusher } from "../api/useLoad";
 import { DocUploadMeta } from "../../../core/models/DocUploadMeta";
-import { postFile } from "../../web/common/WebAPI";
 import { TString } from "../../../core/models/TString";
 import tStringSlice from "./tStringSlice";
 import { DocString } from "../../../core/models/DocString";
 import docStringSlice from "./docStringSlice";
+import { postFile } from "../../../core/api/WebAPIClient";
 
 const lessonSlice = createSlice({
   name: "lessons",
@@ -44,7 +44,7 @@ export function pushDocument(file: File, meta: DocUploadMeta): Pusher<Lesson> {
       lesson: Lesson;
       tStrings: TString[];
       docStrings?: DocString[];
-    } = await postFile("/api/admin/documents", "document", file, meta);
+    } | null = await postFile("/api/admin/documents", "document", file, meta);
     if (data) {
       dispatch(lessonSlice.actions.add([data.lesson]));
       dispatch(tStringSlice.actions.add(data.tStrings));

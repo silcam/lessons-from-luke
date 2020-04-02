@@ -1,8 +1,11 @@
 import React from "react";
-import styled, { css } from "styled-components";
+import styled from "styled-components";
 import Colors from "../util/Colors";
 
-interface STIProps {}
+interface STIProps {
+  minWidth?: number;
+  bigger?: boolean;
+}
 
 interface IProps extends STIProps {
   placeholder?: string;
@@ -16,15 +19,21 @@ interface IProps extends STIProps {
 const StyledTextInput = styled.input<STIProps>`
   border: none;
   border-bottom: 1px ${Colors.lightGrey} solid;
-  font-size: 1em;
+  font-size: ${props => (props.bigger ? "1.6em" : "1em")};
+  margin: ${props => (props.bigger ? "0.4em 0 0.8em" : "0")};
   padding: 0.125em 0.25em;
   display: block;
   width: 100%;
+  min-width: ${props => (props.minWidth ? `${props.minWidth}em` : undefined)};
   box-sizing: border-box;
 
   &:focus {
     border-color: ${Colors.primary};
     outline: none;
+  }
+
+  ::placeholder {
+    color: ${Colors.grey};
   }
 `;
 
@@ -38,16 +47,3 @@ export default function TextInput(props: IProps) {
     />
   );
 }
-
-interface SSTIProps extends IProps {
-  status: "none" | "clean" | "dirty" | "working";
-}
-export const StatusfulTextInput = styled(TextInput)<SSTIProps>`
-  ${props =>
-    props.status == "none"
-      ? ""
-      : css`
-          border-color: ${(props: SSTIProps) =>
-            props.status == "clean" ? Colors.success : Colors.warning};
-        `}
-`;

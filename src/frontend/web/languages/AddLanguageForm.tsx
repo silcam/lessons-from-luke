@@ -3,7 +3,7 @@ import Div from "../../common/base-components/Div";
 import TextInput from "../../common/base-components/TextInput";
 import useTranslation from "../../common/util/useTranslation";
 import Button from "../../common/base-components/Button";
-import { usePush } from "../../common/api/RequestContext";
+import { usePush } from "../../common/api/useLoad";
 import { pushLanguage } from "../../common/state/languageSlice";
 import Heading from "../../common/base-components/Heading";
 import { useAppSelector } from "../../common/state/appState";

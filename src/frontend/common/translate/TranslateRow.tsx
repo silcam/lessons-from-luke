@@ -1,7 +1,7 @@
 import React from "react";
 import { newTString } from "../../../core/models/TString";
 import { Language } from "../../../core/models/Language";
-import { usePush } from "../api/RequestContext";
+import { usePush } from "../api/useLoad";
 import { pushTStrings } from "../state/tStringSlice";
 import StatusfulTextArea from "../base-components/StatusfulTextArea";
 import Div from "../base-components/Div";

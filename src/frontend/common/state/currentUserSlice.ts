@@ -1,8 +1,9 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { AppDispatch } from "./appState";
 import { User, LoginAttempt } from "../../../core/models/User";
-import { GetRequest, Pusher } from "../api/RequestContext";
+import { GetRequest } from "../api/RequestContext";
 import { Locale } from "../../../core/i18n/I18n";
+import { Pusher } from "../api/useLoad";
 
 interface CurrentUserState {
   user: User | null;

@@ -1,4 +1,4 @@
-import { AppError } from "../AppError/AppError";
+import { AppError } from "../../../core/models/AppError";
 
 export type AppBanner =
   | {

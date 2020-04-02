@@ -41,3 +41,12 @@ export function localeByLanguageId(id: number): Locale {
       return "en";
   }
 }
+
+export function longName(locale: Locale): string {
+  switch (locale) {
+    case "en":
+      return "English";
+    case "fr":
+      return "Français";
+  }
+}

@@ -5,7 +5,7 @@ import useTranslation from "../../common/util/useTranslation";
 import Heading from "../../common/base-components/Heading";
 import { useDropzone } from "react-dropzone";
 import Button from "../../common/base-components/Button";
-import { usePush } from "../../common/api/RequestContext";
+import { usePush } from "../../common/api/useLoad";
 import { useHistory } from "react-router-dom";
 import { pushUsfm } from "../../common/state/languageSlice";
 

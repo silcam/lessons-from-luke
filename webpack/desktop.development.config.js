@@ -1,4 +1,4 @@
-const baseConfig = require("./base.config");
+const baseConfig = require("./desktop.base.config");
 const path = require("path");
 
 module.exports = {
@@ -7,7 +7,7 @@ module.exports = {
   devtool: "inline-source-map",
   devServer: {
     contentBase: false,
-    port: 8080,
+    port: 8082,
     proxy: {
       "/api": "http://localhost:8081",
       "/webified": "http://localhost:8081"
