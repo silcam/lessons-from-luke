@@ -1,33 +1,23 @@
-import {
-  LocalStorageInterface,
-  LocalStore,
-  defaultLocalStore
-} from "../LocalStorage";
-import produce from "immer";
+import LocalStorage, { defaultMemoryStore } from "../LocalStorage";
+import { App } from "electron";
+import fs from "fs";
+import path from "path";
 
-type FixturesOptions = "none" | "fresh-install";
+const TEST_DIR = "test";
 
-export class TestLocalStorage implements LocalStorageInterface {
-  private testStore: LocalStore;
-
-  constructor(fixtures: FixturesOptions) {
-    this.testStore = getFixtures(fixtures);
+export default class TestLocalStorage extends LocalStorage {
+  constructor(app: App) {
+    super(app);
+    this.basePath = path.join(this.basePath, TEST_DIR);
+    this.setupFixtures();
   }
 
-  getStore(): LocalStore {
-    return this.testStore;
-  }
-
-  updateStore(update: (draftStore: LocalStore) => void) {
-    this.testStore = produce(this.testStore, update);
-    return this.getStore();
-  }
-}
-
-export function getFixtures(fixtures: FixturesOptions): LocalStore {
-  switch (fixtures) {
-    case "fresh-install":
-    default:
-      return defaultLocalStore();
+  protected setupFixtures() {
+    this.memoryStore = defaultMemoryStore();
+    if (!fs.existsSync(this.basePath)) fs.mkdirSync(this.basePath);
+    const filenames = fs.readdirSync(this.basePath);
+    filenames.forEach(filename =>
+      fs.unlinkSync(path.join(this.basePath, filename))
+    );
   }
 }

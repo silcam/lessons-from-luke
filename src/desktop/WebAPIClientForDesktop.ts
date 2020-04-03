@@ -5,26 +5,21 @@ import { AppError, asAppError } from "../core/models/AppError";
 export default class WebAPIClientForDesktop {
   private connected: boolean = false;
   private connectionCheckerTimerId: number;
-  // onReconnect: Array<()=>void> = [];
+  private onConnectionChangeListeners: Array<(connected: boolean) => void> = [];
 
   constructor() {
     this.connectionCheckerTimerId = setInterval(
-      () => this.get("/api/users/current", {}),
+      () => this.get("/api/users/current", {}).catch(err => console.error(err)),
       1000 * 3
     );
-    this.get("/api/users/current", {});
+    this.get("/api/users/current", {}).catch(err => console.error(err));
   }
 
-  setConnected() {
-    this.connected = true;
-    // const onReconnect = this.onReconnect;
-    // this.onReconnect = [];
-    // onReconnect.forEach(cb => cb())
-  }
-
-  setNotConnected() {
-    this.connected = false;
-    // if (cb) this.onReconnect.push(cb)
+  setConnected(connected: boolean) {
+    if (connected !== this.connected) {
+      this.connected = connected;
+      this.onConnectionChangeListeners.forEach(cb => cb(connected));
+    }
   }
 
   async get<T extends GetRoute>(
@@ -46,18 +41,28 @@ export default class WebAPIClientForDesktop {
     return this.connected;
   }
 
+  onConnectionChange(cb: (connected: boolean) => void) {
+    this.onConnectionChangeListeners.push(cb);
+  }
+
+  removeOnConnectionChangeListener(cb: (connected: boolean) => void) {
+    this.onConnectionChangeListeners = this.onConnectionChangeListeners.filter(
+      listener => listener !== cb
+    );
+  }
+
   private async trackConnection<T>(cb: () => Promise<T>): Promise<T | null> {
     try {
       const result = await cb();
-      this.setConnected();
+      this.setConnected(true);
       return result;
     } catch (err) {
       const error = asAppError(err);
       if (error.type == "No Connection") {
-        this.setNotConnected();
+        this.setConnected(false);
         return null;
       } else {
-        this.setConnected();
+        this.setConnected(true);
         throw error;
       }
     }

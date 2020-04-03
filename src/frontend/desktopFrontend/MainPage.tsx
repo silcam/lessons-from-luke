@@ -5,18 +5,18 @@ import DownSyncPage from "./downSync/DownSyncPage";
 import { useLoad } from "../common/api/useLoad";
 import { loadSyncState } from "../common/state/syncStateSlice";
 import { useAppSelector } from "../common/state/appState";
-import useCheckConnection from "./downSync/useCheckConnection";
+import useHandleIPCEvents from "./downSync/useHandleIPCEvents";
 
 export default function MainPage() {
   const syncState = useAppSelector(state => state.syncState);
 
   useLoad(loadSyncState());
-  useCheckConnection();
+  useHandleIPCEvents();
 
   if (!syncState.loaded) return <SplashScreen />;
 
-  if (syncState.downSync.stage == "done" && syncState.language)
-    return <TranslateHome code={syncState.language.code} />;
+  // if (syncState.downSync.stage == "done" && syncState.language)
+  // return <TranslateHome code={syncState.language.code} />;
 
   return <DownSyncPage />;
 }

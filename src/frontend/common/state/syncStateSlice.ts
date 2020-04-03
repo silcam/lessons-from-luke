@@ -14,7 +14,10 @@ const syncStateSlice = createSlice({
     loaded: false
   } as SyncState,
   reducers: {
-    setSyncState: (_, action: PayloadAction<SyncState>) => action.payload
+    setSyncState: (state, action: PayloadAction<Partial<SyncState>>) => ({
+      ...state,
+      ...action.payload
+    })
   }
 });
 

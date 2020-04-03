@@ -1,9 +1,8 @@
 import { ipcMain } from "electron";
-import { LocalStorageInterface } from "./LocalStorage";
 import { GetRoute, PostRoute, APIPost, APIGet } from "../core/interfaces/Api";
 import syncStateController from "./controllers/syncStateController";
-import WebAPIClientForDesktop from "./WebAPIClientForDesktop";
 import { asAppError } from "../core/models/AppError";
+import { DesktopApp } from "./DesktopApp";
 
 export function addGetHandler<T extends GetRoute>(
   route: T,
@@ -36,9 +35,8 @@ export function addPostHandler<T extends PostRoute>(
   });
 }
 
-function listen(localStorage: LocalStorageInterface) {
-  const webClient = new WebAPIClientForDesktop();
-  syncStateController(localStorage, webClient);
+function listen(app: DesktopApp) {
+  syncStateController(app);
 }
 
 export default {

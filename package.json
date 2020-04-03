@@ -61,7 +61,6 @@
     "cypress-file-upload": "^3.5.3",
     "electron": "^7.1.0",
     "electron-context-menu": "^0.16.0",
-    "electron-store": "^5.1.1",
     "nodemon": "^1.19.4",
     "ts-jest": "^24.1.0",
     "webpack": "^4.41.2",

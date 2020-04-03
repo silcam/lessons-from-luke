@@ -1,48 +1,146 @@
-import Store from "electron-store";
 import { BaseLesson } from "../core/models/Lesson";
-import produce from "immer";
 import { LessonString } from "../core/models/LessonString";
 import {
   StoredSyncState,
   initalStoredSyncState
 } from "../core/models/SyncState";
+import { PublicLanguage } from "../core/models/Language";
+import { TString, equal } from "../core/models/TString";
+import { App } from "electron";
+import fs from "fs";
+import path from "path";
+import { modelListMerge } from "../core/util/arrayUtils";
 
-export interface LocalStore {
+export interface MemoryStore {
   syncState: StoredSyncState;
+  languages: PublicLanguage[];
   lessons: BaseLesson[];
-  lessonStrings: {
-    [lessonId: number]: LessonString[];
-  };
 }
 
-export function defaultLocalStore(): LocalStore {
+export function defaultMemoryStore(): MemoryStore {
   return {
     syncState: initalStoredSyncState(),
-    lessons: [],
-    lessonStrings: {}
+    languages: [],
+    lessons: []
   };
 }
 
-export interface LocalStorageInterface {
-  getStore: () => LocalStore;
-  updateStore: (update: (draftStore: LocalStore) => void) => LocalStore;
+const MEMORY_STORE = "memoryStore.json";
+
+function lessonStringsFilename(id: number) {
+  return `lessonStrings_${id}.json`;
 }
 
-export default class LocalStorage implements LocalStorageInterface {
-  private store: Store<LocalStore>;
+function tStringsFilename(languageId: number) {
+  return `tStrings_${languageId}.json`;
+}
 
-  constructor() {
-    this.store = new Store({ defaults: defaultLocalStore() });
-    // Reset the storage:
-    // this.store.store = defaultLocalStore();
+function docPreviewFilename(lessonId: number) {
+  return `docPreview_${lessonId}.html`;
+}
+
+export default class LocalStorage {
+  protected memoryStore: MemoryStore;
+  protected basePath: string;
+
+  constructor(app: App) {
+    this.basePath = app.getPath("userData");
+    if (!fs.existsSync(this.basePath))
+      fs.mkdirSync(this.basePath, { recursive: true });
+    this.memoryStore = this.readFile(MEMORY_STORE, defaultMemoryStore());
   }
 
-  getStore(): LocalStore {
-    return this.store.store;
+  getSyncState() {
+    return this.memoryStore.syncState;
   }
 
-  updateStore(update: (draftStore: LocalStore) => void) {
-    this.store.store = produce(this.store.store, update);
-    return this.getStore();
+  getLanguages() {
+    return this.memoryStore.languages;
+  }
+
+  getLessons() {
+    return this.memoryStore.lessons;
+  }
+
+  getLessonStrings(lessonId: number): LessonString[] {
+    return this.readFile(lessonStringsFilename(lessonId), []);
+  }
+
+  getAllTStrings(languageId: number): TString[] {
+    return this.readFile(tStringsFilename(languageId), []);
+  }
+
+  getTStrings(languageId: number, lessonId: number) {
+    const lessonStrings = this.getLessonStrings(lessonId);
+    const masterIds = lessonStrings.map(ls => ls.masterId);
+    const tStrings = this.getAllTStrings(languageId);
+    return tStrings.filter(ts => masterIds.includes(ts.masterId));
+  }
+
+  getDocPreview(lessonId: number) {
+    return this.readTextFile(docPreviewFilename(lessonId));
+  }
+
+  setSyncState(syncState: Partial<StoredSyncState>) {
+    this.memoryStore.syncState = {
+      ...this.memoryStore.syncState,
+      ...syncState
+    };
+    this.writeMemoryStore();
+    return this.memoryStore.syncState;
+  }
+
+  setLanguages(languages: PublicLanguage[]) {
+    this.memoryStore.languages = languages;
+    this.writeMemoryStore();
+    return languages;
+  }
+
+  setLessons(lessons: BaseLesson[]) {
+    this.memoryStore.lessons = lessons;
+    this.writeMemoryStore();
+    return lessons;
+  }
+
+  setLessonStrings(lessonId: number, lessonStrings: LessonString[]) {
+    this.writeFile(lessonStringsFilename(lessonId), lessonStrings);
+    return lessonStrings;
+  }
+
+  setTStrings(languageId: number, tStrings: TString[]) {
+    const existingTStrings = this.getAllTStrings(languageId);
+    const finalTStrings = modelListMerge(existingTStrings, tStrings, equal);
+    this.writeFile(tStringsFilename(languageId), finalTStrings);
+    return finalTStrings;
+  }
+
+  setDocPreview(lessonId: number, preview: string) {
+    this.writeTextFile(docPreviewFilename(lessonId), preview);
+  }
+
+  protected readTextFile(filename: string) {
+    const filepath = path.join(this.basePath, filename);
+    return fs.existsSync(filepath) ? fs.readFileSync(filepath).toString() : "";
+  }
+
+  protected readFile<T>(filename: string, defaultValue: T): T {
+    const text = this.readTextFile(filename);
+    return text ? JSON.parse(text) : defaultValue;
+  }
+
+  protected writeTextFile(filename: string, value: string) {
+    // Using an intermediate tmp file to prevent corruption from incomplete writes
+    const filepath = path.join(this.basePath, filename);
+    const tmpFilepath = filepath + "_tmp";
+    fs.writeFileSync(tmpFilepath, value);
+    fs.renameSync(tmpFilepath, filepath);
+  }
+
+  protected writeFile(filename: string, value: any) {
+    this.writeTextFile(filename, JSON.stringify(value));
+  }
+
+  protected writeMemoryStore() {
+    this.writeFile(MEMORY_STORE, this.memoryStore);
   }
 }

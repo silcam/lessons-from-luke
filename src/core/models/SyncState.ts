@@ -1,12 +1,13 @@
 import { Language } from "./Language";
 
-export type DownSyncStages = "zero" | "essential" | "optional" | "done";
-
 export interface StoredSyncState {
   language: Language | null;
   downSync: {
-    stage: DownSyncStages;
-    currentLessonIndex: number;
+    languages: boolean;
+    lessons: boolean;
+    lessonStrings: boolean[];
+    tStrings: boolean[];
+    docPreviews: boolean[];
   };
   upSync: {
     dirtyTStrings: number[];
@@ -22,8 +23,11 @@ export function initalStoredSyncState(): StoredSyncState {
   return {
     language: null,
     downSync: {
-      stage: "zero",
-      currentLessonIndex: 0
+      languages: false,
+      lessons: false,
+      lessonStrings: [],
+      tStrings: [],
+      docPreviews: []
     },
     upSync: {
       dirtyTStrings: []
