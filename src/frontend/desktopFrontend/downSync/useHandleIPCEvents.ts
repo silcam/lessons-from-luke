@@ -23,7 +23,6 @@ export default function useHandleIPCEvents() {
     ipcRenderer.on(ON_SYNC_STATE_CHANGE, syncStateChangeListener);
 
     const errorListener = (_e: any, error: OnErrorPayload) => {
-      console.log("ON ERROR");
       dispatch(bannerSlice.actions.add({ type: "Error", error }));
     };
     ipcRenderer.on(ON_ERROR, errorListener);

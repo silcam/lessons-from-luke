@@ -20,12 +20,13 @@ import ProgressBar from "../base-components/ProgressBar";
 import styled from "styled-components";
 import Heading from "../base-components/Heading";
 import { findBy } from "../../../core/util/arrayUtils";
+import DesktopSyncMessage from "./DesktopSyncMessage";
+import HeaderMessage, { HdrMessage } from "./HeaderMessage";
 
 interface IProps {
   code: string;
 }
 
-export type HdrMessage = "none" | "unsavedChanges" | "changesSaved";
 export type SetHdrMessage = (hm: HdrMessage) => void;
 
 export default function TranslateHome(props: IProps) {
@@ -45,31 +46,19 @@ export default function TranslateHome(props: IProps) {
     <StdHeaderBarPage
       title={language ? language.name : ""}
       logoNoLink
-      renderRight={() =>
-        hdrMessage == "none" ? null : (
-          <Heading
-            level={4}
-            style={{
-              color:
-                hdrMessage == "unsavedChanges" ? Colors.warning : Colors.success
-            }}
-            text={
-              hdrMessage == "unsavedChanges"
-                ? t("Unsaved_changes")
-                : t("Changes_saved")
-            }
-          />
-        )
-      }
+      renderRight={() => <HeaderMessage hdrMessage={hdrMessage} />}
     >
       <FlexCol>
         {loading ? (
           <LoadingSnake />
         ) : language ? (
-          <TranslateLanguage
-            language={language}
-            setHdrMessage={setHdrMessage}
-          />
+          <React.Fragment>
+            <DesktopSyncMessage />
+            <TranslateLanguage
+              language={language}
+              setHdrMessage={setHdrMessage}
+            />
+          </React.Fragment>
         ) : (
           <CodeError />
         )}

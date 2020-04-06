@@ -20,7 +20,7 @@ export default function syncStateController(app: DesktopApp) {
   addPostHandler("/api/syncState/code", async (_, data) => {
     const language = await webClient.get("/api/languages/code/:code", data);
     if (language) {
-      localStorage.setSyncState({ language });
+      localStorage.setSyncState({ language }, app);
     }
     persistentlyDownSync(app, downSyncProject);
     return fullSyncState(localStorage, webClient);
@@ -55,6 +55,7 @@ function persistentlyDownSync(
         };
         app.webClient.onConnectionChange(listener);
       } else {
+        console.error(err);
         const payload: OnErrorPayload = asAppError(err);
         console.log("SEND ERROR");
         app.getWindow().webContents.send(ON_ERROR, payload);

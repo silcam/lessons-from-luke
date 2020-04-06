@@ -67,7 +67,13 @@ const en = {
   Enter_your_code: "Enter the code you were given:",
   Language: "Language",
   Online: "Online",
-  Offline: "Offline"
+  Offline: "Offline",
+  Downloading_project: "Downloading %{language} project...",
+  Texts: "Texts",
+  Previews: "Previews",
+  Downloading: "Downloading",
+  Uploading: "Uploading",
+  Start_translating: "Start Translating"
 };
 
 export type I18nStrings = typeof en;

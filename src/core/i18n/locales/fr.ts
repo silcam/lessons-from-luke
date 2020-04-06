@@ -37,7 +37,13 @@ const fr: I18nStrings = {
   Code_error:
     "Échec de trouver un projet de traduction. Veuillez vérifier que vous avez le bon adresse.",
   Code_error_for_desktop:
-    "Échec de trouver un projet de traduction. Veuillez vérifier que vous avez le bon code."
+    "Échec de trouver un projet de traduction. Veuillez vérifier que vous avez le bon code.",
+  Downloading_project: "Téléchargement du projet %{language}...",
+  Texts: "Textes",
+  Previews: "Aperçus",
+  Downloading: "Téléchargement",
+  Uploading: "Chargement",
+  Start_translating: "Commencer la traduction"
 };
 
 export default fr;

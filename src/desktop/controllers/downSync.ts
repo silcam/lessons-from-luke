@@ -127,10 +127,7 @@ function updateSyncState(
   update: (syncState: StoredSyncState) => void | StoredSyncState
 ): StoredSyncState {
   const syncState = produce(app.localStorage.getSyncState(), update);
-  app.localStorage.setSyncState(syncState);
-
-  const payload: OnSyncStateChangePayload = syncState;
-  app.getWindow().webContents.send(ON_SYNC_STATE_CHANGE, payload);
+  app.localStorage.setSyncState(syncState, app);
 
   return syncState;
 }

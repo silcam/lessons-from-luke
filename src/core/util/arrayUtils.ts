@@ -83,6 +83,12 @@ export function uniq<T>(list: T[]): T[] {
   );
 }
 
+export function count<T>(list: T[], cb: (item: T) => boolean) {
+  return list.reduce((count, item) => {
+    return cb(item) ? count + 1 : count;
+  }, 0);
+}
+
 // export function randomSelection<T>(list: T[], number: number): T[] {
 //   if (number >= list.length) return list;
 

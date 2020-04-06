@@ -4,7 +4,7 @@ import {
   APIPost,
   PostRoute
 } from "../../core/interfaces/Api";
-import { AppError } from "../../core/models/AppError";
+import { asAppError } from "../../core/models/AppError";
 import { ipcRenderer } from "electron";
 
 export async function ipcGet<T extends GetRoute>(
@@ -17,7 +17,7 @@ export async function ipcGet<T extends GetRoute>(
     if (response?.data) return response.data;
     throw response?.error;
   } catch (err) {
-    throwAppError(err);
+    throw asAppError(err);
   }
 }
 
@@ -34,15 +34,6 @@ export async function ipcPost<T extends PostRoute>(
     if (response?.data) return response.data;
     throw response?.error;
   } catch (err) {
-    throwAppError(err);
+    throw asAppError(err);
   }
-}
-
-function throwAppError(err: any): never {
-  let error: AppError;
-  if (err.request && !err.response) error = { type: "No Connection" };
-  else if (err.response && err.response.status)
-    error = { type: "HTTP", status: err.response.status };
-  error = { type: "Unknown" };
-  throw error;
 }

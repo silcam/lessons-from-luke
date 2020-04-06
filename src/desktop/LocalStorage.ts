@@ -10,6 +10,11 @@ import { App } from "electron";
 import fs from "fs";
 import path from "path";
 import { modelListMerge } from "../core/util/arrayUtils";
+import {
+  OnSyncStateChangePayload,
+  ON_SYNC_STATE_CHANGE
+} from "../core/api/IpcChannels";
+import { DesktopApp } from "./DesktopApp";
 
 export interface MemoryStore {
   syncState: StoredSyncState;
@@ -25,7 +30,7 @@ export function defaultMemoryStore(): MemoryStore {
   };
 }
 
-const MEMORY_STORE = "memoryStore.json";
+export const MEMORY_STORE = "memoryStore.json";
 
 function lessonStringsFilename(id: number) {
   return `lessonStrings_${id}.json`;
@@ -48,6 +53,7 @@ export default class LocalStorage {
     if (!fs.existsSync(this.basePath))
       fs.mkdirSync(this.basePath, { recursive: true });
     this.memoryStore = this.readFile(MEMORY_STORE, defaultMemoryStore());
+    console.log(`Local storage in ${this.basePath}`);
   }
 
   getSyncState() {
@@ -81,12 +87,15 @@ export default class LocalStorage {
     return this.readTextFile(docPreviewFilename(lessonId));
   }
 
-  setSyncState(syncState: Partial<StoredSyncState>) {
+  setSyncState(syncState: Partial<StoredSyncState>, app: DesktopApp) {
     this.memoryStore.syncState = {
       ...this.memoryStore.syncState,
       ...syncState
     };
     this.writeMemoryStore();
+
+    const payload: OnSyncStateChangePayload = syncState;
+    app.getWindow().webContents.send(ON_SYNC_STATE_CHANGE, payload);
     return this.memoryStore.syncState;
   }
 
@@ -112,6 +121,14 @@ export default class LocalStorage {
     const finalTStrings = modelListMerge(existingTStrings, tStrings, equal);
     this.writeFile(tStringsFilename(languageId), finalTStrings);
     return finalTStrings;
+  }
+
+  setProjectLanguageTStrings(tStrings: TString[]) {
+    const languageId = this.memoryStore.syncState.language?.languageId;
+    if (!languageId)
+      throw "setProjectLanguageTStrings called without set Project Language!";
+
+    return this.setTStrings(languageId, tStrings);
   }
 
   setDocPreview(lessonId: number, preview: string) {

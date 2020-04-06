@@ -1,4 +1,4 @@
-import { last, modelListMerge, discriminate, uniq } from "./arrayUtils";
+import { last, modelListMerge, discriminate, uniq, count } from "./arrayUtils";
 
 test("last", () => {
   expect(last([1, 2, 3])).toBe(3);
@@ -31,4 +31,9 @@ test("uniq", () => {
   expect(uniq([5, 1, 1, 2, 3, 4, 4, 3, 1, 2, 8])).toEqual([5, 1, 2, 3, 4, 8]);
   expect(uniq([])).toEqual([]);
   expect(uniq(["a", "b", "a"])).toEqual(["a", "b"]);
+});
+
+test("count", () => {
+  expect(count([], () => true)).toBe(0);
+  expect(count([1, 2, 3], n => n > 1)).toBe(2);
 });

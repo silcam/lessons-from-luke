@@ -55,8 +55,10 @@ export function StdHeaderBar(props: IProps) {
           )}
           <Heading level={1} text={props.title} />
           <FlexCol />
-          {forDesktop && <OfflineIndicator />}
-          {props.renderRight && props.renderRight()}
+          <div>
+            {forDesktop && <OfflineIndicator />}
+            {props.renderRight && props.renderRight()}
+          </div>
         </FlexRow>
       </HeaderBar>
       <Banners />

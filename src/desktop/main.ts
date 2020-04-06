@@ -8,9 +8,12 @@ import WebAPIClientForDesktop from "./WebAPIClientForDesktop";
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
 let mainWindow: BrowserWindow | null;
+
 const localStorage = new LocalStorage(app);
-// const localStorage = new TestLocalStorage(app);
+// const localStorage = new TestLocalStorage(app) //, "batanga-synced");
+
 const webClient = new WebAPIClientForDesktop();
+
 contextMenu();
 
 function createWindow() {

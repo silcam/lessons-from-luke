@@ -79,7 +79,9 @@ function interpolateParams(route: string, params: Params) {
 function baseUrl() {
   const nodeEnv = process?.env?.NODE_ENV;
   if (!nodeEnv) return ""; // Appropriate for browser
+  // return "https://beta.lessonsfromluke.gospelcoding.org"; // For testing with real server
   return nodeEnv == "production"
     ? "https://beta.lessonsfromluke.gospelcoding.org"
     : "http://localhost:8081";
 }
+//
