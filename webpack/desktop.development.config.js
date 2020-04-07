@@ -13,10 +13,5 @@ module.exports = {
       "/webified": "http://localhost:8081"
     },
     historyApiFallback: true
-  },
-  output: {
-    filename: "[name].bundle.js",
-    path: path.resolve(__dirname, "..", "dist", "frontend"),
-    publicPath: "/"
   }
 };

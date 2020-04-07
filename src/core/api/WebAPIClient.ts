@@ -10,12 +10,13 @@ import { AppError } from "../models/AppError";
 
 export async function webGet<T extends GetRoute>(
   route: T,
-  params: APIGet[T][0]
+  params: APIGet[T][0],
+  baseUrl: string = ""
 ): Promise<APIGet[T][1] | null> {
   const finalRoute = interpolateParams(route, params);
   try {
     console.log(`GET ${finalRoute}`);
-    const response = await Axios.get(finalRoute);
+    const response = await Axios.get(baseUrl + finalRoute);
     return response.data;
   } catch (err) {
     throwAppError(err);
@@ -25,12 +26,13 @@ export async function webGet<T extends GetRoute>(
 export async function webPost<T extends PostRoute>(
   route: T,
   params: APIPost[T][0],
-  data: APIPost[T][1]
+  data: APIPost[T][1],
+  baseUrl: string = ""
 ): Promise<APIPost[T][2] | null> {
   const finalRoute = interpolateParams(route, params);
   try {
     console.log(`POST ${finalRoute}`);
-    const response = await Axios.post(finalRoute, data);
+    const response = await Axios.post(baseUrl + finalRoute, data);
     return response.data;
   } catch (err) {
     throwAppError(err);
@@ -67,21 +69,8 @@ function throwAppError(err: any): never {
 }
 
 function interpolateParams(route: string, params: Params) {
-  return (
-    baseUrl() +
-    Object.keys(params).reduce(
-      (route: string, key) => route.replace(`:${key}`, `${params[key]}`),
-      route
-    )
+  return Object.keys(params).reduce(
+    (route: string, key) => route.replace(`:${key}`, `${params[key]}`),
+    route
   );
 }
-
-function baseUrl() {
-  const nodeEnv = process?.env?.NODE_ENV;
-  if (!nodeEnv) return ""; // Appropriate for browser
-  // return "https://beta.lessonsfromluke.gospelcoding.org"; // For testing with real server
-  return nodeEnv == "production"
-    ? "https://beta.lessonsfromluke.gospelcoding.org"
-    : "http://localhost:8081";
-}
-//

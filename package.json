@@ -1,7 +1,17 @@
 {
-  "name": "ts-test",
-  "version": "1.0.0",
+  "name": "lessons-from-luke",
+  "description": "Sunday School curriculum for every language.",
+  "author": "Rick Conrad",
+  "productName": "Lessons from Luke",
+  "version": "2.0.0",
   "license": "MIT",
+  "main": "dist/desktop/main.js",
+  "build": {
+    "appId": "org.sil.cmb.lessons-from-luke",
+    "directories": {
+      "output": "dist-desktop"
+    }
+  },
   "scripts": {
     "dev-web": "NODE_ENV=test concurrently -k -p \"[{name}]\" -n \"WebpackDevServe,Typescript,Server\" -c \"yellow.bold,blue.bold,green.bold\" \"yarn wpDevServerWeb\" \"tsc -b -w ./src/server\" \"yarn serve\"",
     "dev-desktop": "NODE_ENV=test concurrently -k -p \"[{name}]\" -n \"Webpack,Typescript,Electron\" -c \"yellow.bold,blue.bold,green.bold\" \"yarn wpDevServerDesktop\" \"tsc -b -w ./src/desktop ./src/server\" \"yarn run-desktop\"",
@@ -11,7 +21,8 @@
     "run-desktop": "nodemon -w dist/desktop/ --exec yarn electron dist/desktop/main.js",
     "test": "NODE_ENV=test jest --watchAll --runInBand",
     "deploy": "bundle exec cap production deploy",
-    "build-server": "tsc -b ./src/server && webpack --config webpack/production.config.js"
+    "build-server": "tsc -b ./src/server/tsconfig.prod.json && webpack --config webpack/web.production.config.js",
+    "build-desktop": "tsc -b ./src/desktop/tsconfig.prod.json && webpack --config webpack/desktop.production.config.js && node build-desktop.js"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^1.1.0",
@@ -61,6 +72,7 @@
     "cypress": "^4.1.0",
     "cypress-file-upload": "^3.5.3",
     "electron": "^7.1.0",
+    "electron-builder": "^22.4.1",
     "electron-context-menu": "^0.16.0",
     "nodemon": "^1.19.4",
     "ts-jest": "^24.1.0",
@@ -68,5 +80,11 @@
     "webpack-bundle-analyzer": "^3.6.0",
     "webpack-dev-middleware": "^3.7.2",
     "webpack-dev-server": "^3.9.0"
+  },
+  "desktopBuildDependencies": {
+    "axios": "^0.19.0",
+    "electron-context-menu": "^0.16.0",
+    "immer": "^4.0.1",
+    "immutability-helper": "^3.0.1"
   }
 }

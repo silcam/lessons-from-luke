@@ -25,7 +25,7 @@ export default function tStringsController(app: DesktopApp) {
   });
 
   // Run upSync on reconnect
-  webClient.onConnectionChange(connected => {
+  webClient.onConnectionChange((connected) => {
     if (connected) {
       upSyncTStrings(app, []);
     }
@@ -36,18 +36,18 @@ async function upSyncTStrings(app: DesktopApp, tStrings: TString[]) {
   const { localStorage } = app;
 
   try {
-    const upSync = updateUpSync(app, upSync => {
+    const upSync = updateUpSync(app, (upSync) => {
       upSync.dirtyTStrings = modelListMerge(
         upSync.dirtyTStrings,
         tStrings,
         equal
       );
     });
+    const tStringsToSave = upSync.dirtyTStrings;
 
     const code = localStorage.getSyncState().language?.code;
-    if (!code) return;
+    if (!code || tStringsToSave.length == 0) return;
 
-    const tStringsToSave = upSync.dirtyTStrings;
     const savedTStrings = await app.webClient.post(
       "/api/tStrings",
       {},
@@ -55,13 +55,13 @@ async function upSyncTStrings(app: DesktopApp, tStrings: TString[]) {
     );
     if (savedTStrings) {
       app.localStorage.setProjectLanguageTStrings(savedTStrings);
-      updateUpSync(app, upSync => {
+      updateUpSync(app, (upSync) => {
         // Other TStrings may have been added, filter out the ones we saved
         // Filter checks matching text, since a newer version of the same string could have been added since
         upSync.dirtyTStrings = upSync.dirtyTStrings.filter(
-          tString =>
+          (tString) =>
             !tStringsToSave.find(
-              tStr => equal(tStr, tString) && tStr.text == tString.text
+              (tStr) => equal(tStr, tString) && tStr.text == tString.text
             )
         );
       });

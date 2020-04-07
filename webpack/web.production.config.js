@@ -1,4 +1,4 @@
-const baseConfig = require("./base.config");
+const baseConfig = require("./web.base.config");
 const path = require("path");
 
 module.exports = {

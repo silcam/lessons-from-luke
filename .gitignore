@@ -7,3 +7,4 @@ node_modules
 /secrets.json
 /log/capistrano.log
 /test/docs/serverDocs
+/dist-desktop

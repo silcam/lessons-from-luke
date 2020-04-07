@@ -16,17 +16,21 @@ import {
 } from "../core/api/IpcChannels";
 import { DesktopApp } from "./DesktopApp";
 
+const LOCAL_STORAGE_VERSION = 1;
+
 export interface MemoryStore {
   syncState: StoredSyncState;
   languages: PublicLanguage[];
   lessons: BaseLesson[];
+  localStorageVersion: number;
 }
 
 export function defaultMemoryStore(): MemoryStore {
   return {
     syncState: initalStoredSyncState(),
     languages: [],
-    lessons: []
+    lessons: [],
+    localStorageVersion: LOCAL_STORAGE_VERSION
   };
 }
 
@@ -50,10 +54,13 @@ export default class LocalStorage {
 
   constructor(app: App) {
     this.basePath = app.getPath("userData");
+    console.log(`Local storage in ${this.basePath}`);
     if (!fs.existsSync(this.basePath))
       fs.mkdirSync(this.basePath, { recursive: true });
+
     this.memoryStore = this.readFile(MEMORY_STORE, defaultMemoryStore());
-    console.log(`Local storage in ${this.basePath}`);
+    if (this.memoryStore.localStorageVersion < LOCAL_STORAGE_VERSION)
+      this.migrateLocalStorage();
   }
 
   getSyncState() {
@@ -133,6 +140,15 @@ export default class LocalStorage {
 
   setDocPreview(lessonId: number, preview: string) {
     this.writeTextFile(docPreviewFilename(lessonId), preview);
+  }
+
+  protected migrateLocalStorage() {
+    console.log(
+      `Migrate local storage from version ${this.memoryStore.localStorageVersion} to version ${LOCAL_STORAGE_VERSION}`
+    );
+
+    this.memoryStore.localStorageVersion = LOCAL_STORAGE_VERSION;
+    this.writeMemoryStore();
   }
 
   protected readTextFile(filename: string) {

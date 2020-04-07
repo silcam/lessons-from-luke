@@ -1,13 +1,18 @@
 import { GetRoute, APIGet, APIPost, PostRoute } from "../core/interfaces/Api";
 import { webGet, webPost } from "../core/api/WebAPIClient";
 import { AppError, asAppError } from "../core/models/AppError";
+import { App } from "electron";
 
 export default class WebAPIClientForDesktop {
   private connected: boolean = false;
   private connectionCheckerTimerId: number;
   private onConnectionChangeListeners: Array<(connected: boolean) => void> = [];
+  private baseUrl = "";
 
-  constructor() {
+  constructor(app: App) {
+    this.baseUrl = app.isPackaged
+      ? "https://beta.lessonsfromluke.gospelcoding.org"
+      : "http://localhost:8081";
     this.connectionCheckerTimerId = setInterval(
       () => this.get("/api/users/current", {}).catch(err => console.error(err)),
       1000 * 3
@@ -26,7 +31,7 @@ export default class WebAPIClientForDesktop {
     route: T,
     params: APIGet[T][0]
   ): Promise<APIGet[T][1] | null> {
-    return this.trackConnection(() => webGet(route, params));
+    return this.trackConnection(() => webGet(route, params, this.baseUrl));
   }
 
   async post<T extends PostRoute>(
@@ -34,7 +39,9 @@ export default class WebAPIClientForDesktop {
     params: APIPost[T][0],
     data: APIPost[T][1]
   ): Promise<APIPost[T][2] | null> {
-    return this.trackConnection(() => webPost(route, params, data));
+    return this.trackConnection(() =>
+      webPost(route, params, data, this.baseUrl)
+    );
   }
 
   isConnected() {
