@@ -10,13 +10,19 @@ import { readyToTranslate } from "../../core/models/SyncState";
 
 export default function MainPage() {
   const syncState = useAppSelector(state => state.syncState);
-  const canTranslate = readyToTranslate(syncState);
-  const [doTranslate, setDoTranslate] = useState(canTranslate);
 
   useLoad(loadSyncState());
   useHandleIPCEvents();
 
   if (!syncState.loaded) return <SplashScreen />;
+
+  return <MainPageWithSyncStateLoaded />;
+}
+
+function MainPageWithSyncStateLoaded() {
+  const syncState = useAppSelector(state => state.syncState);
+  const canTranslate = readyToTranslate(syncState);
+  const [doTranslate, setDoTranslate] = useState(canTranslate);
 
   if (doTranslate) return <TranslateHome code={syncState.language!.code} />;
 
