@@ -1,5 +1,3 @@
-const HtmlWebpackPlugin = require("html-webpack-plugin");
-// const { CleanWebpackPlugin } = require("clean-webpack-plugin");
 const webpack = require("webpack");
 
 module.exports = {
@@ -16,18 +14,6 @@ module.exports = {
       }
     ]
   },
-  plugins: [
-    // new CleanWebpackPlugin(),
-    new HtmlWebpackPlugin({
-      title: "Lessons from Luke",
-      chunks: ["web"]
-    }),
-    new HtmlWebpackPlugin({
-      title: "Lessons from Luke",
-      filename: "desktop.html",
-      chunks: ["desktop"]
-    })
-  ],
   resolve: {
     extensions: [".tsx", ".ts", ".js"]
   }
