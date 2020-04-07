@@ -10,6 +10,7 @@ import {
 import { downSyncBase, downSyncProject, NO_CONNECTION } from "./downSync";
 import { asAppError } from "../../core/models/AppError";
 import LocalStorage from "../LocalStorage";
+import { localeByLanguageId } from "../../core/i18n/I18n";
 
 export default function syncStateController(app: DesktopApp) {
   const { webClient, localStorage, getWindow } = app;
@@ -20,9 +21,22 @@ export default function syncStateController(app: DesktopApp) {
   addPostHandler("/api/syncState/code", async (_, data) => {
     const language = await webClient.get("/api/languages/code/:code", data);
     if (language) {
-      localStorage.setSyncState({ language }, app);
+      const syncState = localStorage.getSyncState();
+      localStorage.setSyncState(
+        {
+          language,
+          locale:
+            syncState.locale || localeByLanguageId(language.defaultSrcLang)
+        },
+        null
+      );
     }
     persistentlyDownSync(app, downSyncProject);
+    return fullSyncState(localStorage, webClient);
+  });
+
+  addPostHandler("/api/syncState/locale", async (_, { locale }) => {
+    localStorage.setSyncState({ locale }, null);
     return fullSyncState(localStorage, webClient);
   });
 

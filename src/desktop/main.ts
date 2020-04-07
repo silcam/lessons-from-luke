@@ -11,7 +11,7 @@ import path from "path";
 let mainWindow: BrowserWindow | null;
 
 const localStorage = new LocalStorage(app);
-// const localStorage = new TestLocalStorage(app) //, "batanga-synced");
+// const localStorage = new TestLocalStorage(app); //, "batanga-synced");
 
 const webClient = new WebAPIClientForDesktop(app);
 

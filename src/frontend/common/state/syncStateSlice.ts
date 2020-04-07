@@ -5,6 +5,7 @@ import {
 } from "../../../core/models/SyncState";
 import { Loader, Pusher } from "../api/useLoad";
 import languageSlice from "./languageSlice";
+import { Locale } from "../../../core/i18n/I18n";
 
 const syncStateSlice = createSlice({
   name: "syncState",
@@ -40,5 +41,12 @@ export function pushCode(code: string): Pusher<SyncState | null> {
     const syncState = await post("/api/syncState/code", {}, { code });
     if (syncState) dispatch(syncStateSlice.actions.setSyncState(syncState));
     return syncState;
+  };
+}
+
+export function pushLocale(locale: Locale): Pusher<void> {
+  return async (post, dispatch) => {
+    const syncState = await post("/api/syncState/locale", {}, { locale });
+    if (syncState) dispatch(syncStateSlice.actions.setSyncState(syncState));
   };
 }

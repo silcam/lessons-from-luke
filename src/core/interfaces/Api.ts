@@ -4,6 +4,7 @@ import { Language, NewLanguage, PublicLanguage } from "../models/Language";
 import { BaseLesson, Lesson } from "../models/Lesson";
 import { DocString } from "../models/DocString";
 import { SyncState } from "../models/SyncState";
+import { Locale } from "../i18n/I18n";
 
 export type Params = { [key: string]: string | number };
 
@@ -54,6 +55,7 @@ export interface APIPost {
 
   // Desktop Only
   "/api/syncState/code": [{}, { code: string }, SyncState];
+  "/api/syncState/locale": [{}, { locale: Locale }, SyncState];
 }
 
 export type GetRoute = keyof APIGet;

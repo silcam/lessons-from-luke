@@ -94,15 +94,17 @@ export default class LocalStorage {
     return this.readTextFile(docPreviewFilename(lessonId));
   }
 
-  setSyncState(syncState: Partial<StoredSyncState>, app: DesktopApp) {
+  setSyncState(syncState: Partial<StoredSyncState>, app: DesktopApp | null) {
     this.memoryStore.syncState = {
       ...this.memoryStore.syncState,
       ...syncState
     };
     this.writeMemoryStore();
 
-    const payload: OnSyncStateChangePayload = syncState;
-    app.getWindow().webContents.send(ON_SYNC_STATE_CHANGE, payload);
+    if (app) {
+      const payload: OnSyncStateChangePayload = syncState;
+      app.getWindow().webContents.send(ON_SYNC_STATE_CHANGE, payload);
+    }
     return this.memoryStore.syncState;
   }
 

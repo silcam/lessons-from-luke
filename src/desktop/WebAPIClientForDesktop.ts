@@ -13,6 +13,7 @@ export default class WebAPIClientForDesktop {
     this.baseUrl = app.isPackaged
       ? "https://beta.lessonsfromluke.gospelcoding.org"
       : "http://localhost:8081";
+    // this.baseUrl = "https://beta.lessonsfromluke.gospelcoding.org"; // For testing with real server
     this.connectionCheckerTimerId = setInterval(
       () => this.get("/api/users/current", {}).catch(err => console.error(err)),
       1000 * 3

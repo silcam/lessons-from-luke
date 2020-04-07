@@ -1,8 +1,10 @@
 import { Language } from "./Language";
 import { TString } from "./TString";
+import { Locale } from "../i18n/I18n";
 
 export interface StoredSyncState {
   language: Language | null;
+  locale?: Locale;
   downSync: {
     languages: boolean;
     lessons: boolean;
