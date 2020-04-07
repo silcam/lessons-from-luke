@@ -3,7 +3,7 @@ import Div from "./Div";
 import { FlexCol } from "./Flex";
 
 const Scroll = styled(FlexCol)`
-  overflow: scroll;
+  overflow: auto;
   /* flex-shrink: 1; */
 `;
 
