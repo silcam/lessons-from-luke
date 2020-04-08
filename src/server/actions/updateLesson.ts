@@ -5,6 +5,7 @@ import mergeXml from "../xml/mergeXml";
 import { objKeys } from "../../core/util/objectUtils";
 import parse from "../xml/parse";
 import { Lesson } from "../../core/models/Lesson";
+import webifyLesson from "./webifyLesson";
 
 export default async function updateLesson(
   lessonId: number,
@@ -21,7 +22,14 @@ export default async function updateLesson(
     docStrings
   );
   const newDocStrings = parseDocStrings(docStorage.docFilepath(newLesson));
-  return saveDocStrings(lessonId, newLesson.version, newDocStrings, storage);
+  const finalLesson = await saveDocStrings(
+    lessonId,
+    newLesson.version,
+    newDocStrings,
+    storage
+  );
+  webifyLesson(finalLesson);
+  return finalLesson;
 }
 
 export function parseDocStrings(docFilepath: string) {

@@ -7,17 +7,15 @@ describe("Admin Lessons", () => {
     cy.visit("/");
     cy.contains("button", "Add Lesson").click();
     cy.fixture("English_Luke-Q1-L06.odt", "base64").then(fileContent => {
-      cy.get("input[type='file']")
-        .parent()
-        .upload(
-          {
-            fileContent,
-            fileName: "English_Luke-Q1-L06.odt",
-            mimeType: "application/vnd.oasis.opendocument.text",
-            encoding: "base64"
-          },
-          { subjectType: "drag-n-drop" }
-        );
+      cy.get("input[type='file']").parent().upload(
+        {
+          fileContent,
+          fileName: "English_Luke-Q1-L06.odt",
+          mimeType: "application/vnd.oasis.opendocument.text",
+          encoding: "base64"
+        },
+        { subjectType: "drag-n-drop" }
+      );
     });
     cy.contains("button", "English_Luke-Q1-L06.odt").should("exist");
     cy.inLabel("Book").should("have.value", "Luke");
@@ -31,15 +29,17 @@ describe("Admin Lessons", () => {
 
   it("Edits lessons", () => {
     cy.visit("/");
-    cy.contains("a", "Luke 1-1").click();
+    cy.contains("a", "Luke 1-2").click();
     cy.contains("button", "Edit").click();
 
     // Merge
-    cy.contains("div", "Luke 1:5-25")
+    cy.contains("div", "KNOW:")
       .contains("button", "Merge Next with Space")
       .invoke("show")
       .click();
-    cy.contains("Luke 1:5-25 Luke 1:57-64").should("exist");
+    cy.contains(
+      "KNOW: The children will know that nothing is impossible with God."
+    ).should("exist");
 
     // Delete
     cy.contains("div", "Lesson Overview")
@@ -58,9 +58,18 @@ describe("Admin Lessons", () => {
     cy.contains("Today’s Truth for today").should("exist");
 
     cy.contains("button", "Save").click();
+    cy.contains("button", "Edit");
+    cy.contains(
+      "KNOW: The children will know that nothing is impossible with God."
+    ).should("exist");
+    cy.contains("Lesson Overview").should("not.exist");
+    cy.contains("Today’s Truth for today").should("exist");
 
     cy.visit("/translate/GHI");
-    cy.contains("Luke 1:5-25 Luke 1:57-64").should("exist");
+    cy.contains("Luke 1-2").click();
+    cy.contains(
+      "KNOW: The children will know that nothing is impossible with God."
+    ).should("exist");
     cy.contains("Lesson Overview").should("not.exist");
     cy.contains("Today’s Truth for today").should("exist");
   });
