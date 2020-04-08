@@ -55,6 +55,26 @@ const languageSlice = createSlice({
       }>
     ) => {
       state.usfmImportResult = action.payload;
+    },
+    setProgress: (
+      state,
+      action: PayloadAction<{
+        languageId: number;
+        lessonId: number;
+        progress: number;
+      }>
+    ) => {
+      const { languageId, lessonId, progress } = action.payload;
+      if (state.translating?.languageId !== languageId) {
+        console.error(
+          `Can't update progress for language ${languageId} - translating language is ${state.translating?.languageId}`
+        );
+        return;
+      }
+      state.translating.progress = state.translating.progress.filter(
+        pr => pr.lessonId != lessonId
+      );
+      state.translating.progress.push({ lessonId, progress });
     }
   }
 });

@@ -24,7 +24,7 @@ export default function TranslateLesson(props: IProps) {
   const { lesson, lessonTStrings } = useLessonTStrings(
     props.lessonId,
     [srcLangId, props.language.languageId],
-    { contentOnly: props.language.motherTongue }
+    { contentOnly: props.language.motherTongue, updateProgress: true }
   );
   const docHtml: string | undefined = useAppSelector(
     state => state.docPreview[props.lessonId]
