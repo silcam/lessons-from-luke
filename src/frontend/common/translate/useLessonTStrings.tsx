@@ -3,9 +3,12 @@ import { findBy, count } from "../../../core/util/arrayUtils";
 import { LessonString } from "../../../core/models/LessonString";
 import { TString } from "../../../core/models/TString";
 import { lessonStringsFromLesson } from "../../../core/models/Lesson";
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useContext } from "react";
 import { useDispatch } from "react-redux";
 import languageSlice from "../state/languageSlice";
+import { LessonProgress } from "../../../core/models/Language";
+import PlatformContext from "../PlatformContext";
+import RequestContext from "../api/RequestContext";
 
 export type LessonTString = {
   lStr: LessonString;
@@ -19,6 +22,7 @@ export default function useLessonTStrings(
   opts: { contentOnly?: boolean; updateProgress?: boolean } = {}
 ) {
   const dispatch = useDispatch();
+  const postProgress = usePostProgress();
 
   const lesson = useAppSelector(state =>
     findBy(state.lessons, "lessonId", lessonId)
@@ -55,8 +59,19 @@ export default function useLessonTStrings(
           progress: lessonProgress
         })
       );
+      postProgress({ lessonId, progress: lessonProgress });
     }
   }, [lessonTStrings, opts.updateProgress]);
 
   return { lesson, lessonTStrings };
+}
+
+function usePostProgress(): (lessonProgress: LessonProgress) => void {
+  const desktop = useContext(PlatformContext) == "desktop";
+  const { post } = useContext(RequestContext);
+
+  if (!desktop) return () => {};
+
+  return (lessonProgress: LessonProgress) =>
+    post("/api/syncState/progress", {}, lessonProgress);
 }

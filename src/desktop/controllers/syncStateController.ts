@@ -40,6 +40,17 @@ export default function syncStateController(app: DesktopApp) {
     return fullSyncState(localStorage, webClient);
   });
 
+  addPostHandler("/api/syncState/progress", async (_, lessonProgress) => {
+    const language = localStorage.getSyncState().language;
+    if (!language) return;
+
+    const progress = language.progress.filter(
+      pr => pr.lessonId != lessonProgress.lessonId
+    );
+    progress.push(lessonProgress);
+    localStorage.setSyncState({ language: { ...language, progress } }, null);
+  });
+
   // Update connection status in interface
   webClient.onConnectionChange(connected => {
     const payload: OnSyncStateChangePayload = fullSyncState(
