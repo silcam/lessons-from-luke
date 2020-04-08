@@ -189,25 +189,15 @@ export default class PGStorage implements Persistence {
     const existingStrings: TString[] = await this
       .sql`SELECT * FROM tstrings WHERE languageid IN (${langIds})`;
 
-    const [toDelete, toAddOrUpdate] = discriminate(
-      tStrings,
-      tStr => tStr.text == ""
-    );
-    toAddOrUpdate.forEach(tStr => {
+    const tStringsWithHistory = tStrings.map(tStr => {
       const existing = existingStrings.find(e => equal(e, tStr));
-      if (existing) tStr.history = [...existing.history, existing.text];
+      return existing
+        ? { ...tStr, history: [...existing.history, existing.text] }
+        : tStr;
     });
     const [toUpdate, toAdd] = discriminate(
-      toAddOrUpdate,
+      tStringsWithHistory,
       tStr => tStr.history.length > 0
-    );
-
-    await Promise.all(
-      toDelete.map(
-        tStr =>
-          this
-            .sql`DELETE FROM tstrings WHERE languageid=${tStr.languageId} AND masterid=${tStr.masterId}`
-      )
     );
 
     if (toAdd.length > 0)
@@ -227,7 +217,7 @@ export default class PGStorage implements Persistence {
     if (opts.awaitProgress) await this.updateProgress();
     else this.updateProgress(); // Without await
 
-    return toAddOrUpdate;
+    return tStringsWithHistory;
   }
 
   async withProgressUpdate<T>(cb: () => Promise<T>) {
@@ -266,7 +256,7 @@ export default class PGStorage implements Persistence {
               lStrings.filter(
                 lStr =>
                   (language.motherTongue && !lStr.motherTongue) ||
-                  findBy(tStrings, "masterId", lStr.masterId)
+                  findBy(tStrings, "masterId", lStr.masterId)?.text
               ).length,
               lStrings.length
             )

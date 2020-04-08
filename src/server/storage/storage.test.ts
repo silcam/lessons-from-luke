@@ -256,8 +256,12 @@ test("Save TStrings", async () => {
     }
   ].map(tStr => ({ ...tStr, history: [], sourceLanguageId: 2, languageId: 3 }));
 
-  const tStrings = await storage.saveTStrings(newTStrings);
-  expect(tStrings.length).toBe(2);
+  let batanga = await storage.language({ languageId: 3 });
+  expect(batanga!.progress[0]).toEqual({ lessonId: 11, progress: 6 });
+  const tStrings = await storage.saveTStrings(newTStrings, {
+    awaitProgress: true
+  });
+  expect(tStrings.length).toBe(3);
   expect(tStrings[0]).toEqual({
     masterId: 1,
     source: "Livre de Luc...",
@@ -267,6 +271,14 @@ test("Save TStrings", async () => {
     languageId: 3
   });
   expect(tStrings[1]).toEqual({
+    masterId: 3,
+    source: "Dieu entend...",
+    text: "",
+    history: ["Njambɛ abowandi mahaleya mahu."],
+    sourceLanguageId: 2,
+    languageId: 3
+  });
+  expect(tStrings[2]).toEqual({
     masterId: 19,
     source: "Luc 1:13...",
     text: "Bt Luke 1:13...",
@@ -274,9 +286,9 @@ test("Save TStrings", async () => {
     sourceLanguageId: 2,
     languageId: 3
   });
-  expect(
-    (await storage.tStrings({ languageId: 3 })).map(ts => ts.masterId)
-  ).not.toContain(3); // The deleted tstring
+
+  batanga = await storage.language({ languageId: 3 });
+  expect(batanga!.progress[0]).toEqual({ lessonId: 11, progress: 4 });
 
   await storage.reset();
 });

@@ -143,8 +143,11 @@ test("Save TString - blank text", async () => {
     .post("/api/tStrings")
     .send({ tStrings, code: "GHI" });
   expect(response.status).toBe(200);
-  expect(response.body).toEqual([]);
-  expect(await batangaTStringCount(agent)).toBe(2);
+  expect(response.body[0]).toEqual({
+    ...tStrings[0],
+    history: ["Njambɛ abowandi mahaleya mahu."]
+  });
+  expect(await batangaTStringCount(agent)).toBe(3);
 
   await resetStorage();
 });
