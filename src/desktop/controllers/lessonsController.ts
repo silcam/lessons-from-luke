@@ -1,6 +1,5 @@
-import { addGetHandler, addPostHandler } from "../DesktopAPIServer";
-import WebAPIClientForDesktop from "../WebAPIClientForDesktop";
-import { DesktopApp } from "../DesktopApp";
+import { addGetHandler } from "../DesktopAPIServer";
+import DesktopApp from "../DesktopApp";
 import { findBy } from "../../core/util/arrayUtils";
 
 export default function lessonsController(app: DesktopApp) {

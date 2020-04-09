@@ -6,7 +6,7 @@ import {
 } from "../core/models/SyncState";
 import { PublicLanguage } from "../core/models/Language";
 import { TString, equal } from "../core/models/TString";
-import { App } from "electron";
+import { app } from "electron";
 import fs from "fs";
 import path from "path";
 import { modelListMerge } from "../core/util/arrayUtils";
@@ -14,7 +14,7 @@ import {
   OnSyncStateChangePayload,
   ON_SYNC_STATE_CHANGE
 } from "../core/api/IpcChannels";
-import { DesktopApp } from "./DesktopApp";
+import DesktopApp from "./DesktopApp";
 
 const LOCAL_STORAGE_VERSION = 1;
 
@@ -50,10 +50,10 @@ function docPreviewFilename(lessonId: number) {
 
 export default class LocalStorage {
   protected memoryStore: MemoryStore;
-  protected basePath: string;
+  protected basePath: string = LocalStorage.getBasePath();
 
-  constructor(app: App) {
-    this.basePath = app.getPath("userData");
+  constructor(basePath?: string) {
+    if (basePath) this.basePath = basePath;
     console.log(`Local storage in ${this.basePath}`);
     if (!fs.existsSync(this.basePath))
       fs.mkdirSync(this.basePath, { recursive: true });
@@ -61,6 +61,10 @@ export default class LocalStorage {
     this.memoryStore = this.readFile(MEMORY_STORE, defaultMemoryStore());
     if (this.memoryStore.localStorageVersion < LOCAL_STORAGE_VERSION)
       this.migrateLocalStorage();
+  }
+
+  static getBasePath() {
+    return app.getPath("userData");
   }
 
   getSyncState() {

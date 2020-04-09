@@ -1,8 +1,4 @@
-import { DesktopApp } from "../DesktopApp";
-import {
-  OnSyncStateChangePayload,
-  ON_SYNC_STATE_CHANGE
-} from "../../core/api/IpcChannels";
+import DesktopApp from "../DesktopApp";
 import { StoredSyncState } from "../../core/models/SyncState";
 import produce from "immer";
 import waitFor from "../../core/util/waitFor";

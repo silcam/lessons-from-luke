@@ -1,7 +1,7 @@
 import { GetRoute, APIGet, APIPost, PostRoute } from "../core/interfaces/Api";
 import { webGet, webPost } from "../core/api/WebAPIClient";
 import { AppError, asAppError } from "../core/models/AppError";
-import { App } from "electron";
+import { app } from "electron";
 
 export default class WebAPIClientForDesktop {
   private connected: boolean = false;
@@ -9,7 +9,7 @@ export default class WebAPIClientForDesktop {
   private onConnectionChangeListeners: Array<(connected: boolean) => void> = [];
   private baseUrl = "";
 
-  constructor(app: App) {
+  constructor() {
     this.baseUrl = app.isPackaged
       ? "https://beta.lessonsfromluke.gospelcoding.org"
       : "http://localhost:8081";

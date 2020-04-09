@@ -1,6 +1,6 @@
 import { addGetHandler, addPostHandler } from "../DesktopAPIServer";
 import WebAPIClientForDesktop from "../WebAPIClientForDesktop";
-import { DesktopApp } from "../DesktopApp";
+import DesktopApp from "../DesktopApp";
 
 export default function languagesController(app: DesktopApp) {
   const { localStorage } = app;

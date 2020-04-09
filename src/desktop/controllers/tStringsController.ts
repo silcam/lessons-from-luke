@@ -1,6 +1,6 @@
 import { addGetHandler, addPostHandler } from "../DesktopAPIServer";
 import WebAPIClientForDesktop from "../WebAPIClientForDesktop";
-import { DesktopApp } from "../DesktopApp";
+import DesktopApp from "../DesktopApp";
 import { ON_ERROR, OnErrorPayload } from "../../core/api/IpcChannels";
 import { asAppError } from "../../core/models/AppError";
 import { modelListMerge } from "../../core/util/arrayUtils";
@@ -25,7 +25,7 @@ export default function tStringsController(app: DesktopApp) {
   });
 
   // Run upSync on reconnect
-  webClient.onConnectionChange((connected) => {
+  webClient.onConnectionChange(connected => {
     if (connected) {
       upSyncTStrings(app, []);
     }
@@ -36,7 +36,7 @@ async function upSyncTStrings(app: DesktopApp, tStrings: TString[]) {
   const { localStorage } = app;
 
   try {
-    const upSync = updateUpSync(app, (upSync) => {
+    const upSync = updateUpSync(app, upSync => {
       upSync.dirtyTStrings = modelListMerge(
         upSync.dirtyTStrings,
         tStrings,
@@ -55,13 +55,13 @@ async function upSyncTStrings(app: DesktopApp, tStrings: TString[]) {
     );
     if (savedTStrings) {
       app.localStorage.setProjectLanguageTStrings(savedTStrings);
-      updateUpSync(app, (upSync) => {
+      updateUpSync(app, upSync => {
         // Other TStrings may have been added, filter out the ones we saved
         // Filter checks matching text, since a newer version of the same string could have been added since
         upSync.dirtyTStrings = upSync.dirtyTStrings.filter(
-          (tString) =>
+          tString =>
             !tStringsToSave.find(
-              (tStr) => equal(tStr, tString) && tStr.text == tString.text
+              tStr => equal(tStr, tString) && tStr.text == tString.text
             )
         );
       });

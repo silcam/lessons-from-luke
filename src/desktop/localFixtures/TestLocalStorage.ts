@@ -2,20 +2,23 @@ import LocalStorage, {
   defaultMemoryStore,
   MEMORY_STORE
 } from "../LocalStorage";
-import { App } from "electron";
 import fs from "fs";
 import path from "path";
 
 const TEST_DIR = "test";
+type Fixtures = "batanga-synced" | "add others here...";
 
 export default class TestLocalStorage extends LocalStorage {
-  constructor(app: App, fixtures?: string) {
-    super(app);
-    this.basePath = path.join(this.basePath, TEST_DIR);
-    this.setupFixtures(fixtures);
+  constructor() {
+    super(TestLocalStorage.getBasePath());
   }
 
-  protected setupFixtures(fixtures?: string) {
+  static getBasePath() {
+    return path.join(LocalStorage.getBasePath(), TEST_DIR);
+  }
+
+  loadFixtures(fixtures?: Fixtures) {
+    console.log(`LOAD FIXTURES TO ${this.basePath}`);
     // Clear Test JSON folder
     if (!fs.existsSync(this.basePath)) fs.mkdirSync(this.basePath);
     const filenames = fs.readdirSync(this.basePath);
@@ -39,3 +42,4 @@ export default class TestLocalStorage extends LocalStorage {
     this.memoryStore = this.readFile(MEMORY_STORE, defaultMemoryStore());
   }
 }
+//
