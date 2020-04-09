@@ -5,7 +5,13 @@ import { makeWebifyDocStrings } from "../../core/models/DocString";
 import { zeroPad } from "../../core/util/numberUtils";
 import { exec } from "child_process";
 
-export default function webifyLesson(lesson: Lesson): Promise<void> {
+export default function webifyLesson(
+  lesson: Lesson,
+  opts: { force?: boolean } = {}
+): Promise<void> {
+  if (process.env.NODE_ENV == "test" && !opts.force)
+    return new Promise(resolve => resolve());
+
   const origDocPath = docStorage.docFilepath(lesson);
   const webDocPath = docStorage.tmpFilePath(
     `${lesson.series}-${zeroPad(lesson.lesson, 2)}.odt`

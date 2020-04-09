@@ -10,7 +10,7 @@ test.skip("Webify Lesson", async () => {
   unlinkSafe(docStorage.webifyPath() + "/13.htm");
   const storage = new PGTestStorage();
   const lesson = await storage.lesson(13);
-  if (lesson) await webifyLesson(lesson);
+  if (lesson) await webifyLesson(lesson, { force: true });
   expect(docStorage.webifiedHtml(13)).toBeTruthy();
 
   unlinkSafe(docStorage.webifyPath() + "/13.htm");
