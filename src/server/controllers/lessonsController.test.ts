@@ -77,13 +77,13 @@ test("GET nonexistant Lesson HTML", async () => {
   expect(response.status).toBe(404);
 });
 
-test("Update Lesson 1", async () => {
+test("Update Lesson 2", async () => {
   expect.assertions(4);
   const agent = await loggedInAgent();
-  let response = await agent.get("/api/lessons/11");
+  let response = await agent.get("/api/lessons/12");
   const lessonStrings: LessonString[] = response.body.lessonStrings;
   const oldLessonStringCount = lessonStrings.length;
-  response = await agent.get("/api/languages/1/lessons/11/tStrings");
+  response = await agent.get("/api/languages/1/lessons/12/tStrings");
   const tStrings: TString[] = response.body;
   const docStrings: DocString[] = lessonStrings.map(lStr => ({
     motherTongue: lStr.motherTongue,
@@ -99,9 +99,9 @@ test("Update Lesson 1", async () => {
   const xPathToNotFindLater = docStrings[0].xpath;
 
   // Edit another
-  docStrings[1].text = "The Book of Luke and the Birth of John the Dude";
+  docStrings[1].text = "An Angel drops in on Mary";
 
-  response = await agent.post("/api/admin/lessons/11/strings").send(docStrings);
+  response = await agent.post("/api/admin/lessons/12/strings").send(docStrings);
   expect(response.status).toBe(200);
 
   // The one we removed
@@ -119,12 +119,12 @@ test("Update Lesson 1", async () => {
     findByStrict(
       response.body.tStrings as TString[],
       "text",
-      "The Book of Luke and the Birth of John the Dude"
+      "An Angel drops in on Mary"
     )
   ).toMatchObject({
     history: [],
     languageId: 1,
-    text: "The Book of Luke and the Birth of John the Dude"
+    text: "An Angel drops in on Mary"
   });
 
   await resetStorage();
