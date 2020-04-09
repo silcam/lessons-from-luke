@@ -1,6 +1,6 @@
 import { addGetHandler, addPostHandler } from "../DesktopAPIServer";
 import WebAPIClientForDesktop from "../WebAPIClientForDesktop";
-import { DesktopApp } from "../DesktopApp";
+import DesktopApp from "../DesktopApp";
 import {
   ON_SYNC_STATE_CHANGE,
   OnSyncStateChangePayload,

@@ -2,7 +2,7 @@ import { ipcMain } from "electron";
 import { GetRoute, PostRoute, APIPost, APIGet } from "../core/interfaces/Api";
 import syncStateController from "./controllers/syncStateController";
 import { asAppError, AppError } from "../core/models/AppError";
-import { DesktopApp } from "./DesktopApp";
+import DesktopApp from "./DesktopApp";
 import languagesController from "./controllers/languagesController";
 import lessonsController from "./controllers/lessonsController";
 import tStringsController from "./controllers/tStringsController";

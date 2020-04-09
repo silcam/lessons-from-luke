@@ -14,12 +14,14 @@
   },
   "scripts": {
     "dev-web": "NODE_ENV=test concurrently -k -p \"[{name}]\" -n \"WebpackDevServe,Typescript,Server\" -c \"yellow.bold,blue.bold,green.bold\" \"yarn wpDevServerWeb\" \"tsc -b -w ./src/server\" \"yarn serve\"",
-    "dev-desktop": "NODE_ENV=test concurrently -k -p \"[{name}]\" -n \"Webpack,Typescript,Electron\" -c \"yellow.bold,blue.bold,green.bold\" \"yarn wpDevServerDesktop\" \"tsc -b -w ./src/desktop ./src/server\" \"yarn run-desktop\"",
+    "dev-desktop": "NODE_ENV=test concurrently -k -p \"[{name}]\" -n \"Webpack,Typescript,Electron\" -c \"yellow.bold,blue.bold,green.bold\" \"yarn wpDevServerDesktop\" \"tsc -b -w ./src/desktop ./src/server\" \"yarn run-test-desktop\"",
     "wpDevServerWeb": "webpack-dev-server --config webpack/web.development.config.js --host 0.0.0.0",
     "wpDevServerDesktop": "webpack-dev-server --config webpack/desktop.development.config.js",
     "serve": "NODE_ENV=test nodemon -w dist/server/ dist/server/server.js",
-    "run-desktop": "nodemon -w dist/desktop/ --exec yarn electron dist/desktop/main.js",
+    "run-test-desktop": "nodemon -w dist/desktop/ --exec yarn electron dist/desktop/main-test.js",
     "test": "NODE_ENV=test jest --watchAll --runInBand",
+    "test-spectron": "jest -c jest.spectron.config.js",
+    "test-spectron-deps": "NODE_ENV=test concurrently -k -p \"[{name}]\" -n \"Webpack,Server\" -c \"yellow.bold,blue.bold\" \"yarn wpDevServerDesktop\" \"yarn serve\"",
     "deploy": "bundle exec cap production deploy",
     "build-server": "tsc -b ./src/server/tsconfig.prod.json && webpack --config webpack/web.production.config.js",
     "build-desktop": "tsc -b ./src/desktop/tsconfig.prod.json && webpack --config webpack/desktop.production.config.js && node build-desktop.js"
@@ -69,12 +71,14 @@
     "webpack-cli": "^3.3.10"
   },
   "devDependencies": {
+    "@types/webdriverio": "^4.13.0",
     "concurrently": "^5.0.0",
     "cypress": "^4.1.0",
     "cypress-file-upload": "^3.5.3",
     "electron-builder": "^22.4.1",
     "electron-context-menu": "^0.16.0",
     "nodemon": "^1.19.4",
+    "spectron": "^9.0.0",
     "ts-jest": "^24.1.0",
     "webpack": "^4.41.2",
     "webpack-bundle-analyzer": "^3.6.0",
