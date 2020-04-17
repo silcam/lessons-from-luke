@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Language } from "../../../core/models/Language";
+import { Language, ENGLISH_ID } from "../../../core/models/Language";
 import Heading from "../../common/base-components/Heading";
 import { useAppSelector } from "../../common/state/appState";
 import { lessonName } from "../../../core/models/Lesson";
@@ -44,11 +44,15 @@ export default function LanguageView(props: IProps) {
       ) : (
         <React.Fragment>
           <LinkButtonRow
-            buttons={[
-              [t("Translate"), `/translate/${props.language.code}`],
-              [t("Upload_usfm"), () => setUploadUsfmForm(true)],
-              [t("Upload_document"), () => setUploadDocForm(true)]
-            ]}
+            buttons={
+              props.language.languageId == ENGLISH_ID
+                ? [[t("Upload_usfm"), () => setUploadUsfmForm(true)]]
+                : [
+                    [t("Translate"), `/translate/${props.language.code}`],
+                    [t("Upload_usfm"), () => setUploadUsfmForm(true)],
+                    [t("Upload_document"), () => setUploadDocForm(true)]
+                  ]
+            }
           />
           <Div padVert>
             <ToggleMotherTongue language={props.language} />
