@@ -1,20 +1,24 @@
 import React, { useState, useEffect } from "react";
-import { useSelector, useDispatch } from "react-redux";
-import { AppState, useAppSelector } from "../state/appState";
-import { AppBanner } from "./Banner";
+import { useDispatch } from "react-redux";
+import { useAppSelector } from "../state/appState";
 import bannerSlice from "./bannerSlice";
-import Alert from "../base-components/Alert";
 import useTranslation from "../util/useTranslation";
 import { AppError } from "../../../core/models/AppError";
-import LoadingDots from "../base-components/LoadingDots";
 import Button from "../base-components/Button";
 import { TFunc } from "../../../core/i18n/I18n";
 import styled from "styled-components";
 import Colors from "../util/Colors";
+import { useLocation } from "react-router-dom";
 
 export default function Banners() {
   const dispatch = useDispatch();
   let banners = useAppSelector(state => state.banners);
+
+  // Clear banners on location change
+  const location = useLocation();
+  useEffect(() => {
+    dispatch(bannerSlice.actions.reset());
+  }, [location.pathname]);
 
   return (
     <div>
