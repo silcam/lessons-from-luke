@@ -49,15 +49,11 @@ export default function useLessonTStrings(
 
   useEffect(() => {
     if (opts.updateProgress && lessonTStrings.length > 0 && targetLanguage) {
+      const strings = targetLanguage.motherTongue
+        ? lessonTStrings.filter(ltStr => ltStr.lStr.motherTongue)
+        : lessonTStrings;
       const lessonProgress = Math.round(
-        (100 *
-          count(
-            lessonTStrings,
-            ltStr =>
-              !!ltStr.tStrs[1]?.text ||
-              (targetLanguage.motherTongue && !ltStr.lStr.motherTongue)
-          )) /
-          lessonTStrings.length
+        (100 * count(strings, ltStr => !!ltStr.tStrs[1]?.text)) / strings.length
       );
       dispatch(
         languageSlice.actions.setProgress({
