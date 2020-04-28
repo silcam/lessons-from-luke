@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { useDispatch } from "react-redux";
 import { useAppSelector } from "../state/appState";
 import bannerSlice from "./bannerSlice";
@@ -9,16 +9,20 @@ import { TFunc } from "../../../core/i18n/I18n";
 import styled from "styled-components";
 import Colors from "../util/Colors";
 import { useLocation } from "react-router-dom";
+import PlatformContext from "../PlatformContext";
 
 export default function Banners() {
   const dispatch = useDispatch();
   let banners = useAppSelector(state => state.banners);
 
   // Clear banners on location change
-  const location = useLocation();
-  useEffect(() => {
-    dispatch(bannerSlice.actions.reset());
-  }, [location.pathname]);
+  const webContext = useContext(PlatformContext) == "web";
+  if (webContext) {
+    const location = useLocation();
+    useEffect(() => {
+      dispatch(bannerSlice.actions.reset());
+    }, [location.pathname]);
+  }
 
   return (
     <div>

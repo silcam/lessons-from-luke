@@ -24,7 +24,6 @@ describe("Translate Fallback", () => {
     cy.contains("Changes Saved").should("exist");
 
     cy.visit("/translate/GHI");
-    cy.contains("Luke 1-2").click();
     cy.contains("Naha dambo dihihitiwɛ boholo ó pɛlɛ ya Njambɛ.").should(
       "exist"
     );

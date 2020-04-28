@@ -19,9 +19,10 @@ import Colors from "../util/Colors";
 import ProgressBar from "../base-components/ProgressBar";
 import styled from "styled-components";
 import Heading from "../base-components/Heading";
-import { findBy } from "../../../core/util/arrayUtils";
 import DesktopSyncMessage from "./DesktopSyncMessage";
 import HeaderMessage, { HdrMessage } from "./HeaderMessage";
+
+const SELECTED_ITEM_KEY = "selectedItem";
 
 interface IProps {
   code: string;
@@ -83,13 +84,14 @@ function TranslateLanguage(props: {
   const t = useTranslation();
 
   const lessons = useAppSelector(state => state.lessons);
-  const [selectedLessonId, setSelectedLessonId] = useState(
-    lessons.find(
-      lsn =>
-        (findBy(props.language.progress, "lessonId", lsn.lessonId)?.progress ||
-          101) < 100
-    )?.lessonId || 0
+  const [selectedLessonId, _setSelectedLessonId] = useState(
+    parseInt(window.localStorage.getItem(SELECTED_ITEM_KEY)!) ||
+      lessons[0].lessonId
   );
+  const setSelectedLessonId = (id: number) => {
+    _setSelectedLessonId(id);
+    window.localStorage.setItem(SELECTED_ITEM_KEY, id.toString());
+  };
 
   return (
     <FlexRow>

@@ -3,7 +3,7 @@
   "description": "Sunday School curriculum for every language.",
   "author": "Rick Conrad",
   "productName": "Lessons from Luke",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "license": "MIT",
   "main": "dist/desktop/main.js",
   "build": {
