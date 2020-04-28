@@ -73,7 +73,8 @@ const en = {
   Previews: "Previews",
   Downloading: "Downloading",
   Uploading: "Uploading",
-  Start_translating: "Start Translating"
+  Start_translating: "Start Translating",
+  History: "History"
 };
 
 export type I18nStrings = typeof en;

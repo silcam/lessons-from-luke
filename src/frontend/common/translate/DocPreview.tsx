@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { LessonTString } from "./useLessonTStrings";
 import styled from "styled-components";
 import Colors from "../util/Colors";
@@ -8,22 +8,42 @@ interface IProps {
   srcLangId: number;
   targetLangId: number;
   docHtml: string;
-  lessonTStrings: LessonTString[];
+  ltStringsForTranslation: LessonTString[];
+  otherLTStrings: LessonTString[];
+  setSelectedIndex: (index: number) => void;
 }
 
 export default function DocPreview(props: IProps) {
-  const finalHtml = props.lessonTStrings.reduce(
+  let finalHtml = preprocessHtml(props.docHtml);
+  finalHtml = props.otherLTStrings.reduce(
     (html: string, ltStr) =>
       html.replace(
         `##${ltStr.lStr.lessonStringId}##`,
-        `<span class="lessonString" id="ls${ltStr.lStr.lessonStringId}">${
-          ltStr.lStr.motherTongue && ltStr.tStrs[1]
-            ? ltStr.tStrs[1].text
-            : ltStr.tStrs[0]?.text || "[...]"
+        ltStr.tStrs[0]?.text || "[...]"
+      ),
+    finalHtml
+  );
+  finalHtml = props.ltStringsForTranslation.reduce(
+    (html: string, ltStr, index) =>
+      html.replace(
+        `##${ltStr.lStr.lessonStringId}##`,
+        `<span class="lessonString" id="ls${
+          ltStr.lStr.lessonStringId
+        }" style="cursor:pointer" onclick="window.setSelectedLessonString(${index})">${
+          ltStr.tStrs[1]?.text || ltStr.tStrs[0]?.text || "[...]"
         }</span>`
       ),
-    preprocessHtml(props.docHtml)
+    finalHtml
   );
+
+  useEffect(() => {
+    (window as any).setSelectedLessonString = (index: number) => {
+      props.setSelectedIndex(index);
+    };
+    return () => {
+      (window as any).setSelectedLessonString = () => {};
+    };
+  });
 
   return <PreviewDiv dangerouslySetInnerHTML={{ __html: finalHtml }} />;
 }

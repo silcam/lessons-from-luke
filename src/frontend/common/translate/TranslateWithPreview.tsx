@@ -18,6 +18,8 @@ import StatusfulTextArea from "../base-components/StatusfulTextArea";
 import { newTString } from "../../../core/models/TString";
 import { useNetworkConnectionRestored } from "../state/networkSlice";
 import { usePush } from "../api/useLoad";
+import TStringHistoryView from "./TStringHistoryView";
+import { discriminate } from "../../../core/util/arrayUtils";
 
 interface IProps {
   lesson: BaseLesson;
@@ -38,9 +40,10 @@ export default function TranslateWithPreview(props: IProps) {
   const { setDirty, setClean } = useDirtyState(props.onDirtyStateChange);
 
   const [index, setIndex] = useState(0);
-  const ltStringsForTranslation = props.language.motherTongue
-    ? props.lessonTStrings.filter(ltStr => ltStr.lStr.motherTongue)
-    : props.lessonTStrings;
+  const [ltStringsForTranslation, otherLTStrings] = discriminate(
+    props.lessonTStrings,
+    ltStr => !props.language.motherTongue || ltStr.lStr.motherTongue
+  );
   const selectedLTStr: LessonTString | undefined =
     ltStringsForTranslation[index];
   const scrollDivRef = usePreviewScroll(selectedLTStr);
@@ -86,13 +89,16 @@ export default function TranslateWithPreview(props: IProps) {
             {selectedLTStr.tStrs[1] && (
               <Button
                 text=">>>"
-                onClick={() =>
+                onClick={() => {
+                  const goToIndex = ltStringsForTranslation.findIndex(
+                    (ltStr, i) => i > index && !ltStr.tStrs[1]
+                  );
                   setIndex(
-                    ltStringsForTranslation.findIndex(
-                      (ltStr, i) => i > index && !ltStr.tStrs[1]
-                    ) || ltStringsForTranslation.length - 1
-                  )
-                }
+                    goToIndex >= 0
+                      ? goToIndex
+                      : ltStringsForTranslation.length - 1
+                  );
+                }}
               />
             )}
             <p>{selectedLTStr.tStrs[0]?.text}</p>
@@ -109,7 +115,13 @@ export default function TranslateWithPreview(props: IProps) {
                   setIndex(index + 1);
               }}
             />
-            <Button text={t("Save")} onClick={() => {}} />
+            <Button
+              text={t("Save")}
+              onClick={() => {
+                /* No logic needed since save happens whenenver the text box loses focus. */
+              }}
+            />
+            <TStringHistoryView tString={selectedLTStr.tStrs[1]} />
           </Div>
         )}
       </FlexCol>
@@ -119,7 +131,9 @@ export default function TranslateWithPreview(props: IProps) {
           srcLangId={props.srcLangId}
           targetLangId={props.language.languageId}
           docHtml={props.docHtml}
-          lessonTStrings={props.lessonTStrings}
+          ltStringsForTranslation={ltStringsForTranslation}
+          otherLTStrings={otherLTStrings}
+          setSelectedIndex={setIndex}
         />
       </Scroll>
     </FlexRow>

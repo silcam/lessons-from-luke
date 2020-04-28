@@ -43,7 +43,8 @@ const fr: I18nStrings = {
   Previews: "Aperçus",
   Downloading: "Téléchargement",
   Uploading: "Chargement",
-  Start_translating: "Commencer la traduction"
+  Start_translating: "Commencer la traduction",
+  History: "Historique"
 };
 
 export default fr;

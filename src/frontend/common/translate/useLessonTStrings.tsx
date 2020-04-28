@@ -24,6 +24,7 @@ export default function useLessonTStrings(
   const dispatch = useDispatch();
   const postProgress = usePostProgress();
 
+  const targetLanguage = useAppSelector(state => state.languages.translating);
   const lesson = useAppSelector(state =>
     findBy(state.lessons, "lessonId", lessonId)
   );
@@ -47,9 +48,15 @@ export default function useLessonTStrings(
   }, [lesson, allTStrings]);
 
   useEffect(() => {
-    if (opts.updateProgress && lessonTStrings.length > 0) {
+    if (opts.updateProgress && lessonTStrings.length > 0 && targetLanguage) {
       const lessonProgress = Math.round(
-        (100 * count(lessonTStrings, ltStr => !!ltStr.tStrs[1]?.text)) /
+        (100 *
+          count(
+            lessonTStrings,
+            ltStr =>
+              !!ltStr.tStrs[1]?.text ||
+              (targetLanguage.motherTongue && !ltStr.lStr.motherTongue)
+          )) /
           lessonTStrings.length
       );
       dispatch(
