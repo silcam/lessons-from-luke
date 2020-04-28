@@ -129,7 +129,7 @@ test("Get Lessons by id", async () => {
     lesson: 2,
     version: 3
   });
-  expect(lesson!.lessonStrings.length).toBe(279);
+  expect(lesson!.lessonStrings.length).toBe(280);
   expect(lesson!.lessonStrings).toContainEqual({
     lessonId: 12,
     lessonStringId: 580,
@@ -312,7 +312,7 @@ test("Save TStrings progress", async () => {
 });
 
 test("Add or Find Master Strings", async () => {
-  expect((await storage.tStrings({ languageId: ENGLISH_ID })).length).toBe(653);
+  expect((await storage.tStrings({ languageId: ENGLISH_ID })).length).toBe(654);
   const tStrings = await storage.addOrFindMasterStrings([
     "The Book of Luke and the Birth of John the Baptizer",
     "Pizza is Tasty!"
@@ -329,7 +329,7 @@ test("Add or Find Master Strings", async () => {
     history: []
   });
   expect(tStrings[1].masterId).toBeGreaterThan(653);
-  expect((await storage.tStrings({ languageId: ENGLISH_ID })).length).toBe(654);
+  expect((await storage.tStrings({ languageId: ENGLISH_ID })).length).toBe(655);
 
   // await storage.reset()
 });

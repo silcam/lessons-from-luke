@@ -12620,6 +12620,51 @@
       "motherTongue": false,
       "lessonStringId": 1403,
       "lessonVersion": 3
+    },
+    {
+      "masterId": 654,
+      "lessonId": 11,
+      "type": "meta",
+      "xpath": "/office:document-meta/office:meta/dc:title/text()",
+      "motherTongue": false,
+      "lessonStringId": 1404,
+      "lessonVersion": 3
+    },
+    {
+      "masterId": 654,
+      "lessonId": 12,
+      "type": "meta",
+      "xpath": "/office:document-meta/office:meta/dc:title/text()",
+      "motherTongue": false,
+      "lessonStringId": 1405,
+      "lessonVersion": 3
+    },
+    {
+      "masterId": 654,
+      "lessonId": 13,
+      "type": "meta",
+      "xpath": "/office:document-meta/office:meta/dc:title/text()",
+      "motherTongue": false,
+      "lessonStringId": 1406,
+      "lessonVersion": 3
+    },
+    {
+      "masterId": 654,
+      "lessonId": 14,
+      "type": "meta",
+      "xpath": "/office:document-meta/office:meta/dc:title/text()",
+      "motherTongue": false,
+      "lessonStringId": 1407,
+      "lessonVersion": 3
+    },
+    {
+      "masterId": 654,
+      "lessonId": 15,
+      "type": "meta",
+      "xpath": "/office:document-meta/office:meta/dc:title/text()",
+      "motherTongue": false,
+      "lessonStringId": 1408,
+      "lessonVersion": 3
     }
   ],
   "oldLessonStrings": [
@@ -16202,6 +16247,12 @@
       "masterId": 653,
       "languageId": 1,
       "text": "God's way is the best way to grow",
+      "history": []
+    },
+    {
+      "masterId": 654,
+      "languageId": 1,
+      "text": "Lessons from Luke",
       "history": []
     }
   ]

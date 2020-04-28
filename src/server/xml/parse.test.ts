@@ -28,6 +28,12 @@ test("Parse Meta Xml", () => {
       xpath: "/office:document-meta/office:meta/dc:subject/text()",
       motherTongue: false,
       type: "meta"
+    },
+    {
+      motherTongue: false,
+      text: "Lessons from Luke",
+      type: "meta",
+      xpath: "/office:document-meta/office:meta/dc:title/text()"
     }
   ]);
 });

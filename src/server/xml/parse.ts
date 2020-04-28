@@ -83,7 +83,7 @@ function parseMeta(metaXml: string): DocString[] {
   const xmlDoc = libxmljs2.parseXml(metaXml);
   const namespaces = extractNamespaces(xmlDoc);
 
-  const xPath = "//dc:subject";
+  const xPath = "//dc:subject | //dc:title";
   const nodes = xmlDoc.root()!.find(xPath, namespaces);
   return parseNodes(nodes as Element[]).map(str => ({
     ...str,

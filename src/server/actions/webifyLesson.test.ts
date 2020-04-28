@@ -5,6 +5,7 @@ import { unlinkSafe } from "../../core/util/fsUtils";
 import fs from "fs";
 
 // This test takes forever, only run as needed
+// IMPORTANT - This test can fail if LibreOffice Writer is open. Try closing LibreOffice and running again.
 
 test.skip("Webify Lesson", async () => {
   unlinkSafe(docStorage.webifyPath() + "/13.htm");
