@@ -2,6 +2,7 @@ import LocalStorage from "./LocalStorage";
 import WebAPIClientForDesktop from "./WebAPIClientForDesktop";
 import { BrowserWindow, app, protocol } from "electron";
 import contextMenu from "electron-context-menu";
+import windowStateKeeper from "electron-window-state";
 import DesktopAPIServer from "./DesktopAPIServer";
 import path from "path";
 import TestLocalStorage from "./localFixtures/TestLocalStorage";
@@ -46,13 +47,20 @@ export default class DesktopApp {
   }
 
   private createWindow() {
+    const windowState = windowStateKeeper({
+      defaultWidth: 1000,
+      defaultHeight: 800
+    });
     this.mainWindow = new BrowserWindow({
-      width: 800,
-      height: 600,
+      x: windowState.x,
+      y: windowState.y,
+      width: windowState.width,
+      height: windowState.height,
       webPreferences: {
         nodeIntegration: true
       }
     });
+    windowState.manage(this.mainWindow);
 
     if (app.isPackaged) this.mainWindow.loadFile("web/desktop.html");
     else this.mainWindow.loadURL("http://localhost:8082/desktop.html");
