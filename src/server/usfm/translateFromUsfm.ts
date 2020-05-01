@@ -145,17 +145,21 @@ function usfmSubsection(
   return usfm.slice(startIndex, endIndex);
 }
 
-const USFM_STRIP_PATTERNS = [
-  /(\\(rq|ca|va|vp|f|fe|x|sup|fig)).+?\1\*/g, // Markers with a closing marker
-  /\\(rem|h|mt|ms|mr|s|r|d|cl|cp|cd|lit).*/g, // Markers that go with the rest of the line
-  /\\(sts|v|c) \S+\s/g, // Markers followed by one word
-  /\\[\w*+-]+\s/g, // Other markers
-  /(~|\/\/)/g // Whitespace markers
+// Each replace pattern is an array where the first element is a regex to find
+// And the optional second element is what to replace it with
+// If no second element is given, the search pattern is replaced with an empty string
+const USFM_REPLACE_PATTERNS: Array<[RegExp, string] | [RegExp]> = [
+  [/\\w (.+?)\|.+?\\w\*/g, "$1"], // Word tags with attributes
+  [/(\\(rq|ca|va|vp|f|fe|x|sup|fig)).+?\1\*/g], // Markers with a closing marker
+  [/\\(rem|h|mt|ms|mr|s|r|d|cl|cp|cd|lit).*/g], // Markers that go with the rest of the line
+  [/\\(sts|v|c) \S+\s/g], // Markers followed by one word
+  [/\\[\w*+-]+/g], // Other markers
+  [/(~|\/\/)/g] // Whitespace markers
 ];
 function stripUsfm(usfm: string) {
   let text = usfm;
-  USFM_STRIP_PATTERNS.forEach(pattern => {
-    text = text.replace(pattern, "");
+  USFM_REPLACE_PATTERNS.forEach(replacePattern => {
+    text = text.replace(replacePattern[0], replacePattern[1] || "");
   });
   text = text.replace(/\s+/g, " "); // Replace all whitespace sections with a single space
   return text.trim();
