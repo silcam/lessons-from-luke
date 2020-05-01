@@ -18,10 +18,10 @@ export default class DesktopApp {
     this.init();
   }
 
-  getWindow(): BrowserWindow {
+  getWindow = () => {
     if (!this.mainWindow) throw "Tried to get Window before it was created!";
     return this.mainWindow;
-  }
+  };
 
   private init() {
     contextMenu();

@@ -13,6 +13,7 @@ const appErrorModels: AppError[] = [
 ];
 
 export function isAppError(err: any): err is AppError {
+  if (!err) return false;
   const appErrorModel = appErrorModels.find(model => model.type === err.type);
   if (!appErrorModel) return false;
   return objKeys(appErrorModel).every(
