@@ -14,7 +14,7 @@ interface Translation {
   text: string;
 }
 
-export const VerseStringPattern = /^(Luke|Luc|Acts|Actes) (\d{1,3})(\.|:|, )(\d{1,3})(-(\d{1,3}))?/;
+export const VerseStringPattern = /^(Luke|Luc|Acts|Actes) (\d{1,3})(\.|:|, )(\d{1,3})(-(\d{1,3}))?\s/;
 
 export default function translateFromUsfm(
   engStrings: TString[],
@@ -82,7 +82,7 @@ function verseRefFromTString(tString: TString): VerseRef | null {
   const bookName = match[1].startsWith("Lu") ? "Luke" : "Acts";
   const startVerse = parseInt(match[4]);
   return {
-    asString: match[0],
+    asString: match[0].trim(),
     book: bookName,
     chapter: parseInt(match[2]),
     startVerse,

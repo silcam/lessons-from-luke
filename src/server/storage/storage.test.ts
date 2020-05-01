@@ -236,7 +236,7 @@ test("Get TStrings by language and lesson", async () => {
 
 test("English Scripture tStrings", async () => {
   const engStrings = await storage.englishScriptureTStrings();
-  expect(engStrings.length).toBe(63);
+  expect(engStrings.length).toBe(60);
   expect(engStrings[0].text).toMatch(/^Luke .+/);
   // expect(engStrings.map(s => s.text)).toEqual([]); // For visual inspection
 });
