@@ -4,6 +4,9 @@ import { TString } from "../../core/models/TString";
 import { ENGLISH_ID } from "../../core/models/Language";
 
 const sampleUSFM = fs.readFileSync("cypress/fixtures/43LUKBMO.SFM").toString();
+// const lsgUSFM = fs
+//   .readFileSync("cypress/fixtures/72-LUKfraLSG.usfm")
+//   .toString();
 
 function englishTStrings(texts: string[]): TString[] {
   return texts.map((text, index) => ({
@@ -53,7 +56,7 @@ test("USFM Errors", () => {
   const noIdUsfm = sampleUSFM.slice(34);
   expect(() => {
     translateFromUsfm(sampleEngStrings, noIdUsfm);
-  }).toThrow("USFM Parse Error - \\id not found");
+  }).toThrow("\\id not found");
   const badBookUsfm = sampleUSFM.replace("LUK", "MAT");
   expect(() => {
     translateFromUsfm(sampleEngStrings, badBookUsfm);
@@ -68,7 +71,7 @@ test("Reference Errors", () => {
     }
   ];
   expect(translateFromUsfm(badChapterTStrings, sampleUSFM).errors[0]).toEqual(
-    "USFM Parse Error - Chapter 25 not found."
+    "The following error occurred while processing « Luc 25.1  Un jour, alors que la classe (d’Abia) était chargée des fonctions sacerdotales, Zacharie assurait son service devant Dieu. En effet, suivant la coutume des prêtres, il avait été désigné par le sort pour offrir l’encens dans le sanctuaire du Seigneur. C’était l’heure de l’offrande des parfums et toute la multitude des fidèles se tenait dehors, (dans le parvis), pour prier. Tout à coup, un ange du Seigneur apparut, debout à la droite de l’autel des parfums. Quand Zacharie, le vit, il fut troublé et la peur s’empara de lui. » : Chapter 25 not found."
   );
   const badVerseTStrings = [
     {
@@ -77,7 +80,7 @@ test("Reference Errors", () => {
     }
   ];
   expect(translateFromUsfm(badVerseTStrings, sampleUSFM).errors[0]).toEqual(
-    "USFM Parse Error - Verse 81 not found in chapter 1."
+    "The following error occurred while processing « Luc 1.81  Un jour, alors que la classe (d’Abia) était chargée des fonctions sacerdotales, Zacharie assurait son service devant Dieu. En effet, suivant la coutume des prêtres, il avait été désigné par le sort pour offrir l’encens dans le sanctuaire du Seigneur. C’était l’heure de l’offrande des parfums et toute la multitude des fidèles se tenait dehors, (dans le parvis), pour prier. Tout à coup, un ange du Seigneur apparut, debout à la droite de l’autel des parfums. Quand Zacharie, le vit, il fut troublé et la peur s’empara de lui. » : Could not find 1:81."
   );
 });
 
@@ -181,11 +184,11 @@ test("USFM Translator multiverse marker", () => {
   );
   expect(translations[3]).toBeUndefined();
   expect(result.errors[0]).toEqual(
-    "USFM Parse Error - Verse 47 not found in chapter 6."
+    "The following error occurred while processing « Luc 6.46-47 Words » : Could not find 6:47."
   );
   expect(translations[4]).toBeUndefined();
   expect(result.errors[1]).toEqual(
-    "USFM Parse Error - Verse 48 not found in chapter 6."
+    "The following error occurred while processing « Luc 6.48-49 Words » : Could not find 6:48."
   );
 });
 

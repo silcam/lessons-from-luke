@@ -170,7 +170,7 @@ test("POST usfm with error expected", async () => {
     .send({ usfm: tweakedUsfm });
   expect(response.status).toBe(200);
   expect(response.body.errors).toContain(
-    "USFM Parse Error - Verse 37 not found in chapter 1."
+    "The following error occurred while processing « Luke 1:37 For nothing is impossible with God. » : Could not find 1:37."
   );
 
   await resetStorage();

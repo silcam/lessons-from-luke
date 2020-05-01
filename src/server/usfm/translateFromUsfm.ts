@@ -40,7 +40,9 @@ export default function translateFromUsfm(
           text: passageTextWithRef
         });
       } catch (err) {
-        errors.push(err.message);
+        errors.push(
+          `The following error occurred while processing « ${engString.text} » : ${err.message}`
+        );
         return translations;
       }
     },
@@ -100,9 +102,7 @@ function usfmVersesText(usfm: string, ref: VerseRef): string {
     `v ${ref.startVerse}(-\\d+)?`
   );
   if (verseStartIndex === null)
-    throw parseError(
-      `Verse ${ref.startVerse} not found in chapter ${ref.chapter}.`
-    );
+    throw parseError(`Could not find ${ref.chapter}:${ref.startVerse}.`);
 
   // First check for a marker for the endVerse
   let verseEndIndex = indexOfMarker(
@@ -114,9 +114,7 @@ function usfmVersesText(usfm: string, ref: VerseRef): string {
   if (verseEndIndex === null)
     verseEndIndex = indexOfMarker(chapterUsfm, `v \\d+-${ref.endVerse}`);
   if (verseEndIndex === null)
-    throw parseError(
-      `Verse ${ref.endVerse} not found in chapter ${ref.chapter}.`
-    );
+    throw parseError(`Could not find ${ref.chapter}:${ref.endVerse}.`);
 
   // Now find any \v after the end verse marker
   const endPassageIndex = indexOfMarker(chapterUsfm, "v", verseEndIndex + 2);
@@ -174,5 +172,5 @@ function indexOfMarker(usfm: string, mrkr: string, startIndex?: number) {
 }
 
 function parseError(msg: string) {
-  return Error(`USFM Parse Error - ${msg}`);
+  return Error(`${msg}`);
 }
