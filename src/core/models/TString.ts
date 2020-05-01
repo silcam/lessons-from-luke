@@ -39,7 +39,7 @@ export function newTString(
   let tString: TString = {
     masterId: lessonStr.masterId,
     languageId: language.languageId,
-    text: text.trim(),
+    text,
     history: []
   };
   if (srcStr) {
