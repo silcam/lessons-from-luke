@@ -50,6 +50,7 @@ export default function DocPreview(props: IProps) {
 
 const PreviewDiv = styled.div`
   width: min-content;
+  min-width: 660px;
   padding: 12px;
   border-left: 1px solid ${Colors.lightGrey};
 
