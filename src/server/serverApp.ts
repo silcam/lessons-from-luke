@@ -11,6 +11,7 @@ import testController from "./controllers/testController";
 import documentsController from "./controllers/documentsController";
 import PGStorage, { PGTestStorage } from "./storage/PGStorage";
 import docStorage from "./storage/docStorage";
+import migrationController from "./controllers/migrationController";
 
 const PRODUCTION = process.env.NODE_ENV == "production";
 
@@ -47,6 +48,7 @@ function serverApp(opts: { silent?: boolean } = {}) {
   lessonsController(app, storage);
   tStringsController(app, storage);
   documentsController(app, storage);
+  migrationController(app, storage);
 
   if (!PRODUCTION) {
     testController(app, storage as PGTestStorage);

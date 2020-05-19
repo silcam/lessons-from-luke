@@ -95,6 +95,25 @@ export function count<T>(list: T[], cb: (item: T) => boolean) {
   }, 0);
 }
 
+export function insertSorted<T>(
+  list: T[],
+  item: T,
+  aBeforeB: (a: T, b: T) => boolean
+): T[] {
+  if (list.length == 0) return [item];
+
+  const testIndex = Math.floor(list.length / 2);
+  if (aBeforeB(item, list[testIndex])) {
+    return insertSorted(list.slice(0, testIndex), item, aBeforeB).concat(
+      list.slice(testIndex)
+    );
+  } else {
+    return list
+      .slice(0, testIndex + 1)
+      .concat(insertSorted(list.slice(testIndex + 1), item, aBeforeB));
+  }
+}
+
 // export function randomSelection<T>(list: T[], number: number): T[] {
 //   if (number >= list.length) return list;
 

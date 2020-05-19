@@ -1,4 +1,11 @@
-import { last, modelListMerge, discriminate, uniq, count } from "./arrayUtils";
+import {
+  last,
+  modelListMerge,
+  discriminate,
+  uniq,
+  count,
+  insertSorted
+} from "./arrayUtils";
 
 test("last", () => {
   expect(last([1, 2, 3])).toBe(3);
@@ -46,4 +53,12 @@ test("uniq with cb", () => {
 test("count", () => {
   expect(count([], () => true)).toBe(0);
   expect(count([1, 2, 3], n => n > 1)).toBe(2);
+});
+
+test("insertSorted", () => {
+  const aBeforeB = (a: number, b: number) => a > b;
+  expect(insertSorted([], 4, aBeforeB)).toEqual([4]);
+  expect(insertSorted([3], 4, aBeforeB)).toEqual([4, 3]);
+  expect(insertSorted([5], 4, aBeforeB)).toEqual([5, 4]);
+  expect(insertSorted([7, 5, 3, 1], 4, aBeforeB)).toEqual([7, 5, 4, 3, 1]);
 });
