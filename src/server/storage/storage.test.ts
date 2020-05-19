@@ -364,7 +364,16 @@ test("Add or Find Master Strings", async () => {
   expect(tStrings[1].masterId).toBeGreaterThan(653);
   expect((await storage.tStrings({ languageId: ENGLISH_ID })).length).toBe(655);
 
-  // await storage.reset()
+  await storage.reset();
+});
+
+test("Don't add duplicate master strings!", async () => {
+  const tStrings = await storage.addOrFindMasterStrings([
+    "Pizza is Tasty!",
+    "The Book of Luke and the Birth of John the Baptizer",
+    "Pizza is Tasty!"
+  ]);
+  expect(tStrings[2].masterId).toBe(tStrings[0].masterId);
 });
 
 function timeout(ms: number) {

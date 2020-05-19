@@ -159,13 +159,13 @@ export default class PGStorage implements Persistence {
   async addOrFindMasterStrings(texts: string[]) {
     return this.withProgressUpdate(async () => {
       const engStrings = await this.tStrings({ languageId: ENGLISH_ID });
-      // const existing: TString[] = [];
-      // const toAdd: Omit<TString, "masterId">[] = [];
-      return Promise.all(
-        texts.map(async text => {
-          const found = findBy(engStrings, "text", text);
-          if (found) return found;
-
+      const tStrings: TString[] = [];
+      for (let i = 0; i < texts.length; ++i) {
+        const text = texts[i];
+        const found = findBy(engStrings, "text", text);
+        if (found) {
+          tStrings.push(found);
+        } else {
           const draftTString: Omit<TString, "masterId"> = {
             languageId: ENGLISH_ID,
             text,
@@ -175,9 +175,11 @@ export default class PGStorage implements Persistence {
           INSERT INTO tstrings ${this.sql(sqlizeTString(draftTString))}
           returning *
         `;
-          return newTString;
-        })
-      );
+          engStrings.push(newTString);
+          tStrings.push(newTString);
+        }
+      }
+      return tStrings;
     });
   }
 
