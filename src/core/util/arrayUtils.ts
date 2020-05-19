@@ -76,9 +76,15 @@ export function discriminate<T>(
   );
 }
 
-export function uniq<T>(list: T[]): T[] {
+export function uniq<T>(
+  list: T[],
+  compare: (a: T, b: T) => boolean = (a, b) => a == b
+): T[] {
   return list.reduce(
-    (final: T[], item) => (final.includes(item) ? final : [...final, item]),
+    (final: T[], item) =>
+      final.some(compItem => compare(item, compItem))
+        ? final
+        : [...final, item],
     []
   );
 }
@@ -87,6 +93,25 @@ export function count<T>(list: T[], cb: (item: T) => boolean) {
   return list.reduce((count, item) => {
     return cb(item) ? count + 1 : count;
   }, 0);
+}
+
+export function insertSorted<T>(
+  list: T[],
+  item: T,
+  aBeforeB: (a: T, b: T) => boolean
+): T[] {
+  if (list.length == 0) return [item];
+
+  const testIndex = Math.floor(list.length / 2);
+  if (aBeforeB(item, list[testIndex])) {
+    return insertSorted(list.slice(0, testIndex), item, aBeforeB).concat(
+      list.slice(testIndex)
+    );
+  } else {
+    return list
+      .slice(0, testIndex + 1)
+      .concat(insertSorted(list.slice(testIndex + 1), item, aBeforeB));
+  }
 }
 
 // export function randomSelection<T>(list: T[], number: number): T[] {

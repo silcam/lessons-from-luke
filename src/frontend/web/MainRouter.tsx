@@ -13,6 +13,8 @@ import LessonPage from "./lessons/LessonPage";
 import AppLoadingBar from "../common/api/AppLoadingBar";
 import UsfmImportResultPage from "./languages/UsfmImportResultPage";
 import DocStringsPage from "./lessons/DocStringsPage";
+import MigrateProjectsIndex from "./migrate/MigrateProjectsIndex";
+import MigrateProject from "./migrate/MigrateProject";
 
 export default function MainRouter() {
   const { user, loaded } = useSelector((state: AppState) => state.currentUser);
@@ -46,6 +48,16 @@ export default function MainRouter() {
               />
             )}
           />
+          <Route
+            path="/migrate/:datetime/to/:languageId"
+            render={({ match }) => (
+              <MigrateProject
+                datetime={parseInt(match.params.datetime)}
+                languageId={parseInt(match.params.languageId)}
+              />
+            )}
+          />
+          <Route path="/migrate" render={() => <MigrateProjectsIndex />} />
           <Route render={() => (user ? <AdminHome /> : <PublicHome />)} />
         </Switch>
       ) : (
