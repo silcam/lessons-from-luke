@@ -185,16 +185,21 @@ export default class PGStorage implements Persistence {
     tStrings: TString[],
     opts: { awaitProgress?: boolean } = {}
   ) {
+    tStrings = uniq(tStrings, (a, b) => a.masterId == b.masterId);
     const langIds = uniq(tStrings.map(ts => ts.languageId));
     const existingStrings: TString[] = await this
       .sql`SELECT * FROM tstrings WHERE languageid IN (${langIds})`;
 
-    const tStringsWithHistory = tStrings.map(tStr => {
+    const tStringsWithHistory = tStrings.reduce((tStrings: TString[], tStr) => {
       const existing = existingStrings.find(e => equal(e, tStr));
-      return existing
-        ? { ...tStr, history: [...existing.history, existing.text] }
-        : tStr;
-    });
+      if (existing && existing.text == tStr.text) return tStrings;
+      tStrings.push(
+        existing
+          ? { ...tStr, history: [...existing.history, existing.text] }
+          : tStr
+      );
+      return tStrings;
+    }, []);
     const [toUpdate, toAdd] = discriminate(
       tStringsWithHistory,
       tStr => tStr.history.length > 0

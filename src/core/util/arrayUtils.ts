@@ -76,9 +76,15 @@ export function discriminate<T>(
   );
 }
 
-export function uniq<T>(list: T[]): T[] {
+export function uniq<T>(
+  list: T[],
+  compare: (a: T, b: T) => boolean = (a, b) => a == b
+): T[] {
   return list.reduce(
-    (final: T[], item) => (final.includes(item) ? final : [...final, item]),
+    (final: T[], item) =>
+      final.some(compItem => compare(item, compItem))
+        ? final
+        : [...final, item],
     []
   );
 }

@@ -33,6 +33,16 @@ test("uniq", () => {
   expect(uniq(["a", "b", "a"])).toEqual(["a", "b"]);
 });
 
+test("uniq with cb", () => {
+  const items = [{ id: 1 }, { id: 2 }, { id: 1 }, { id: 3 }];
+  expect(uniq(items)).toEqual(items);
+  expect(uniq(items, (a, b) => a.id == b.id)).toEqual([
+    { id: 1 },
+    { id: 2 },
+    { id: 3 }
+  ]);
+});
+
 test("count", () => {
   expect(count([], () => true)).toBe(0);
   expect(count([1, 2, 3], n => n > 1)).toBe(2);

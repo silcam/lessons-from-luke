@@ -293,6 +293,39 @@ test("Save TStrings", async () => {
   await storage.reset();
 });
 
+test("Save TStrings - duplicate masters in input", async () => {
+  const newTString = {
+    masterId: 1,
+    source: "Livre de Luc...",
+    text: "Luke's Book",
+    history: [],
+    sourceLanguageId: 2,
+    languageId: 3
+  };
+  const newTStrings = [newTString, { ...newTString }];
+
+  const tStrings = await storage.saveTStrings(newTStrings);
+  expect(tStrings.length).toBe(1);
+
+  await storage.reset();
+});
+
+test("Don't resave if new text is the same", async () => {
+  const newTStrings = [
+    {
+      masterId: 1,
+      source: "Livre de Luc...",
+      text: "Pɔh eyamu ya Lukasi etilinɔ na iyabɛnɛ dá Yohanesi Nkahɛdɛni",
+      history: [],
+      sourceLanguageId: 2,
+      languageId: 3
+    }
+  ];
+
+  const tStrings = await storage.saveTStrings(newTStrings);
+  expect(tStrings.length).toBe(0);
+});
+
 test("Save TStrings progress", async () => {
   const engScripStrs = await storage.englishScriptureTStrings();
   const batScripStrs: TString[] = engScripStrs.map(eng => ({
