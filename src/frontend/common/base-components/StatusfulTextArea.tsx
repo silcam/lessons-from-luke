@@ -56,6 +56,7 @@ export default function StatusfulTextArea(props: IProps) {
           props.saveOnEnter();
         }
       }}
+      commonSubs
     />
   );
 }

@@ -11,6 +11,7 @@ interface IProps extends STAProps {
   onBlur?: () => void;
   autoFocus?: boolean;
   taRef?: MutableRefObject<HTMLTextAreaElement | null>;
+  commonSubs?: boolean;
 }
 
 const StyledTextArea = styled.textarea<STAProps>`
@@ -41,10 +42,13 @@ export default function TextArea(props: IProps) {
     }
   });
 
+  const transformValue = (value: string) =>
+    props.commonSubs ? value.replace(/<</g, "«").replace(/>>/g, "»") : value;
+
   return (
     <StyledTextArea
       ref={ref}
-      onChange={e => props.setValue(e.target.value)}
+      onChange={e => props.setValue(transformValue(e.target.value))}
       {...inputProps}
     />
   );
