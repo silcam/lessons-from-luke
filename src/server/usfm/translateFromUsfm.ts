@@ -14,7 +14,8 @@ interface Translation {
   text: string;
 }
 
-export const VerseStringPattern = /^(Luke|Luc|Acts|Actes) (\d{1,3})(\.|:|, )(\d{1,3})(-(\d{1,3}))?\s/;
+// The + for the space after the book name is a temporary measure since the English strings got polluted with extra spaces there
+export const VerseStringPattern = /^(Luke|Luc|Acts|Actes) +(\d{1,3})(\.|:|, )(\d{1,3})(-(\d{1,3}))?\s/;
 
 export default function translateFromUsfm(
   engStrings: TString[],
@@ -73,7 +74,7 @@ export function usfmParseBook(usfm: string): Book {
 
 export function usfmParseLocalBookName(usfm: string): string | null {
   const match = /^\\h (.+)/m.exec(usfm);
-  return match && match[1];
+  return match && match[1].trim();
 }
 
 function verseRefFromTString(tString: TString): VerseRef | null {
@@ -82,7 +83,7 @@ function verseRefFromTString(tString: TString): VerseRef | null {
   const bookName = match[1].startsWith("Lu") ? "Luke" : "Acts";
   const startVerse = parseInt(match[4]);
   return {
-    asString: match[0].trim(),
+    asString: match[0].trim().replace(/ +/g, " "), // The replace is a temporary measure since the English strings got polluted with double spaces between book name and chapter number.
     book: bookName,
     chapter: parseInt(match[2]),
     startVerse,
