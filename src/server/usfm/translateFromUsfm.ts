@@ -147,7 +147,7 @@ function usfmSubsection(
 // And the optional second element is what to replace it with
 // If no second element is given, the search pattern is replaced with an empty string
 const USFM_REPLACE_PATTERNS: Array<[RegExp, string] | [RegExp]> = [
-  [/\\w (.+?)\|.+?\\w\*/g, "$1"], // Word tags with attributes
+  [/\\\+?w (.+?)\|.+?\\\+?w\*/g, "$1"], // Word tags with attributes
   [/(\\(rq|ca|va|vp|f|fe|x|sup|fig)).+?\1\*/g], // Markers with a closing marker
   [/\\(rem|h|mt|ms|mr|s|r|d|cl|cp|cd|lit).*/g], // Markers that go with the rest of the line
   [/\\(sts|v|c) \S+\s/g], // Markers followed by one word
