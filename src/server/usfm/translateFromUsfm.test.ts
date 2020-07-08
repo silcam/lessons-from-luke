@@ -1,3 +1,5 @@
+/// <reference types="jest" />
+
 import fs from "fs";
 import translateFromUsfm from "./translateFromUsfm";
 import { TString } from "../../core/models/TString";

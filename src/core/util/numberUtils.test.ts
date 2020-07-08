@@ -1,3 +1,5 @@
+/// <reference types="jest" />
+
 import { randInt, zeroPad, sum, average } from "./numberUtils";
 
 test("Random Int", () => {

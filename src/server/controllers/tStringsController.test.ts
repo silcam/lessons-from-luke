@@ -1,3 +1,5 @@
+/// <reference types="jest" />
+
 import { plainAgent, resetStorage, closeStorage } from "../testHelper";
 import { TString } from "../../core/models/TString";
 import { SuperTest } from "supertest";

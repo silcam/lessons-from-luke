@@ -1,3 +1,5 @@
+/// <reference types="jest" />
+
 import { TestPersistence } from "../../core/interfaces/Persistence";
 import { ENGLISH_ID } from "../../core/models/Language";
 import { DraftLessonString } from "../../core/models/LessonString";
@@ -234,6 +236,23 @@ test("Get TStrings by language and lesson", async () => {
   expect(less1BatStrings.length).toBe(3);
 });
 
+test("Get Tstrings by master id and language", async () => {
+  const coupleBatanga = await storage.tStrings({
+    languageId: 3,
+    masterIds: [1, 3]
+  });
+  expect(coupleBatanga).toHaveLength(2);
+  expect(coupleBatanga).toContainEqual({
+    masterId: 1,
+    languageId: 3,
+    text: "Pɔh eyamu ya Lukasi etilinɔ na iyabɛnɛ dá Yohanesi Nkahɛdɛni",
+    source: "Le livre de Luc et la naissance de Jean Baptiste",
+    sourceLanguageId: 2,
+    history: [],
+    lessonStringId: null
+  });
+});
+
 test("English Scripture tStrings", async () => {
   const engStrings = await storage.englishScriptureTStrings();
   expect(engStrings.length).toBe(60);
@@ -374,6 +393,96 @@ test("Don't add duplicate master strings!", async () => {
     "Pizza is Tasty!"
   ]);
   expect(tStrings[2].masterId).toBe(tStrings[0].masterId);
+});
+
+test("Empty Sync", async () => {
+  const syncPackage = await storage.sync(1594232387331, [2, 3]);
+  expect(syncPackage).toEqual({
+    languages: false,
+    baseLessons: false,
+    lessons: [],
+    tStrings: []
+  });
+});
+
+test("Full Sync", async () => {
+  const syncPackage = await storage.sync(4, [3]);
+  expect(syncPackage).toMatchObject({
+    languages: true,
+    baseLessons: true
+  });
+  expect(syncPackage.lessons).toContain(11);
+  expect(syncPackage.tStrings).toContain(1);
+});
+
+test("Sync: new language", async () => {
+  const syncTimestamp = Date.now().valueOf() - 1000;
+
+  await storage.createLanguage({ name: "Klingon", defaultSrcLang: 1 });
+
+  const syncPackage = await storage.sync(syncTimestamp, [3]);
+  expect(syncPackage.languages).toBe(true);
+
+  await storage.reset();
+});
+
+test("Sync: new lesson", async () => {
+  const syncTimestamp = Date.now().valueOf() - 1000;
+
+  await storage.createLesson({ book: "Luke", series: 5, lesson: 101 });
+
+  const syncPackage = await storage.sync(syncTimestamp, [3]);
+  expect(syncPackage.baseLessons).toBe(true);
+
+  await storage.reset();
+});
+
+test("Sync: Updated lesson", async () => {
+  const syncTimestamp = Date.now().valueOf() - 1000;
+
+  await storage.updateLesson(11, 4, [
+    {
+      motherTongue: true,
+      lessonId: 11,
+      xpath: "",
+      masterId: 1001,
+      type: "content"
+    }
+  ]);
+
+  const syncPackage = await storage.sync(syncTimestamp, [3]);
+  expect(syncPackage.lessons).toEqual([11]);
+
+  await storage.reset();
+});
+
+test("Sync: tString to Update", async () => {
+  const syncTimestamp = Date.now().valueOf() - 1000;
+
+  await storage.saveTStrings([
+    {
+      masterId: 1,
+      languageId: 3,
+      text: "Pɔh Pɔh Pɔh",
+      history: []
+    },
+    {
+      masterId: 19,
+      languageId: 3,
+      text: "Luca 1:13",
+      history: []
+    }
+  ]);
+
+  let syncPackage = await storage.sync(syncTimestamp, [3]);
+  expect(syncPackage.tStrings).toHaveLength(2);
+  expect(syncPackage.tStrings).toContain(1);
+  expect(syncPackage.tStrings).toContain(19);
+
+  syncPackage = await storage.sync(syncTimestamp, [2]);
+  expect(syncPackage.tStrings).toHaveLength(0);
+
+  await storage.reset();
 });
 
 function timeout(ms: number) {

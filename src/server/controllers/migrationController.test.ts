@@ -1,3 +1,5 @@
+/// <reference types="jest" />
+
 import { loggedInAgent } from "../testHelper";
 
 // Don't really need these anymore

@@ -16,6 +16,7 @@ import {
   LessonString
 } from "../../core/models/LessonString";
 import { TString, equal, sqlizeTString } from "../../core/models/TString";
+import { ContinuousSyncPackage } from "../../core/models/ContinuousSyncPackage";
 import { encode } from "../../core/util/timestampEncode";
 import { uniq, discriminate, findBy } from "../../core/util/arrayUtils";
 import { VerseStringPattern } from "../usfm/translateFromUsfm";
@@ -32,25 +33,33 @@ export default class PGStorage implements Persistence {
   }
 
   async languages(): Promise<Language[]> {
-    const langs = this.sql`SELECT * from languages`;
+    const langs = this.sql`
+      SELECT languageid, name, code, motherTongue, progress, defaultsrclang
+      FROM languages
+    `;
     return langs;
   }
 
   async language(
     params: { languageId: number } | { code: string }
   ): Promise<Language | null> {
-    const rows = await this.sql`SELECT * FROM languages WHERE ${this.sql(
-      params
-    )}`;
+    const rows = await this.sql`
+      SELECT languageid, name, code, motherTongue, progress, defaultsrclang 
+      FROM languages 
+      WHERE ${this.sql(params)}
+    `;
     return rows[0] || null;
   }
 
   async createLanguage(newLanguage: NewLanguage): Promise<Language> {
+    const timestamp = Date.now().valueOf();
     const newLang = {
       ...newLanguage,
       code: encode(),
       motherTongue: true,
-      progress: "[]"
+      progress: "[]",
+      created: timestamp,
+      modified: timestamp
     };
     const [final] = await this.sql`
       INSERT INTO languages 
@@ -63,8 +72,9 @@ export default class PGStorage implements Persistence {
     id: number,
     update: Partial<Language>
   ): Promise<Language> {
+    const finalUpdate = { ...update, modified: Date.now().valueOf() };
     await this.sql`UPDATE languages SET ${this.sql(
-      update
+      finalUpdate
     )} WHERE languageId=${id}`;
     await this.updateProgress();
     return (await this.language({ languageId: id }))!;
@@ -77,11 +87,15 @@ export default class PGStorage implements Persistence {
   }
 
   async lessons(): Promise<BaseLesson[]> {
-    return this.sql`SELECT * FROM lessons`;
+    return this.sql`
+      SELECT lessonid, book, series, lesson, version FROM lessons
+      `;
   }
 
   async lesson(id: number): Promise<Lesson | null> {
-    const rows = await this.sql`SELECT * FROM lessons WHERE lessonId=${id}`;
+    const rows = await this.sql`
+      SELECT lessonid, book, series, lesson, version FROM lessons WHERE lessonId=${id}
+    `;
     const lesson: BaseLesson | undefined = rows[0];
     if (!lesson) return null;
     const lsRows = await this
@@ -90,9 +104,11 @@ export default class PGStorage implements Persistence {
   }
 
   async createLesson(lesson: DraftLesson): Promise<BaseLesson> {
+    const timestamp = Date.now().valueOf();
     const newLesson: Omit<BaseLesson, "lessonId"> = { ...lesson, version: 0 };
+    const insert = { ...newLesson, created: timestamp, modified: timestamp };
     const [finalLesson] = await this.sql`INSERT INTO lessons ${this.sql(
-      newLesson
+      insert
     )} returning *`;
     return finalLesson;
   }
@@ -105,7 +121,9 @@ export default class PGStorage implements Persistence {
     return this.withProgressUpdate(async () => {
       const lesson: BaseLesson | undefined = (
         await this.sql`
-      UPDATE lessons SET version=${lessonVersion} WHERE lessonid=${id}
+      UPDATE lessons 
+      SET version=${lessonVersion}, modified=${Date.now().valueOf()} 
+      WHERE lessonid=${id}
       returning *
     `
       )[0];
@@ -137,6 +155,7 @@ export default class PGStorage implements Persistence {
   async tStrings(params: {
     languageId: number;
     lessonId?: number;
+    masterIds?: number[];
   }): Promise<TString[]> {
     if (params.lessonId) {
       const lessonStrings = await this
@@ -144,10 +163,25 @@ export default class PGStorage implements Persistence {
       if (lessonStrings.length == 0) return [];
 
       const masterIds = lessonStrings.map(ls => ls.masterId);
-      return this
-        .sql`SELECT * FROM tStrings WHERE languageId=${params.languageId} AND masterId IN (${masterIds})`;
+      return this.sql`
+        SELECT masterid, languageid, sourcelanguageid, source, text, history, lessonstringid 
+        FROM tStrings 
+        WHERE languageId=${params.languageId} 
+        AND masterId IN (${masterIds})
+      `;
+    } else if (params.masterIds) {
+      return this.sql`
+        SELECT masterid, languageid, sourcelanguageid, source, text, history, lessonstringid
+        FROM tStrings 
+        WHERE languageId=${params.languageId} 
+        AND masterId IN (${params.masterIds})
+      `;
     } else {
-      return this.sql`SELECT * FROM tStrings WHERE ${this.sql(params)}`;
+      return this.sql`
+        SELECT masterid, languageid, sourcelanguageid, source, text, history, lessonstringid
+        FROM tStrings
+        WHERE ${this.sql(params)}
+      `;
     }
   }
 
@@ -207,17 +241,23 @@ export default class PGStorage implements Persistence {
       tStr => tStr.history.length > 0
     );
 
+    const timestamp = Date.now().valueOf();
     if (toAdd.length > 0)
       await this.sql`INSERT INTO tstrings ${this.sql(
-        toAdd.map(sqlizeTString)
+        toAdd.map(tStr => ({
+          ...sqlizeTString(tStr),
+          created: timestamp,
+          modified: timestamp
+        }))
       )}`;
 
     await Promise.all(
       toUpdate.map(
         tStr =>
-          this.sql`UPDATE tstrings SET ${this.sql(
-            sqlizeTString(tStr)
-          )} WHERE languageid=${tStr.languageId} AND masterid=${tStr.masterId}`
+          this.sql`UPDATE tstrings SET ${this.sql({
+            ...sqlizeTString(tStr),
+            modified: timestamp
+          })} WHERE languageid=${tStr.languageId} AND masterid=${tStr.masterId}`
       )
     );
 
@@ -279,6 +319,36 @@ export default class PGStorage implements Persistence {
       if (process.env.NODE_ENV == "production")
         console.error(`Unexpected error while updating progress: ${err}`);
     }
+  }
+
+  async sync(
+    timestamp: number,
+    languageIds: number[]
+  ): Promise<ContinuousSyncPackage> {
+    let rows = await this.sql`
+      SELECT max(created) FROM languages
+    `;
+    const langsTimestamp = rows[0].max;
+    rows = await this.sql`
+      SELECT max(created) FROM lessons
+    `;
+    const lessonsTimestamp = rows[0].max;
+    const lessons = await this.sql`
+      SELECT lessonid FROM lessons
+      WHERE modified > ${timestamp}
+    `;
+    const tStrings = await this.sql`
+      SELECT masterid FROM tstrings
+      WHERE languageid IN (${languageIds})
+      AND modified > ${timestamp}
+    `;
+
+    return {
+      languages: langsTimestamp > timestamp,
+      baseLessons: lessonsTimestamp > timestamp,
+      lessons: lessons.map(lsn => lsn.lessonId),
+      tStrings: tStrings.map(tStr => tStr.masterId)
+    };
   }
 
   async close() {
