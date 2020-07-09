@@ -10,6 +10,7 @@ import { BaseLesson, Lesson } from "../models/Lesson";
 import { DocString } from "../models/DocString";
 import { SyncState } from "../models/SyncState";
 import { Locale } from "../i18n/I18n";
+import { ContinuousSyncPackage } from "../models/ContinuousSyncPackage";
 
 export type Params = { [key: string]: string | number };
 
@@ -29,6 +30,14 @@ export interface APIGet {
   "/api/users/current": [{}, User | null];
   "/api/admin/languages": [{}, Language[]];
   "/api/languages/:languageId/tStrings": [{ languageId: number }, TString[]];
+  "/api/languages/:languageId/tStrings/:ids": [
+    { languageId: number; ids: string },
+    TString[]
+  ];
+  "/api/sync/:timestamp/languages/:languageIds/": [
+    { timestamp: number; languageIds: string },
+    ContinuousSyncPackage
+  ];
 
   // Desktop Only
   "/api/syncState": [{}, SyncState];

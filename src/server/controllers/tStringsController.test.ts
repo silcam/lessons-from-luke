@@ -54,6 +54,22 @@ test("Get TStrings - invalid ids", async () => {
   expect(response.body).toEqual([]);
 });
 
+test("Get TStrings by master ids", async () => {
+  const agent = plainAgent();
+  const response = await agent.get("/api/languages/3/tStrings/1,3");
+  expect(response.status).toBe(200);
+  expect(response.body.length).toBe(2);
+  expect(response.body).toContainEqual({
+    masterId: 1,
+    languageId: 3,
+    text: "Pɔh eyamu ya Lukasi etilinɔ na iyabɛnɛ dá Yohanesi Nkahɛdɛni",
+    source: "Le livre de Luc et la naissance de Jean Baptiste",
+    sourceLanguageId: 2,
+    history: [],
+    lessonStringId: null
+  });
+});
+
 test("Save TString - Invalid Type", async () => {
   expect.assertions(1);
   const agent = plainAgent();

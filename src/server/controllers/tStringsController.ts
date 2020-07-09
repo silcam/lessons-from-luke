@@ -19,6 +19,17 @@ export default function tStringsController(app: Express, storage: Persistence) {
     }
   );
 
+  addGetHandler(app, "/api/languages/:languageId/tStrings/:ids", async req => {
+    const languageId = parseInt(req.params.languageId);
+    if (!languageId) throw { status: 400 };
+    const masterIds = req.params.ids.split(",").map(id => {
+      const val = parseInt(id);
+      if (!val) throw { status: 400 };
+      return val;
+    });
+    return storage.tStrings({ languageId, masterIds });
+  });
+
   addPostHandler(app, "/api/tStrings", async req => {
     const { code, tStrings } = validateTStringPost(req.body);
     if (
