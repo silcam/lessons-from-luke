@@ -342,10 +342,11 @@ export default class PGStorage implements Persistence {
     const tStringsByLangId: { [id: number]: number[] } = {};
     for (let i = 0; i < languageTimestamps.length; ++i) {
       const { languageId, timestamp: langTimeStamp } = languageTimestamps[i];
-      const tStrings: TString[] = await this.sql`
-      SELECT * FROM tstrings
-      WHERE languageid = ${languageId}
-      AND modified > ${langTimeStamp}
+      const tStrings: { masterId: number }[] = await this.sql`
+        SELECT DISTINCT tstrings.masterid 
+        FROM tstrings JOIN lessonstrings ON tstrings.masterid=lessonstrings.masterid 
+        WHERE tstrings.languageid = ${languageId}
+        AND tstrings.modified > ${langTimeStamp}
     `;
       tStringsByLangId[languageId] = tStrings.map(tStr => tStr.masterId);
     }
