@@ -75,3 +75,16 @@ export function downSyncProgress(
 
   return Math.round((100 * (totalRequests - neededRequests)) / totalRequests);
 }
+
+export function updateLanguageTimestamps(
+  syncState: StoredSyncState,
+  languageIds: number[],
+  timestamp: number
+): StoredSyncState {
+  return {
+    ...syncState,
+    syncLanguages: syncState.syncLanguages
+      .filter(langTS => !languageIds.some(id => langTS.languageId == id))
+      .concat(languageIds.map(languageId => ({ languageId, timestamp })))
+  };
+}

@@ -2,7 +2,8 @@ import DesktopApp from "../DesktopApp";
 import {
   ContinuousSyncPackage,
   T_STRING_BATCH_SIZE,
-  downSyncProgress
+  downSyncProgress,
+  updateLanguageTimestamps
 } from "../../core/models/SyncState";
 import { encodeLanguageTimestamps } from "../../core/interfaces/Api";
 
@@ -53,6 +54,14 @@ export async function downSyncTStrings(app: DesktopApp) {
     updateDownSync(app, syncState.downSync.timestamp, {
       tStrings: newDownSyncTstrings
     });
+    app.localStorage.setSyncState(
+      updateLanguageTimestamps(
+        app.localStorage.getSyncState(),
+        syncState.syncLanguages.map(lt => lt.languageId),
+        newDownSync.timestamp
+      ),
+      app
+    );
 
     await syncTStrings(app);
   } catch (err) {
@@ -75,23 +84,13 @@ async function getDownSync(app: DesktopApp) {
       app.localStorage.getLessonCount(),
       app.localStorage.getTStringCount()
     );
-    const newLanguageTimestamps = syncState.syncLanguages.map(lt => ({
-      ...lt,
-      timestamp: newDownSync.timestamp
-    }));
+    app.localStorage.setSyncState({ downSync: newDownSync }, app);
     app.localStorage.setSyncState(
-      {
-        downSync: newDownSync,
-        syncLanguages: app.localStorage
-          .getSyncState()
-          .syncLanguages.filter(
-            langTS =>
-              !newLanguageTimestamps.some(
-                _langTS => langTS.languageId == _langTS.languageId
-              )
-          )
-          .concat(newLanguageTimestamps)
-      },
+      updateLanguageTimestamps(
+        app.localStorage.getSyncState(),
+        syncState.syncLanguages.map(lt => lt.languageId),
+        newDownSync.timestamp
+      ),
       app
     );
   }
