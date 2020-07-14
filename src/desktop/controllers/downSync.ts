@@ -1,131 +1,193 @@
 import DesktopApp from "../DesktopApp";
-import { StoredSyncState } from "../../core/models/SyncState";
-import produce from "immer";
-import waitFor from "../../core/util/waitFor";
+import {
+  ContinuousSyncPackage,
+  T_STRING_BATCH_SIZE,
+  downSyncProgress
+} from "../../core/models/SyncState";
+import { encodeLanguageTimestamps } from "../../core/interfaces/Api";
 
 export const NO_CONNECTION = "NoConnection";
 
-export async function downSyncBase(app: DesktopApp) {
-  const { localStorage, webClient } = app;
-  let syncState = localStorage.getSyncState();
-
+export async function downSync(app: DesktopApp) {
   try {
-    if (!syncState.downSync.languages) {
-      const languages = await throwsNoConnection(() =>
-        webClient.get("/api/languages", {})
-      );
-      localStorage.setLanguages(languages);
-      syncState = updateSyncState(app, syncState => {
-        syncState.downSync.languages = true;
-      });
-    }
+    await getDownSync(app);
 
-    if (!syncState.downSync.lessons) {
-      const lessons = await throwsNoConnection(() =>
-        webClient.get("/api/lessons", {})
-      );
-      const allFalse = () => new Array(lessons.length).fill(false);
-      localStorage.setLessons(lessons);
-      syncState = updateSyncState(app, syncState => {
-        (syncState.downSync.lessons = true),
-          (syncState.downSync.lessonStrings = allFalse()),
-          (syncState.downSync.tStrings = allFalse()),
-          (syncState.downSync.docPreviews = allFalse());
-      });
-    }
+    const langSyncPromise = syncLanguages(app);
+    const baseLessonSyncPromise = syncBaseLessons(app);
+    const lessonSyncPromise = syncLessons(app);
+    const tStringSyncPromise = syncTStrings(app);
 
-    const lessons = localStorage.getLessons();
-    for (let lessonIndex = 0; lessonIndex < lessons.length; ++lessonIndex) {
-      if (!syncState.downSync.lessonStrings[lessonIndex]) {
-        const lesson = await throwsNoConnection(() =>
-          webClient.get("/api/lessons/:lessonId", {
-            lessonId: lessons[lessonIndex].lessonId
-          })
-        );
-        localStorage.setLessonStrings(lesson.lessonId, lesson.lessonStrings);
-        updateSyncState(app, syncState => {
-          syncState.downSync.lessonStrings[lessonIndex] = true;
-        });
-      }
-    }
+    return Promise.all([
+      langSyncPromise,
+      baseLessonSyncPromise,
+      lessonSyncPromise,
+      tStringSyncPromise
+    ]);
   } catch (err) {
-    throw err;
+    if (err == NO_CONNECTION) {
+      console.log(NO_CONNECTION);
+    } else {
+      throw err;
+    }
   }
 }
 
-export async function downSyncProject(app: DesktopApp) {
-  const { localStorage, webClient } = app;
-  let syncState = localStorage.getSyncState();
-  if (!syncState.language)
-    throw "Don't call downSyncProject without setting syncState.language!";
-
-  if (!syncState.downSync.lessons) {
-    // Unlikely but possible - they should be coming soon - otherwise throws
-    await waitFor(() => localStorage.getSyncState().downSync.lessons);
-    syncState = localStorage.getSyncState();
+async function getDownSync(app: DesktopApp) {
+  const syncState = app.localStorage.getSyncState();
+  const downSync = syncState.downSync;
+  if (!downSync.progress || downSync.progress == 100) {
+    const newDownSync = await throwsNoConnection(() =>
+      app.webClient.get("/api/sync/:timestamp/languages/:languageTimestamps?", {
+        timestamp: downSync.timestamp,
+        languageTimestamps: encodeLanguageTimestamps(syncState.syncLanguages)
+      })
+    );
+    newDownSync.progress = downSyncProgress(
+      newDownSync,
+      app.localStorage.getLessonCount(),
+      app.localStorage.getTStringCount()
+    );
+    const newLanguageTimestamps = syncState.syncLanguages.map(lt => ({
+      ...lt,
+      timestamp: newDownSync.timestamp
+    }));
+    app.localStorage.setSyncState(
+      {
+        downSync: newDownSync,
+        syncLanguages: app.localStorage
+          .getSyncState()
+          .syncLanguages.filter(
+            langTS =>
+              !newLanguageTimestamps.some(
+                _langTS => langTS.languageId == _langTS.languageId
+              )
+          )
+          .concat(newLanguageTimestamps)
+      },
+      app
+    );
   }
+}
 
-  // TStrings
-  const lessons = localStorage.getLessons();
-  for (let lessonIndex = 0; lessonIndex < lessons.length; ++lessonIndex) {
-    if (!syncState.downSync.tStrings[lessonIndex]) {
-      const lessonId = lessons[lessonIndex].lessonId;
-      const srcLangId = syncState.language!.defaultSrcLang;
-      const targetLangId = syncState.language!.languageId;
+async function syncLanguages(app: DesktopApp) {
+  const downSync = app.localStorage.getSyncState().downSync;
+  if (downSync.languages) {
+    const languages = await throwsNoConnection(() =>
+      app.webClient.get("/api/languages", {})
+    );
+    app.localStorage.setLanguages(languages);
+    updateDownSync(app, downSync.timestamp, { languages: false });
+  }
+}
 
-      const srcTStrings = await throwsNoConnection(() =>
-        webClient.get("/api/languages/:languageId/lessons/:lessonId/tStrings", {
-          lessonId,
-          languageId: srcLangId
+async function syncBaseLessons(app: DesktopApp) {
+  const downSync = app.localStorage.getSyncState().downSync;
+  if (downSync.baseLessons) {
+    const lessons = await throwsNoConnection(() =>
+      app.webClient.get("/api/lessons", {})
+    );
+    app.localStorage.setLessons(lessons);
+    updateDownSync(app, downSync.timestamp, { baseLessons: false });
+  }
+}
+
+async function syncLessons(app: DesktopApp) {
+  const downSync = app.localStorage.getSyncState().downSync;
+  const lessonIds = downSync.lessons;
+
+  for (let i = 0; i < lessonIds.length; ++i) {
+    const id = lessonIds[i];
+    const lesson = await throwsNoConnection(() =>
+      app.webClient.get("/api/lessons/:lessonId", { lessonId: id })
+    );
+    app.localStorage.setLessonStrings(lesson.lessonId, lesson.lessonStrings);
+    app.localStorage.removeDocPreview(id);
+    updateDownSync(app, downSync.timestamp, {
+      lessons: app.localStorage
+        .getSyncState()
+        .downSync.lessons.filter(_id => _id != id)
+    });
+
+    await fetchDocPreview(app, id);
+  }
+}
+
+async function syncTStrings(app: DesktopApp) {
+  const downSync = app.localStorage.getSyncState().downSync;
+  const languageIds = Object.keys(downSync.tStrings);
+  for (let i = 0; i < languageIds.length; ++i) {
+    const languageId = parseInt(languageIds[i]);
+    const masterIds = downSync.tStrings[languageId];
+    let batch = 0;
+    while (masterIds.length > batch * T_STRING_BATCH_SIZE) {
+      const tStrings = await throwsNoConnection(() =>
+        app.webClient.get("/api/languages/:languageId/tStrings/:ids", {
+          languageId,
+          ids: masterIds
+            .slice(
+              T_STRING_BATCH_SIZE * batch,
+              T_STRING_BATCH_SIZE * (batch + 1)
+            )
+            .join(",")
         })
       );
-      localStorage.setTStrings(srcLangId, srcTStrings);
-
-      const targetTStrings = await throwsNoConnection(() =>
-        webClient.get("/api/languages/:languageId/lessons/:lessonId/tStrings", {
-          lessonId,
-          languageId: targetLangId
-        })
-      );
-      localStorage.setTStrings(targetLangId, targetTStrings);
-
-      syncState = updateSyncState(app, syncState => {
-        syncState.downSync.tStrings[lessonIndex] = true;
-      });
+      app.localStorage.setTStrings(languageId, tStrings);
+      ++batch;
     }
-  }
-
-  // Doc Previews
-  for (let i = 0; i < syncState.downSync.docPreviews.length; ++i) {
-    if (!syncState.downSync.docPreviews[i]) {
-      try {
-        const lessonId = lessons[i].lessonId;
-        const preview = await throwsNoConnection(() =>
-          webClient.get("/api/lessons/:lessonId/webified", { lessonId })
-        );
-        localStorage.setDocPreview(lessonId, preview.html);
-        updateSyncState(app, syncState => {
-          syncState.downSync.docPreviews[i] = true;
-        });
-      } catch (err) {
-        if (err.status == 404) {
-          // Continue - not an error
-        } else {
-          throw err;
-        }
+    updateDownSync(app, downSync.timestamp, {
+      tStrings: {
+        ...app.localStorage.getSyncState().downSync.tStrings,
+        [languageId]: []
       }
+    });
+  }
+}
+
+export async function fetchMissingPreviews(app: DesktopApp) {
+  const lessons = app.localStorage.getLessons();
+  for (let i = 0; i < lessons.length; ++i) {
+    const lesson = lessons[i];
+    if (!app.localStorage.getDocPreview(lesson.lessonId)) {
+      await fetchDocPreview(app, lesson.lessonId);
     }
   }
-} //
+}
 
-function updateSyncState(
+async function fetchDocPreview(app: DesktopApp, lessonId: number) {
+  try {
+    const preview = await throwsNoConnection(() =>
+      app.webClient.get("/api/lessons/:lessonId/webified", { lessonId })
+    );
+    app.localStorage.setDocPreview(lessonId, preview.html);
+  } catch (err) {
+    if (err.status == 404) {
+      // We'll try again later
+    } else {
+      throw err;
+    }
+  }
+}
+
+function updateDownSync(
   app: DesktopApp,
-  update: (syncState: StoredSyncState) => void | StoredSyncState
-): StoredSyncState {
-  const syncState = produce(app.localStorage.getSyncState(), update);
-  app.localStorage.setSyncState(syncState, app);
-
-  return syncState;
+  timestamp: number,
+  downSync: Partial<ContinuousSyncPackage>
+) {
+  const oldDownSync = app.localStorage.getSyncState().downSync;
+  if (oldDownSync.timestamp == timestamp) {
+    const newDownSync = { ...oldDownSync, ...downSync };
+    newDownSync.progress = downSyncProgress(
+      newDownSync,
+      app.localStorage.getLessonCount(),
+      app.localStorage.getTStringCount()
+    );
+    app.localStorage.setSyncState(
+      {
+        downSync: newDownSync
+      },
+      app
+    );
+  }
 }
 
 async function throwsNoConnection<T>(cb: () => Promise<T | null>): Promise<T> {

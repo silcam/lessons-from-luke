@@ -79,6 +79,10 @@ export default class LocalStorage {
     return this.memoryStore.lessons;
   }
 
+  getLessonCount(): number {
+    return this.memoryStore.lessons.length;
+  }
+
   getLessonStrings(lessonId: number): LessonString[] {
     return this.readFile(lessonStringsFilename(lessonId), []);
   }
@@ -92,6 +96,12 @@ export default class LocalStorage {
     const masterIds = lessonStrings.map(ls => ls.masterId);
     const tStrings = this.getAllTStrings(languageId);
     return tStrings.filter(ts => masterIds.includes(ts.masterId));
+  }
+
+  getTStringCount(): number {
+    return this.memoryStore.languages
+      .map(lang => this.getAllTStrings(lang.languageId))
+      .reduce((sum, list) => sum + list.length, 0);
   }
 
   getDocPreview(lessonId: number) {
@@ -146,6 +156,11 @@ export default class LocalStorage {
 
   setDocPreview(lessonId: number, preview: string) {
     this.writeTextFile(docPreviewFilename(lessonId), preview);
+  }
+
+  removeDocPreview(lessonId: number) {
+    const filename = docPreviewFilename(lessonId);
+    if (fs.existsSync(filename)) fs.unlinkSync(filename);
   }
 
   protected migrateLocalStorage() {

@@ -16,13 +16,14 @@ import {
   LessonString
 } from "../../core/models/LessonString";
 import { TString, equal, sqlizeTString } from "../../core/models/TString";
-import { ContinuousSyncPackage } from "../../core/models/ContinuousSyncPackage";
+import { ContinuousSyncPackage } from "../../core/models/SyncState";
 import { encode } from "../../core/util/timestampEncode";
 import { uniq, discriminate, findBy } from "../../core/util/arrayUtils";
 import { VerseStringPattern } from "../usfm/translateFromUsfm";
 import { percent } from "../../core/util/numberUtils";
 import pgLoadFixtures from "./pgLoadFixtures";
 import secrets from "../util/secrets";
+import { LanguageTimestamp } from "../../core/interfaces/Api";
 
 export default class PGStorage implements Persistence {
   sql: SqlFunc;
@@ -52,7 +53,7 @@ export default class PGStorage implements Persistence {
   }
 
   async createLanguage(newLanguage: NewLanguage): Promise<Language> {
-    const timestamp = Date.now().valueOf();
+    const timestamp = Date.now();
     const newLang = {
       ...newLanguage,
       code: encode(),
@@ -72,7 +73,7 @@ export default class PGStorage implements Persistence {
     id: number,
     update: Partial<Language>
   ): Promise<Language> {
-    const finalUpdate = { ...update, modified: Date.now().valueOf() };
+    const finalUpdate = { ...update, modified: Date.now() };
     await this.sql`UPDATE languages SET ${this.sql(
       finalUpdate
     )} WHERE languageId=${id}`;
@@ -104,7 +105,7 @@ export default class PGStorage implements Persistence {
   }
 
   async createLesson(lesson: DraftLesson): Promise<BaseLesson> {
-    const timestamp = Date.now().valueOf();
+    const timestamp = Date.now();
     const newLesson: Omit<BaseLesson, "lessonId"> = { ...lesson, version: 0 };
     const insert = { ...newLesson, created: timestamp, modified: timestamp };
     const [finalLesson] = await this.sql`INSERT INTO lessons ${this.sql(
@@ -122,7 +123,7 @@ export default class PGStorage implements Persistence {
       const lesson: BaseLesson | undefined = (
         await this.sql`
       UPDATE lessons 
-      SET version=${lessonVersion}, modified=${Date.now().valueOf()} 
+      SET version=${lessonVersion}, modified=${Date.now()} 
       WHERE lessonid=${id}
       returning *
     `
@@ -241,7 +242,7 @@ export default class PGStorage implements Persistence {
       tStr => tStr.history.length > 0
     );
 
-    const timestamp = Date.now().valueOf();
+    const timestamp = Date.now();
     if (toAdd.length > 0)
       await this.sql`INSERT INTO tstrings ${this.sql(
         toAdd.map(tStr => ({
@@ -323,8 +324,9 @@ export default class PGStorage implements Persistence {
 
   async sync(
     timestamp: number,
-    languageIds: number[]
+    languageTimestamps: LanguageTimestamp[]
   ): Promise<ContinuousSyncPackage> {
+    const now = Date.now();
     let rows = await this.sql`
       SELECT max(created) FROM languages
     `;
@@ -337,17 +339,23 @@ export default class PGStorage implements Persistence {
       SELECT lessonid FROM lessons
       WHERE modified > ${timestamp}
     `;
-    const tStrings = await this.sql`
-      SELECT masterid FROM tstrings
-      WHERE languageid IN (${languageIds})
-      AND modified > ${timestamp}
+    const tStringsByLangId: { [id: number]: number[] } = {};
+    for (let i = 0; i < languageTimestamps.length; ++i) {
+      const { languageId, timestamp: langTimeStamp } = languageTimestamps[i];
+      const tStrings: TString[] = await this.sql`
+      SELECT * FROM tstrings
+      WHERE languageid = ${languageId}
+      AND modified > ${langTimeStamp}
     `;
+      tStringsByLangId[languageId] = tStrings.map(tStr => tStr.masterId);
+    }
 
     return {
       languages: langsTimestamp > timestamp,
       baseLessons: lessonsTimestamp > timestamp,
       lessons: lessons.map(lsn => lsn.lessonId),
-      tStrings: tStrings.map(tStr => tStr.masterId)
+      tStrings: tStringsByLangId,
+      timestamp: now
     };
   }
 

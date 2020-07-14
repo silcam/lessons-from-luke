@@ -8,9 +8,8 @@ import {
 } from "../models/Language";
 import { BaseLesson, Lesson } from "../models/Lesson";
 import { DocString } from "../models/DocString";
-import { SyncState } from "../models/SyncState";
+import { SyncState, ContinuousSyncPackage } from "../models/SyncState";
 import { Locale } from "../i18n/I18n";
-import { ContinuousSyncPackage } from "../models/ContinuousSyncPackage";
 
 export type Params = { [key: string]: string | number };
 
@@ -34,13 +33,14 @@ export interface APIGet {
     { languageId: number; ids: string },
     TString[]
   ];
-  "/api/sync/:timestamp/languages/:languageIds/": [
-    { timestamp: number; languageIds: string },
+  "/api/sync/:timestamp/languages/:languageTimestamps?": [
+    { timestamp: number; languageTimestamps: string },
     ContinuousSyncPackage
   ];
 
   // Desktop Only
   "/api/syncState": [{}, SyncState];
+  "/api/readyToTranslate": [{}, { readyToTranslate: boolean }];
 }
 
 export interface APIPost {
@@ -75,3 +75,25 @@ export interface APIPost {
 
 export type GetRoute = keyof APIGet;
 export type PostRoute = keyof APIPost;
+
+export interface LanguageTimestamp {
+  languageId: number;
+  timestamp: number;
+}
+
+export function encodeLanguageTimestamps(
+  langTimestamps: LanguageTimestamp[]
+): string {
+  return langTimestamps.map(lt => `${lt.languageId}-${lt.timestamp}`).join(",");
+}
+
+export function decodeLanguageTimestamps(encoded: string): LanguageTimestamp[] {
+  if (encoded.length == 0) return [];
+  return encoded.split(",").map(langStamp => {
+    const [languageId, timestamp] = langStamp
+      .split("-")
+      .map(num => parseInt(num));
+    if (!languageId || !timestamp) throw { status: 400 };
+    return { languageId, timestamp };
+  });
+}

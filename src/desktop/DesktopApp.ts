@@ -6,6 +6,7 @@ import windowStateKeeper from "electron-window-state";
 import DesktopAPIServer from "./DesktopAPIServer";
 import path from "path";
 import TestLocalStorage from "./localFixtures/TestLocalStorage";
+import { downSync, fetchMissingPreviews } from "./controllers/downSync";
 
 export default class DesktopApp {
   localStorage: LocalStorage;
@@ -43,7 +44,13 @@ export default class DesktopApp {
       }
     );
     DesktopAPIServer.listen(this);
+    this.startDownSync();
     this.createWindow();
+  }
+
+  private startDownSync() {
+    this.webClient.watch(() => downSync(this));
+    fetchMissingPreviews(this);
   }
 
   private createWindow() {
@@ -77,5 +84,6 @@ export class TestDesktopApp extends DesktopApp {
   constructor() {
     super();
     this.localStorage = new TestLocalStorage();
+    // this.localStorage.loadFixtures(); // Load app with a blank slate
   }
 }

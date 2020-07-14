@@ -22,6 +22,7 @@ test("Downsync", async () => {
   });
   await app.start();
 
+  await app.client.waitForVisible("h1=Online");
   await app.client.click("input[type='text']");
   await app.client.keys("GHI");
   await app.client.click("button=OK");

@@ -396,49 +396,71 @@ test("Don't add duplicate master strings!", async () => {
 });
 
 test("Empty Sync", async () => {
-  const syncPackage = await storage.sync(1594232387331, [2, 3]);
-  expect(syncPackage).toEqual({
+  const recent = 1594232387331;
+  const syncPackage = await storage.sync(recent, [
+    { languageId: 2, timestamp: recent }
+  ]);
+  expect(syncPackage).toMatchObject({
     languages: false,
     baseLessons: false,
     lessons: [],
-    tStrings: []
+    tStrings: { 2: [] }
   });
+  expect(syncPackage.timestamp).toBeGreaterThan(Date.now() - 1000);
+  expect(syncPackage.timestamp).toBeLessThan(Date.now() + 1000);
 });
 
 test("Full Sync", async () => {
-  const syncPackage = await storage.sync(4, [3]);
+  const old = 594232387331;
+  const syncPackage = await storage.sync(old, [
+    { languageId: 3, timestamp: old }
+  ]);
   expect(syncPackage).toMatchObject({
     languages: true,
     baseLessons: true
   });
   expect(syncPackage.lessons).toContain(11);
-  expect(syncPackage.tStrings).toContain(1);
+  expect(syncPackage.tStrings[3]).toContain(1);
+});
+
+test("Sync - add language so to speak", async () => {
+  const recent = 1594232387331;
+  const neverSynced = 1;
+  const syncPackage = await storage.sync(recent, [
+    { languageId: 3, timestamp: neverSynced }
+  ]);
+  expect(syncPackage).toMatchObject({
+    languages: false,
+    baseLessons: false,
+    lessons: []
+  });
+  expect(syncPackage.tStrings[3].length).toBe(4);
 });
 
 test("Sync: new language", async () => {
-  const syncTimestamp = Date.now().valueOf() - 1000;
+  const syncTimestamp = Date.now() - 1000;
 
   await storage.createLanguage({ name: "Klingon", defaultSrcLang: 1 });
 
-  const syncPackage = await storage.sync(syncTimestamp, [3]);
+  const syncPackage = await storage.sync(syncTimestamp, []);
   expect(syncPackage.languages).toBe(true);
 
   await storage.reset();
 });
 
 test("Sync: new lesson", async () => {
-  const syncTimestamp = Date.now().valueOf() - 1000;
+  const syncTimestamp = Date.now() - 1000;
 
   await storage.createLesson({ book: "Luke", series: 5, lesson: 101 });
 
-  const syncPackage = await storage.sync(syncTimestamp, [3]);
+  const syncPackage = await storage.sync(syncTimestamp, []);
   expect(syncPackage.baseLessons).toBe(true);
 
   await storage.reset();
 });
 
 test("Sync: Updated lesson", async () => {
-  const syncTimestamp = Date.now().valueOf() - 1000;
+  const syncTimestamp = Date.now() - 1000;
 
   await storage.updateLesson(11, 4, [
     {
@@ -450,14 +472,14 @@ test("Sync: Updated lesson", async () => {
     }
   ]);
 
-  const syncPackage = await storage.sync(syncTimestamp, [3]);
+  const syncPackage = await storage.sync(syncTimestamp, []);
   expect(syncPackage.lessons).toEqual([11]);
 
   await storage.reset();
 });
 
 test("Sync: tString to Update", async () => {
-  const syncTimestamp = Date.now().valueOf() - 1000;
+  const syncTimestamp = Date.now() - 1000;
 
   await storage.saveTStrings([
     {
@@ -474,13 +496,14 @@ test("Sync: tString to Update", async () => {
     }
   ]);
 
-  let syncPackage = await storage.sync(syncTimestamp, [3]);
-  expect(syncPackage.tStrings).toHaveLength(2);
-  expect(syncPackage.tStrings).toContain(1);
-  expect(syncPackage.tStrings).toContain(19);
-
-  syncPackage = await storage.sync(syncTimestamp, [2]);
-  expect(syncPackage.tStrings).toHaveLength(0);
+  let syncPackage = await storage.sync(syncTimestamp, [
+    { languageId: 2, timestamp: syncTimestamp },
+    { languageId: 3, timestamp: syncTimestamp }
+  ]);
+  expect(syncPackage.tStrings[3]).toHaveLength(2);
+  expect(syncPackage.tStrings[3]).toContain(1);
+  expect(syncPackage.tStrings[3]).toContain(19);
+  expect(syncPackage.tStrings[2]).toHaveLength(0);
 
   await storage.reset();
 });

@@ -7,7 +7,7 @@ import {
   ON_ERROR,
   OnErrorPayload
 } from "../../core/api/IpcChannels";
-import { downSyncBase, downSyncProject, NO_CONNECTION } from "./downSync";
+import { NO_CONNECTION } from "./downSync";
 import { asAppError } from "../../core/models/AppError";
 import LocalStorage from "../LocalStorage";
 import { localeByLanguageId } from "../../core/i18n/I18n";
@@ -18,6 +18,10 @@ export default function syncStateController(app: DesktopApp) {
     return fullSyncState(localStorage, webClient);
   });
 
+  addGetHandler("/api/readyToTranslate", async () => {
+    return { readyToTranslate: readyToTranslate(app) };
+  });
+
   addPostHandler("/api/syncState/code", async (_, data) => {
     const language = await webClient.get("/api/languages/code/:code", data);
     if (language) {
@@ -26,12 +30,15 @@ export default function syncStateController(app: DesktopApp) {
         {
           language,
           locale:
-            syncState.locale || localeByLanguageId(language.defaultSrcLang)
+            syncState.locale || localeByLanguageId(language.defaultSrcLang),
+          syncLanguages: [
+            { languageId: language.languageId, timestamp: 1 },
+            { languageId: language.defaultSrcLang, timestamp: 1 }
+          ]
         },
         null
       );
     }
-    persistentlyDownSync(app, downSyncProject);
     return fullSyncState(localStorage, webClient);
   });
 
@@ -59,35 +66,6 @@ export default function syncStateController(app: DesktopApp) {
     );
     getWindow().webContents.send(ON_SYNC_STATE_CHANGE, payload);
   });
-
-  persistentlyDownSync(app, downSyncBase);
-  if (localStorage.getSyncState().language)
-    persistentlyDownSync(app, downSyncProject);
-}
-
-function persistentlyDownSync(
-  app: DesktopApp,
-  downSync: (app: DesktopApp) => Promise<void>
-) {
-  const startDownSync = () => {
-    downSync(app).catch(err => {
-      if (err == NO_CONNECTION) {
-        const listener = (connected: boolean) => {
-          if (connected) {
-            app.webClient.removeOnConnectionChangeListener(listener);
-            startDownSync();
-          }
-        };
-        app.webClient.onConnectionChange(listener);
-      } else {
-        console.error(err);
-        const payload: OnErrorPayload = asAppError(err);
-        console.log("SEND ERROR");
-        app.getWindow().webContents.send(ON_ERROR, payload);
-      }
-    });
-  };
-  startDownSync();
 }
 
 function fullSyncState(
@@ -99,4 +77,26 @@ function fullSyncState(
     connected: webClient.isConnected(),
     loaded: true
   };
-} //
+}
+
+// Should have language, lessons, and lessonStrings and tStrings for first lesson
+function readyToTranslate(app: DesktopApp) {
+  const { localStorage } = app;
+  const language = localStorage.getSyncState().language;
+  if (!language) return false;
+
+  const lessons = localStorage.getLessons();
+  if (lessons.length == 0) return false;
+
+  const lessonStrings = localStorage.getLessonStrings(lessons[0].lessonId);
+  if (lessonStrings.length == 0) return false;
+
+  const srcTStrings = localStorage.getTStrings(
+    language.defaultSrcLang,
+    lessons[0].lessonId
+  );
+
+  return lessonStrings.every(lStr =>
+    srcTStrings.some(tStr => tStr.masterId == lStr.masterId)
+  );
+}

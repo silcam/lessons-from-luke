@@ -3,9 +3,12 @@ import { webGet, webPost } from "../core/api/WebAPIClient";
 import { AppError, asAppError } from "../core/models/AppError";
 import { app } from "electron";
 
+const WATCH_INTERVAL = 3 * 1000;
+
 export default class WebAPIClientForDesktop {
   private connected: boolean = false;
-  private connectionCheckerTimerId: number;
+  private watchTimerId: number = 0;
+  private watchLock: boolean = false; // Preventing running watch callback more than once at a time
   private onConnectionChangeListeners: Array<(connected: boolean) => void> = [];
   private baseUrl = "";
 
@@ -14,11 +17,6 @@ export default class WebAPIClientForDesktop {
       ? "https://beta.lessonsfromluke.gospelcoding.org"
       : "http://localhost:8081";
     // this.baseUrl = "https://beta.lessonsfromluke.gospelcoding.org"; // For testing with real server
-    this.connectionCheckerTimerId = setInterval(
-      () => this.get("/api/users/current", {}).catch(err => console.error(err)),
-      1000 * 3
-    );
-    this.get("/api/users/current", {}).catch(err => console.error(err));
   }
 
   setConnected(connected: boolean) {
@@ -57,6 +55,18 @@ export default class WebAPIClientForDesktop {
     this.onConnectionChangeListeners = this.onConnectionChangeListeners.filter(
       listener => listener !== cb
     );
+  }
+
+  watch(cb: (client: WebAPIClientForDesktop) => Promise<any>) {
+    if (this.watchTimerId) clearInterval(this.watchTimerId);
+
+    this.watchTimerId = setInterval(async () => {
+      if (!this.watchLock) {
+        this.watchLock = true;
+        await cb(this);
+        this.watchLock = false;
+      }
+    }, WATCH_INTERVAL);
   }
 
   private async trackConnection<T>(cb: () => Promise<T>): Promise<T | null> {

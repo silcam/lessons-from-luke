@@ -3,7 +3,6 @@ import useTranslation from "../util/useTranslation";
 import PlatformContext from "../PlatformContext";
 import { useAppSelector } from "../state/appState";
 import { FlexRow } from "../base-components/Flex";
-import { downSyncComplete } from "../../../core/models/SyncState";
 import ProgressBar from "../base-components/ProgressBar";
 import Label from "../base-components/Label";
 import { count } from "../../../core/util/arrayUtils";
@@ -19,14 +18,8 @@ export default function DesktopSyncMessage() {
 
   if (!syncState.connected) return null;
 
-  if (!downSyncComplete(syncState)) {
-    const downSync = syncState.downSync;
-    const progress = percent(
-      downSync.lessonStrings
-        .concat(downSync.tStrings)
-        .concat(downSync.docPreviews)
-    );
-
+  const progress = syncState.downSync.progress || 0;
+  if (progress < 100) {
     return (
       <SyncMessageDiv flexZero>
         <Label text={t("Downloading")} />
@@ -36,10 +29,6 @@ export default function DesktopSyncMessage() {
   }
 
   return <FlexRow></FlexRow>;
-}
-
-function percent(bools: boolean[]) {
-  return Math.round((100 * count(bools, bool => bool)) / bools.length);
 }
 
 const SyncMessageDiv = styled(FlexRow)`

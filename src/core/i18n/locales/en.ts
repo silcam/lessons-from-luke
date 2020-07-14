@@ -69,6 +69,7 @@ const en = {
   Online: "Online",
   Offline: "Offline",
   Downloading_project: "Downloading %{language} project...",
+  Downloaded_project: "%{language} Downloaded",
   Texts: "Texts",
   Previews: "Previews",
   Downloading: "Downloading",

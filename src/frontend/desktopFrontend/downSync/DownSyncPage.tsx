@@ -1,12 +1,12 @@
-import React from "react";
+import React, { useEffect, useContext, useState } from "react";
 import { StdHeaderBarPage } from "../../common/base-components/HeaderBar";
 import SyncCodeForm from "./SyncCodeForm";
 import { useAppSelector } from "../../common/state/appState";
-import DownSyncProgress from "./DownSyncProgress";
 import useTranslation from "../../common/util/useTranslation";
 import MiddleOfPage from "../../common/base-components/MiddleOfPage";
 import Button from "../../common/base-components/Button";
-import { readyToTranslate } from "../../../core/models/SyncState";
+import RequestContext from "../../common/api/RequestContext";
+import ProgressBar from "../../common/base-components/ProgressBar";
 
 interface IProps {
   startTranslating: () => void;
@@ -14,27 +14,40 @@ interface IProps {
 
 export default function DownSyncPage(props: IProps) {
   const t = useTranslation();
+  const { get } = useContext(RequestContext);
   const syncState = useAppSelector(state => state.syncState);
-  const canTranslate = readyToTranslate(syncState);
+  const progress = syncState.downSync.progress;
+  const [canTranslate, setCanTranslate] = useState(false);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      get("/api/readyToTranslate", {}).then(data =>
+        setCanTranslate(data?.readyToTranslate || false)
+      );
+    }, 1000);
+    return () => {
+      clearInterval(interval);
+    };
+  });
 
   return (
     <StdHeaderBarPage title="Lessons from Luke" logoNoLink>
       {syncState.language ? (
-        <div>
+        <MiddleOfPage>
           <h1>
-            {t("Downloading_project", { language: syncState.language.name })}
+            {t(progress == 100 ? "Downloaded_project" : "Downloading_project", {
+              language: syncState.language.name
+            })}
           </h1>
-          <MiddleOfPage>
-            <DownSyncProgress />
-            {canTranslate && (
-              <Button
-                bigger
-                text={t("Start_translating")}
-                onClick={props.startTranslating}
-              />
-            )}
-          </MiddleOfPage>
-        </div>
+          <ProgressBar big percent={syncState.downSync.progress || 0} />
+          {(canTranslate || progress == 100) && (
+            <Button
+              bigger
+              text={t("Start_translating")}
+              onClick={props.startTranslating}
+            />
+          )}
+        </MiddleOfPage>
       ) : (
         <SyncCodeForm />
       )}

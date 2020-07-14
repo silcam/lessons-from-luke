@@ -2,7 +2,8 @@ import { NewLanguage, Language } from "../models/Language";
 import { Lesson, BaseLesson, DraftLesson } from "../models/Lesson";
 import { TString } from "../models/TString";
 import { DraftLessonString } from "../models/LessonString";
-import { ContinuousSyncPackage } from "../models/ContinuousSyncPackage";
+import { ContinuousSyncPackage } from "../models/SyncState";
+import { LanguageTimestamp } from "./Api";
 
 export interface Persistence {
   languages: () => Promise<Language[]>;
@@ -33,7 +34,7 @@ export interface Persistence {
   ) => Promise<TString[]>;
   sync: (
     timestamp: number,
-    languageIds: number[]
+    languageTimestamps: LanguageTimestamp[]
   ) => Promise<ContinuousSyncPackage>;
 }
 

@@ -9,6 +9,7 @@ import { percent } from "../../core/util/numberUtils";
 import fs from "fs";
 import { LessonProgress } from "../../core/models/Language";
 import { VerseStringPattern } from "../usfm/translateFromUsfm";
+import { LanguageTimestamp } from "../../core/interfaces/Api";
 
 let testDb = fixtures();
 updateProgress(); // We could await this if it seemed necessary
@@ -172,6 +173,17 @@ const testStorage: TestPersistence = {
   writeToDisk: async () => {
     const filepath = __dirname + "/fixtures-" + new Date().valueOf() + ".json";
     fs.writeFileSync(filepath, JSON.stringify(testDb));
+  },
+
+  sync: async (timestamp: number, ids: LanguageTimestamp[]) => {
+    // Stubbed response for compiler
+    return {
+      languages: false,
+      baseLessons: false,
+      lessons: [],
+      tStrings: {},
+      timestamp: Date.now()
+    };
   },
 
   close: async () => {}
