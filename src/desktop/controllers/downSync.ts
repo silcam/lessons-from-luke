@@ -7,6 +7,7 @@ import {
 import { encodeLanguageTimestamps } from "../../core/interfaces/Api";
 
 export const NO_CONNECTION = "NoConnection";
+export const EXPIRED_SYNC = "ExpiredSync";
 
 export async function downSync(app: DesktopApp) {
   try {
@@ -17,18 +18,45 @@ export async function downSync(app: DesktopApp) {
     const lessonSyncPromise = syncLessons(app);
     const tStringSyncPromise = syncTStrings(app);
 
-    return Promise.all([
+    await Promise.all([
       langSyncPromise,
       baseLessonSyncPromise,
       lessonSyncPromise,
       tStringSyncPromise
     ]);
   } catch (err) {
-    if (err == NO_CONNECTION) {
-      console.log(NO_CONNECTION);
-    } else {
-      throw err;
-    }
+    catchSyncError(err);
+  }
+}
+
+// Should be called when languages have been added
+// and the intial sync of lessons may still be in progress
+export async function downSyncTStrings(app: DesktopApp) {
+  try {
+    const syncState = app.localStorage.getSyncState();
+    const newDownSync = await throwsNoConnection(() =>
+      app.webClient.get("/api/sync/:timestamp/languages/:languageTimestamps?", {
+        timestamp: syncState.downSync.timestamp,
+        languageTimestamps: encodeLanguageTimestamps(syncState.syncLanguages)
+      })
+    );
+    const newDownSyncTstrings = Object.keys(newDownSync.tStrings).reduce(
+      (accum: { [id: number]: number[] }, key) => {
+        const langId = parseInt(key);
+        accum[langId] = (accum[langId] || []).concat(
+          newDownSync.tStrings[langId]
+        );
+        return accum;
+      },
+      syncState.downSync.tStrings
+    );
+    updateDownSync(app, syncState.downSync.timestamp, {
+      tStrings: newDownSyncTstrings
+    });
+
+    await syncTStrings(app);
+  } catch (err) {
+    catchSyncError(err);
   }
 }
 
@@ -174,24 +202,31 @@ function updateDownSync(
   downSync: Partial<ContinuousSyncPackage>
 ) {
   const oldDownSync = app.localStorage.getSyncState().downSync;
-  if (oldDownSync.timestamp == timestamp) {
-    const newDownSync = { ...oldDownSync, ...downSync };
-    newDownSync.progress = downSyncProgress(
-      newDownSync,
-      app.localStorage.getLessonCount(),
-      app.localStorage.getTStringCount()
-    );
-    app.localStorage.setSyncState(
-      {
-        downSync: newDownSync
-      },
-      app
-    );
-  }
+  if (oldDownSync.timestamp != timestamp) throw EXPIRED_SYNC;
+  const newDownSync = { ...oldDownSync, ...downSync };
+  newDownSync.progress = downSyncProgress(
+    newDownSync,
+    app.localStorage.getLessonCount(),
+    app.localStorage.getTStringCount()
+  );
+  app.localStorage.setSyncState(
+    {
+      downSync: newDownSync
+    },
+    app
+  );
 }
 
 async function throwsNoConnection<T>(cb: () => Promise<T | null>): Promise<T> {
   const result = await cb();
   if (!result) throw NO_CONNECTION;
   return result;
+}
+
+function catchSyncError(err: any) {
+  if (err == NO_CONNECTION || err == EXPIRED_SYNC) {
+    console.log(err);
+  } else {
+    throw err;
+  }
 }

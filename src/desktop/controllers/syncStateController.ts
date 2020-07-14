@@ -7,7 +7,7 @@ import {
   ON_ERROR,
   OnErrorPayload
 } from "../../core/api/IpcChannels";
-import { NO_CONNECTION } from "./downSync";
+import { downSyncTStrings } from "./downSync";
 import { asAppError } from "../../core/models/AppError";
 import LocalStorage from "../LocalStorage";
 import { localeByLanguageId } from "../../core/i18n/I18n";
@@ -39,6 +39,7 @@ export default function syncStateController(app: DesktopApp) {
         null
       );
     }
+    downSyncTStrings(app);
     return fullSyncState(localStorage, webClient);
   });
 

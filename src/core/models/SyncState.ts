@@ -3,7 +3,7 @@ import { TString } from "./TString";
 import { Locale } from "../i18n/I18n";
 import { LanguageTimestamp } from "../interfaces/Api";
 
-export const T_STRING_BATCH_SIZE = 100;
+export const T_STRING_BATCH_SIZE = 1000;
 
 export interface StoredSyncState {
   language: Language | null;
