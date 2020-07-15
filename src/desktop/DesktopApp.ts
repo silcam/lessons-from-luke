@@ -13,8 +13,8 @@ export default class DesktopApp {
   webClient: WebAPIClientForDesktop;
   mainWindow: BrowserWindow | null = null;
 
-  constructor() {
-    this.localStorage = new LocalStorage();
+  constructor(localStorage: LocalStorage = new LocalStorage()) {
+    this.localStorage = localStorage;
     this.webClient = new WebAPIClientForDesktop();
     this.init();
   }
@@ -82,8 +82,10 @@ export class TestDesktopApp extends DesktopApp {
   localStorage: TestLocalStorage;
 
   constructor() {
-    super();
-    this.localStorage = new TestLocalStorage();
-    // this.localStorage.loadFixtures(); // Load app with a blank slate
+    // TestLocalStorage.loadFixtures(); // Load app with a blank slate
+    // TestLocalStorage.loadFixtures("batanga-synced"); // Load app with Batanga synced
+    const localStorage = new TestLocalStorage();
+    super(localStorage);
+    this.localStorage = localStorage;
   }
 }

@@ -1,8 +1,9 @@
 import { TestDesktopApp } from "./DesktopApp";
+import TestLocalStorage from "./localFixtures/TestLocalStorage";
 
-const app = new TestDesktopApp();
-
-if (process.env.FIXTURES == "fresh-install") app.localStorage.loadFixtures();
+if (process.env.FIXTURES == "fresh-install") TestLocalStorage.loadFixtures();
 
 if (process.env.FIXTURES == "batanga-synced")
-  app.localStorage.loadFixtures("batanga-synced");
+  TestLocalStorage.loadFixtures("batanga-synced");
+
+const app = new TestDesktopApp();

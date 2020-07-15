@@ -16,7 +16,7 @@ import {
 } from "../core/api/IpcChannels";
 import DesktopApp from "./DesktopApp";
 
-const LOCAL_STORAGE_VERSION = 1;
+const LOCAL_STORAGE_VERSION = 2;
 
 export interface MemoryStore {
   syncState: StoredSyncState;
@@ -179,6 +179,24 @@ export default class LocalStorage {
     console.log(
       `Migrate local storage from version ${this.memoryStore.localStorageVersion} to version ${LOCAL_STORAGE_VERSION}`
     );
+
+    if (this.memoryStore.localStorageVersion < 2) {
+      this.memoryStore.syncState.downSync = {
+        languages: false,
+        baseLessons: false,
+        lessons: [],
+        tStrings: {},
+        timestamp: 1
+      };
+
+      const language = this.memoryStore.syncState.language;
+      this.memoryStore.syncState.syncLanguages = language
+        ? [
+            { languageId: language.languageId, timestamp: 1 },
+            { languageId: language.defaultSrcLang, timestamp: 1 }
+          ]
+        : [];
+    }
 
     this.memoryStore.localStorageVersion = LOCAL_STORAGE_VERSION;
     this.writeMemoryStore();
