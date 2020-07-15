@@ -38,8 +38,8 @@ const fr: I18nStrings = {
     "Échec de trouver un projet de traduction. Veuillez vérifier que vous avez le bon adresse.",
   Code_error_for_desktop:
     "Échec de trouver un projet de traduction. Veuillez vérifier que vous avez le bon code.",
-  Downloading_project: "Téléchargement du projet %{language}...",
-  Downloaded_project: "Projet de %{language} téléchargé",
+  Syncing_project: "Synchronisation du projet %{language}...",
+  Synced_project: "Projet de %{language} synchronisé",
   Texts: "Textes",
   Previews: "Aperçus",
   Downloading: "Téléchargement",

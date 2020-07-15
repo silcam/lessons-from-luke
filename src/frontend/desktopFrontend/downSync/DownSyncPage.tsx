@@ -35,7 +35,7 @@ export default function DownSyncPage(props: IProps) {
       {syncState.language ? (
         <MiddleOfPage>
           <h1>
-            {t(progress == 100 ? "Downloaded_project" : "Downloading_project", {
+            {t(progress == 100 ? "Synced_project" : "Syncing_project", {
               language: syncState.language.name
             })}
           </h1>
