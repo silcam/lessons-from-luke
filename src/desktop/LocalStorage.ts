@@ -151,7 +151,16 @@ export default class LocalStorage {
     if (!languageId)
       throw "setProjectLanguageTStrings called without set Project Language!";
 
-    return this.setTStrings(languageId, tStrings);
+    const existing = this.getAllTStrings(languageId);
+    const newTStrings = tStrings.map(tStr => {
+      const oldTStr = existing.find(
+        oldTStr => oldTStr.masterId == tStr.masterId
+      );
+      return oldTStr
+        ? { ...tStr, history: oldTStr.history.concat([oldTStr.text]) }
+        : tStr;
+    });
+    return this.setTStrings(languageId, newTStrings);
   }
 
   setDocPreview(lessonId: number, preview: string) {
