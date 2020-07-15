@@ -155,7 +155,10 @@ export default class LocalStorage {
   }
 
   setDocPreview(lessonId: number, preview: string) {
-    this.writeTextFile(docPreviewFilename(lessonId), preview);
+    this.writeTextFile(
+      docPreviewFilename(lessonId),
+      desktopifyDocPreview(preview)
+    );
   }
 
   removeDocPreview(lessonId: number) {
@@ -197,4 +200,12 @@ export default class LocalStorage {
   protected writeMemoryStore() {
     this.writeFile(MEMORY_STORE, this.memoryStore);
   }
+}
+
+// Update img ref's to point to server
+function desktopifyDocPreview(html: string): string {
+  return html.replace(
+    /<img src="/g,
+    '<img src="https://beta.lessonsfromluke.gospelcoding.org'
+  );
 }
