@@ -6,7 +6,12 @@ export default function languagesController(app: DesktopApp) {
   const { localStorage } = app;
 
   addGetHandler("/api/languages", async () => {
-    return localStorage.getLanguages();
+    // Only return languages that are being synced
+    const syncLangIds = localStorage
+      .getSyncState()
+      .syncLanguages.map(lt => lt.languageId);
+    const languages = localStorage.getLanguages();
+    return languages.filter(lang => syncLangIds.includes(lang.languageId));
   });
 
   addGetHandler("/api/languages/code/:code", async ({ code }) => {
