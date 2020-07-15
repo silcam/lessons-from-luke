@@ -5,12 +5,26 @@
   "productName": "Lessons from Luke",
   "version": "2.1.0",
   "license": "MIT",
-  "main": "dist/desktop/main.js",
+  "main": "dist/desktop/desktop/main.js",
   "build": {
     "appId": "org.sil.cmb.lessons-from-luke",
     "directories": {
       "output": "dist-desktop"
-    }
+    },
+    "files": [
+      "**/*",
+      "!art",
+      "!config",
+      "!cypress",
+      "!docs",
+      "!lib",
+      "!log",
+      "!migrations",
+      "!src",
+      "!strings",
+      "!test",
+      "!webpack"
+    ]
   },
   "scripts": {
     "dev-web": "NODE_ENV=test concurrently -k -p \"[{name}]\" -n \"WebpackDevServe,Typescript,Server\" -c \"yellow.bold,blue.bold,green.bold\" \"yarn wpDevServerWeb\" \"tsc -b -w ./src/server\" \"yarn serve\"",

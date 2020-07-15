@@ -37,7 +37,7 @@ export default class DesktopApp {
       "file",
       (request, callback) => {
         const filename = request.url.replace(/^.*\//, "");
-        callback(path.join(__dirname, "web", filename));
+        callback(path.join(__dirname, "..", "web", filename));
       },
       err => {
         if (err) console.error("Failed to register protocol");
