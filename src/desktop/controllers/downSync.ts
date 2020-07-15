@@ -171,12 +171,16 @@ async function syncTStrings(app: DesktopApp) {
 }
 
 export async function fetchMissingPreviews(app: DesktopApp) {
-  const lessons = app.localStorage.getLessons();
-  for (let i = 0; i < lessons.length; ++i) {
-    const lesson = lessons[i];
-    if (!app.localStorage.getDocPreview(lesson.lessonId)) {
-      await fetchDocPreview(app, lesson.lessonId);
+  try {
+    const lessons = app.localStorage.getLessons();
+    for (let i = 0; i < lessons.length; ++i) {
+      const lesson = lessons[i];
+      if (!app.localStorage.getDocPreview(lesson.lessonId)) {
+        await fetchDocPreview(app, lesson.lessonId);
+      }
     }
+  } catch (err) {
+    catchSyncError(err);
   }
 }
 
