@@ -18,7 +18,7 @@ beforeAll(async () => {
 test("Downsync", async () => {
   const app = new Application({
     path: electronPath as string,
-    args: ["dist/desktop/main-test.js"]
+    args: ["dist/desktop/desktop/main-test.js"]
   });
   await app.start();
 
@@ -26,9 +26,9 @@ test("Downsync", async () => {
   await app.client.click("input[type='text']");
   await app.client.keys("GHI");
   await app.client.click("button=OK");
-  expect(
-    await app.client.waitForVisible("h1=Downloading Batanga project...")
-  ).toBe(true);
+  expect(await app.client.waitForVisible("h1=Syncing Batanga project...")).toBe(
+    true
+  );
 
   await app.client.waitForVisible("button=Start Translating");
   await app.client.click("button=Start Translating");
