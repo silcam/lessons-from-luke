@@ -3,7 +3,7 @@
   "description": "Sunday School curriculum for every language.",
   "author": "Rick Conrad",
   "productName": "Lessons from Luke",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "license": "MIT",
   "main": "dist/desktop/desktop/main.js",
   "build": {
@@ -38,7 +38,7 @@
     "test-spectron-deps": "NODE_ENV=test concurrently -k -p \"[{name}]\" -n \"Webpack,Server\" -c \"yellow.bold,blue.bold\" \"yarn wpDevServerDesktop\" \"yarn serve\"",
     "deploy": "bundle exec cap production deploy",
     "build-server": "tsc -b ./src/server/tsconfig.prod.json && webpack --config webpack/web.production.config.js",
-    "build-desktop": "tsc -b ./src/desktop/tsconfig.prod.json && webpack --config webpack/desktop.production.config.js && node build-desktop.js"
+    "build-desktop": "rm -R dist && tsc -b ./src/desktop/tsconfig.prod.json && webpack --config webpack/desktop.production.config.js && node build-desktop.js"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^1.1.0",
