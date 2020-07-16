@@ -6,6 +6,7 @@ import {
   updateLanguageTimestamps
 } from "../../core/models/SyncState";
 import { encodeLanguageTimestamps } from "../../core/interfaces/Api";
+import { uniq } from "../../core/util/arrayUtils";
 
 export const NO_CONNECTION = "NoConnection";
 export const EXPIRED_SYNC = "ExpiredSync";
@@ -168,6 +169,35 @@ async function syncTStrings(app: DesktopApp) {
       }
     });
   }
+  await fetchMissingSrcStrings(app);
+}
+
+// Find any missing tStrings for default src language
+// One way this could happen is if there was an existing string that was not used at the time of the original sync
+// But then a lesson was updated to use it - it's timestamp would still be too old and it wouldn't get synced
+async function fetchMissingSrcStrings(app: DesktopApp) {
+  const language = app.localStorage.getSyncState().language;
+  if (!language) return;
+
+  const lessons = app.localStorage.getLessons();
+  const srcStrings = app.localStorage.getAllTStrings(language.defaultSrcLang);
+  const missingIds: number[] = [];
+  lessons.forEach(lesson => {
+    const lessonStrings = app.localStorage.getLessonStrings(lesson.lessonId);
+    lessonStrings.forEach(lStr => {
+      if (!srcStrings.find(tStr => tStr.masterId == lStr.masterId))
+        missingIds.push(lStr.masterId);
+    });
+  });
+  if (missingIds.length == 0) return;
+
+  const tStrings = await throwsNoConnection(() =>
+    app.webClient.get("/api/languages/:languageId/tStrings/:ids", {
+      languageId: language.defaultSrcLang,
+      ids: uniq(missingIds).join(",")
+    })
+  );
+  app.localStorage.setTStrings(language.defaultSrcLang, tStrings);
 }
 
 export async function fetchMissingPreviews(app: DesktopApp) {
