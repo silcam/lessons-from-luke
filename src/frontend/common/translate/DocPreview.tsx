@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { LessonTString } from "./useLessonTStrings";
 import styled from "styled-components";
 import Colors from "../util/Colors";
+import { escapeHTML } from "../../../core/util/stringUtils";
 
 interface IProps {
   lessonId: number;
@@ -29,9 +30,9 @@ export default function DocPreview(props: IProps) {
         `##${ltStr.lStr.lessonStringId}##`,
         `<span class="lessonString" id="ls${
           ltStr.lStr.lessonStringId
-        }" style="cursor:pointer" onclick="window.setSelectedLessonString(${index})">${
+        }" style="cursor:pointer" onclick="window.setSelectedLessonString(${index})">${escapeHTML(
           ltStr.tStrs[1]?.text || ltStr.tStrs[0]?.text || "[...]"
-        }</span>`
+        )}</span>`
       ),
     finalHtml
   );
