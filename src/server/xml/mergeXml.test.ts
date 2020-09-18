@@ -29,3 +29,14 @@ test("No-op XML merge", () => {
 function compXml(xml: string) {
   return xml.replace(/\s+/g, "");
 }
+
+test("Merge preserve spaces", () => {
+  const sample = "Picture book, Bible, chalk";
+  expect(xmls.content).toContain(`${sample} <`);
+  const docStrings = parse(xmls.content, "content");
+  expect(docStrings.find(ds => ds.text == sample)?.text).toBe(sample);
+
+  mergeXml(odtPath, newOdtPath, docStrings);
+  const newXml = docStorage.docXml(newOdtPath).content;
+  expect(newXml).toContain(`${sample} <`);
+});

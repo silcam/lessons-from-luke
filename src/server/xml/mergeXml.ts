@@ -51,7 +51,10 @@ function mergeTranslations(
   for (let i = 0; i < translations.length; ++i) {
     const translation = translations[i];
     const element = xmlDoc.get(translation.xpath, namespaces);
-    if (element) element.text(translation.text);
+    if (element) {
+      const toReplace = element.text().trim();
+      element.text(element.text().replace(toReplace, translation.text));
+    }
   }
   const docStr = cleanOpenDocXml(xmlDoc.toString(false));
   fs.writeFileSync(contentXmlFilepath, docStr);
