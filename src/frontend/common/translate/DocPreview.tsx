@@ -61,5 +61,5 @@ const PreviewDiv = styled.div`
 `;
 
 function preprocessHtml(html: string) {
-  return html.replace(/<meta.*?>/g, "");
+  return html.replace(/<meta.*?>/g, "").replace("position: absolute", "");
 }
