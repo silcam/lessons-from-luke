@@ -15,8 +15,14 @@ import {
   ON_SYNC_STATE_CHANGE
 } from "../core/api/IpcChannels";
 import DesktopApp from "./DesktopApp";
+import { zeroPad } from "../core/util/numberUtils";
+import { lastMonthStr, todayStr } from "../core/util/dateUtils";
+import { unlinkSafe } from "../core/util/fsUtils";
 
 const LOCAL_STORAGE_VERSION = 2;
+
+export type LogType = "Network" | "DataUsage" | "Error";
+const DataUsageLog = "LOG-DataUsage";
 
 export interface MemoryStore {
   syncState: StoredSyncState;
@@ -61,6 +67,8 @@ export default class LocalStorage {
     this.memoryStore = this.readFile(MEMORY_STORE, defaultMemoryStore());
     if (this.memoryStore.localStorageVersion < LOCAL_STORAGE_VERSION)
       this.migrateLocalStorage();
+
+    this.manageLogs();
   }
 
   static getBasePath() {
@@ -175,6 +183,17 @@ export default class LocalStorage {
     if (fs.existsSync(filename)) fs.unlinkSync(filename);
   }
 
+  logDataUsed(bytes: number) {
+    const filename = this.logFileName("DataUsage", new Date(), { daily: true });
+    this.appendTextFile(filename, `${bytes}`);
+  }
+
+  writeLogEntry(log: LogType, message: string) {
+    const entryDate = new Date();
+    const filename = this.logFileName(log, entryDate);
+    this.appendTextFile(filename, `${entryDate.toJSON()}  ${message}`);
+  }
+
   protected migrateLocalStorage() {
     console.log(
       `Migrate local storage from version ${this.memoryStore.localStorageVersion} to version ${LOCAL_STORAGE_VERSION}`
@@ -202,14 +221,76 @@ export default class LocalStorage {
     this.writeMemoryStore();
   }
 
+  protected logFileName(
+    logType: LogType,
+    date: Date = new Date(),
+    opts: { daily?: boolean } = {}
+  ) {
+    let name = `LOG-${logType}-${date.getUTCFullYear()}-${zeroPad(
+      date.getUTCMonth() + 1,
+      2
+    )}`;
+    if (opts.daily) name += "-" + zeroPad(date.getUTCDate(), 2);
+    return name;
+  }
+
+  protected manageLogs() {
+    const logFileNames = fs
+      .readdirSync(this.basePath)
+      .filter(name => name.startsWith("LOG"));
+
+    // Clean out old network logs
+    const prefix = "LOG-Network";
+    const lastMonth = lastMonthStr();
+    logFileNames.forEach(filename => {
+      if (filename.startsWith(prefix) && filename < `${prefix}-${lastMonth}`)
+        unlinkSafe(path.join(this.basePath, filename));
+    });
+
+    // Consolidate data usage logs
+    const dataUsage: { [date: string]: number } = this.readFile(
+      DataUsageLog,
+      {}
+    );
+    const today = todayStr();
+    const toDelete: string[] = [];
+    logFileNames.forEach(filename => {
+      if (
+        filename.startsWith("LOG-DataUsage-") &&
+        filename < `LOG-DataUsage-${today}`
+      ) {
+        const data = this.readTextFile(filename);
+        const sum = data.split("\n").reduce((sum, val) => {
+          return sum + (parseInt(val) || 0);
+        }, 0);
+        const dateStr = filename.substr(14, 10);
+        dataUsage[dateStr] = sum;
+        toDelete.push(filename);
+      }
+    });
+    this.writeFile(DataUsageLog, dataUsage);
+    toDelete.forEach(filename =>
+      unlinkSafe(path.join(this.basePath, filename))
+    );
+  }
+
   protected readTextFile(filename: string) {
     const filepath = path.join(this.basePath, filename);
     return fs.existsSync(filepath) ? fs.readFileSync(filepath).toString() : "";
   }
 
   protected readFile<T>(filename: string, defaultValue: T): T {
-    const text = this.readTextFile(filename);
-    return text ? JSON.parse(text) : defaultValue;
+    try {
+      const text = this.readTextFile(filename);
+      return text ? JSON.parse(text) : defaultValue;
+    } catch (err) {
+      console.log("JSON Parse Error");
+      this.writeLogEntry(
+        "Error",
+        `[LocalStorage.readFile : ${filename}] ${err}`
+      );
+      throw err;
+    }
   }
 
   protected writeTextFile(filename: string, value: string) {
@@ -222,6 +303,11 @@ export default class LocalStorage {
 
   protected writeFile(filename: string, value: any) {
     this.writeTextFile(filename, JSON.stringify(value));
+  }
+
+  protected appendTextFile(filename: string, text: string) {
+    const filepath = path.join(this.basePath, filename);
+    fs.appendFileSync(filepath, `${text}\n`);
   }
 
   protected writeMemoryStore() {

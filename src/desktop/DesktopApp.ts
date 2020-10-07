@@ -15,7 +15,7 @@ export default class DesktopApp {
 
   constructor(localStorage: LocalStorage = new LocalStorage()) {
     this.localStorage = localStorage;
-    this.webClient = new WebAPIClientForDesktop();
+    this.webClient = new WebAPIClientForDesktop(localStorage);
     this.init();
   }
 

@@ -11,12 +11,14 @@ import { AppError } from "../models/AppError";
 export async function webGet<T extends GetRoute>(
   route: T,
   params: APIGet[T][0],
-  baseUrl: string = ""
+  baseUrl: string = "",
+  log: (message: string) => void = console.log
 ): Promise<APIGet[T][1] | null> {
   const finalRoute = interpolateParams(route, params);
   try {
-    console.log(`GET ${finalRoute}`);
+    log(`GET ${finalRoute}`);
     const response = await Axios.get(baseUrl + finalRoute);
+    log(`RESPONSE SIZE ${response.headers["content-length"]}`);
     return response.data;
   } catch (err) {
     throwAppError(err);
@@ -27,12 +29,14 @@ export async function webPost<T extends PostRoute>(
   route: T,
   params: APIPost[T][0],
   data: APIPost[T][1],
-  baseUrl: string = ""
+  baseUrl: string = "",
+  log: (message: string) => void = console.log
 ): Promise<APIPost[T][2] | null> {
   const finalRoute = interpolateParams(route, params);
   try {
-    console.log(`POST ${finalRoute}`);
+    log(`POST ${finalRoute} ${JSON.stringify(data)}`);
     const response = await Axios.post(baseUrl + finalRoute, data);
+    log(`RESPONSE SIZE ${response.headers["content-length"]}`);
     return response.data;
   } catch (err) {
     throwAppError(err);
@@ -65,6 +69,7 @@ function throwAppError(err: any): never {
   else if (err.response && err.response.status)
     error = { type: "HTTP", status: err.response.status };
   else error = { type: "Unknown" };
+  error.log = `${err}`;
   throw error;
 }
 

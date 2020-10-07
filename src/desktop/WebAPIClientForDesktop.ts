@@ -2,6 +2,7 @@ import { GetRoute, APIGet, APIPost, PostRoute } from "../core/interfaces/Api";
 import { webGet, webPost } from "../core/api/WebAPIClient";
 import { AppError, asAppError } from "../core/models/AppError";
 import { app } from "electron";
+import LocalStorage from "./LocalStorage";
 
 const WATCH_INTERVAL = 3 * 1000;
 
@@ -11,12 +12,14 @@ export default class WebAPIClientForDesktop {
   private watchLock: boolean = false; // Preventing running watch callback more than once at a time
   private onConnectionChangeListeners: Array<(connected: boolean) => void> = [];
   private baseUrl = "";
+  private localStorage: LocalStorage;
 
-  constructor() {
+  constructor(localStorage: LocalStorage) {
     this.baseUrl = app.isPackaged
       ? "https://beta.lessonsfromluke.gospelcoding.org"
       : "http://localhost:8081";
     // this.baseUrl = "https://beta.lessonsfromluke.gospelcoding.org"; // For testing with real server
+    this.localStorage = localStorage;
   }
 
   setConnected(connected: boolean) {
@@ -30,7 +33,9 @@ export default class WebAPIClientForDesktop {
     route: T,
     params: APIGet[T][0]
   ): Promise<APIGet[T][1] | null> {
-    return this.trackConnection(() => webGet(route, params, this.baseUrl));
+    return this.trackConnection(() =>
+      webGet(route, params, this.baseUrl, msg => this.log(msg))
+    );
   }
 
   async post<T extends PostRoute>(
@@ -39,7 +44,7 @@ export default class WebAPIClientForDesktop {
     data: APIPost[T][1]
   ): Promise<APIPost[T][2] | null> {
     return this.trackConnection(() =>
-      webPost(route, params, data, this.baseUrl)
+      webPost(route, params, data, this.baseUrl, msg => this.log(msg))
     );
   }
 
@@ -75,6 +80,7 @@ export default class WebAPIClientForDesktop {
       this.setConnected(true);
       return result;
     } catch (err) {
+      this.log(`ERROR  ${err.log || err}`);
       const error = asAppError(err);
       if (error.type == "No Connection") {
         this.setConnected(false);
@@ -84,5 +90,12 @@ export default class WebAPIClientForDesktop {
         throw error;
       }
     }
+  }
+
+  private log(message: string) {
+    if (message.startsWith("RESPONSE SIZE")) {
+      const size = parseInt(message.slice(14));
+      if (size) this.localStorage.logDataUsed(size);
+    } else this.localStorage.writeLogEntry("Network", message);
   }
 }
