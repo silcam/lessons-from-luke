@@ -1,6 +1,8 @@
 export type DataUsage = { [date: string]: number };
 
 export function dataUsageReport(usage: DataUsage): string {
+  if (Object.keys(usage).length == 0) return "Total: 0B";
+
   const total = Object.values(usage).reduce((sum, num) => sum + num);
   const avg = total / Object.keys(usage).length;
 
