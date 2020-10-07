@@ -22,6 +22,7 @@ import { unlinkSafe } from "../core/util/fsUtils";
 const LOCAL_STORAGE_VERSION = 2;
 
 export type LogType = "Network" | "DataUsage" | "Error";
+export type DataUsage = { [date: string]: number };
 const DataUsageLog = "LOG-DataUsage";
 
 export interface MemoryStore {
@@ -188,6 +189,10 @@ export default class LocalStorage {
     this.appendTextFile(filename, `${bytes}`);
   }
 
+  readDataUsed() {
+    return this.readFile(DataUsageLog, {});
+  }
+
   writeLogEntry(log: LogType, message: string) {
     const entryDate = new Date();
     const filename = this.logFileName(log, entryDate);
@@ -248,10 +253,7 @@ export default class LocalStorage {
     });
 
     // Consolidate data usage logs
-    const dataUsage: { [date: string]: number } = this.readFile(
-      DataUsageLog,
-      {}
-    );
+    const dataUsage: DataUsage = this.readFile(DataUsageLog, {});
     const today = todayStr();
     const toDelete: string[] = [];
     logFileNames.forEach(filename => {

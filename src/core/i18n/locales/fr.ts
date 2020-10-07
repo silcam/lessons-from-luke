@@ -45,7 +45,11 @@ const fr: I18nStrings = {
   Downloading: "Téléchargement",
   Uploading: "Chargement",
   Start_translating: "Commencer la traduction",
-  History: "Historique"
+  History: "Historique",
+  Resync_explanation:
+    "Vous voulez réinitialiser ce projet et télécharger toutes les données à nouveau ?",
+  Yes_resync: "Oui, réinitialiser",
+  Cancel: "Annuler"
 };
 
 export default fr;

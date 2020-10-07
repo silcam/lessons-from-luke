@@ -88,3 +88,11 @@ export function updateLanguageTimestamps(
       .concat(languageIds.map(languageId => ({ languageId, timestamp })))
   };
 }
+
+export function resync(syncState: StoredSyncState): StoredSyncState {
+  return {
+    ...syncState,
+    syncLanguages: syncState.syncLanguages.map(sl => ({ ...sl, timestamp: 1 })),
+    downSync: initalStoredSyncState().downSync
+  };
+}

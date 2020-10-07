@@ -1,12 +1,25 @@
 import LocalStorage from "./LocalStorage";
 import WebAPIClientForDesktop from "./WebAPIClientForDesktop";
-import { BrowserWindow, app, protocol } from "electron";
+import {
+  BrowserWindow,
+  app,
+  protocol,
+  Menu,
+  shell,
+  dialog,
+  MenuItemConstructorOptions
+} from "electron";
 import contextMenu from "electron-context-menu";
 import windowStateKeeper from "electron-window-state";
 import DesktopAPIServer from "./DesktopAPIServer";
 import path from "path";
 import TestLocalStorage from "./localFixtures/TestLocalStorage";
 import { downSync, fetchMissingPreviews } from "./controllers/downSync";
+import defaultMenu from "electron-default-menu";
+import { dataUsageReport } from "./util/DataUsage";
+import { I18nKey } from "../core/i18n/locales/en";
+import { resync } from "../core/models/SyncState";
+import { tForLocale } from "../core/i18n/I18n";
 
 export default class DesktopApp {
   localStorage: LocalStorage;
@@ -45,12 +58,66 @@ export default class DesktopApp {
     );
     DesktopAPIServer.listen(this);
     this.startDownSync();
+    this.setupMenu();
     this.createWindow();
   }
 
   private startDownSync() {
     this.webClient.watch(() => downSync(this));
     fetchMissingPreviews(this);
+  }
+
+  private setupMenu() {
+    const menu = defaultMenu(app, shell);
+
+    menu.splice(4, 0, {
+      label: "Admin",
+      submenu: [
+        {
+          label: "Data Usage",
+          click: () => {
+            const usageLog = this.localStorage.readDataUsed();
+            dialog.showMessageBox({
+              message: dataUsageReport(usageLog),
+              buttons: ["OK"]
+            });
+          }
+        },
+        {
+          label: "Resync",
+          click: async () => {
+            const choice = await dialog.showMessageBox({
+              message: this.t("Resync_explanation"),
+              buttons: [this.t("Yes_resync"), this.t("Cancel")]
+            });
+            if (choice.response == 0)
+              this.localStorage.setSyncState(
+                resync(this.localStorage.getSyncState()),
+                this
+              );
+          }
+        }
+      ]
+    });
+
+    const viewMenuTop: MenuItemConstructorOptions[] = app.isPackaged
+      ? []
+      : [
+          { role: "reload" },
+          { role: "forceReload" },
+          { role: "toggleDevTools" },
+          { type: "separator" }
+        ];
+    const viewMenuBottom: MenuItemConstructorOptions[] = [
+      { role: "resetZoom" },
+      { role: "zoomIn" },
+      { role: "zoomOut" },
+      { type: "separator" },
+      { role: "togglefullscreen" }
+    ];
+    menu[2].submenu = viewMenuTop.concat(viewMenuBottom);
+
+    Menu.setApplicationMenu(Menu.buildFromTemplate(menu));
   }
 
   private createWindow() {
@@ -75,6 +142,11 @@ export default class DesktopApp {
     this.mainWindow.on("closed", () => {
       app.quit();
     });
+  }
+
+  private t(key: I18nKey, subs?: { [key: string]: string }): string {
+    const locale = this.localStorage.getSyncState().locale || "en";
+    return tForLocale(locale)(key, subs);
   }
 }
 

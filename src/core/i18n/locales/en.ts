@@ -75,7 +75,10 @@ const en = {
   Downloading: "Downloading",
   Uploading: "Uploading",
   Start_translating: "Start Translating",
-  History: "History"
+  History: "History",
+  Resync_explanation:
+    "Do you want to reset this project and download all the data again?",
+  Yes_resync: "Yes, Resync"
 };
 
 export type I18nStrings = typeof en;
