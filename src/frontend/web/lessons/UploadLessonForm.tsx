@@ -15,7 +15,8 @@ import {
   Book,
   AllBooks,
   BaseLesson,
-  lessonName
+  lessonName,
+  TOC_LESSON
 } from "../../../core/models/Lesson";
 import NumberPicker from "../../common/base-components/NumberPicker";
 import Button from "../../common/base-components/Button";
@@ -24,6 +25,7 @@ import { usePush } from "../../common/api/useLoad";
 import { pushDocument } from "../../common/state/lessonSlice";
 import { useAppSelector } from "../../common/state/appState";
 import { useHistory } from "react-router-dom";
+import Checkbox from "../../common/base-components/Checkbox";
 
 export default function UploadLessonForm(props: { done: () => void }) {
   const t = useTranslation();
@@ -68,12 +70,21 @@ export default function UploadLessonForm(props: { done: () => void }) {
               setValue={series => setUploadMeta({ ...uploadMeta, series })}
             />
           </Label>
-          <Label text={t("Lesson")}>
-            <NumberPicker
-              value={uploadMeta.lesson}
-              setValue={lesson => setUploadMeta({ ...uploadMeta, lesson })}
-            />
-          </Label>
+          <Checkbox
+            label={t("Table_of_Contents")}
+            value={uploadMeta.lesson == TOC_LESSON}
+            setValue={toc =>
+              setUploadMeta({ ...uploadMeta, lesson: toc ? TOC_LESSON : 1 })
+            }
+          />
+          {uploadMeta.lesson != TOC_LESSON && (
+            <Label text={t("Lesson")}>
+              <NumberPicker
+                value={uploadMeta.lesson}
+                setValue={lesson => setUploadMeta({ ...uploadMeta, lesson })}
+              />
+            </Label>
+          )}
         </Div>
       )}
       <Button disabled={!formValid} onClick={save} text={t("Save")} />
@@ -161,9 +172,14 @@ function metaFromFilename(filename: string): EnglishUploadMeta {
 
   let match = /[QT](\d+)/.exec(filename);
   if (match) meta.series = parseInt(match[1]);
+  else {
+    match = /Quarter (\d+)/.exec(filename);
+    if (match) meta.series = parseInt(match[1]);
+  }
 
   match = /L(\d+)/.exec(filename);
   if (match) meta.lesson = parseInt(match[1]);
+  else meta.lesson = TOC_LESSON;
 
   return meta;
 }

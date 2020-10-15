@@ -5,6 +5,8 @@ import { zeroPad } from "../util/numberUtils";
 export const AllBooks = <const>["Luke", "Acts"];
 export type Book = typeof AllBooks[number];
 
+export const TOC_LESSON = 99;
+
 export interface BaseLesson {
   lessonId: number;
   book: Book;
@@ -23,14 +25,17 @@ export function lessonName(
   t: TFunc = (s: string) => s
 ) {
   if (!lesson) return "";
-  return `${t(lesson.book)} ${lesson.series}-${lesson.lesson}`;
+  return isTOCLesson(lesson)
+    ? `${t(lesson.book)} ${lesson.series}-TOC`
+    : `${t(lesson.book)} ${lesson.series}-${lesson.lesson}`;
 }
 
 export function documentName(languageName: string, lesson: BaseLesson) {
-  return `${languageName}_${lesson.book}-Q${lesson.series}-L${zeroPad(
-    lesson.lesson,
-    2
-  )}.odt`;
+  console.log("DOCNAME!!");
+  return (
+    `${languageName}_${lesson.book}-Q${lesson.series}-` +
+    (isTOCLesson(lesson) ? "TOC.odt" : `L${zeroPad(lesson.lesson, 2)}.odt`)
+  );
 }
 
 export function lessonStringsFromLesson(lesson: BaseLesson | Lesson) {
@@ -41,4 +46,8 @@ export function lessonCompare(a: BaseLesson, b: BaseLesson) {
   const compVal = (lsn: BaseLesson) =>
     AllBooks.indexOf(lsn.book) * 10000 + lsn.series * 100 + lsn.lesson;
   return compVal(a) - compVal(b);
+}
+
+export function isTOCLesson(lesson: BaseLesson) {
+  return lesson.lesson == TOC_LESSON;
 }

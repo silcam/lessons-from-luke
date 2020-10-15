@@ -33,7 +33,8 @@ function parseContent(contentXml: string) {
     "Lesson_20_Title",
     "Langue_20_Maternelle",
     "Coloring_20_Page_20_-_20_Memory_20_Verse",
-    "Coloring_20_Page_20_-_20_Truth"
+    "Coloring_20_Page_20_-_20_Truth",
+    "M.T._20_Table_20_of_20_Contents"
   ];
   const knownStyleNamePatterns = ["M.T._20_Text", "L.M."];
 
