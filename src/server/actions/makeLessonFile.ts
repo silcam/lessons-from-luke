@@ -12,7 +12,8 @@ export default async function makeLessonFile(
   majorityLangId: number
 ): Promise<string> {
   const engFilePath = docStorage.docFilepath(lesson);
-  if (motherLang.languageId == ENGLISH_ID) return engFilePath;
+  if (motherLang.languageId == ENGLISH_ID && majorityLangId == ENGLISH_ID)
+    return engFilePath;
 
   const mtTStrings = await storage.tStrings({
     languageId: motherLang.languageId,
