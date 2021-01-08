@@ -9,10 +9,14 @@ import useTranslation from "../../common/util/useTranslation";
 
 export default function useGetDocument() {
   const [load, loading] = useJustLoad();
-  const getDocument = (language: PublicLanguage, lesson: BaseLesson) => {
+  const getDocument = (
+    language: PublicLanguage,
+    lesson: BaseLesson,
+    majorityLanguageId: number
+  ) => {
     load(_ => async __ => {
       const response = await Axios.get(
-        `/api/languages/${language.languageId}/lessons/${lesson.lessonId}/document`,
+        `/api/languages/${language.languageId}/lessons/${lesson.lessonId}/document?majorityLanguageId=${majorityLanguageId}`,
         { responseType: "blob" }
       );
       saveAs(new Blob([response.data]), documentName(language.name, lesson));
@@ -24,17 +28,21 @@ export default function useGetDocument() {
 export function GetDocumentButton(props: {
   language: PublicLanguage;
   lesson: BaseLesson;
+  majorityLanguageId: number;
+  text: string;
 }) {
   const t = useTranslation();
   const { getDocument, loading } = useGetDocument();
 
   return loading ? (
-    <div style={{ display: "inlineBlock" }}>{t("Download")}</div>
+    <span>{props.text}</span>
   ) : (
     <Button
       link
-      text={t("Download")}
-      onClick={() => getDocument(props.language, props.lesson)}
+      text={props.text}
+      onClick={() =>
+        getDocument(props.language, props.lesson, props.majorityLanguageId)
+      }
     />
   );
 }

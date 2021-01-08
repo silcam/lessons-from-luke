@@ -13,7 +13,7 @@ import { UploadDocForTranslationForm } from "../lessons/UploadLessonForm";
 import ToggleMotherTongue from "./ToggleMotherTongue";
 import Div from "../../common/base-components/Div";
 import Table from "../../common/base-components/Table";
-import useGetDocument, { GetDocumentButton } from "../documents/useGetDocument";
+import { GetDocumentButton } from "../documents/useGetDocument";
 
 interface IProps {
   language: Language;
@@ -72,9 +72,24 @@ export default function LanguageView(props: IProps) {
                     <ProgressBar percent={progress} fixed />
                   </td>
                   <td>
+                    {t("Download")}
+                    {":  "}
                     <GetDocumentButton
                       language={props.language}
                       lesson={lesson}
+                      text="Standard"
+                      majorityLanguageId={
+                        props.language.motherTongue
+                          ? props.language.defaultSrcLang
+                          : props.language.languageId
+                      }
+                    />
+                    {" | "}
+                    <GetDocumentButton
+                      language={props.language}
+                      lesson={lesson}
+                      text="Single-Language"
+                      majorityLanguageId={0}
                     />
                   </td>
                 </tr>

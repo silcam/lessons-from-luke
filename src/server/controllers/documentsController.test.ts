@@ -106,3 +106,23 @@ test("Download Batanga Lesson", async () => {
   expect(response.status).toBe(200);
   expect(response.type).toBe("application/vnd.oasis.opendocument.text");
 });
+
+// Realistically this test doesn't add anything at the moment
+test.skip("Download French Standard Lesson", async () => {
+  const agent = plainAgent();
+  const response = await agent.get(
+    "/api/languages/2/lessons/11/document?majorityLanguageId=2"
+  );
+  expect(response.status).toBe(200);
+  expect(response.type).toBe("application/vnd.oasis.opendocument.text");
+});
+
+// Realistically this test doesn't add anything at the moment
+test.skip("Download French Single Language Lesson", async () => {
+  const agent = plainAgent();
+  const response = await agent.get(
+    "/api/languages/2/lessons/11/document?majorityLanguageId=0"
+  );
+  expect(response.status).toBe(200);
+  expect(response.type).toBe("application/vnd.oasis.opendocument.text");
+});

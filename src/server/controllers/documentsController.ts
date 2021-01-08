@@ -12,11 +12,8 @@ import {
   DocUploadMeta,
   isEnglishUpload
 } from "../../core/models/DocUploadMeta";
-import docStorage from "../storage/docStorage";
-import { lessonName } from "../../core/models/Lesson";
-import mergeXml from "../xml/mergeXml";
-import { makeDocStrings } from "../../core/models/DocString";
 import webifyLesson from "../actions/webifyLesson";
+import makeLessonFile from "../actions/makeLessonFile";
 
 const formDataParser = bodyParser.urlencoded({ extended: false });
 
@@ -34,31 +31,19 @@ export default function documentsController(
         const lesson = await storage.lesson(parseInt(req.params.lessonId));
         if (!lesson || !language) throw { status: 404 };
 
-        const engFilePath = docStorage.docFilepath(lesson);
-        if (language.languageId == ENGLISH_ID) {
-          res.sendFile(engFilePath);
-        } else {
-          const mtTStrings = await storage.tStrings({
-            languageId: language.languageId,
-            lessonId: lesson.lessonId
-          });
-          const otherTStrings = language.motherTongue
-            ? await storage.tStrings({
-                languageId: language.defaultSrcLang,
-                lessonId: lesson.lessonId
-              })
-            : mtTStrings;
-          const docStrings = makeDocStrings(
-            lesson.lessonStrings,
-            mtTStrings,
-            otherTStrings
-          );
-          const filepath = docStorage.tmpFilePath(
-            `${language.name}_${lessonName(lesson)}.odt`
-          );
-          mergeXml(engFilePath, filepath, docStrings);
-          res.sendFile(filepath);
-        }
+        let majorityLangId: number = parseInt(req.query.majorityLanguageId);
+        if (isNaN(majorityLangId))
+          majorityLangId = language.motherTongue
+            ? language.defaultSrcLang
+            : language.languageId;
+
+        const filepath = await makeLessonFile(
+          storage,
+          lesson,
+          language,
+          majorityLangId
+        );
+        res.sendFile(filepath);
       });
     }
   );
