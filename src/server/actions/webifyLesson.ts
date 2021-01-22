@@ -26,7 +26,7 @@ export default function webifyLesson(
           console.error(error);
           resolve();
         } else {
-          docStorage.mvWebifiedHtml(webDocPath, lesson.lessonId).finally(() => {
+          docStorage.mvWebifiedHtml(webDocPath, lesson).finally(() => {
             resolve();
           });
         }

@@ -20,11 +20,11 @@ export default function lessonsController(app: Express, storage: Persistence) {
   });
 
   addGetHandler(app, "/api/lessons/:lessonId/webified", async req => {
-    const html = docStorage.webifiedHtml(parseInt(req.params.lessonId));
+    const lesson = await storage.lesson(parseInt(req.params.lessonId));
+    const html = lesson && docStorage.webifiedHtml(lesson);
     if (!html) {
-      if (process.env.NODE_ENV == "production") {
-        const lesson = await storage.lesson(parseInt(req.params.lessonId));
-        if (lesson) webifyLesson(lesson);
+      if (process.env.NODE_ENV == "production" && lesson) {
+        webifyLesson(lesson);
       }
       throw { status: 404 };
     }

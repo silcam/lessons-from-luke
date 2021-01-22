@@ -78,29 +78,30 @@ function docFilepath(lesson: BaseLesson) {
   return `${docsDirPath()}/${filename}`;
 }
 
-function webifiedHtml(lessonId: number): string | null {
-  const htmPath = webifiedHtmPath(lessonId);
+function webifiedHtml(lesson: BaseLesson): string | null {
+  const htmPath = webifiedHtmPath(lesson);
   if (!fs.existsSync(htmPath)) return null;
   const html = fs.readFileSync(htmPath).toString();
   return html.replace(/<img src="/g, '<img src="/webified/');
 }
 
-async function mvWebifiedHtml(tmpOdtPath: string, lessonId: number) {
+async function mvWebifiedHtml(tmpOdtPath: string, lesson: BaseLesson) {
   const inPath = `${webifyPath()}/${path
     .basename(tmpOdtPath)
     .replace(/odt$/, "htm")}`;
   try {
     await waitFor(() => fs.existsSync(inPath));
 
-    const outPath = webifiedHtmPath(lessonId);
+    const outPath = webifiedHtmPath(lesson);
     fs.renameSync(inPath, outPath);
   } catch (err) {
     console.error(err);
   }
 }
 
-function webifiedHtmPath(lessonId: number) {
-  return `${webifyPath()}/${lessonId}.htm`;
+function webifiedHtmPath(lesson: BaseLesson) {
+  const { lessonId, version } = lesson;
+  return `${webifyPath()}/${lessonId}-${version}.htm`;
 }
 
 function docsTmpPath() {
