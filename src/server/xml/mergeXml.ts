@@ -1,13 +1,18 @@
-import libxmljs2, { Document } from "libxmljs2";
+import libxmljs2, { Document, Element } from "libxmljs2";
 import fs from "fs";
 import { mkdirSafe, zip, unlinkRecursive } from "../../core/util/fsUtils";
 import { unzip } from "../../core/util/fsUtils";
 import { DocString } from "../../core/models/DocString";
 
+interface Opts {
+  clearEmptyParagraphs?: boolean;
+}
+
 export default function mergeXml(
   inDocPath: string,
   outDocPath: string,
-  translations: DocString[]
+  translations: DocString[],
+  opts: Opts = {}
 ) {
   const extractDirPath = inDocPath.replace(/\.odt$/, "_odt");
   mkdirSafe(extractDirPath);
@@ -19,7 +24,7 @@ export default function mergeXml(
   xmlTypes.forEach(xmlType => {
     if (sortedDocStrings[xmlType].length > 0) {
       const xmlPath = `${extractDirPath}/${xmlType}.xml`;
-      mergeTranslations(xmlPath, sortedDocStrings[xmlType]);
+      mergeTranslations(xmlPath, sortedDocStrings[xmlType], opts);
     }
   });
 
@@ -44,20 +49,43 @@ function sortDocStrings(docStrings: DocString[]): SortedDocStrings {
 
 function mergeTranslations(
   contentXmlFilepath: string,
-  translations: DocString[]
+  translations: DocString[],
+  opts: Opts
 ) {
   const xmlDoc = getXmlDoc(contentXmlFilepath);
   const namespaces = extractNamespaces(xmlDoc);
   for (let i = 0; i < translations.length; ++i) {
     const translation = translations[i];
     const element = xmlDoc.get(translation.xpath, namespaces);
-    if (element) {
-      const toReplace = element.text().trim();
-      element.text(element.text().replace(toReplace, translation.text));
-    }
+    if (!element) continue;
+
+    const toReplace = element.text().trim();
+    element.text(element.text().replace(toReplace, translation.text));
+  }
+  if (opts.clearEmptyParagraphs) {
+    translations
+      .reverse() // Remove elements starting from the bottom to not mess up xpath addresses that depend on numbering paragraphs
+      .filter(t => t.text == "")
+      .forEach(translation => {
+        const element = xmlDoc.get(translation.xpath, namespaces);
+        if (element) {
+          element.text("");
+          removeParagraph(element);
+        }
+      });
   }
   const docStr = cleanOpenDocXml(xmlDoc.toString(false));
   fs.writeFileSync(contentXmlFilepath, docStr);
+}
+
+function removeParagraph(element: Element) {
+  const parent = element.parent();
+  if (isAnElement(parent) && !parent.text()) removeParagraph(parent);
+  else element.remove();
+}
+
+function isAnElement(element: Element | Document): element is Element {
+  return "text" in element;
 }
 
 function getXmlDoc(xmlFilpath: string) {

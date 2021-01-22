@@ -33,13 +33,15 @@ export default async function makeLessonFile(
     otherTStrings
   );
 
-  // majorityLangId of 0 indicates a single-language document
-  if (majorityLangId == 0)
+  const singleLangDoc = majorityLangId == 0 ? true : false;
+  if (singleLangDoc)
     docStrings = singleLanguageize(lesson.lessonStrings, docStrings);
 
   const filepath = docStorage.tmpFilePath(
     `${motherLang.name}_${lessonName(lesson)}.odt`
   );
-  mergeXml(engFilePath, filepath, docStrings);
+  mergeXml(engFilePath, filepath, docStrings, {
+    clearEmptyParagraphs: singleLangDoc
+  });
   return filepath;
 }
