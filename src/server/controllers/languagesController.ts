@@ -4,6 +4,7 @@ import { isNewLanguage } from "../../core/models/Language";
 import { Persistence } from "../../core/interfaces/Persistence";
 import { unset, objFilter } from "../../core/util/objectUtils";
 import importUsfm from "../usfm/importUsfm";
+import defaultTranslations from "../actions/defaultTranslations";
 
 export default function languagesController(
   app: Express,
@@ -26,7 +27,9 @@ export default function languagesController(
     if (!isNewLanguage(newLanguage)) {
       throw { status: 422 };
     }
-    return storage.createLanguage(newLanguage);
+    const language = await storage.createLanguage(newLanguage);
+    defaultTranslations(storage, language.languageId);
+    return language;
   });
 
   addPostHandler(app, "/api/admin/languages/:languageId", async req => {
