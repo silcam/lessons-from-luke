@@ -10,10 +10,12 @@ import docStringSlice from "./docStringSlice";
 import networkSlice from "./networkSlice";
 import docPreviewSlice from "./docPreviewSlice";
 import syncStateSlice from "./syncStateSlice";
+import tSubSlice from "./tSubSlice";
 
 const reducer = combineReducers({
   languages: languageSlice.reducer,
   tStrings: tStringSlice.reducer,
+  tSubs: tSubSlice.reducer,
   currentUser: currentUserSlice.reducer,
   banners: bannerSlice.reducer,
   loading: loadingSlice.reducer,

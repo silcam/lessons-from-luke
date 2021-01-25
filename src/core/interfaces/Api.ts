@@ -10,6 +10,7 @@ import { BaseLesson, Lesson } from "../models/Lesson";
 import { DocString } from "../models/DocString";
 import { SyncState, ContinuousSyncPackage } from "../models/SyncState";
 import { Locale } from "../i18n/I18n";
+import { TSub } from "../models/TSub";
 
 export type Params = { [key: string]: string | number };
 
@@ -37,6 +38,7 @@ export interface APIGet {
     { timestamp: number; languageTimestamps: string },
     ContinuousSyncPackage
   ];
+  "/api/admin/lessons/lessonUpdateIssues": [{}, TSub[]];
 
   // Desktop Only
   "/api/syncState": [{}, SyncState];

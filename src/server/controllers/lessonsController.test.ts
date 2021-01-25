@@ -129,3 +129,92 @@ test("Update Lesson 2", async () => {
 
   await resetStorage();
 });
+
+test("Lesson Update Issues - TSubs", async () => {
+  const agent = await loggedInAgent();
+
+  // Edit a lesson to generate a difference
+  let response = await agent.get("/api/lessons/12");
+  const lessonStrings: LessonString[] = response.body.lessonStrings;
+  response = await agent.get("/api/languages/1/lessons/12/tStrings");
+  const tStrings: TString[] = response.body;
+  const docStrings: DocString[] = lessonStrings.map(lStr => ({
+    motherTongue: lStr.motherTongue,
+    type: lStr.type,
+    xpath: lStr.xpath,
+    text: tStrings.find(
+      tStr => tStr.languageId == 1 && tStr.masterId == lStr.masterId
+    )!.text
+  }));
+  docStrings[1].text = "An Angel drops in on Mary";
+  docStrings[2].text = "An Angel drops in on Mary";
+  response = await agent.post("/api/admin/lessons/12/strings").send(docStrings);
+  expect(response.status).toBe(200);
+
+  response = await agent.get("/api/admin/lessons/lessonUpdateIssues");
+  expect(response.status).toBe(200);
+  expect(response.body).toContainEqual({
+    engFrom: [
+      {
+        history: [],
+        languageId: 1,
+        lessonStringId: null,
+        masterId: 4,
+        source: null,
+        sourceLanguageId: null,
+        text: "An Angel Visits Mary"
+      },
+      {
+        history: [],
+        languageId: 1,
+        lessonStringId: null,
+        masterId: 4,
+        source: null,
+        sourceLanguageId: null,
+        text: "An Angel Visits Mary"
+      }
+    ],
+    engTo: [
+      {
+        history: [],
+        languageId: 1,
+        lessonStringId: null,
+        masterId: 655,
+        source: null,
+        sourceLanguageId: null,
+        text: "An Angel drops in on Mary"
+      },
+      {
+        history: [],
+        languageId: 1,
+        lessonStringId: null,
+        masterId: 655,
+        source: null,
+        sourceLanguageId: null,
+        text: "An Angel drops in on Mary"
+      }
+    ],
+    from: [
+      {
+        history: [],
+        languageId: 3,
+        lessonStringId: null,
+        masterId: 4,
+        source: "Un ange visite Marie",
+        sourceLanguageId: 2,
+        text: "Engelesi epepwandi Mariya"
+      },
+      {
+        history: [],
+        languageId: 3,
+        lessonStringId: null,
+        masterId: 4,
+        source: "Un ange visite Marie",
+        sourceLanguageId: 2,
+        text: "Engelesi epepwandi Mariya"
+      }
+    ],
+    languageId: 3,
+    to: [null, null]
+  });
+});

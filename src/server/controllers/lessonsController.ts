@@ -6,6 +6,7 @@ import { DocString } from "../../core/models/DocString";
 import updateLesson from "../actions/updateLesson";
 import docStorage from "../storage/docStorage";
 import webifyLesson from "../actions/webifyLesson";
+import findTSubs from "../actions/findTSubs";
 
 export default function lessonsController(app: Express, storage: Persistence) {
   addGetHandler(app, "/api/lessons", async req => {
@@ -29,6 +30,10 @@ export default function lessonsController(app: Express, storage: Persistence) {
       throw { status: 404 };
     }
     return { html };
+  });
+
+  addGetHandler(app, "/api/admin/lessons/lessonUpdateIssues", async req => {
+    return findTSubs(storage);
   });
 
   addPostHandler(app, "/api/admin/lessons/:lessonId/strings", async req => {

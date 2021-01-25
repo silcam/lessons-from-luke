@@ -105,6 +105,11 @@ const testStorage: TestPersistence = {
       return { ...lesson, lessonStrings: newLessonStrings };
     }),
 
+  oldLessonStrings: async (lessonId, version) => {
+    // Placeholder
+    return [];
+  },
+
   tStrings: async params => {
     const langTStrings = testDb.tStrings.filter(
       ts => ts.languageId == params.languageId

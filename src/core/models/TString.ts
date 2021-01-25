@@ -49,6 +49,21 @@ export function newTString(
   return tString;
 }
 
+export function newTStringFromSrc(
+  text: string,
+  languageId: number,
+  srcStr: TString
+) {
+  return {
+    masterId: srcStr.masterId,
+    languageId,
+    text: text.trim(),
+    history: [],
+    source: srcStr.text,
+    sourceLanguageId: srcStr.languageId
+  };
+}
+
 export function sqlizeTString(ts: Partial<TString>) {
   return {
     ...ts,

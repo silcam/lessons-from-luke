@@ -15,6 +15,7 @@ import UsfmImportResultPage from "./languages/UsfmImportResultPage";
 import DocStringsPage from "./lessons/DocStringsPage";
 import MigrateProjectsIndex from "./migrate/MigrateProjectsIndex";
 import MigrateProject from "./migrate/MigrateProject";
+import UpdateIssuesPage from "./lessons/UpdateIssuesPage";
 
 export default function MainRouter() {
   const { user, loaded } = useSelector((state: AppState) => state.currentUser);
@@ -58,6 +59,7 @@ export default function MainRouter() {
             )}
           />
           <Route path="/migrate" render={() => <MigrateProjectsIndex />} />
+          <Route path="/update-issues" render={() => <UpdateIssuesPage />} />
           <Route render={() => (user ? <AdminHome /> : <PublicHome />)} />
         </Switch>
       ) : (

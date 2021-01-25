@@ -1,7 +1,7 @@
 import { NewLanguage, Language } from "../models/Language";
 import { Lesson, BaseLesson, DraftLesson } from "../models/Lesson";
 import { TString } from "../models/TString";
-import { DraftLessonString } from "../models/LessonString";
+import { DraftLessonString, LessonString } from "../models/LessonString";
 import { ContinuousSyncPackage } from "../models/SyncState";
 import { LanguageTimestamp } from "./Api";
 
@@ -15,6 +15,10 @@ export interface Persistence {
   invalidCode: (code: string, languageIds: number[]) => Promise<boolean>;
   lessons: () => Promise<BaseLesson[]>;
   lesson: (id: number) => Promise<Lesson | null>;
+  oldLessonStrings: (
+    lessonId: number,
+    version: number
+  ) => Promise<LessonString[]>;
   createLesson: (lesson: DraftLesson) => Promise<BaseLesson>;
   updateLesson: (
     id: number,

@@ -79,7 +79,8 @@ const en = {
   Resync_explanation:
     "Do you want to reset this project and download all the data again?",
   Yes_resync: "Yes, Resync",
-  Table_of_Contents: "Table of Contents"
+  Table_of_Contents: "Table of Contents",
+  Resolve_lesson_update_issues: "Resolve Lesson Update Issues"
 };
 
 export type I18nStrings = typeof en;

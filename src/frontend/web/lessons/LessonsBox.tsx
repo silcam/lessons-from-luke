@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import useTranslation from "../../common/util/useTranslation";
 import Foldable from "../../common/base-components/Foldable";
 import Div from "../../common/base-components/Div";
+import { FlexRow } from "../../common/base-components/Flex";
 import { useAppSelector } from "../../common/state/appState";
 import { useLoad } from "../../common/api/useLoad";
 import { loadLessons } from "../../common/state/lessonSlice";
@@ -10,6 +11,7 @@ import List from "../../common/base-components/List";
 import Button from "../../common/base-components/Button";
 import UploadLessonForm from "./UploadLessonForm";
 import AppLink from "../common/AppLink";
+import { Link } from "react-router-dom";
 
 export default function LessonsBox() {
   const t = useTranslation();
@@ -28,10 +30,18 @@ export default function LessonsBox() {
           <UploadLessonForm done={() => setShowUploadForm(false)} />
         ) : (
           <Div>
-            <Button
-              onClick={() => setShowUploadForm(true)}
-              text={t("Add_lesson")}
-            />
+            <FlexRow>
+              <Button
+                onClick={() => setShowUploadForm(true)}
+                text={t("Add_lesson")}
+              />
+              <Link to="/update-issues">
+                <Button
+                  onClick={() => {}}
+                  text={t("Resolve_lesson_update_issues")}
+                />
+              </Link>
+            </FlexRow>
             <List
               items={lessons}
               noBorders
