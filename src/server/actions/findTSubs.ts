@@ -79,7 +79,11 @@ async function diffLesson(storage: Persistence, lessonId: number) {
   if (!lesson) throw `Bad lesson id ${lessonName} in diffLesson()`;
 
   const subs: IdSub[] = [];
-  for (let version = 1; version < lesson.version; ++version) {
+  for (
+    let version = Math.max(1, lesson.version - 6);
+    version < lesson.version;
+    ++version
+  ) {
     const oldLStrings = await storage.oldLessonStrings(lessonId, version);
     subs.push(...diffLessonStrings(lesson.lessonStrings, oldLStrings));
   }
