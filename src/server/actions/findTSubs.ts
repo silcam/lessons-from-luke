@@ -14,13 +14,16 @@ interface EngSub {
 }
 
 export default async function findTSubs(
-  storage: Persistence
+  storage: Persistence,
+  opts: { noRecompute?: boolean } = {}
 ): Promise<{ complete: boolean; tSubs: TSub[] }> {
   const lessons = await storage.lessons();
   const diffs = await storage.lessonDiffs();
   const outOfDate = await oldLessonDiffs(lessons, diffs);
-  computeLessonDiffs(storage, outOfDate);
+  if (!opts.noRecompute) computeLessonDiffs(storage, outOfDate);
+
   console.log(`Out of Date: ${JSON.stringify(outOfDate)}`);
+
   const allIdSubs = combineLessonDiffs(diffs);
   const englishStrings = await storage.tStrings({ languageId: ENGLISH_ID });
   const engSubs = allIdSubs
@@ -61,10 +64,13 @@ function oldLessonDiffs(lessons: BaseLesson[], diffs: LessonDiff[]) {
 }
 
 function combineLessonDiffs(diffs: LessonDiff[]) {
-  return uniq(
-    diffs.reduce((idSubs: IdSub[], diff) => idSubs.concat(diff.diff), []),
-    (a, b) => a.from == b.from && a.to == b.to
+  return uniqIdSubs(
+    diffs.reduce((idSubs: IdSub[], diff) => idSubs.concat(diff.diff), [])
   );
+}
+
+function uniqIdSubs(subs: IdSub[]) {
+  return uniq(subs, (a, b) => a.from == b.from && a.to == b.to);
 }
 
 function autoTranslatableFilter(engSub: EngSub): boolean {
@@ -117,7 +123,7 @@ async function diffLesson(storage: Persistence, lessonId: number) {
     const oldLStrings = await storage.oldLessonStrings(lessonId, version);
     subs.push(...diffLessonStrings(lesson.lessonStrings, oldLStrings));
   }
-  return subs;
+  return uniqIdSubs(subs);
 }
 
 function diffLessonStrings(

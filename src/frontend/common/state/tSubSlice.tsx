@@ -16,9 +16,14 @@ const tSubSlice = createSlice({
 
 export default tSubSlice;
 
-export function loadTSubs(): Loader<void> {
+export function loadTSubs(opts: { noRecompute?: boolean } = {}): Loader<void> {
   return get => async dispatch => {
-    const data = await get("/api/admin/lessons/lessonUpdateIssues", {});
+    const data = await get(
+      opts.noRecompute
+        ? "/api/admin/lessons/lessonUpdateIssuesNoRecompute"
+        : "/api/admin/lessons/lessonUpdateIssues",
+      {}
+    );
     if (data) {
       const { complete, tSubs } = data;
       const [tSubsLite, tStrings] = divideTSubs(tSubs);

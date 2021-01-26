@@ -36,6 +36,14 @@ export default function lessonsController(app: Express, storage: Persistence) {
     return findTSubs(storage);
   });
 
+  addGetHandler(
+    app,
+    "/api/admin/lessons/lessonUpdateIssuesNoRecompute",
+    async req => {
+      return findTSubs(storage, { noRecompute: true });
+    }
+  );
+
   addPostHandler(app, "/api/admin/lessons/:lessonId/strings", async req => {
     const docStrings: DocString[] = req.body;
     const lessonId = parseInt(req.params.lessonId);

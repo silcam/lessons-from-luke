@@ -42,6 +42,10 @@ export interface APIGet {
     {},
     { tSubs: TSub[]; complete: boolean }
   ];
+  "/api/admin/lessons/lessonUpdateIssuesNoRecompute": [
+    {},
+    { tSubs: TSub[]; complete: boolean }
+  ];
 
   // Desktop Only
   "/api/syncState": [{}, SyncState];

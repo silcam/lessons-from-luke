@@ -24,7 +24,7 @@ export function useLoadTSubs() {
   useEffect(() => {
     if (!complete) {
       const timer = setInterval(() => {
-        load(loadTSubs());
+        load(loadTSubs({ noRecompute: true }));
       }, 5000);
       return () => clearInterval(timer);
     }
