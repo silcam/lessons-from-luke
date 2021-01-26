@@ -8,7 +8,7 @@ export default async function defaultTranslations(
 ) {
   const englishStrings = await storage.tStrings({ languageId: ENGLISH_ID });
   const tStrings: TString[] = englishStrings
-    .filter(tStr => shouldAutoTranslate(tStr.text))
+    .filter(tStr => canAutoTranslate(tStr.text))
     .map(englishString => ({
       masterId: englishString.masterId,
       text: englishString.text,
@@ -20,7 +20,7 @@ export default async function defaultTranslations(
   await storage.saveTStrings(tStrings);
 }
 
-function shouldAutoTranslate(text: string) {
+export function canAutoTranslate(text: string) {
   // Auto-translate strings with nothing but digits, dashes, brackets and whitespace
   const autoTranslatePattern = /^[\d–\-\[\]\(\)\s]*$/;
   return autoTranslatePattern.test(text);

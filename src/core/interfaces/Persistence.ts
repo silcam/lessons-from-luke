@@ -17,7 +17,7 @@ export interface Persistence {
   lesson: (id: number) => Promise<Lesson | null>;
   oldLessonStrings: (
     lessonId: number,
-    version: number
+    version?: number
   ) => Promise<LessonString[]>;
   createLesson: (lesson: DraftLesson) => Promise<BaseLesson>;
   updateLesson: (

@@ -105,7 +105,7 @@ const testStorage: TestPersistence = {
       return { ...lesson, lessonStrings: newLessonStrings };
     }),
 
-  oldLessonStrings: async (lessonId, version) => {
+  oldLessonStrings: async (lessonId, version?) => {
     // Placeholder
     return [];
   },

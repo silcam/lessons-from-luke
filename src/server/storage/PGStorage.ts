@@ -155,10 +155,13 @@ export default class PGStorage implements Persistence {
 
   async oldLessonStrings(
     lessonId: number,
-    version: number
+    version?: number
   ): Promise<LessonString[]> {
-    return this
-      .sql`SELECT * FROM oldLessonStrings WHERE lessonId=${lessonId} AND lessonVersion=${version} ORDER BY lessonStringId`;
+    return version
+      ? this
+          .sql`SELECT * FROM oldLessonStrings WHERE lessonId=${lessonId} AND lessonVersion=${version} ORDER BY lessonStringId`
+      : this
+          .sql`SELECT * FROM oldLessonStrings WHERE lessonId=${lessonId} ORDER BY lessonStringId`;
   }
 
   async tStrings(params: {
