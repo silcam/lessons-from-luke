@@ -11,6 +11,8 @@ import { canAutoTranslate } from "./defaultTranslations";
 interface EngSub {
   engFrom: SubPiece[];
   engTo: SubPiece[];
+  from: string;
+  to: string;
 }
 
 export default async function findTSubs(
@@ -28,25 +30,27 @@ export default async function findTSubs(
   const englishStrings = await storage.tStrings({ languageId: ENGLISH_ID });
   const engSubs = allIdSubs
     .map(idSub => ({
+      ...idSub,
       engFrom: subIds(idSub.from, englishStrings),
       engTo: subIds(idSub.to, englishStrings)
     }))
-    .filter(autoTranslatableFilter);
+    .filter(usefulEngSub);
 
   const finalTSubs: TSub[] = [];
   const languages = await storage.languages();
   for (let langIndex = 0; langIndex < languages.length; ++langIndex) {
     const language = languages[langIndex];
+    console.log(`Language: ${language.name}`);
     if (language.languageId == ENGLISH_ID) continue;
     const tStrings = await storage.tStrings({
       languageId: language.languageId
     });
 
-    const tSubs = engSubs.map((engSub, i) => ({
+    const tSubs = engSubs.map(engSub => ({
       ...engSub,
       languageId: language.languageId,
-      from: subIds(allIdSubs[i].from, tStrings),
-      to: subIds(allIdSubs[i].to, tStrings)
+      from: subIds(engSub.from, tStrings),
+      to: subIds(engSub.to, tStrings)
     }));
     finalTSubs.push(...tSubs.filter(usefulTSub));
   }
@@ -73,26 +77,29 @@ function uniqIdSubs(subs: IdSub[]) {
   return uniq(subs, (a, b) => a.from == b.from && a.to == b.to);
 }
 
-function autoTranslatableFilter(engSub: EngSub): boolean {
-  return engSub.engFrom.some(tStr => tStr && !canAutoTranslate(tStr.text));
-}
-
 function sortTSubs(a: TSub, b: TSub) {
   const compVal = (sps: SubPiece[]) =>
     sps.map(sp => (sp ? sp.masterId : "")).join(",");
   return compVal(a.engFrom).localeCompare(compVal(b.engFrom));
 }
 
-function usefulTSub(tSub: TSub): boolean {
-  // A TSub is useful if the English are complete and
-  // the other language "from" is translated and the "to" is not
-  const allThere = (pieces: SubPiece[]) => all(pieces, sp => !!sp);
+function usefulEngSub(engSub: EngSub): boolean {
+  // An EngSub is useful if complete and the from
+  // is not autotranslatable
   return (
-    allThere(tSub.engFrom) &&
-    allThere(tSub.engTo) &&
-    allThere(tSub.from) &&
-    !allThere(tSub.to)
+    allThere(engSub.engFrom) &&
+    allThere(engSub.engTo) &&
+    engSub.engFrom.some(tStr => tStr && !canAutoTranslate(tStr.text))
   );
+}
+
+function usefulTSub(tSub: TSub): boolean {
+  // A TSub is useful if the "from" is translated and the "to" is not
+  return allThere(tSub.from) && !allThere(tSub.to);
+}
+
+function allThere(pieces: SubPiece[]) {
+  return all(pieces, sp => !!sp);
 }
 
 function subIds(ids: string, tStrings: TString[]): SubPiece[] {
