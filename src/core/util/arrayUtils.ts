@@ -89,6 +89,10 @@ export function uniq<T>(
   );
 }
 
+export function all<T>(list: T[], test: (item: T) => boolean): boolean {
+  return !list.some(item => !test(item));
+}
+
 export function count<T>(list: T[], cb: (item: T) => boolean) {
   return list.reduce((count, item) => {
     return cb(item) ? count + 1 : count;

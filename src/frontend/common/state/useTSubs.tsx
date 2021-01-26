@@ -25,7 +25,7 @@ export function useLoadTSubs() {
     if (!complete) {
       const timer = setInterval(() => {
         load(loadTSubs({ noRecompute: true }));
-      }, 5000);
+      }, 15000);
       return () => clearInterval(timer);
     }
   }, [complete]);

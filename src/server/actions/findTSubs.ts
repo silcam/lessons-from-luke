@@ -2,7 +2,7 @@ import { Persistence } from "../../core/interfaces/Persistence";
 import { LessonString } from "../../core/models/LessonString";
 import { Change, diffLines } from "diff";
 import { lessonName, BaseLesson } from "../../core/models/Lesson";
-import { uniq } from "../../core/util/arrayUtils";
+import { uniq, all } from "../../core/util/arrayUtils";
 import { ENGLISH_ID } from "../../core/models/Language";
 import { TString } from "../../core/models/TString";
 import { TSub, SubPiece, IdSub, LessonDiff } from "../../core/models/TSub";
@@ -84,14 +84,21 @@ function sortTSubs(a: TSub, b: TSub) {
 }
 
 function usefulTSub(tSub: TSub): boolean {
-  // A TSub is useful if the "from" is translated and the "to" is not
-  return !tSub.from.includes(undefined) && tSub.to.includes(undefined);
+  // A TSub is useful if the English are complete and
+  // the other language "from" is translated and the "to" is not
+  const allThere = (pieces: SubPiece[]) => all(pieces, sp => !!sp);
+  return (
+    allThere(tSub.engFrom) &&
+    allThere(tSub.engTo) &&
+    allThere(tSub.from) &&
+    !allThere(tSub.to)
+  );
 }
 
 function subIds(ids: string, tStrings: TString[]): SubPiece[] {
   return ids
     .split(",")
-    .map(id => tStrings.find(tStr => tStr.masterId == parseInt(id)));
+    .map(id => tStrings.find(tStr => tStr.masterId == parseInt(id)) || null);
 }
 
 export async function computeLessonDiffs(

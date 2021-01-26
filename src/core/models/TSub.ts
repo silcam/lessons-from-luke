@@ -1,7 +1,7 @@
 import { TString } from "./TString";
 import { ENGLISH_ID } from "./Language";
 
-export type SubPiece = TString | undefined;
+export type SubPiece = TString | null;
 type MaybeNum = number | null;
 
 export interface TSub {
@@ -59,8 +59,8 @@ export function combineTSubs(
       id
         ? tStrings.find(
             tStr => tStr.languageId == languageId && tStr.masterId == id
-          )
-        : undefined
+          ) || null
+        : null
     );
 
   return tSubsLite.map(

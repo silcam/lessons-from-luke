@@ -6,7 +6,8 @@ import {
   discriminate,
   uniq,
   count,
-  insertSorted
+  insertSorted,
+  all
 } from "./arrayUtils";
 
 test("last", () => {
@@ -55,6 +56,12 @@ test("uniq with cb", () => {
 test("count", () => {
   expect(count([], () => true)).toBe(0);
   expect(count([1, 2, 3], n => n > 1)).toBe(2);
+});
+
+test("all", () => {
+  const a = [1, 2, 3, 4];
+  expect(all(a, item => item > 0)).toBe(true);
+  expect(all(a, item => item < 4)).toBe(false);
 });
 
 test("insertSorted", () => {
