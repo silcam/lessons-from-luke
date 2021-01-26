@@ -1,7 +1,6 @@
 import React from "react";
 import { useLoad } from "../../common/api/useLoad";
-import { loadTSubs } from "../../common/state/tSubSlice";
-import useTSubs from "../../common/state/useTSubs";
+import useTSubs, { useLoadTSubs } from "../../common/state/useTSubs";
 import useTranslation from "../../common/util/useTranslation";
 import { StdHeaderBarPage } from "../../common/base-components/HeaderBar";
 import { TSub, SubPiece } from "../../../core/models/TSub";
@@ -11,17 +10,19 @@ import TStringInput from "../../common/translate/TStringInput";
 import { newTStringFromSrc } from "../../../core/models/TString";
 import { useAppSelector } from "../../common/state/appState";
 import { loadLanguages } from "../../common/state/languageSlice";
+import Alert from "../../common/base-components/Alert";
 
 export default function UpdateIssuesPage() {
   const t = useTranslation();
   useLoad(loadLanguages(true));
-  useLoad(loadTSubs());
+  const loading = useLoadTSubs();
 
   const tSubs = useTSubs();
-  console.log("Rendered Page");
+  const complete = useAppSelector(state => state.tSubs.complete);
 
   return (
     <StdHeaderBarPage title={t("Resolve_lesson_update_issues")}>
+      {!complete && <Alert>{t("Computing_diff")}</Alert>}
       {tSubs.length > 0 ? (
         tSubs.map((tSub, index) => (
           <Div pad key={index}>
@@ -29,7 +30,7 @@ export default function UpdateIssuesPage() {
           </Div>
         ))
       ) : (
-        <h2>No issues :)</h2>
+        <h2>{loading || !complete ? "Loading..." : "No issues :)"}</h2>
       )}
     </StdHeaderBarPage>
   );

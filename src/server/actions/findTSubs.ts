@@ -1,28 +1,29 @@
 import { Persistence } from "../../core/interfaces/Persistence";
 import { LessonString } from "../../core/models/LessonString";
 import { Change, diffLines } from "diff";
-import { lessonName } from "../../core/models/Lesson";
+import { lessonName, BaseLesson } from "../../core/models/Lesson";
 import { uniq } from "../../core/util/arrayUtils";
 import { ENGLISH_ID } from "../../core/models/Language";
 import { TString } from "../../core/models/TString";
-import { TSub, SubPiece } from "../../core/models/TSub";
+import { TSub, SubPiece, IdSub, LessonDiff } from "../../core/models/TSub";
 import { canAutoTranslate } from "./defaultTranslations";
-
-interface IdSub {
-  // Both strings are id numbers comma separated
-  from: string;
-  to: string;
-}
 
 interface EngSub {
   engFrom: SubPiece[];
   engTo: SubPiece[];
 }
 
-export default async function findTSubs(storage: Persistence): Promise<TSub[]> {
-  const idSubs = await findIdSubs(storage);
+export default async function findTSubs(
+  storage: Persistence
+): Promise<{ complete: boolean; tSubs: TSub[] }> {
+  const lessons = await storage.lessons();
+  const diffs = await storage.lessonDiffs();
+  const outOfDate = await oldLessonDiffs(lessons, diffs);
+  computeLessonDiffs(storage, outOfDate);
+  console.log(`Out of Date: ${JSON.stringify(outOfDate)}`);
+  const allIdSubs = combineLessonDiffs(diffs);
   const englishStrings = await storage.tStrings({ languageId: ENGLISH_ID });
-  const engSubs = idSubs
+  const engSubs = allIdSubs
     .map(idSub => ({
       engFrom: subIds(idSub.from, englishStrings),
       engTo: subIds(idSub.to, englishStrings)
@@ -41,13 +42,29 @@ export default async function findTSubs(storage: Persistence): Promise<TSub[]> {
     const tSubs = engSubs.map((engSub, i) => ({
       ...engSub,
       languageId: language.languageId,
-      from: subIds(idSubs[i].from, tStrings),
-      to: subIds(idSubs[i].to, tStrings)
+      from: subIds(allIdSubs[i].from, tStrings),
+      to: subIds(allIdSubs[i].to, tStrings)
     }));
     finalTSubs.push(...tSubs.filter(usefulTSub));
   }
   finalTSubs.sort(sortTSubs);
-  return finalTSubs;
+  return { complete: outOfDate.length == 0, tSubs: finalTSubs };
+}
+
+function oldLessonDiffs(lessons: BaseLesson[], diffs: LessonDiff[]) {
+  const outOfDate: BaseLesson[] = [];
+  lessons.forEach(lesson => {
+    const diff = diffs.find(diff => diff.lessonId == lesson.lessonId);
+    if (!diff || diff.version != lesson.version) outOfDate.push(lesson);
+  });
+  return outOfDate;
+}
+
+function combineLessonDiffs(diffs: LessonDiff[]) {
+  return uniq(
+    diffs.reduce((idSubs: IdSub[], diff) => idSubs.concat(diff.diff), []),
+    (a, b) => a.from == b.from && a.to == b.to
+  );
 }
 
 function autoTranslatableFilter(engSub: EngSub): boolean {
@@ -71,34 +88,34 @@ function subIds(ids: string, tStrings: TString[]): SubPiece[] {
     .map(id => tStrings.find(tStr => tStr.masterId == parseInt(id)));
 }
 
-async function findIdSubs(storage: Persistence) {
-  const lessons = (await storage.lessons()).filter(lsn => lsn.lessonId == 11);
-  const subs: IdSub[] = [];
+export async function computeLessonDiffs(
+  storage: Persistence,
+  lessons: BaseLesson[]
+) {
   for (let i = 0; i < lessons.length; ++i) {
-    const lessonSubs = await diffLesson(storage, lessons[i].lessonId);
-    subs.push(...lessonSubs);
+    const lesson = lessons[i];
+    const diff = await diffLesson(storage, lesson.lessonId);
+    storage.updateLessonDiff({
+      lessonId: lesson.lessonId,
+      version: lesson.version,
+      diff
+    });
   }
-  return uniq(subs, (a, b) => a.from == b.from && a.to == b.to);
 }
 
 async function diffLesson(storage: Persistence, lessonId: number) {
   const lesson = await storage.lesson(lessonId);
   if (!lesson) throw `Bad lesson id ${lessonName} in diffLesson()`;
-  const oldLStrings = await storage.oldLessonStrings(lessonId);
-  const oldLStringsByVersion = oldLStrings.reduce((byVersion, lStr) => {
-    byVersion[lStr.lessonVersion].push(lStr);
-    return byVersion;
-  }, new Array(lesson.version).fill([] as LessonString[]));
+  console.log(`Diff lesson: ${lessonName(lesson)}`);
+
   const subs: IdSub[] = [];
   for (
     let version = 1; // Math.max(1, lesson.version - 6);
     version < lesson.version;
     ++version
   ) {
-    // const oldLStrings = await storage.oldLessonStrings(lessonId, version);
-    subs.push(
-      ...diffLessonStrings(lesson.lessonStrings, oldLStringsByVersion[version])
-    );
+    const oldLStrings = await storage.oldLessonStrings(lessonId, version);
+    subs.push(...diffLessonStrings(lesson.lessonStrings, oldLStrings));
   }
   return subs;
 }

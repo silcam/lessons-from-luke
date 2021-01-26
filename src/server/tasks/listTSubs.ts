@@ -10,7 +10,7 @@ listTSubs();
 
 async function listTSubs() {
   const storage = new PGStorage();
-  const subs = await findTSubs(storage);
+  const subs = (await findTSubs(storage)).tSubs;
   const xfrmd = subs.map(sub => ({
     engFrom: sub.engFrom.map(tStr => tStr?.text),
     engTo: sub.engTo.map(tStr => tStr?.text),
@@ -19,5 +19,5 @@ async function listTSubs() {
   }));
   console.log(JSON.stringify(xfrmd, null, "  "));
   console.log("Done");
-  process.exit();
+  // process.exit();
 }

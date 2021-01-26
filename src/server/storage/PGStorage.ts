@@ -24,6 +24,7 @@ import { percent } from "../../core/util/numberUtils";
 import pgLoadFixtures from "./pgLoadFixtures";
 import secrets from "../util/secrets";
 import { LanguageTimestamp } from "../../core/interfaces/Api";
+import { LessonDiff } from "../../core/models/TSub";
 
 export default class PGStorage implements Persistence {
   sql: SqlFunc;
@@ -151,6 +152,18 @@ export default class PGStorage implements Persistence {
 
       return { ...lesson, lessonStrings: newLessonStrings };
     });
+  }
+
+  async lessonDiffs(): Promise<LessonDiff[]> {
+    return this.sql`SELECT * from lessonDiffs`;
+  }
+
+  async updateLessonDiff(diff: LessonDiff): Promise<void> {
+    await this.sql`DELETE FROM lessonDiffs WHERE lessonId=${diff.lessonId}`;
+    this.sql`INSERT INTO lessonDiffs ${this.sql({
+      ...diff,
+      diff: JSON.stringify(diff.diff)
+    })}`;
   }
 
   async oldLessonStrings(
@@ -393,9 +406,7 @@ function dbConnect() {
       column: transformCol
     },
     debug: (con, query, params) => {
-      // if (
-      //   some condition
-      // ) {
+      // if (true) {
       //   console.log(`QUERY: ${query}`);
       //   console.log(JSON.stringify(params));
       // }

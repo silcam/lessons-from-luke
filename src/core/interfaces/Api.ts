@@ -38,7 +38,10 @@ export interface APIGet {
     { timestamp: number; languageTimestamps: string },
     ContinuousSyncPackage
   ];
-  "/api/admin/lessons/lessonUpdateIssues": [{}, TSub[]];
+  "/api/admin/lessons/lessonUpdateIssues": [
+    {},
+    { tSubs: TSub[]; complete: boolean }
+  ];
 
   // Desktop Only
   "/api/syncState": [{}, SyncState];

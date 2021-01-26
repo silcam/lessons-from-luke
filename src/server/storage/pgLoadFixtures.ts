@@ -25,6 +25,8 @@ export default async function pgLoadFixtures(sql: SqlFunc) {
     await sql`DELETE FROM oldLessonStrings`;
     await sql`INSERT INTO oldLessonStrings ${sql(fixtures.oldLessonStrings)}`;
 
+    await sql`DELETE FROM lessonDiffs`;
+
     await sql`DELETE FROM tStrings`;
     await sql`INSERT INTO tStrings ${sql(
       fixtures.tStrings.map(sqlizeTString)

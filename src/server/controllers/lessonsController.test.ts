@@ -151,9 +151,14 @@ test("Lesson Update Issues - TSubs", async () => {
   response = await agent.post("/api/admin/lessons/12/strings").send(docStrings);
   expect(response.status).toBe(200);
 
-  response = await agent.get("/api/admin/lessons/lessonUpdateIssues");
-  expect(response.status).toBe(200);
-  expect(response.body).toContainEqual({
+  let complete = false;
+  while (complete == false) {
+    response = await agent.get("/api/admin/lessons/lessonUpdateIssues");
+    expect(response.status).toBe(200);
+    complete = response.body.complete;
+  }
+  expect(response.body.complete).toBe(true);
+  expect(response.body.tSubs).toContainEqual({
     engFrom: [
       {
         history: [],
@@ -217,4 +222,6 @@ test("Lesson Update Issues - TSubs", async () => {
     languageId: 3,
     to: [null, null]
   });
+
+  await resetStorage();
 });

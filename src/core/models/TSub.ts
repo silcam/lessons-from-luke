@@ -17,6 +17,17 @@ export interface TSubLite {
   from: MaybeNum[]; // Master Id's
   to: MaybeNum[]; // Master Id's
 }
+export interface IdSub {
+  // Both strings are id numbers comma separated
+  from: string;
+  to: string;
+}
+
+export interface LessonDiff {
+  lessonId: number;
+  version: number;
+  diff: IdSub[];
+}
 
 export function divideTSubs(tSubs: TSub[]): [TSubLite[], TString[]] {
   const tStrings: TString[] = [];

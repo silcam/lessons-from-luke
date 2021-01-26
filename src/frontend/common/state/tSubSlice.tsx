@@ -5,9 +5,12 @@ import tStringSlice from "./tStringSlice";
 
 const tSubSlice = createSlice({
   name: "tSubs",
-  initialState: [] as TSubLite[],
+  initialState: { complete: false, tSubsLite: [] as TSubLite[] },
   reducers: {
-    set: (_, action: PayloadAction<TSubLite[]>) => action.payload
+    set: (
+      _,
+      action: PayloadAction<{ complete: boolean; tSubsLite: TSubLite[] }>
+    ) => action.payload
   }
 });
 
@@ -15,10 +18,11 @@ export default tSubSlice;
 
 export function loadTSubs(): Loader<void> {
   return get => async dispatch => {
-    const tSubs = await get("/api/admin/lessons/lessonUpdateIssues", {});
-    if (tSubs) {
+    const data = await get("/api/admin/lessons/lessonUpdateIssues", {});
+    if (data) {
+      const { complete, tSubs } = data;
       const [tSubsLite, tStrings] = divideTSubs(tSubs);
-      dispatch(tSubSlice.actions.set(tSubsLite));
+      dispatch(tSubSlice.actions.set({ tSubsLite, complete }));
       dispatch(tStringSlice.actions.add(tStrings));
     }
   };

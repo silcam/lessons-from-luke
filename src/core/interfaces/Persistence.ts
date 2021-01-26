@@ -4,6 +4,7 @@ import { TString } from "../models/TString";
 import { DraftLessonString, LessonString } from "../models/LessonString";
 import { ContinuousSyncPackage } from "../models/SyncState";
 import { LanguageTimestamp } from "./Api";
+import { LessonDiff } from "../models/TSub";
 
 export interface Persistence {
   languages: () => Promise<Language[]>;
@@ -15,6 +16,8 @@ export interface Persistence {
   invalidCode: (code: string, languageIds: number[]) => Promise<boolean>;
   lessons: () => Promise<BaseLesson[]>;
   lesson: (id: number) => Promise<Lesson | null>;
+  lessonDiffs: () => Promise<LessonDiff[]>;
+  updateLessonDiff: (diff: LessonDiff) => Promise<void>;
   oldLessonStrings: (
     lessonId: number,
     version?: number
