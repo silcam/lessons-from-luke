@@ -5,7 +5,7 @@ import { equal, sqlizeTString } from "../../core/models/TString";
 
 class PGStorageCleaner extends PGStorage {
   async cleanDB() {
-    await this.removeSuperfluous();
+    // await this.removeSuperfluous();
     await this.removeDuplicates();
     await this.consolidateEnglish();
     await this.updateProgress();
@@ -65,6 +65,8 @@ class PGStorageCleaner extends PGStorage {
           );
           await this
             .sql`UPDATE lessonstrings SET masterid=${englishStrings[j].masterId} WHERE masterid=${englishStrings[i].masterId}`;
+          await this
+            .sql`UPDATE oldlessonstrings SET masterid=${englishStrings[j].masterId} WHERE masterid=${englishStrings[i].masterId}`;
           await this
             .sql`DELETE FROM tstrings WHERE masterid=${englishStrings[i].masterId}`;
         }
