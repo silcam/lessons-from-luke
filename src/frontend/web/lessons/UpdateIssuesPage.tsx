@@ -1,6 +1,6 @@
 import React from "react";
 import { useLoad } from "../../common/api/useLoad";
-import useTSubs, { useLoadTSubs } from "../../common/state/useTSubs";
+import useTSubs from "../../common/state/useTSubs";
 import useTranslation from "../../common/util/useTranslation";
 import { StdHeaderBarPage } from "../../common/base-components/HeaderBar";
 import { TSub, SubPiece } from "../../../core/models/TSub";
@@ -11,11 +11,12 @@ import { newTStringFromSrc } from "../../../core/models/TString";
 import { useAppSelector } from "../../common/state/appState";
 import { loadLanguages } from "../../common/state/languageSlice";
 import Alert from "../../common/base-components/Alert";
+import { loadTSubs } from "../../common/state/tSubSlice";
 
 export default function UpdateIssuesPage() {
   const t = useTranslation();
   useLoad(loadLanguages(true));
-  const loading = useLoadTSubs();
+  const loading = useLoad(loadTSubs());
 
   const tSubs = useTSubs();
   const complete = useAppSelector(state => state.tSubs.complete);

@@ -16,19 +16,28 @@ const tSubSlice = createSlice({
 
 export default tSubSlice;
 
-export function loadTSubs(opts: { noRecompute?: boolean } = {}): Loader<void> {
+export function loadTSubs(): Loader<void> {
   return get => async dispatch => {
-    const data = await get(
-      opts.noRecompute
-        ? "/api/admin/lessons/lessonUpdateIssuesNoRecompute"
-        : "/api/admin/lessons/lessonUpdateIssues",
-      {}
-    );
+    let data = await get("/api/admin/lessons/lessonUpdateIssues", {});
     if (data) {
-      const { complete, tSubs } = data;
+      let { complete, tSubs } = data;
       const [tSubsLite, tStrings] = divideTSubs(tSubs);
       dispatch(tSubSlice.actions.set({ tSubsLite, complete }));
       dispatch(tStringSlice.actions.add(tStrings));
+
+      while (!complete) {
+        data = await get(
+          "/api/admin/lessons/lessonUpdateIssuesNoRecompute",
+          {}
+        );
+        if (data) {
+          complete = data.complete;
+          tSubs = data.tSubs;
+          const [tSubsLite, tStrings] = divideTSubs(tSubs);
+          dispatch(tSubSlice.actions.set({ tSubsLite, complete }));
+          dispatch(tStringSlice.actions.add(tStrings));
+        }
+      }
     }
   };
 }
