@@ -80,8 +80,8 @@ const en = {
     "Do you want to reset this project and download all the data again?",
   Yes_resync: "Yes, Resync",
   Table_of_Contents: "Table of Contents",
-  Resolve_lesson_update_issues: "Resolve Lesson Update Issues",
-  Computing_diff: "Computing diff..."
+  Update_issues: "Update Issues",
+  View_lesson: "View Lesson"
 };
 
 export type I18nStrings = typeof en;

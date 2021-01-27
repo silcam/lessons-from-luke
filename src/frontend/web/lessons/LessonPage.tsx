@@ -4,7 +4,7 @@ import useTranslation from "../../common/util/useTranslation";
 import { loadLesson, pushLessonStrings } from "../../common/state/lessonSlice";
 import { useLoad, usePush, useLoadMultiple } from "../../common/api/useLoad";
 import Div from "../../common/base-components/Div";
-import { FlexCol } from "../../common/base-components/Flex";
+import { FlexRow } from "../../common/base-components/Flex";
 import Button from "../../common/base-components/Button";
 import List from "../../common/base-components/List";
 import { loadTStrings } from "../../common/state/tStringSlice";
@@ -15,6 +15,7 @@ import LessonEditor, { docStringsFromLessonTStrings } from "./LessonEditor";
 import { StdHeaderBarPage } from "../../common/base-components/HeaderBar";
 import Scroll from "../../common/base-components/Scroll";
 import { DocString } from "../../../core/models/DocString";
+import { Link, useHistory } from "react-router-dom";
 
 interface IProps {
   id: number;
@@ -23,6 +24,7 @@ interface IProps {
 export default function LessonPage(props: IProps) {
   const t = useTranslation();
   const push = usePush();
+  const history = useHistory();
   const { lesson, lessonTStrings } = useLessonTStrings(props.id, [ENGLISH_ID]);
 
   const loading = useLoadMultiple([
@@ -39,7 +41,7 @@ export default function LessonPage(props: IProps) {
 
   const save = async () => {
     const lesson = await push(pushLessonStrings(props.id, docStrings));
-    if (lesson) setEditing(false);
+    if (lesson) history.push(`/update-issues/${lesson.lessonId}`);
   };
 
   return (
@@ -52,7 +54,12 @@ export default function LessonPage(props: IProps) {
             <Button red text={t("Cancel")} onClick={() => setEditing(false)} />
           </React.Fragment>
         ) : loading ? null : (
-          <Button text={t("Edit")} onClick={startEditing} />
+          <FlexRow>
+            <Button text={t("Edit")} onClick={startEditing} />
+            <Link to={`/update-issues/${props.id}`}>
+              <Button text={t("Update_issues")} onClick={() => {}} />
+            </Link>
+          </FlexRow>
         )
       }
     >

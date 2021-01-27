@@ -22,6 +22,9 @@ describe("Admin Lessons", () => {
     cy.inLabel("Series").should("have.value", "1");
     cy.inLabel("Lesson").should("have.value", "6");
     cy.contains("button", "Save").click();
+    cy.url().should("eq", "http://localhost:8080/update-issues/16");
+    cy.contains("h2", "No issues").should("exist");
+    cy.contains("button", "View Lesson").click();
     cy.url().should("eq", "http://localhost:8080/lessons/16");
     cy.contains("h1", "Luke 1-6").should("exist");
     cy.contains("NOTE: It is important to review").should("exist");

@@ -59,7 +59,12 @@ export default function MainRouter() {
             )}
           />
           <Route path="/migrate" render={() => <MigrateProjectsIndex />} />
-          <Route path="/update-issues" render={() => <UpdateIssuesPage />} />
+          <Route
+            path="/update-issues/:lessonId"
+            render={({ match }) => (
+              <UpdateIssuesPage lessonId={parseInt(match.params.lessonId)} />
+            )}
+          />
           <Route render={() => (user ? <AdminHome /> : <PublicHome />)} />
         </Switch>
       ) : (

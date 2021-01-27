@@ -6,7 +6,6 @@ import { objKeys } from "../../core/util/objectUtils";
 import parse from "../xml/parse";
 import { Lesson } from "../../core/models/Lesson";
 import webifyLesson from "./webifyLesson";
-import { computeLessonDiffs } from "./findTSubs";
 
 export default async function updateLesson(
   lessonId: number,
@@ -64,6 +63,5 @@ export async function saveDocStrings(
     lessonVersion,
     draftLessonStrings
   );
-  computeLessonDiffs(storage, [lesson]);
   return lesson;
 }

@@ -45,7 +45,7 @@ export default function UploadLessonForm(props: { done: () => void }) {
   const save = async () => {
     if (file) {
       const lesson = await push(pushDocument(file, uploadMeta));
-      if (lesson) history.push(`/lessons/${lesson.lessonId}`);
+      if (lesson) history.push(`/update-issues/${lesson.lessonId}`);
     }
   };
 

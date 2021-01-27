@@ -38,13 +38,9 @@ export interface APIGet {
     { timestamp: number; languageTimestamps: string },
     ContinuousSyncPackage
   ];
-  "/api/admin/lessons/lessonUpdateIssues": [
-    {},
-    { tSubs: TSub[]; complete: boolean }
-  ];
-  "/api/admin/lessons/lessonUpdateIssuesNoRecompute": [
-    {},
-    { tSubs: TSub[]; complete: boolean }
+  "/api/admin/lessons/:lessonId/lessonUpdateIssues": [
+    { lessonId: number },
+    TSub[]
   ];
 
   // Desktop Only

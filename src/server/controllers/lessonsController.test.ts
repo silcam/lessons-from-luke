@@ -130,7 +130,14 @@ test("Update Lesson 2", async () => {
   await resetStorage();
 });
 
-test.skip("Lesson Update Issues - TSubs", async () => {
+test("Empty Lesson Update Issues", async () => {
+  const agent = await loggedInAgent();
+  let response = await agent.get("/api/admin/lessons/11/lessonUpdateIssues");
+  expect(response.status).toBe(200);
+  expect(response.body).toEqual([]);
+});
+
+test("Lesson Update Issues - TSubs", async () => {
   const agent = await loggedInAgent();
 
   // Edit a lesson to generate a difference
@@ -151,16 +158,9 @@ test.skip("Lesson Update Issues - TSubs", async () => {
   response = await agent.post("/api/admin/lessons/12/strings").send(docStrings);
   expect(response.status).toBe(200);
 
-  let complete = false;
-  while (complete == false) {
-    response = await agent.get(
-      "/api/admin/lessons/lessonUpdateIssuesNoRecompute"
-    );
-    // expect(response.status).toBe(200);
-    complete = response.body.complete;
-  }
-  expect(response.body.complete).toBe(true);
-  expect(response.body.tSubs).toContainEqual({
+  response = await agent.get("/api/admin/lessons/12/lessonUpdateIssues");
+  expect(response.status).toBe(200);
+  expect(response.body).toContainEqual({
     engFrom: [
       {
         history: [],

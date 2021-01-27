@@ -32,15 +32,11 @@ export default function lessonsController(app: Express, storage: Persistence) {
     return { html };
   });
 
-  addGetHandler(app, "/api/admin/lessons/lessonUpdateIssues", async req => {
-    return findTSubs(storage);
-  });
-
   addGetHandler(
     app,
-    "/api/admin/lessons/lessonUpdateIssuesNoRecompute",
+    "/api/admin/lessons/:lessonId/lessonUpdateIssues",
     async req => {
-      return findTSubs(storage, { noRecompute: true });
+      return findTSubs(storage, parseInt(req.params.lessonId));
     }
   );
 

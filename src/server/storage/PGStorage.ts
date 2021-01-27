@@ -154,18 +154,6 @@ export default class PGStorage implements Persistence {
     });
   }
 
-  async lessonDiffs(): Promise<LessonDiff[]> {
-    return this.sql`SELECT * from lessonDiffs`;
-  }
-
-  async updateLessonDiff(diff: LessonDiff): Promise<void> {
-    await this.sql`DELETE FROM lessonDiffs WHERE lessonId=${diff.lessonId}`;
-    this.sql`INSERT INTO lessonDiffs ${this.sql({
-      ...diff,
-      diff: JSON.stringify(diff.diff)
-    })}`;
-  }
-
   async oldLessonStrings(
     lessonId: number,
     version?: number

@@ -10,20 +10,28 @@ import TStringInput from "../../common/translate/TStringInput";
 import { newTStringFromSrc } from "../../../core/models/TString";
 import { useAppSelector } from "../../common/state/appState";
 import { loadLanguages } from "../../common/state/languageSlice";
-import Alert from "../../common/base-components/Alert";
 import { loadTSubs } from "../../common/state/tSubSlice";
+import { Link } from "react-router-dom";
+import Button from "../../common/base-components/Button";
 
-export default function UpdateIssuesPage() {
+interface IProps {
+  lessonId: number;
+}
+
+export default function UpdateIssuesPage(props: IProps) {
   const t = useTranslation();
   useLoad(loadLanguages(true));
-  const loading = useLoad(loadTSubs());
+  const loading = useLoad(loadTSubs(props.lessonId));
 
-  const tSubs = useTSubs();
-  const complete = useAppSelector(state => state.tSubs.complete);
+  const tSubs = useTSubs(props.lessonId);
 
   return (
-    <StdHeaderBarPage title={t("Resolve_lesson_update_issues")}>
-      {!complete && <Alert>{t("Computing_diff")}</Alert>}
+    <StdHeaderBarPage
+      title={`${t("Update_issues")} ${t("Lesson")} ${props.lessonId}`}
+    >
+      <Link to={`/lessons/${props.lessonId}`}>
+        <Button onClick={() => {}} text={t("View_lesson")} />
+      </Link>
       {tSubs.length > 0 ? (
         tSubs.map((tSub, index) => (
           <Div pad key={index}>
@@ -31,7 +39,7 @@ export default function UpdateIssuesPage() {
           </Div>
         ))
       ) : (
-        <h2>{loading || !complete ? "Loading..." : "No issues :)"}</h2>
+        <h2>{loading ? "Loading..." : "No issues :)"}</h2>
       )}
     </StdHeaderBarPage>
   );

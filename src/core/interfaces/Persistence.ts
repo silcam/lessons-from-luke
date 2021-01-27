@@ -16,8 +16,6 @@ export interface Persistence {
   invalidCode: (code: string, languageIds: number[]) => Promise<boolean>;
   lessons: () => Promise<BaseLesson[]>;
   lesson: (id: number) => Promise<Lesson | null>;
-  lessonDiffs: () => Promise<LessonDiff[]>;
-  updateLessonDiff: (diff: LessonDiff) => Promise<void>;
   oldLessonStrings: (
     lessonId: number,
     version?: number

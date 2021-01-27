@@ -5,39 +5,28 @@ import tStringSlice from "./tStringSlice";
 
 const tSubSlice = createSlice({
   name: "tSubs",
-  initialState: { complete: false, tSubsLite: [] as TSubLite[] },
+  initialState: {} as { [lessonId: number]: TSubLite[] },
   reducers: {
     set: (
-      _,
-      action: PayloadAction<{ complete: boolean; tSubsLite: TSubLite[] }>
-    ) => action.payload
+      state,
+      action: PayloadAction<{ lessonId: number; tSubsLite: TSubLite[] }>
+    ) => {
+      state[action.payload.lessonId] = action.payload.tSubsLite;
+    }
   }
 });
 
 export default tSubSlice;
 
-export function loadTSubs(): Loader<void> {
+export function loadTSubs(lessonId: number): Loader<void> {
   return get => async dispatch => {
-    let data = await get("/api/admin/lessons/lessonUpdateIssues", {});
-    if (data) {
-      let { complete, tSubs } = data;
+    const tSubs = await get("/api/admin/lessons/:lessonId/lessonUpdateIssues", {
+      lessonId
+    });
+    if (tSubs) {
       const [tSubsLite, tStrings] = divideTSubs(tSubs);
-      dispatch(tSubSlice.actions.set({ tSubsLite, complete }));
+      dispatch(tSubSlice.actions.set({ tSubsLite, lessonId }));
       dispatch(tStringSlice.actions.add(tStrings));
-
-      while (!complete) {
-        data = await get(
-          "/api/admin/lessons/lessonUpdateIssuesNoRecompute",
-          {}
-        );
-        if (data) {
-          complete = data.complete;
-          tSubs = data.tSubs;
-          const [tSubsLite, tStrings] = divideTSubs(tSubs);
-          dispatch(tSubSlice.actions.set({ tSubsLite, complete }));
-          dispatch(tStringSlice.actions.add(tStrings));
-        }
-      }
     }
   };
 }

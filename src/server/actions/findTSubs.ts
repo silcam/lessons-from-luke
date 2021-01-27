@@ -17,18 +17,11 @@ interface EngSub {
 
 export default async function findTSubs(
   storage: Persistence,
-  opts: { noRecompute?: boolean } = {}
-): Promise<{ complete: boolean; tSubs: TSub[] }> {
-  const lessons = await storage.lessons();
-  const diffs = await storage.lessonDiffs();
-  const outOfDate = await oldLessonDiffs(lessons, diffs);
-  if (!opts.noRecompute) computeLessonDiffs(storage, outOfDate);
-
-  console.log(`Out of Date: ${JSON.stringify(outOfDate)}`);
-
-  const allIdSubs = combineLessonDiffs(diffs);
+  lessonId: number
+): Promise<TSub[]> {
+  const idSubs = await diffLesson(storage, lessonId);
   const englishStrings = await storage.tStrings({ languageId: ENGLISH_ID });
-  const engSubs = allIdSubs
+  const engSubs = idSubs
     .map(idSub => ({
       ...idSub,
       engFrom: subIds(idSub.from, englishStrings),
@@ -55,7 +48,7 @@ export default async function findTSubs(
     finalTSubs.push(...tSubs.filter(usefulTSub));
   }
   finalTSubs.sort(sortTSubs);
-  return { complete: outOfDate.length == 0, tSubs: finalTSubs };
+  return finalTSubs;
 }
 
 function oldLessonDiffs(lessons: BaseLesson[], diffs: LessonDiff[]) {
@@ -108,36 +101,31 @@ function subIds(ids: string, tStrings: TString[]): SubPiece[] {
     .map(id => tStrings.find(tStr => tStr.masterId == parseInt(id)) || null);
 }
 
-export async function computeLessonDiffs(
-  storage: Persistence,
-  lessons: BaseLesson[]
-) {
-  for (let i = 0; i < lessons.length; ++i) {
-    const lesson = lessons[i];
-    const diff = await diffLesson(storage, lesson.lessonId);
-    storage.updateLessonDiff({
-      lessonId: lesson.lessonId,
-      version: lesson.version,
-      diff
-    });
-  }
-}
+// export async function computeLessonDiffs(
+//   storage: Persistence,
+//   lessons: BaseLesson[]
+// ) {
+//   for (let i = 0; i < lessons.length; ++i) {
+//     const lesson = lessons[i];
+//     const diff = await diffLesson(storage, lesson.lessonId);
+//     storage.updateLessonDiff({
+//       lessonId: lesson.lessonId,
+//       version: lesson.version,
+//       diff
+//     });
+//   }
+// }
 
 async function diffLesson(storage: Persistence, lessonId: number) {
   const lesson = await storage.lesson(lessonId);
   if (!lesson) throw `Bad lesson id ${lessonName} in diffLesson()`;
   console.log(`Diff lesson: ${lessonName(lesson)}`);
 
-  const subs: IdSub[] = [];
-  for (
-    let version = 1; // Math.max(1, lesson.version - 6);
-    version < lesson.version;
-    ++version
-  ) {
-    const oldLStrings = await storage.oldLessonStrings(lessonId, version);
-    subs.push(...diffLessonStrings(lesson.lessonStrings, oldLStrings));
-  }
-  return uniqIdSubs(subs);
+  const oldLStrings = await storage.oldLessonStrings(
+    lessonId,
+    lesson.version - 1
+  );
+  return uniqIdSubs(diffLessonStrings(lesson.lessonStrings, oldLStrings));
 }
 
 function diffLessonStrings(

@@ -11,7 +11,6 @@ import List from "../../common/base-components/List";
 import Button from "../../common/base-components/Button";
 import UploadLessonForm from "./UploadLessonForm";
 import AppLink from "../common/AppLink";
-import { Link } from "react-router-dom";
 
 export default function LessonsBox() {
   const t = useTranslation();
@@ -35,12 +34,6 @@ export default function LessonsBox() {
                 onClick={() => setShowUploadForm(true)}
                 text={t("Add_lesson")}
               />
-              <Link to="/update-issues">
-                <Button
-                  onClick={() => {}}
-                  text={t("Resolve_lesson_update_issues")}
-                />
-              </Link>
             </FlexRow>
             <List
               items={lessons}
