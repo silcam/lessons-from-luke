@@ -1,6 +1,8 @@
 import { Fields, validateFields } from "../util/objectUtils";
 import { findBy } from "../util/arrayUtils";
-import { average } from "../util/numberUtils";
+import { average, percent } from "../util/numberUtils";
+import { LessonString } from "./LessonString";
+import { TString } from "./TString";
 
 export const ENGLISH_ID = 1;
 export const FRENCH_ID = 2;
@@ -62,6 +64,27 @@ export function lessonProgress(
 
 export function totalProgress(progress: LessonProgress[]) {
   return Math.round(average(progress.map(p => p.progress)));
+}
+
+export function calcLessonProgress(
+  motherTongue: boolean,
+  lessonStrings: LessonString[],
+  tStrings: TString[]
+): LessonProgress {
+  if (lessonStrings.length == 0) return { lessonId: 0, progress: 0 };
+
+  lessonStrings = motherTongue
+    ? lessonStrings.filter(lStr => lStr.motherTongue)
+    : lessonStrings;
+  return {
+    lessonId: lessonStrings[0].lessonId,
+    progress: percent(
+      lessonStrings.filter(
+        lStr => findBy(tStrings, "masterId", lStr.masterId)?.text
+      ).length,
+      lessonStrings.length
+    )
+  };
 }
 
 export function sqlizeLang(lang: Language) {

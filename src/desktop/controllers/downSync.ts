@@ -137,6 +137,7 @@ async function syncLessons(app: DesktopApp) {
     });
 
     await fetchDocPreview(app, id);
+    app.localStorage.recalcProgress(app);
   }
 }
 
@@ -170,6 +171,7 @@ async function syncTStrings(app: DesktopApp) {
     });
   }
   await fetchMissingSrcStrings(app);
+  app.localStorage.recalcProgress(app);
 }
 
 // Find any missing tStrings for default src language

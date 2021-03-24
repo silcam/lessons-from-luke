@@ -9,6 +9,7 @@ import {
   ON_ERROR
 } from "../../../core/api/IpcChannels";
 import bannerSlice from "../../common/banners/bannerSlice";
+import languageSlice from "../../common/state/languageSlice";
 
 export default function useHandleIPCEvents() {
   const dispatch = useDispatch();
@@ -19,6 +20,10 @@ export default function useHandleIPCEvents() {
       syncStateUpdate: OnSyncStateChangePayload
     ) => {
       dispatch(syncStateSlice.actions.setSyncState(syncStateUpdate));
+      if (syncStateUpdate.language)
+        dispatch(
+          languageSlice.actions.setTranslating(syncStateUpdate.language)
+        );
     };
     ipcRenderer.on(ON_SYNC_STATE_CHANGE, syncStateChangeListener);
 

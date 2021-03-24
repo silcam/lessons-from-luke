@@ -33,7 +33,7 @@ export default async function findTSubs(
   const languages = await storage.languages();
   for (let langIndex = 0; langIndex < languages.length; ++langIndex) {
     const language = languages[langIndex];
-    console.log(`Language: ${language.name}`);
+    // console.log(`Language: ${language.name}`);
     if (language.languageId == ENGLISH_ID) continue;
     const tStrings = await storage.tStrings({
       languageId: language.languageId
@@ -119,7 +119,7 @@ function subIds(ids: string, tStrings: TString[]): SubPiece[] {
 async function diffLesson(storage: Persistence, lessonId: number) {
   const lesson = await storage.lesson(lessonId);
   if (!lesson) throw `Bad lesson id ${lessonName} in diffLesson()`;
-  console.log(`Diff lesson: ${lessonName(lesson)}`);
+  // console.log(`Diff lesson: ${lessonName(lesson)}`);
 
   const oldLStrings = await storage.oldLessonStrings(
     lessonId,

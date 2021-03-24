@@ -4,7 +4,11 @@ import {
   StoredSyncState,
   initalStoredSyncState
 } from "../core/models/SyncState";
-import { PublicLanguage } from "../core/models/Language";
+import {
+  PublicLanguage,
+  LessonProgress,
+  calcLessonProgress
+} from "../core/models/Language";
 import { TString, equal } from "../core/models/TString";
 import { app } from "electron";
 import fs from "fs";
@@ -69,6 +73,7 @@ export default class LocalStorage {
     if (this.memoryStore.localStorageVersion < LOCAL_STORAGE_VERSION)
       this.migrateLocalStorage();
 
+    this.recalcProgress(null);
     this.manageLogs();
   }
 
@@ -129,6 +134,27 @@ export default class LocalStorage {
       app.getWindow().webContents.send(ON_SYNC_STATE_CHANGE, payload);
     }
     return this.memoryStore.syncState;
+  }
+
+  recalcProgress(app: DesktopApp | null) {
+    // console.log(`RECALC PROGRESS`);
+    const language = this.getSyncState().language;
+    if (!language) return;
+
+    const lessons = this.getLessons();
+    const tStrings = this.getAllTStrings(language.languageId);
+
+    const progress: LessonProgress[] = lessons.map(lesson =>
+      calcLessonProgress(
+        language.motherTongue,
+        this.getLessonStrings(lesson.lessonId),
+        tStrings
+      )
+    );
+    this.setSyncState(
+      { language: { ...this.getSyncState().language!, progress } },
+      app
+    );
   }
 
   setLanguages(languages: PublicLanguage[]) {

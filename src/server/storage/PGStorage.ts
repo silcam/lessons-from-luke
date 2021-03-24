@@ -7,7 +7,8 @@ import {
   Language,
   NewLanguage,
   LessonProgress,
-  ENGLISH_ID
+  ENGLISH_ID,
+  calcLessonProgress
 } from "../../core/models/Language";
 import prexit from "prexit";
 import { Lesson, DraftLesson, BaseLesson } from "../../core/models/Lesson";
@@ -298,29 +299,15 @@ export default class PGStorage implements Persistence {
         )
       );
       const lessonStrings = allLessonStrings.filter(lss => lss.length > 0);
-      const mtLessonStrings = allLessonStrings.map(lss =>
-        lss.filter(ls => ls.motherTongue)
-      );
 
       await Promise.all(
         languages.map(async language => {
           const tStrings = await this.tStrings({
             languageId: language.languageId
           });
-          const langProgress: LessonProgress[] = (language.motherTongue
-            ? mtLessonStrings
-            : lessonStrings
-          ).map(lStrings => ({
-            lessonId: lStrings[0]?.lessonId || 0,
-            progress: percent(
-              lStrings.filter(
-                lStr =>
-                  (language.motherTongue && !lStr.motherTongue) ||
-                  findBy(tStrings, "masterId", lStr.masterId)?.text
-              ).length,
-              lStrings.length
-            )
-          }));
+          const langProgress: LessonProgress[] = lessonStrings.map(lStrings =>
+            calcLessonProgress(language.motherTongue, lStrings, tStrings)
+          );
           await this.sql`
           UPDATE languages SET progress=${this.sql.json(
             langProgress
