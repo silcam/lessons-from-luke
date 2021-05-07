@@ -10,7 +10,7 @@
     mkdir strings/translations
     echo "[]" > strings/projects.json
     echo "[]" > strings/sources.json
-    cp src/util/sampleSecrets.ts src/util/secrets.ts
+    cp src/server/util/sampleSecrets.ts src/server/util/secrets.ts
     ```
 2. Compile the TypeScript and start the server.
     ```
