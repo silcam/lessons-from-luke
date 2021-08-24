@@ -17,7 +17,7 @@ export function touch(filepath: string) {
 }
 
 export function unzip(inPath: string, outPath: string) {
-  child_process.execSync(`unzip "${inPath}" -d "${outPath}"`);
+  child_process.execSync(`unzip -o "${inPath}" -d "${outPath}"`);
 }
 
 export function zip(srcDir: string, outPath: string) {
