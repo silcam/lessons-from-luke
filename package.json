@@ -70,7 +70,7 @@
     "immer": "^4.0.1",
     "immutability-helper": "^3.0.1",
     "jest": "^24.9.0",
-    "libxmljs2": "^0.22.0",
+    "libxmljs2": "^0.25.4",
     "migrate": "^1.6.2",
     "postgres": "^1.0.2",
     "prexit": "^0.0.5",
