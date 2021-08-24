@@ -41,6 +41,7 @@
     "build-desktop": "rm -R dist && tsc -b ./src/desktop/tsconfig.prod.json && webpack --config webpack/desktop.production.config.js && node build-desktop.js"
   },
   "dependencies": {
+    "@mapbox/node-pre-gyp": "1.x",
     "@reduxjs/toolkit": "^1.1.0",
     "@types/cookie-session": "^2.0.37",
     "@types/diff": "^5.0.0",
@@ -88,6 +89,7 @@
   },
   "devDependencies": {
     "@types/webdriverio": "^4.13.0",
+    "aws-sdk": "2.x",
     "concurrently": "^5.0.0",
     "cypress": "^4.1.0",
     "cypress-file-upload": "^3.5.3",
