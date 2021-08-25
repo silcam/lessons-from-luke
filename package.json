@@ -41,7 +41,6 @@
     "build-desktop": "rm -R dist && tsc -b ./src/desktop/tsconfig.prod.json && webpack --config webpack/desktop.production.config.js && node build-desktop.js"
   },
   "dependencies": {
-    "@mapbox/node-pre-gyp": "1.x",
     "@reduxjs/toolkit": "^1.1.0",
     "@types/cookie-session": "^2.0.37",
     "@types/diff": "^5.0.0",
@@ -71,7 +70,7 @@
     "immer": "^4.0.1",
     "immutability-helper": "^3.0.1",
     "jest": "^24.9.0",
-    "libxmljs2": "^0.25.4",
+    "libxmljs2": "^0.22.0",
     "migrate": "^1.6.2",
     "postgres": "^1.0.2",
     "prexit": "^0.0.5",
@@ -89,7 +88,6 @@
   },
   "devDependencies": {
     "@types/webdriverio": "^4.13.0",
-    "aws-sdk": "2.x",
     "concurrently": "^5.0.0",
     "cypress": "^4.1.0",
     "cypress-file-upload": "^3.5.3",
