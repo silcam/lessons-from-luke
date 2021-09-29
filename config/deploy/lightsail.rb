@@ -30,7 +30,6 @@ server "lightsail", user: "lessons", roles: %w{app db web}
 # For available Capistrano configuration variables see the documentation page.
 # http://capistranorb.com/documentation/getting-started/configuration/
 # Feel free to add new variables to customise your setup.
-set :branch, "lightsail-deploy-testing"
 set :default_env, { PYTHON: "/usr/bin/python2" }
 
 # Custom SSH Options
