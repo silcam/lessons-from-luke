@@ -74,6 +74,15 @@ export default class DesktopApp {
       label: "Admin",
       submenu: [
         {
+          label: "App Version",
+          click: () => {
+            dialog.showMessageBox({
+              message: app.getVersion(),
+              buttons: ["OK"]
+            });
+          }
+        },
+        {
           label: "Data Usage",
           click: () => {
             const usageLog = this.localStorage.readDataUsed();

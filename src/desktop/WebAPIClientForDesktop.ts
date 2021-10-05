@@ -80,6 +80,7 @@ export default class WebAPIClientForDesktop {
       this.setConnected(true);
       return result;
     } catch (err) {
+      this.log(`Attempted ${this.baseUrl}`);
       this.log(`ERROR  ${err.log || err}`);
       const error = asAppError(err);
       if (error.type == "No Connection") {
