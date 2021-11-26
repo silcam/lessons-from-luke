@@ -347,6 +347,6 @@ export default class LocalStorage {
 function desktopifyDocPreview(html: string): string {
   return html.replace(
     /<img src="/g,
-    '<img src="https://luke.silcam.org'
+    '<img src="https://luke.silcameroon.org'
   );
 }

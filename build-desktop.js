@@ -10,7 +10,7 @@ const tmpPackage = {
 fs.writeFileSync("package.json", JSON.stringify(tmpPackage, null, 2));
 
 try {
-  execSync(`yarn electron-builder -mw --ia32 --x64`, { stdio: "inherit" });
+  execSync(`yarn electron-builder -mwl --ia32 --x64`, { stdio: "inherit" });
 } finally {
   fs.renameSync("package.json.bak", "package.json");
 }
