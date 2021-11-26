@@ -16,9 +16,9 @@ export default class WebAPIClientForDesktop {
 
   constructor(localStorage: LocalStorage) {
     this.baseUrl = app.isPackaged
-      ? "https://luke.yaounde.ddns.info"
+      ? "https://luke.silcam.org"
       : "http://localhost:8081";
-    // this.baseUrl = "https://luke.yaounde.ddns.info"; // For testing with real server
+    // this.baseUrl = "https://luke.silcam.org"; // For testing with real server
     this.localStorage = localStorage;
   }
 
