@@ -10,7 +10,7 @@ jobs:
     steps:
     - uses: actions/checkout@master
       with:
-        ref: build-test
+        ref: master
     - uses: actions/setup-node@master
       with:
         node-version: 12.22.6
