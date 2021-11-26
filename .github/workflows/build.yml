@@ -2,7 +2,7 @@ name: Build Electron Executable
 on:
   push:
     branches:
-      - build-test
+      - master
 
 jobs:
   build_on_mac:
