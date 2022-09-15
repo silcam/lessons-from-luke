@@ -1,5 +1,10 @@
-import docStorage from "../storage/docStorage";
 import parse from "./parse";
+import libxmljs2 from "libxmljs2";
+import { extractNamespaces } from "./mergeXml";
+import docStorage from "../storage/docStorage";
+import { saveDocStrings, parseDocStrings } from "../actions/updateLesson";
+import { PGTestStorage } from "../storage/PGStorage";
+import { ENGLISH_ID } from "../../core/models/Language";
 
 const odtPath = process.cwd() + "/cypress/fixtures/English_Luke-Q1-L06.odt";
 let xmls: ReturnType<typeof docStorage.docXml>;
@@ -68,4 +73,52 @@ test("Parse Styles Xml", () => {
     "Review: Lessons 1-5",
     "Page"
   ]);
+});
+
+test("Verify modified styles are parsed", async () => {
+  // updated odt with new styles
+  const newOdtPath = process.cwd() + "/cypress/fixtures/Luke-1-01-ChangedStyles.odt";
+  let changedXmls: ReturnType<typeof docStorage.docXml>;
+  changedXmls = docStorage.docXml(newOdtPath);
+
+  let allStyles = parse(changedXmls.styles, "styles");
+  //console.log("XXXX: ALL STYLES");
+  //console.log(allStyles);
+  //console.log("YYYYY: ALL STYLES");
+
+  let docStrings = parseDocStrings(newOdtPath);
+  let allStrings = docStrings.map(docStr => docStr.text);
+
+ // console.log(docStrings);
+
+  // this means they are parsed out of the doc, but not necessarily translatable
+  expect(allStrings).toContain("MT_coloring_page_truth");
+  expect(allStrings).toContain("MT_coloring_page_memory_verse");
+  expect(allStrings).toContain("INVISIBLE");
+
+  let storage = new PGTestStorage();
+  let newLesson = await storage.lesson(12);
+  expect(newLesson).not.toBe(null);
+
+  let savedLesson = await saveDocStrings(newLesson!.lessonId, newLesson!.lessonId + 1, docStrings, storage);
+  
+  const tStrings = await storage.tStrings({
+    languageId: ENGLISH_ID,
+    lessonId: savedLesson.lessonId
+  });
+
+  const xmlDoc = libxmljs2.parseXml(changedXmls.content);
+  const namespaces = extractNamespaces(xmlDoc);
+
+  let allMTStrings = savedLesson.lessonStrings.map(lessonString => {
+    const lsDomElement = xmlDoc.get(lessonString.xpath, namespaces);
+    if (lessonString.motherTongue == true) {
+      return lsDomElement?.text();
+    }
+  });
+
+  expect(allMTStrings).toContain("MT_coloring_page_memory_verse");
+  expect(allMTStrings).toContain("MT_coloring_page_truth");
+  expect(allMTStrings).not.toContain("non_coloring_page");
+  expect(allMTStrings).toContain("INVISIBLE"); // why isn't think working?
 });

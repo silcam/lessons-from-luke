@@ -34,7 +34,16 @@ function parseContent(contentXml: string) {
     "Langue_20_Maternelle",
     "Coloring_20_Page_20_-_20_Memory_20_Verse",
     "Coloring_20_Page_20_-_20_Truth",
-    "M.T._20_Table_20_of_20_Contents"
+    "M.T._20_Table_20_of_20_Contents",
+    "M.T._20_Coloring_20_Page_20_-_20_Memory_20_Verse",
+    "M.T._20_Coloring_20_Page_20_-_20_Truth",
+    "M.T._20_Lesson_20_Title",
+    "M.T._20_Front_20_matter_20_Title",
+    "M.T._20_Front_20_matter_20_subtitle",
+    "M.T._20_Lesson_20_title_20_-_20_invisible",
+    "M.T._20_Cover_20_title",
+    "M.T._20_Cover_20_subtitle",
+    "M.T._20_Example_20_text"
   ];
   const knownStyleNamePatterns = ["M.T._20_Text", "L.M."];
 
@@ -59,8 +68,9 @@ function parseContent(contentXml: string) {
       .map(pattern => xPathForPWithStyleNameContains(pattern))
       .join(" | ") +
     " | " +
-    allStyleNames.map(name => xPathForPWithStyle(name)).join(" | ");
-
+    allStyleNames.map(name => xPathForPWithStyle(name)).join(" | ") + " | " +
+    allStyleNames.map(name => xPathForHWithStyle(name)).join(" | ");
+    
   const nodes = xmlDoc.root()!.find(xPath, namespaces);
 
   const translatableStrings: DocString[] = parseNodes(
@@ -134,6 +144,10 @@ function xPathForParentStyleNameContains(stylePattern: string) {
 
 function xPathForPWithStyle(styleName: string) {
   return `//text:p[@text:style-name='${styleName}']`;
+}
+
+function xPathForHWithStyle(styleName: string) {
+  return `//text:h[@text:style-name='${styleName}']`;
 }
 
 function xPathForParentStyle(parentStyleName: string) {
