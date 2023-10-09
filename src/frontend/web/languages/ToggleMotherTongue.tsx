@@ -7,20 +7,13 @@ import { pushLanguageUpdate } from "../../common/state/languageSlice";
 
 interface IProps {
   language: Language;
+  save: (mt: boolean) => void;
 }
 
 export default function ToggleMotherTongue(props: IProps) {
   const t = useTranslation();
-  const push = usePush();
-
-  const [draftMT, setDraftMT] = useState(props.language.motherTongue);
-
-  const save = async (mt: boolean) => {
-    setDraftMT(mt);
-    await push(pushLanguageUpdate({ ...props.language, motherTongue: mt }));
-  };
 
   return (
-    <Checkbox label={t("Mother_tongue")} value={draftMT} setValue={save} />
+    <Checkbox label={t("Mother_tongue")} value={props.language.motherTongue} setValue={props.save} />
   );
 }

@@ -121,7 +121,7 @@ export function pushLanguageUpdate(language: Language): Pusher<Language> {
     const updatedLanguage = await post(
       "/api/admin/languages/:languageId",
       { languageId: language.languageId },
-      { motherTongue: language.motherTongue }
+      { motherTongue: language.motherTongue, defaultSrcLang: language.defaultSrcLang }
     );
     if (updatedLanguage)
       dispatch(languageSlice.actions.addLanguage(updatedLanguage));

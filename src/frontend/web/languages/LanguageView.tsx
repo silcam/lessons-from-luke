@@ -14,6 +14,11 @@ import ToggleMotherTongue from "./ToggleMotherTongue";
 import Div from "../../common/base-components/Div";
 import Table from "../../common/base-components/Table";
 import { GetDocumentButton } from "../documents/useGetDocument";
+import SelectInput from "../../common/base-components/SelectInput";
+import Label from "../../common/base-components/Label";
+import { pushLanguageUpdate } from "../../common/state/languageSlice";
+import { usePush } from "../../common/api/useLoad";
+
 
 interface IProps {
   language: Language;
@@ -22,9 +27,25 @@ interface IProps {
 
 export default function LanguageView(props: IProps) {
   const t = useTranslation();
+  const push = usePush();
+
   const lessons = useAppSelector(state => state.lessons);
   const [uploadUsfmForm, setUploadUsfmForm] = useState(false);
   const [uploadDocForm, setUploadDocForm] = useState(false);
+
+  const [activeLang, setActiveLang] = useState(props.language);
+
+  const languages = useAppSelector(state => state.languages);
+
+  const handleSrcLangChange = async (v: number) => {
+    setActiveLang({...activeLang, defaultSrcLang: v});
+    await push(pushLanguageUpdate({ ...activeLang, defaultSrcLang: v }));
+  };
+
+  const handleMTChange = async (mt: boolean) => {
+    setActiveLang({...activeLang, motherTongue: mt});
+    await push(pushLanguageUpdate({ ...activeLang, motherTongue: mt }));
+  };
 
   return (
     <div>
@@ -55,7 +76,17 @@ export default function LanguageView(props: IProps) {
             }
           />
           <Div padVert>
-            <ToggleMotherTongue language={props.language} />
+            <Label text={t("Source_language")}>
+              <SelectInput
+                value={`${activeLang.defaultSrcLang}`}
+                setValue={v => handleSrcLangChange(parseInt(v))}
+                options={languages.adminLanguages.map(lng => [`${lng.languageId}`, lng.name])}
+              />
+            </Label>
+
+          </Div>
+          <Div padVert>
+            <ToggleMotherTongue save={handleMTChange} language={{...activeLang}} />
           </Div>
           <Table>
             {lessons.map(lesson => {
