@@ -5,6 +5,7 @@ import { loadTranslatingLanguage, loadLanguages } from "../state/languageSlice";
 import LoadingSnake from "../base-components/LoadingSnake";
 import { Language, lessonProgress } from "../../../core/models/Language";
 import { loadLessons } from "../state/lessonSlice";
+import { loadAdminLessons } from "../state/adminLessonSlice";
 import { StdHeaderBarPage } from "../base-components/HeaderBar";
 import Alert from "../base-components/Alert";
 import MiddleOfPage from "../base-components/MiddleOfPage";
@@ -40,6 +41,7 @@ export default function TranslateHome(props: IProps) {
     useLoadMultiple([
       loadTranslatingLanguage(props.code),
       loadLessons(),
+      loadAdminLessons(),
       loadLanguages(false)
     ]) || lessons.length == 0;
 
@@ -102,7 +104,7 @@ function TranslateLanguage(props: {
             <div>
               <Button
                 link
-                unButton={lesson.lessonId == selectedLessonId}
+                unButton={lesson.lessonId == selectedLessonId || lesson.non_translating == true}
                 text={lessonName(lesson, t)}
                 onClick={() => setSelectedLessonId(lesson.lessonId)}
               />

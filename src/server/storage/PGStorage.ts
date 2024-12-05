@@ -91,13 +91,19 @@ export default class PGStorage implements Persistence {
 
   async lessons(): Promise<BaseLesson[]> {
     return this.sql`
-      SELECT lessonid, book, series, lesson, version FROM lessons
+      SELECT lessonid, book, series, lesson, version, non_translating FROM lessons where non_translating is false
+      `;
+  }
+
+  async adminLessons(): Promise<Lesson[]> {
+    return this.sql`
+      SELECT lessonid, book, series, lesson, version, non_translating FROM lessons where non_translating is true
       `;
   }
 
   async lesson(id: number): Promise<Lesson | null> {
     const rows = await this.sql`
-      SELECT lessonid, book, series, lesson, version FROM lessons WHERE lessonId=${id}
+      SELECT lessonid, book, series, lesson, version, non_translating FROM lessons WHERE lessonId=${id}
     `;
     const lesson: BaseLesson | undefined = rows[0];
     if (!lesson) return null;

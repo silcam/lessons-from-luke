@@ -1,5 +1,5 @@
 import { Language } from "../../core/models/Language";
-import { BaseLesson } from "../../core/models/Lesson";
+import { BaseLesson, Lesson } from "../../core/models/Lesson";
 import { LessonString } from "../../core/models/LessonString";
 import { TString } from "../../core/models/TString";
 import fs from "fs";
@@ -7,6 +7,7 @@ import fs from "fs";
 interface Fixtures {
   languages: Language[];
   lessons: BaseLesson[];
+  adminLessons: Lesson[];
   lessonStrings: LessonString[];
   oldLessonStrings: LessonString[];
   tStrings: TString[];

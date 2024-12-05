@@ -97,6 +97,8 @@ test("POST /api/languages", async () => {
   expect(response.status).toBe(200);
   expect(isLanguage(response.body)).toBe(true);
   expect(response.body).toMatchObject({ name: "Klingon", defaultSrcLang: 2 });
+
+  await resetStorage();
 });
 
 test("POST /api/languages requires login", async () => {
@@ -138,6 +140,8 @@ test("POST update language defaultSrcLang", async () => {
     name: "Batanga",
     defaultSrcLang: 2
   });
+
+  await resetStorage();
 });
 
 test("POST usfm", async () => {

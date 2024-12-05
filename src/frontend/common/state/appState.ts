@@ -11,6 +11,7 @@ import networkSlice from "./networkSlice";
 import docPreviewSlice from "./docPreviewSlice";
 import syncStateSlice from "./syncStateSlice";
 import tSubSlice from "./tSubSlice";
+import adminLessonSlice from "./adminLessonSlice";
 
 const reducer = combineReducers({
   languages: languageSlice.reducer,
@@ -20,6 +21,7 @@ const reducer = combineReducers({
   banners: bannerSlice.reducer,
   loading: loadingSlice.reducer,
   lessons: lessonSlice.reducer,
+  adminLessons: adminLessonSlice.reducer,
   docStrings: docStringSlice.reducer,
   network: networkSlice.reducer,
   docPreview: docPreviewSlice.reducer,

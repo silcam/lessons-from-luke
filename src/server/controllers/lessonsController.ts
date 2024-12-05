@@ -13,6 +13,10 @@ export default function lessonsController(app: Express, storage: Persistence) {
     return storage.lessons();
   });
 
+  addGetHandler(app, "/api/admin/lessons", async req => {
+    return storage.adminLessons();
+  });
+
   addGetHandler(app, "/api/lessons/:lessonId", async req => {
     const lesson = await storage.lesson(parseInt(req.params.lessonId));
     if (!lesson) throw { status: 404 };

@@ -81,7 +81,8 @@ const en = {
   Yes_resync: "Yes, Resync",
   Table_of_Contents: "Table of Contents",
   Update_issues: "Update Issues",
-  View_lesson: "View Lesson"
+  View_lesson: "View Lesson",
+  Non_translatable: "Non Translatable"
 };
 
 export type I18nStrings = typeof en;

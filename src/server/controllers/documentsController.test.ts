@@ -26,6 +26,7 @@ test("Upload new English Lesson", async () => {
     .field("book", "Luke")
     .field("series", 1)
     .field("lesson", 6)
+    .field("non_translating", false)
     .attach("document", "cypress/fixtures/English_Luke-Q1-L06.odt");
   expect(response.status).toBe(200);
   expect(response.body.lesson).toMatchObject({
@@ -67,6 +68,7 @@ test("Upload French version", async () => {
     .post("/api/admin/documents")
     .field("languageId", 2)
     .field("lessonId", 11)
+    .field("non_translating", false)
     .attach("document", "cypress/fixtures/Français_Luke-T1-L01.odt");
   expect(response.status).toBe(200);
   expect(response.body.docStrings[1]).toEqual({
@@ -92,6 +94,52 @@ test("Upload French version", async () => {
 
   await resetStorage();
 });
+
+test("Upload English Non-t lesson", async () => {
+  expect.assertions(5);
+  const agent = await loggedInAgent();
+  const response = await agent
+  .post("/api/admin/documents")
+  .field("languageId", ENGLISH_ID)
+  .field("book", "Luke")
+  .field("series", 1)
+  .field("lesson", 6)
+  .field("non_translating", true)
+  .attach("document", "cypress/fixtures/English_Luke-Q1-L06.odt");
+  expect(response.status).toBe(200);
+  expect(response.body.lesson).toMatchObject({
+    version: 1,
+    book: "Luke",
+    series: 1,
+    lesson: 6,
+    non_translating: true
+  });
+  expect(response.body.lesson.lessonStrings[2]).toMatchObject({
+    lessonVersion: 1,
+    type: "content",
+    motherTongue: true,
+    xpath:
+      "/office:document-content/office:body/office:text/table:table/table:table-row/table:table-cell[2]/text:p[1]/text()"
+  });
+  expect(
+    findBy(response.body.tStrings as TString[], "text", "Review: Lessons 1-5")
+  ).toMatchObject({
+    history: [],
+    languageId: 1,
+    text: "Review: Lessons 1-5"
+  });
+  expect(
+    response.body.lesson.lessonStrings.filter(
+      (lStr: LessonString) =>
+        !response.body.tStrings.some(
+          (tStr: TString) => tStr.masterId == lStr.masterId
+        )
+    )
+  ).toEqual([]);
+
+  await resetStorage();
+});
+
 
 test("Download English Lesson", async () => {
   const agent = plainAgent();

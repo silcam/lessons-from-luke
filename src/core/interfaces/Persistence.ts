@@ -15,6 +15,7 @@ export interface Persistence {
   updateLanguage: (id: number, update: Partial<Language>) => Promise<Language>;
   invalidCode: (code: string, languageIds: number[]) => Promise<boolean>;
   lessons: () => Promise<BaseLesson[]>;
+  adminLessons: () => Promise<Lesson[]>;
   lesson: (id: number) => Promise<Lesson | null>;
   oldLessonStrings: (
     lessonId: number,

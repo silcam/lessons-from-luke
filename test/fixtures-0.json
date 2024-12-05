@@ -41,11 +41,14 @@
     }
   ],
   "lessons": [
-    { "lessonId": 11, "book": "Luke", "series": 1, "lesson": 1, "version": 3 },
-    { "lessonId": 12, "book": "Luke", "series": 1, "lesson": 2, "version": 3 },
-    { "lessonId": 13, "book": "Luke", "series": 1, "lesson": 3, "version": 3 },
-    { "lessonId": 14, "book": "Luke", "series": 1, "lesson": 4, "version": 3 },
-    { "lessonId": 15, "book": "Luke", "series": 1, "lesson": 5, "version": 3 }
+    { "lessonId": 11, "book": "Luke", "series": 1, "lesson": 1, "version": 3, "non_translating": false },
+    { "lessonId": 12, "book": "Luke", "series": 1, "lesson": 2, "version": 3, "non_translating": false },
+    { "lessonId": 13, "book": "Luke", "series": 1, "lesson": 3, "version": 3, "non_translating": false },
+    { "lessonId": 14, "book": "Luke", "series": 1, "lesson": 4, "version": 3, "non_translating": false },
+    { "lessonId": 15, "book": "Luke", "series": 1, "lesson": 5, "version": 3, "non_translating": false }
+  ],
+  "adminLessons": [
+    { "lessonId": 16, "book": "Luke", "series": 2, "lesson": 1, "version": 3, "non_translating": true }
   ],
   "lessonStrings": [
     {

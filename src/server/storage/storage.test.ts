@@ -7,7 +7,7 @@ import { TString } from "../../core/models/TString";
 import { PGTestStorage } from "./PGStorage";
 import testStorage from "./testStorage";
 import { findBy, findByStrict } from "../../core/util/arrayUtils";
-import { USE_PG } from "../testHelper";
+import { resetStorage, USE_PG } from "../testHelper";
 
 let storage: TestPersistence;
 storage = USE_PG ? new PGTestStorage() : testStorage;
@@ -111,6 +111,8 @@ test("Invalid code - does not match", async () => {
 });
 
 test("Get Lessons", async () => {
+  await resetStorage();
+
   const lessons = await storage.lessons();
   expect(lessons.length).toBe(5);
   expect(lessons[0]).toEqual({
@@ -118,7 +120,8 @@ test("Get Lessons", async () => {
     book: "Luke",
     series: 1,
     lesson: 1,
-    version: 3
+    version: 3,
+    non_translating: false
   });
 });
 
@@ -129,7 +132,8 @@ test("Get Lessons by id", async () => {
     book: "Luke",
     series: 1,
     lesson: 2,
-    version: 3
+    version: 3,
+    non_translating: false
   });
   expect(lesson!.lessonStrings.length).toBe(280);
   expect(lesson!.lessonStrings).toContainEqual({
@@ -152,13 +156,15 @@ test("Create Lesson", async () => {
   const lesson = await storage.createLesson({
     book: "Luke",
     series: 1,
-    lesson: 6
+    lesson: 6,
+    non_translating: false
   });
   expect(lesson).toMatchObject({
     book: "Luke",
     series: 1,
     lesson: 6,
-    version: 0
+    version: 0,
+    non_translating: false
   });
   expect(lesson.lessonId).toBeGreaterThan(15);
 
@@ -193,7 +199,8 @@ test("Update Lesson", async () => {
     book: "Luke",
     series: 1,
     lesson: 1,
-    version: 4
+    version: 4,
+    non_translating: false
   });
   expect(lesson.lessonStrings.length).toBe(2);
   draftLessonStrings.forEach((ds, index) =>
@@ -451,13 +458,25 @@ test("Sync: new language", async () => {
 test("Sync: new lesson", async () => {
   const syncTimestamp = Date.now() - 1000;
 
-  await storage.createLesson({ book: "Luke", series: 5, lesson: 101 });
+  await storage.createLesson({ book: "Luke", series: 5, lesson: 101, non_translating: false });
 
   const syncPackage = await storage.sync(syncTimestamp, []);
   expect(syncPackage.baseLessons).toBe(true);
 
   await storage.reset();
 });
+
+test("Sync: new lesson, non-translating", async () => {
+  const syncTimestamp = Date.now() - 1000;
+
+  await storage.createLesson({ book: "Luke", series: 5, lesson: 62, non_translating: true });
+
+  const syncPackage = await storage.sync(syncTimestamp, []);
+  expect(syncPackage.baseLessons).toBe(true);
+
+  await storage.reset();
+});
+
 
 test("Sync: Updated lesson", async () => {
   const syncTimestamp = Date.now() - 1000;

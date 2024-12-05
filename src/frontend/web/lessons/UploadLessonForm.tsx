@@ -16,7 +16,8 @@ import {
   AllBooks,
   BaseLesson,
   lessonName,
-  TOC_LESSON
+  TOC_LESSON,
+  COV_LESSON
 } from "../../../core/models/Lesson";
 import NumberPicker from "../../common/base-components/NumberPicker";
 import Button from "../../common/base-components/Button";
@@ -26,6 +27,7 @@ import { pushDocument } from "../../common/state/lessonSlice";
 import { useAppSelector } from "../../common/state/appState";
 import { useHistory } from "react-router-dom";
 import Checkbox from "../../common/base-components/Checkbox";
+import RadioButtons from "../../common/base-components/RadioButtons";
 
 export default function UploadLessonForm(props: { done: () => void }) {
   const t = useTranslation();
@@ -70,14 +72,23 @@ export default function UploadLessonForm(props: { done: () => void }) {
               setValue={series => setUploadMeta({ ...uploadMeta, series })}
             />
           </Label>
-          <Checkbox
-            label={t("Table_of_Contents")}
-            value={uploadMeta.lesson == TOC_LESSON}
-            setValue={toc =>
-              setUploadMeta({ ...uploadMeta, lesson: toc ? TOC_LESSON : 1 })
+          <RadioButtons
+            label={"Choose a file option"}
+            radioName="lessonType"
+            buttonLabels={["Normal","TOC","Cover"]}
+            defaultCheckedValue={uploadMeta.lesson === TOC_LESSON ? "TOC" : uploadMeta.lesson === COV_LESSON ? "Cover" : "Normal"}
+            setValue={radioValue =>
+              setUploadMeta({ ...uploadMeta, lesson: radioValue == "TOC" ? TOC_LESSON : radioValue == "Cover" ? COV_LESSON : 1 })
             }
           />
-          {uploadMeta.lesson != TOC_LESSON && (
+          <Checkbox
+            label={t("Non_translatable")}
+            value={uploadMeta.non_translating == true}
+            setValue={nontrans =>
+              setUploadMeta({ ...uploadMeta, non_translating: nontrans})
+            }
+          />
+          {uploadMeta.lesson != TOC_LESSON && uploadMeta.lesson != COV_LESSON && (
             <Label text={t("Lesson")}>
               <NumberPicker
                 value={uploadMeta.lesson}
@@ -179,7 +190,11 @@ function metaFromFilename(filename: string): EnglishUploadMeta {
 
   match = /L(\d+)/.exec(filename);
   if (match) meta.lesson = parseInt(match[1]);
-  else meta.lesson = TOC_LESSON;
+  else {
+    match = /Cover/.exec(filename);
+    if (match) meta.lesson = COV_LESSON;
+    else meta.lesson = TOC_LESSON;
+  }
 
   return meta;
 }

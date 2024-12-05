@@ -28,6 +28,7 @@ test("GET Lessons", async () => {
     book: "Luke",
     series: 1,
     lesson: 1,
+    non_translating: false,
     version: 3
   });
 });
@@ -42,6 +43,7 @@ test("GET Lesson by Id", async () => {
     book: "Luke",
     series: 1,
     lesson: 1,
+    non_translating: false,
     version: 3
   });
   expect(response.body.lessonStrings[0]).toMatchObject({

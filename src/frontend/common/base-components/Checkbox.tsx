@@ -9,8 +9,8 @@ interface IProps {
 
 export default function Checkbox(props: IProps) {
   return (
-    <Label childrenFirst text={props.label}>
-      <input
+    <Label key={props.label} childrenFirst text={props.label}>
+      <input 
         type="checkbox"
         checked={props.value}
         onChange={e => props.setValue(e.target.checked)}

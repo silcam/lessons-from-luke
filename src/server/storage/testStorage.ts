@@ -59,6 +59,9 @@ const testStorage: TestPersistence = {
     return testDb.lessons;
   },
 
+  adminLessons: async () => {
+    return testDb.adminLessons;
+  },
   lesson: async id => {
     const lesson = findBy(testDb.lessons, "lessonId", id);
     if (!lesson) return null;

@@ -16,7 +16,7 @@ export async function webGet<T extends GetRoute>(
 ): Promise<APIGet[T][1] | null> {
   const finalRoute = interpolateParams(route, params);
   try {
-    log(`GET ${finalRoute}`);
+    log(`GET (${baseUrl})${finalRoute}`);
     const response = await Axios.get(baseUrl + finalRoute);
     log(`RESPONSE SIZE ${response.headers["content-length"]}`);
     return response.data;

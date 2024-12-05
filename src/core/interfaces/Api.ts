@@ -29,6 +29,7 @@ export interface APIGet {
   // Web Only
   "/api/users/current": [{}, User | null];
   "/api/admin/languages": [{}, Language[]];
+  "/api/admin/lessons": [{}, Lesson[]];
   "/api/languages/:languageId/tStrings": [{ languageId: number }, TString[]];
   "/api/languages/:languageId/tStrings/:ids": [
     { languageId: number; ids: string },

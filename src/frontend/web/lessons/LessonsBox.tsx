@@ -6,6 +6,7 @@ import { FlexRow } from "../../common/base-components/Flex";
 import { useAppSelector } from "../../common/state/appState";
 import { useLoad } from "../../common/api/useLoad";
 import { loadLessons } from "../../common/state/lessonSlice";
+import { loadAdminLessons } from "../../common/state/adminLessonSlice";
 import { lessonName } from "../../../core/models/Lesson";
 import List from "../../common/base-components/List";
 import Button from "../../common/base-components/Button";
@@ -17,6 +18,7 @@ export default function LessonsBox() {
   const lessons = useAppSelector(state => state.lessons);
 
   useLoad(loadLessons());
+  useLoad(loadAdminLessons());
 
   const [showUploadForm, setShowUploadForm] = useState(false);
 

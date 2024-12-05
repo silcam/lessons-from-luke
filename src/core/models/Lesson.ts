@@ -6,6 +6,7 @@ export const AllBooks = <const>["Luke", "Acts"];
 export type Book = typeof AllBooks[number];
 
 export const TOC_LESSON = 99;
+export const COV_LESSON = 98;
 
 export interface BaseLesson {
   lessonId: number;
@@ -13,6 +14,7 @@ export interface BaseLesson {
   series: number;
   lesson: number;
   version: number;
+  non_translating: boolean;
 }
 
 export interface Lesson extends BaseLesson {
@@ -25,9 +27,7 @@ export function lessonName(
   t: TFunc = (s: string) => s
 ) {
   if (!lesson) return "";
-  return isTOCLesson(lesson)
-    ? `${t(lesson.book)} ${lesson.series}-TOC`
-    : `${t(lesson.book)} ${lesson.series}-${lesson.lesson}`;
+  return formatLessonName(lesson, t)
 }
 
 export function documentName(languageName: string, lesson: BaseLesson) {
@@ -48,6 +48,20 @@ export function lessonCompare(a: BaseLesson, b: BaseLesson) {
   return compVal(a) - compVal(b);
 }
 
+export function formatLessonName(lesson: BaseLesson, t: TFunc = (s: string) => s) {
+  let lessonNumber = isTOCLesson(lesson) ? `-TOC` : isCOVLesson(lesson) ? `-COV` : `-${lesson.lesson}`;
+  let suffix = isTranslatable(lesson) ? `` : ` (Non Translatable)`;
+  return `${t(lesson.book)} ${lesson.series}${lessonNumber}${suffix}`;
+}
+
 export function isTOCLesson(lesson: BaseLesson) {
   return lesson.lesson == TOC_LESSON;
+}
+
+export function isCOVLesson(lesson: BaseLesson) {
+  return lesson.lesson == COV_LESSON;
+}
+
+export function isTranslatable(lesson: BaseLesson) {
+  return lesson.non_translating == false;
 }

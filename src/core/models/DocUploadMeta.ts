@@ -6,6 +6,7 @@ export interface EnglishUploadMeta {
   book: Book;
   series: number;
   lesson: number;
+  non_translating: boolean;
 }
 
 export function defaultEnglishUploadMeta(): EnglishUploadMeta {
@@ -13,7 +14,8 @@ export function defaultEnglishUploadMeta(): EnglishUploadMeta {
     languageId: ENGLISH_ID,
     book: "Luke",
     series: 1,
-    lesson: 1
+    lesson: 1,
+    non_translating: false
   };
 }
 

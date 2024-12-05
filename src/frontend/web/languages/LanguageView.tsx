@@ -17,8 +17,8 @@ import { GetDocumentButton } from "../documents/useGetDocument";
 import SelectInput from "../../common/base-components/SelectInput";
 import Label from "../../common/base-components/Label";
 import { pushLanguageUpdate } from "../../common/state/languageSlice";
-import { usePush } from "../../common/api/useLoad";
-
+import { usePush, useLoad } from "../../common/api/useLoad";
+import { loadAdminLessons } from "../../common/state/adminLessonSlice";
 
 interface IProps {
   language: Language;
@@ -30,6 +30,8 @@ export default function LanguageView(props: IProps) {
   const push = usePush();
 
   const lessons = useAppSelector(state => state.lessons);
+  const adminLessons = useAppSelector(state => state.adminLessons);
+
   const [uploadUsfmForm, setUploadUsfmForm] = useState(false);
   const [uploadDocForm, setUploadDocForm] = useState(false);
 
@@ -127,6 +129,50 @@ export default function LanguageView(props: IProps) {
               );
             })}
           </Table>
+          
+          {adminLessons.length > 0 ? <Heading text="Document-only Lessons" level={4} /> : "" }
+
+          <Table>
+            {adminLessons.map(adminLesson => {
+              const progress = findBy(
+                props.language.progress,
+                "lessonId",
+                adminLesson.lessonId
+              )?.progress;
+            //  if (!progress) return null;
+              return (
+                <tr key={adminLesson.lessonId}>
+                  <td>{lessonName(adminLesson, t)}</td>
+                  <td>
+                    <ProgressBar percent={progress || 0} fixed />
+                  </td>
+                  <td>
+                    {t("Download")}
+                    {":  "}
+                    <GetDocumentButton
+                      language={props.language}
+                      lesson={adminLesson}
+                      text="Standard"
+                      majorityLanguageId={
+                        props.language.motherTongue
+                          ? props.language.defaultSrcLang
+                          : props.language.languageId
+                      }
+                    />
+                    {" | "}
+                    <GetDocumentButton
+                      language={props.language}
+                      lesson={adminLesson}
+                      text="Single-Language"
+                      majorityLanguageId={0}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </Table>
+
+
         </React.Fragment>
       )}
     </div>
