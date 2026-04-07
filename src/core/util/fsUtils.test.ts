@@ -5,7 +5,8 @@ import {
   mkdirSafe,
   touch,
   assetsPath,
-  tmpDirPath
+  tmpDirPath,
+  copyRecursive
 } from "./fsUtils";
 import fs from "fs";
 import path from "path";
@@ -59,4 +60,33 @@ test("Unzip overwrites", () => {
     // This will fail if the overwrite flag is not set
     unzip(zipPath, dirPath);
   }).not.toThrow();
+});
+
+test("copyRecursive copies a file to a new location", () => {
+  const src = "test/tmp-copyRecursive-src.txt";
+  const dst = "test/tmp-copyRecursive-dst.txt";
+  touch(src);
+  copyRecursive(src, dst);
+  expect(fs.existsSync(dst)).toBe(true);
+  unlinkSafe(src);
+  unlinkSafe(dst);
+});
+
+test("copyRecursive copies a directory and its contents", () => {
+  const srcDir = "test/tmp-copyRecursive-srcdir";
+  const dstDir = "test/tmp-copyRecursive-dstdir";
+  mkdirSafe(srcDir);
+  touch(path.join(srcDir, "file.txt"));
+  copyRecursive(srcDir, dstDir);
+  expect(fs.existsSync(path.join(dstDir, "file.txt"))).toBe(true);
+  unlinkRecursive(srcDir);
+  unlinkRecursive(dstDir);
+});
+
+test("unlinkRecursive removes a directory and its contents", () => {
+  const dir = "test/tmp-unlinkRecursive-dir";
+  mkdirSafe(dir);
+  touch(path.join(dir, "file.txt"));
+  unlinkRecursive(dir);
+  expect(fs.existsSync(dir)).toBe(false);
 });

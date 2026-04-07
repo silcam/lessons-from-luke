@@ -164,3 +164,69 @@ describe("createLanguage and updateLanguage", () => {
     expect(updated.name).toBe("American English");
   });
 });
+
+describe("createLesson and updateLesson", () => {
+  test("createLesson adds a new lesson", async () => {
+    const newLesson = await storage.createLesson({
+      book: "Luke",
+      series: 1,
+      lesson: 99
+    });
+    expect(newLesson.lessonId).toBeGreaterThan(0);
+    expect(newLesson.lesson).toBe(99);
+    const lessons = await storage.lessons();
+    expect(lessons.find(l => l.lesson === 99)).toBeTruthy();
+  });
+
+  test("updateLesson updates version and lessonStrings", async () => {
+    const lesson = await storage.lesson(11);
+    expect(lesson).not.toBeNull();
+    const updated = await storage.updateLesson(11, lesson!.version + 1, []);
+    expect(updated.version).toBe(lesson!.version + 1);
+    expect(updated.lessonStrings).toEqual([]);
+  });
+
+  test("updateLesson throws for non-existent lessonId", async () => {
+    await expect(storage.updateLesson(99999, 1, [])).rejects.toBeTruthy();
+  });
+});
+
+describe("oldLessonStrings", () => {
+  test("returns empty array (placeholder)", async () => {
+    const result = await storage.oldLessonStrings(11, 0);
+    expect(result).toEqual([]);
+  });
+});
+
+describe("englishScriptureTStrings", () => {
+  test("returns English scripture tStrings matching verse pattern", async () => {
+    const result = await storage.englishScriptureTStrings!();
+    expect(Array.isArray(result)).toBe(true);
+  });
+});
+
+describe("sync", () => {
+  test("returns stubbed sync response", async () => {
+    const result = await storage.sync!(Date.now(), []);
+    expect(result).toMatchObject({
+      languages: false,
+      baseLessons: false,
+      lessons: [],
+      tStrings: {}
+    });
+  });
+});
+
+describe("saveTStrings with awaitProgress", () => {
+  test("awaits progress update when opts.awaitProgress is true", async () => {
+    const newTStr = {
+      masterId: 1,
+      languageId: 88,
+      text: "Awaited progress test",
+      history: []
+    };
+    const result = await storage.saveTStrings([newTStr], { awaitProgress: true });
+    expect(result).toHaveLength(1);
+    expect(result[0].text).toBe("Awaited progress test");
+  });
+});

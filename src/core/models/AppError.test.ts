@@ -6,6 +6,8 @@ test("isAppError", () => {
   expect(isAppError({ type: "HTTP" })).toBe(false);
   expect(isAppError({ type: "Nonexistant" })).toBe(false);
   expect(isAppError({})).toBe(false);
+  expect(isAppError(null)).toBe(false);
+  expect(isAppError(undefined)).toBe(false);
 });
 
 test("asAppError", () => {
