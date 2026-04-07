@@ -130,6 +130,14 @@ test("Update Lesson 2", async () => {
   await resetStorage();
 });
 
+test("Update Lesson with non-existent lessonId returns 500", async () => {
+  const agent = await loggedInAgent();
+  const response = await agent
+    .post("/api/admin/lessons/99999/strings")
+    .send([]);
+  expect(response.status).toBe(500);
+});
+
 test("Empty Lesson Update Issues", async () => {
   const agent = await loggedInAgent();
   let response = await agent.get("/api/admin/lessons/11/lessonUpdateIssues");
