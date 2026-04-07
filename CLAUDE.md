@@ -156,3 +156,7 @@ function languagesController(app: Express, storage: Persistence) {
 - Jest for unit/integration tests (`*.test.ts` files alongside source)
 - Cypress for E2E tests (`cypress/integration/`)
 - Test files are excluded from TypeScript compilation
+
+## Subagents
+
+Use subagents liberally and aggressively to conserve the main context window. Avoid performing tasks directly: instead, orchestrate subagents.
