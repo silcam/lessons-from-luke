@@ -39,6 +39,25 @@ yarn build-desktop   # Build Electron app
 yarn deploy          # Capistrano production deploy
 ```
 
+## Docker Environment
+
+A Docker container provides a Node 12 development environment. To use it:
+
+```bash
+# Build and start the container
+docker compose up -d --build
+
+# Run commands inside the container
+docker compose exec claude-container npm install
+docker compose exec claude-container yarn test
+```
+
+Key details:
+- The container runs as `linux/amd64` (required — Node 12 native addons like `libxmljs2` have no arm64 pre-built binaries)
+- `NPM_CONFIG_UNSAFE_PERM=true` is set in the Dockerfile to avoid node-gyp permission issues when running as root
+- The workspace is bind-mounted at `/workspace`, so changes are shared between host and container
+- If `node_modules` was previously installed on macOS, delete it before running `npm install` in the container (native addons are platform-specific)
+
 ## Architecture
 
 ### Source Structure (`src/`)
