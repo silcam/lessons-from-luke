@@ -55,6 +55,9 @@ docker compose exec claude-container bash -c "cd /workspace && TEST_DB=true npx 
 
 # Run tests
 docker compose exec claude-container bash -c "cd /workspace && NODE_ENV=test npx jest --runInBand"
+
+# Run tests with coverage
+docker compose exec claude-container bash -c "cd /workspace && yarn test-coverage"
 ```
 
 Key details:
