@@ -4,6 +4,12 @@ import { plainAgent, closeStorage } from "../testHelper";
 
 afterAll(closeStorage);
 
+test("Get Sync - invalid timestamp returns 400", async () => {
+  const agent = plainAgent();
+  const response = await agent.get("/api/sync/notanumber/languages/");
+  expect(response.status).toBe(400);
+});
+
 test("Get Sync Empty", async () => {
   const agent = plainAgent();
   const response = await agent.get("/api/sync/1594232387331/languages/");
