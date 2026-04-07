@@ -92,6 +92,12 @@ test("unlinkRecursive removes a directory and its contents", () => {
   expect(fs.existsSync(dir)).toBe(false);
 });
 
+test("copyRecursive throws and re-throws for non-existent source", () => {
+  expect(() =>
+    copyRecursive("/nonexistent/does/not/exist/abc123", "/tmp/dest-that-wont-be-created")
+  ).toThrow();
+});
+
 test("setupDesktopStorage creates strings and translations directories", () => {
   setupDesktopStorage();
   expect(fs.existsSync("strings")).toBe(true);
