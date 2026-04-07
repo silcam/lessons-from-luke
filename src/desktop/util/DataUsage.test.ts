@@ -1,5 +1,9 @@
 import { dataUsageReport } from "./DataUsage";
 
+test("DataUsage Log - empty usage returns zero total", () => {
+  expect(dataUsageReport({})).toBe("Total: 0B");
+});
+
 test("DataUsage Log", () => {
   const usage = {
     "2020-10-07": 13457,

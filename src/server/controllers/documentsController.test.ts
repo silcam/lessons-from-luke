@@ -127,3 +127,12 @@ test("Download English lesson with explicit majorityLanguageId", async () => {
   expect(response.status).toBe(200);
   expect(response.type).toBe("application/vnd.oasis.opendocument.text");
 });
+
+test("Download Batanga lesson with majorityLanguageId=0 (single language mode)", async () => {
+  const agent = plainAgent();
+  const response = await agent.get(
+    "/api/languages/3/lessons/11/document?majorityLanguageId=0"
+  );
+  expect(response.status).toBe(200);
+  expect(response.type).toBe("application/vnd.oasis.opendocument.text");
+});

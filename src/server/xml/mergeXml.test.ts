@@ -60,3 +60,17 @@ test("Merge with clearEmptyParagraphs removes empty translated strings", () => {
     mergeXml(odtPath, newOdtPath, withEmpty, { clearEmptyParagraphs: true })
   ).not.toThrow();
 });
+
+test("Merge with clearEmptyParagraphs and non-matching xpath skips gracefully", () => {
+  const docStrings = [
+    {
+      text: "",
+      type: "content" as const,
+      motherTongue: true,
+      xpath: "/nonexistent/xpath/that/will/not/match"
+    }
+  ];
+  expect(() =>
+    mergeXml(odtPath, newOdtPath, docStrings, { clearEmptyParagraphs: true })
+  ).not.toThrow();
+});

@@ -163,6 +163,16 @@ test("POST usfm", async () => {
   await resetStorage();
 });
 
+test("POST usfm with non-existent languageId returns 404", async () => {
+  const agent = await loggedInAgent();
+  const response = await agent
+    .post("/api/admin/languages/99999/usfm")
+    .send({ usfm });
+  expect(response.status).toBe(404);
+
+  await resetStorage();
+});
+
 test("POST usfm with error expected", async () => {
   expect.assertions(2);
   const tweakedUsfm = usfm.replace("\\v 36", "\\v 36-37").replace("\\v 37", "");
