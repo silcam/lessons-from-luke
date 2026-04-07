@@ -34,6 +34,7 @@
     "serve": "NODE_ENV=test nodemon -w dist/server/ dist/server/server.js",
     "run-test-desktop": "nodemon -w dist/desktop/ --exec yarn electron dist/desktop/main-test.js",
     "test": "NODE_ENV=test jest --watchAll --runInBand",
+    "test-coverage": "NODE_ENV=test jest --runInBand --coverage",
     "test-spectron": "jest -c jest.spectron.config.js",
     "test-spectron-deps": "NODE_ENV=test concurrently -k -p \"[{name}]\" -n \"Webpack,Server\" -c \"yellow.bold,blue.bold\" \"yarn wpDevServerDesktop\" \"yarn serve\"",
     "deploy": "bundle exec cap production deploy",

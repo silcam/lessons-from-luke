@@ -10,3 +10,4 @@ node_modules
 /dist-desktop
 .history/
 .sprite
+/coverage
