@@ -1,11 +1,58 @@
-import { unzip, unlinkRecursive } from "./fsUtils";
+import {
+  unzip,
+  unlinkRecursive,
+  unlinkSafe,
+  mkdirSafe,
+  touch,
+  assetsPath,
+  tmpDirPath
+} from "./fsUtils";
+import fs from "fs";
+import path from "path";
 
 const zipPath = "test/docs/serverDocs/Luke-1-01v03.odt";
 const dirPath = "test/docs/serverDocs/Luke-1-01v03.odt_FILES";
 
+const tmpTestDir = "test/tmp-fsutils-test";
+
 afterAll(() => {
   unlinkRecursive(dirPath);
+  unlinkRecursive(tmpTestDir);
 });
+test("assetsPath returns an absolute path containing the dirName", () => {
+  const result = assetsPath("somedir");
+  expect(path.isAbsolute(result)).toBe(true);
+  expect(result).toContain("somedir");
+});
+
+test("tmpDirPath returns an absolute path ending with /tmp", () => {
+  const result = tmpDirPath();
+  expect(path.isAbsolute(result)).toBe(true);
+  expect(result.endsWith("tmp")).toBe(true);
+});
+
+test("unlinkSafe does nothing when file does not exist", () => {
+  expect(() => unlinkSafe("/nonexistent/path/file.txt")).not.toThrow();
+});
+
+test("unlinkSafe removes file when it exists", () => {
+  const tmpFile = "test/tmp-fsutils-unlinkSafe.txt";
+  touch(tmpFile);
+  expect(fs.existsSync(tmpFile)).toBe(true);
+  unlinkSafe(tmpFile);
+  expect(fs.existsSync(tmpFile)).toBe(false);
+});
+
+test("mkdirSafe creates directory when it does not exist", () => {
+  mkdirSafe(tmpTestDir);
+  expect(fs.existsSync(tmpTestDir)).toBe(true);
+});
+
+test("mkdirSafe does not throw when directory already exists", () => {
+  mkdirSafe(tmpTestDir);
+  expect(() => mkdirSafe(tmpTestDir)).not.toThrow();
+});
+
 test("Unzip overwrites", () => {
   unzip(zipPath, dirPath);
   expect(() => {
