@@ -10,6 +10,7 @@ ARG CLAUDE_CODE_VERSION=latest
 RUN apt-get update
 RUN apt-get install -y --no-install-recommends \
     postgresql \
+    zip \
     less \
     git \
     procps \
