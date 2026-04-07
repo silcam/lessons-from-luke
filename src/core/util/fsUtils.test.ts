@@ -6,7 +6,8 @@ import {
   touch,
   assetsPath,
   tmpDirPath,
-  copyRecursive
+  copyRecursive,
+  setupDesktopStorage
 } from "./fsUtils";
 import fs from "fs";
 import path from "path";
@@ -89,4 +90,12 @@ test("unlinkRecursive removes a directory and its contents", () => {
   touch(path.join(dir, "file.txt"));
   unlinkRecursive(dir);
   expect(fs.existsSync(dir)).toBe(false);
+});
+
+test("setupDesktopStorage creates strings and translations directories", () => {
+  setupDesktopStorage();
+  expect(fs.existsSync("strings")).toBe(true);
+  expect(fs.existsSync(path.join("strings", "translations"))).toBe(true);
+  // cleanup
+  unlinkRecursive("strings");
 });
