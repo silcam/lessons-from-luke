@@ -41,22 +41,31 @@ yarn deploy          # Capistrano production deploy
 
 ## Docker Environment
 
-A Docker container provides a Node 12 development environment. To use it:
+A Docker container provides a Node 12 development environment with PostgreSQL. To use it:
 
 ```bash
 # Build and start the container
 docker compose up -d --build
 
-# Run commands inside the container
-docker compose exec claude-container npm install
-docker compose exec claude-container yarn test
+# Install dependencies (use yarn, not npm — npm can cause TypeScript resolution issues)
+docker compose exec claude-container bash -c "cd /workspace && yarn install"
+
+# Run migrations against the test database
+docker compose exec claude-container bash -c "cd /workspace && TEST_DB=true npx migrate up"
+
+# Run tests
+docker compose exec claude-container bash -c "cd /workspace && NODE_ENV=test npx jest --runInBand"
 ```
 
 Key details:
 - The container runs as `linux/amd64` (required — Node 12 native addons like `libxmljs2` have no arm64 pre-built binaries)
 - `NPM_CONFIG_UNSAFE_PERM=true` is set in the Dockerfile to avoid node-gyp permission issues when running as root
 - The workspace is bind-mounted at `/workspace`, so changes are shared between host and container
-- If `node_modules` was previously installed on macOS, delete it before running `npm install` in the container (native addons are platform-specific)
+- If `node_modules` was previously installed on macOS, delete it before running `yarn install` in the container (native addons are platform-specific)
+- The entrypoint starts PostgreSQL and creates both `lessons-from-luke` and `lessons-from-luke-test` databases automatically
+- A `secrets.json` is auto-generated if not present
+- Migrations use `TEST_DB=true` env var to target the test database; they read connection info from `secrets.json`
+- Performance note: tests run under QEMU emulation on Apple Silicon (~80s for the full suite)
 
 ## Architecture
 
