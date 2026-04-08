@@ -80,3 +80,31 @@ describe("legacyTStrings", () => {
     expect(tStrings.length).toBe(2);
   });
 });
+
+describe("legacyStringsDirPath production path", () => {
+  test("uses /var/www/luke-lessons/shared/strings when NODE_ENV is not test", () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    const readFileSpy = jest.spyOn(fs, "readFileSync");
+    try {
+      process.env.NODE_ENV = "production";
+      const mockProjects = [
+        {
+          targetLang: "TestLanguage",
+          datetime: 1234567890,
+          lockCode: "ABC",
+          sourceLang: "Français"
+        }
+      ];
+      readFileSpy.mockReturnValue(
+        Buffer.from(JSON.stringify(mockProjects)) as any
+      );
+      legacyProjects();
+      expect(readFileSpy).toHaveBeenCalledWith(
+        expect.stringContaining("/var/www/luke-lessons/shared/strings")
+      );
+    } finally {
+      process.env.NODE_ENV = originalNodeEnv;
+      readFileSpy.mockRestore();
+    }
+  });
+});

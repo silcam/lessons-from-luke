@@ -4,6 +4,7 @@
  * Tests for the in-memory testStorage implementation.
  * This covers branches that storage.test.ts misses because it runs against PGTestStorage.
  */
+import fs from "fs";
 import storage from "./testStorage";
 import { ENGLISH_ID } from "../../core/models/Language";
 
@@ -228,5 +229,28 @@ describe("saveTStrings with awaitProgress", () => {
     const result = await storage.saveTStrings([newTStr], { awaitProgress: true });
     expect(result).toHaveLength(1);
     expect(result[0].text).toBe("Awaited progress test");
+  });
+});
+
+describe("writeToDisk", () => {
+  test("writes a JSON fixtures file to the storage directory", async () => {
+    const storageDir = __dirname;
+    const beforeFiles = fs.readdirSync(storageDir);
+
+    await storage.writeToDisk!();
+
+    const afterFiles = fs.readdirSync(storageDir);
+    const newFiles = afterFiles.filter(f => !beforeFiles.includes(f));
+    expect(newFiles.length).toBe(1);
+    expect(newFiles[0]).toMatch(/^fixtures-\d+\.json$/);
+
+    fs.unlinkSync(storageDir + "/" + newFiles[0]);
+  });
+});
+
+describe("close", () => {
+  test("resolves to undefined", async () => {
+    const result = await storage.close!();
+    expect(result).toBeUndefined();
   });
 });

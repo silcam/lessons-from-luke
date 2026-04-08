@@ -17,6 +17,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await storage.reset();
   if (USE_PG) (storage as PGTestStorage).close();
 });
 
@@ -506,6 +507,54 @@ test("Sync: tString to Update", async () => {
   expect(syncPackage.tStrings[2]).toHaveLength(0);
 
   await storage.reset();
+});
+
+test("updateProgress silently ignores errors in non-production mode", async () => {
+  if (!(storage instanceof PGTestStorage)) return;
+  const languagesSpy = jest
+    .spyOn(storage as any, "languages")
+    .mockRejectedValue(new Error("DB connection failed"));
+  const consoleSpy = jest.spyOn(console, "error").mockImplementation();
+  try {
+    await (storage as any).updateProgress();
+    expect(consoleSpy).not.toHaveBeenCalled();
+  } finally {
+    languagesSpy.mockRestore();
+    consoleSpy.mockRestore();
+  }
+});
+
+test("updateProgress logs error to console in production mode", async () => {
+  if (!(storage instanceof PGTestStorage)) return;
+  const languagesSpy = jest
+    .spyOn(storage as any, "languages")
+    .mockRejectedValue(new Error("DB connection failed"));
+  const consoleSpy = jest.spyOn(console, "error").mockImplementation();
+  const originalEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = "production";
+  try {
+    await (storage as any).updateProgress();
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Unexpected error while updating progress")
+    );
+  } finally {
+    process.env.NODE_ENV = originalEnv;
+    languagesSpy.mockRestore();
+    consoleSpy.mockRestore();
+  }
+});
+
+test("updateLesson throws when lessonId does not exist", async () => {
+  if (!(storage instanceof PGTestStorage)) return;
+  await expect(
+    (storage as PGTestStorage).updateLesson(99999, 1, [])
+  ).rejects.toBeTruthy();
+});
+
+test("oldLessonStrings without version returns all old strings for lesson", async () => {
+  if (!(storage instanceof PGTestStorage)) return;
+  const result = await (storage as PGTestStorage).oldLessonStrings(11);
+  expect(Array.isArray(result)).toBe(true);
 });
 
 function timeout(ms: number) {

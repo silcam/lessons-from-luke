@@ -1,5 +1,7 @@
 /// <reference types="jest" />
 
+jest.mock("../actions/webifyLesson");
+
 import {
   loggedInAgent,
   plainAgent,
@@ -11,6 +13,7 @@ import { TString } from "../../core/models/TString";
 import { DocString } from "../../core/models/DocString";
 import { unlinkSafe } from "../../core/util/fsUtils";
 import { findByStrict } from "../../core/util/arrayUtils";
+import webifyLesson from "../actions/webifyLesson";
 
 beforeAll(resetStorage);
 afterAll(async () => {
@@ -75,6 +78,22 @@ test("GET nonexistant Lesson HTML", async () => {
   const agent = plainAgent();
   const response = await agent.get("/api/lessons/12/webified");
   expect(response.status).toBe(404);
+});
+
+test("GET Lesson HTML triggers webifyLesson in production mode", async () => {
+  const mockWebify = webifyLesson as unknown as jest.Mock;
+  const originalNodeEnv = process.env.NODE_ENV;
+  try {
+    process.env.NODE_ENV = "production";
+    mockWebify.mockReset();
+    const agent = plainAgent();
+    const response = await agent.get("/api/lessons/12/webified");
+    expect(response.status).toBe(404);
+    expect(mockWebify).toHaveBeenCalledTimes(1);
+  } finally {
+    process.env.NODE_ENV = originalNodeEnv;
+    mockWebify.mockReset();
+  }
 });
 
 test("Update Lesson 2", async () => {

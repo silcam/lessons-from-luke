@@ -92,6 +92,10 @@ test("unlinkRecursive removes a directory and its contents", () => {
   expect(fs.existsSync(dir)).toBe(false);
 });
 
+test("unlinkRecursive does nothing when path does not exist", () => {
+  expect(() => unlinkRecursive("/nonexistent/path/fsutils-test-xyz")).not.toThrow();
+});
+
 test("copyRecursive throws and re-throws for non-existent source", () => {
   expect(() =>
     copyRecursive("/nonexistent/does/not/exist/abc123", "/tmp/dest-that-wont-be-created")

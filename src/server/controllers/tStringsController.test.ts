@@ -7,6 +7,7 @@ import supertest = require("supertest");
 import { WithCode } from "../../core/models/Language";
 import { unset } from "../../core/util/objectUtils";
 
+beforeAll(resetStorage);
 afterAll(closeStorage);
 
 test("Get TStrings", async () => {
