@@ -1,57 +1,56 @@
 /// <reference types="jest" />
 
+import fs from "fs";
+import path from "path";
 import { loggedInAgent } from "../testHelper";
+import { mkdirSafe, unlinkRecursive } from "../../core/util/fsUtils";
 
-// Don't really need these anymore
+jest.setTimeout(60000);
 
-test.skip("Get legacy Project list", async () => {
-  const agent = await loggedInAgent();
-  const response = await agent.get("/api/admin/legacy/projects");
-  expect(response.status).toBe(200);
-  expect(response.body[1]).toMatchObject({
-    targetLang: "Iyasa",
-    datetime: 1566208871245,
-    sourceLang: "Français"
+const stringsDir = path.join(process.cwd(), "strings");
+
+describe("migrationController with mock legacy data", () => {
+  beforeAll(() => {
+    const projectsJsonPath = path.join(stringsDir, "projects.json");
+    const translationsDir = path.join(stringsDir, "translations");
+    const projectDir = path.join(translationsDir, "TestLang_1000000000");
+
+    mkdirSafe(stringsDir);
+    mkdirSafe(translationsDir);
+    mkdirSafe(projectDir);
+    fs.writeFileSync(projectsJsonPath, JSON.stringify([
+      { targetLang: "TestLang", datetime: 1000000000, lockCode: "XYZ", sourceLang: "Fran\u00e7ais" }
+    ]));
+    // Use only scripture strings (starting with "Luc N") — stripScripture filters them all out,
+    // so bestMatches is never called, avoiding slow compareTwoStrings computation
+    fs.writeFileSync(path.join(projectDir, "lesson.json"), JSON.stringify([
+      { xpath: "/a/b/c", src: "Luc 1:1 Le livre de Luc", targetText: "Luke 1:1 text" },
+      { xpath: "/a/b/d", src: "Luc 2:3 Other verse", targetText: "Other target" }
+    ]));
+  });
+
+  afterAll(() => {
+    unlinkRecursive(stringsDir);
+  });
+
+  test("GET /api/admin/legacy/projects returns French-sourced projects", async () => {
+    const agent = await loggedInAgent();
+    const response = await agent.get("/api/admin/legacy/projects");
+    expect(response.status).toBe(200);
+    expect(response.body.length).toBeGreaterThan(0);
+  });
+
+  test("GET /api/admin/legacy/project/:datetime returns matched strings (scripture-only = empty)", async () => {
+    const agent = await loggedInAgent();
+    const response = await agent.get("/api/admin/legacy/project/1000000000");
+    expect(response.status).toBe(200);
+    expect(response.body.exactLegacyStrings).toEqual([]);
+    expect(response.body.legacyStrings).toEqual([]);
+  });
+
+  test("GET /api/admin/legacy/project/:datetime returns 404 for non-existent project", async () => {
+    const agent = await loggedInAgent();
+    const response = await agent.get("/api/admin/legacy/project/9999999999");
+    expect(response.status).toBe(404);
   });
 });
-
-// Long test ~13 seconds
-test.skip("Get legacy project", async () => {
-  const agent = await loggedInAgent();
-  const response = await agent.get("/api/admin/legacy/project/1566208871245");
-  expect(response.status).toBe(200);
-  expect(response.body.exactLegacyStrings.length).toBe(57);
-  expect(response.body.exactLegacyStrings[0]).toEqual({
-    id: 1,
-    mtString: true,
-    src: "Le livre de Luc et la naissance de Jean Baptiste",
-    targetText: "Kálati a Lúkasi na ijáwɛ já Yowanɛ́si mobatiini",
-    xpath:
-      "/office:document-content/office:body/office:text/table:table[1]/table:table-row/table:table-cell[2]/text:p[1]/text()",
-    matches: [
-      {
-        history: [],
-        languageId: 2,
-        masterId: 2,
-        text: "Le livre de Luc et la naissance de Jean Baptiste"
-      }
-    ]
-  });
-  expect(response.body.legacyStrings.length).toBe(55);
-  expect(response.body.legacyStrings[0]).toMatchObject({
-    id: 32,
-    mtString: true,
-    src: "Qu'est ce que Dieu a fait pour toi?",
-    targetText: "Endéndí a Anyámbɛ á sá éaláev̀ɛ?",
-    xpath:
-      "/office:document-content/office:body/office:text/text:list[2]/text:list-item/text:p/text()[1]"
-  });
-  expect(response.body.legacyStrings[0].matches[0]).toEqual({
-    history: [],
-    languageId: 2,
-    masterId: 7376,
-    text: "Va et raconte à quelqu'un ce que Dieu a fait pour toi."
-  });
-
-  // expect(response.legacy)
-}, 15000);
