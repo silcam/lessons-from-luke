@@ -4,5 +4,12 @@ module.exports = {
   testPathIgnorePatterns: ["/node_modules/", "<rootDir>/test/", "<rootDir>/cypress/"],
   watchPathIgnorePatterns: ["strings", "old", "cypress"],
   globalSetup: "<rootDir>/src/server/jestGlobalSetup.ts",
-  forceExit: true
+  forceExit: true,
+  collectCoverageFrom: [
+    "src/**/*.ts",
+    "!src/**/*.test.ts",
+    "!src/frontend/**",
+    "!src/desktop/main*.ts",
+    "!src/desktop/DesktopApp.ts"
+  ]
 };

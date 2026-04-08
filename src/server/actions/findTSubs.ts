@@ -1,7 +1,7 @@
 import { Persistence } from "../../core/interfaces/Persistence";
 import { LessonString } from "../../core/models/LessonString";
 import { Change, diffLines } from "diff";
-import { lessonName, BaseLesson } from "../../core/models/Lesson";
+import { lessonName } from "../../core/models/Lesson";
 import { uniq, all } from "../../core/util/arrayUtils";
 import { ENGLISH_ID } from "../../core/models/Language";
 import { TString } from "../../core/models/TString";
@@ -49,15 +49,6 @@ export default async function findTSubs(
   }
   finalTSubs.sort(sortTSubs);
   return finalTSubs;
-}
-
-function oldLessonDiffs(lessons: BaseLesson[], diffs: LessonDiff[]) {
-  const outOfDate: BaseLesson[] = [];
-  lessons.forEach(lesson => {
-    const diff = diffs.find(diff => diff.lessonId == lesson.lessonId);
-    if (!diff || diff.version != lesson.version) outOfDate.push(lesson);
-  });
-  return outOfDate;
 }
 
 function combineLessonDiffs(diffs: LessonDiff[]) {
