@@ -1,0 +1,66 @@
+name: Test Suite
+
+on:
+  push:
+    branches: [main, master, "feature/**"]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: "12"
+
+      - name: Install dependencies
+        run: yarn install
+
+      - name: Set up PostgreSQL user and databases
+        run: |
+          PGPASSWORD=postgres psql -U postgres -h localhost -c "CREATE USER \"lessons-from-luke\" WITH PASSWORD 'lessons-from-luke';"
+          PGPASSWORD=postgres psql -U postgres -h localhost -c "CREATE DATABASE \"lessons-from-luke\" OWNER \"lessons-from-luke\";"
+          PGPASSWORD=postgres psql -U postgres -h localhost -c "CREATE DATABASE \"lessons-from-luke-test\" OWNER \"lessons-from-luke\";"
+
+      - name: Run migrations (test DB)
+        run: TEST_DB=true npx migrate up
+        env:
+          NODE_ENV: test
+
+      - name: Run tests (default order)
+        run: yarn test:once
+        env:
+          NODE_ENV: test
+
+      - name: Run tests (reverse order)
+        run: yarn test:reverse
+        env:
+          NODE_ENV: test
+
+      - name: Run tests (random order x3)
+        run: |
+          for i in 1 2 3; do
+            echo "--- Randomized run $i of 3 ---"
+            yarn test:random
+          done
+        env:
+          NODE_ENV: test
