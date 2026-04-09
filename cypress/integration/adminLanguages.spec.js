@@ -1,8 +1,4 @@
 describe("Admin Languages", () => {
-  before(() => {
-    cy.loadFixtures();
-  });
-
   beforeEach(cy.login);
 
   it("Adds a language", () => {
