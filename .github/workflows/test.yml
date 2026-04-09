@@ -10,6 +10,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    container:
+      image: node:12.22.12-bullseye
 
     services:
       postgres:
@@ -23,24 +25,45 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-        ports:
-          - 5432:5432
 
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-node@v3
-        with:
-          node-version: "12"
+      - name: Install PostgreSQL client
+        run: apt-get update -qq && apt-get install -y --no-install-recommends postgresql-client
 
       - name: Install dependencies
         run: yarn install
+        env:
+          NPM_CONFIG_UNSAFE_PERM: "true"
 
       - name: Set up PostgreSQL user and databases
         run: |
-          PGPASSWORD=postgres psql -U postgres -h localhost -c "CREATE USER \"lessons-from-luke\" WITH PASSWORD 'lessons-from-luke';"
-          PGPASSWORD=postgres psql -U postgres -h localhost -c "CREATE DATABASE \"lessons-from-luke\" OWNER \"lessons-from-luke\";"
-          PGPASSWORD=postgres psql -U postgres -h localhost -c "CREATE DATABASE \"lessons-from-luke-test\" OWNER \"lessons-from-luke\";"
+          PGPASSWORD=postgres psql -U postgres -h postgres -c "CREATE USER \"lessons-from-luke\" WITH PASSWORD 'lessons-from-luke';"
+          PGPASSWORD=postgres psql -U postgres -h postgres -c "CREATE DATABASE \"lessons-from-luke\" OWNER \"lessons-from-luke\";"
+          PGPASSWORD=postgres psql -U postgres -h postgres -c "CREATE DATABASE \"lessons-from-luke-test\" OWNER \"lessons-from-luke\";"
+
+      - name: Create secrets.json
+        run: |
+          cat > secrets.json << 'EOF'
+          {
+            "cookieSecret": "test-secret",
+            "adminUsername": "chris",
+            "adminPassword": "yo",
+            "db": {
+              "host": "postgres",
+              "database": "lessons-from-luke",
+              "username": "lessons-from-luke",
+              "password": "lessons-from-luke"
+            },
+            "testDb": {
+              "host": "postgres",
+              "database": "lessons-from-luke-test",
+              "username": "lessons-from-luke",
+              "password": "lessons-from-luke"
+            }
+          }
+          EOF
 
       - name: Run migrations (test DB)
         run: TEST_DB=true npx migrate up
