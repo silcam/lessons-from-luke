@@ -1,14 +1,12 @@
 /// <reference types="jest" />
 
-import { plainAgent, resetStorage, closeStorage } from "../testHelper";
+import { plainAgent } from "../testHelper";
 import { TString } from "../../core/models/TString";
 import { SuperTest } from "supertest";
 import supertest = require("supertest");
 import { WithCode } from "../../core/models/Language";
 import { unset } from "../../core/util/objectUtils";
 
-beforeAll(resetStorage);
-afterAll(closeStorage);
 
 test("Get TStrings", async () => {
   expect.assertions(3);
@@ -115,8 +113,6 @@ test("Save TString - new string", async () => {
   expect(response.status).toBe(200);
   expect(response.body[0]).toEqual(tString);
   expect(await batangaTStringCount(agent)).toBe(4);
-
-  await resetStorage();
 });
 
 test("Save TString - updated string", async () => {
@@ -142,8 +138,6 @@ test("Save TString - updated string", async () => {
     history: ["Njambɛ abowandi mahaleya mahu."]
   });
   expect(await batangaTStringCount(agent)).toBe(3);
-
-  await resetStorage();
 });
 
 test("Save TString - blank text", async () => {
@@ -167,8 +161,6 @@ test("Save TString - blank text", async () => {
     history: ["Njambɛ abowandi mahaleya mahu."]
   });
   expect(await batangaTStringCount(agent)).toBe(3);
-
-  await resetStorage();
 });
 
 test("Get TStrings by master ids - invalid languageId returns 400", async () => {

@@ -4,6 +4,7 @@ module.exports = {
   testPathIgnorePatterns: ["/node_modules/", "<rootDir>/test/", "<rootDir>/cypress/"],
   watchPathIgnorePatterns: ["strings", "old", "cypress"],
   globalSetup: "<rootDir>/src/server/jestGlobalSetup.ts",
+  setupFilesAfterEnv: ["<rootDir>/src/server/jestSetupAfterEnv.ts"],
   forceExit: true,
   collectCoverageFrom: [
     "src/**/*.ts",

@@ -10,15 +10,16 @@ import tStringsController from "./controllers/tStringsController";
 import testController from "./controllers/testController";
 import documentsController from "./controllers/documentsController";
 import PGStorage, { PGTestStorage } from "./storage/PGStorage";
+import { Persistence } from "../core/interfaces/Persistence";
 import docStorage from "./storage/docStorage";
 import migrationController from "./controllers/migrationController";
 import syncController from "./controllers/syncController";
 
 const PRODUCTION = process.env.NODE_ENV == "production";
 
-function serverApp(opts: { silent?: boolean } = {}) {
+function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   const app = express();
-  const storage = PRODUCTION ? new PGStorage() : new PGTestStorage();
+  const storage = opts.storage ?? (PRODUCTION ? new PGStorage() : new PGTestStorage());
 
   app.use(cookieSession({ secret: secrets.cookieSecret }));
   app.use(bodyParser.json({ limit: "2MB" }));

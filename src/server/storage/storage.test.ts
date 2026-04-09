@@ -10,16 +10,7 @@ import { findBy, findByStrict } from "../../core/util/arrayUtils";
 import { USE_PG } from "../testHelper";
 
 let storage: TestPersistence;
-storage = USE_PG ? new PGTestStorage() : testStorage;
-
-beforeAll(async () => {
-  await storage.reset();
-});
-
-afterAll(async () => {
-  await storage.reset();
-  if (USE_PG) (storage as PGTestStorage).close();
-});
+storage = USE_PG ? (global as any).testStorage : testStorage;
 
 test("Get languages", async () => {
   const languages = await storage.languages();
@@ -76,7 +67,7 @@ test("Create Language", async () => {
   expect(german.languageId).toBeGreaterThan(3);
   expect(german.code.length).toBeGreaterThan(3);
 
-  await storage.reset();
+
 });
 
 test("Update Language", async () => {
@@ -95,7 +86,7 @@ test("Update Language", async () => {
     progress: 5 // Was 6
   });
 
-  await storage.reset();
+
 });
 
 test("Invalid Code - valid", async () => {
@@ -167,7 +158,7 @@ test("Create Lesson", async () => {
   const english = await storage.language({ languageId: ENGLISH_ID });
   expect(english!.progress.length).toBe(5); // The new one doesn't count since it has no strings
 
-  await storage.reset();
+
 });
 
 test("Update Lesson", async () => {
@@ -209,7 +200,7 @@ test("Update Lesson", async () => {
     progress: 100
   });
 
-  await storage.reset();
+
 });
 
 test("Get TStrings by Language", async () => {
@@ -310,7 +301,7 @@ test("Save TStrings", async () => {
   batanga = await storage.language({ languageId: 3 });
   expect(batanga!.progress[0]).toEqual({ lessonId: 11, progress: 4 });
 
-  await storage.reset();
+
 });
 
 test("Save TStrings - duplicate masters in input", async () => {
@@ -327,7 +318,7 @@ test("Save TStrings - duplicate masters in input", async () => {
   const tStrings = await storage.saveTStrings(newTStrings);
   expect(tStrings.length).toBe(1);
 
-  await storage.reset();
+
 });
 
 test("Don't resave if new text is the same", async () => {
@@ -361,7 +352,7 @@ test("Save TStrings progress", async () => {
   const batanga = await storage.language({ languageId: 3 });
   expect(batanga!.progress[0]).toEqual({ lessonId: 11, progress: 23 }); // Was 6
 
-  await storage.reset();
+
 });
 
 test("Add or Find Master Strings", async () => {
@@ -384,7 +375,7 @@ test("Add or Find Master Strings", async () => {
   expect(tStrings[1].masterId).toBeGreaterThan(653);
   expect((await storage.tStrings({ languageId: ENGLISH_ID })).length).toBe(655);
 
-  await storage.reset();
+
 });
 
 test("Don't add duplicate master strings!", async () => {
@@ -446,7 +437,7 @@ test("Sync: new language", async () => {
   const syncPackage = await storage.sync(syncTimestamp, []);
   expect(syncPackage.languages).toBe(true);
 
-  await storage.reset();
+
 });
 
 test("Sync: new lesson", async () => {
@@ -457,7 +448,7 @@ test("Sync: new lesson", async () => {
   const syncPackage = await storage.sync(syncTimestamp, []);
   expect(syncPackage.baseLessons).toBe(true);
 
-  await storage.reset();
+
 });
 
 test("Sync: Updated lesson", async () => {
@@ -476,7 +467,7 @@ test("Sync: Updated lesson", async () => {
   const syncPackage = await storage.sync(syncTimestamp, []);
   expect(syncPackage.lessons).toEqual([11]);
 
-  await storage.reset();
+
 });
 
 test("Sync: tString to Update", async () => {
@@ -506,7 +497,7 @@ test("Sync: tString to Update", async () => {
   expect(syncPackage.tStrings[3]).toContain(19);
   expect(syncPackage.tStrings[2]).toHaveLength(0);
 
-  await storage.reset();
+
 });
 
 test("updateProgress silently ignores errors in non-production mode", async () => {

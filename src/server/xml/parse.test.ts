@@ -3,7 +3,6 @@ import libxmljs2 from "libxmljs2";
 import { extractNamespaces } from "./mergeXml";
 import docStorage from "../storage/docStorage";
 import { saveDocStrings, parseDocStrings } from "../actions/updateLesson";
-import { PGTestStorage } from "../storage/PGStorage";
 import { ENGLISH_ID } from "../../core/models/Language";
 
 const odtPath = process.cwd() + "/cypress/fixtures/English_Luke-Q1-L06.odt";
@@ -96,7 +95,7 @@ test("Verify modified styles are parsed", async () => {
   expect(allStrings).toContain("MT_coloring_page_memory_verse");
   expect(allStrings).toContain("INVISIBLE");
 
-  let storage = new PGTestStorage();
+  let storage = (global as any).testStorage;
   let newLesson = await storage.lesson(12);
   expect(newLesson).not.toBe(null);
 
