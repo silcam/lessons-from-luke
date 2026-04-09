@@ -15,9 +15,20 @@ module.exports = {
     "!src/desktop/DesktopApp.ts",
     "!src/desktop/DesktopAPIServer.ts",
     "!src/desktop/WebAPIClientForDesktop.ts",
+    "!src/desktop/LocalStorage.ts",
     "!src/desktop/controllers/**",
     "!src/desktop/localFixtures/**",
     "!src/server/tasks/**",
-    "!src/server/server.ts"
-  ]
+    "!src/server/server.ts",
+    "!src/server/testHelper.ts",
+    "!src/server/util/sampleSecrets.ts"
+  ],
+  coverageThreshold: {
+    global: {
+      branches: 95,
+      functions: 95,
+      lines: 95,
+      statements: 95
+    }
+  }
 };

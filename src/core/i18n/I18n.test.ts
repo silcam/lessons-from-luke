@@ -36,6 +36,11 @@ describe("tForLocale", () => {
     const result = t("Save");
     expect(typeof result).toBe("string");
   });
+
+  test("substitutes %{key} placeholders in translation strings", () => {
+    const t = tForLocale("en");
+    expect(t("serverError", { status: "500" })).toBe("Server Error 500");
+  });
 });
 
 describe("localeByLanguageId", () => {

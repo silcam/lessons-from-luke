@@ -32,6 +32,11 @@ describe("downSyncProgress", () => {
     expect(downSyncProgress(baseDownSync, 2, 2000)).toBe(100);
   });
 
+  test("returns 100 when languages flag is set but no actual work pending", () => {
+    const downSync: ContinuousSyncPackage = { ...baseDownSync, languages: true };
+    expect(downSyncProgress(downSync, 2, 2000)).toBe(100);
+  });
+
   test("returns less than 100 when lessons are pending", () => {
     const downSync: ContinuousSyncPackage = { ...baseDownSync, lessons: [1] };
     // totalRequests = 2*2 + 2000/1000 = 6; neededRequests = 1*2 = 2

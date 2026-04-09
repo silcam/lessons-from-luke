@@ -1,6 +1,6 @@
 /// <reference types="jest" />
 
-import { webGet, webPost } from "./WebAPIClient";
+import { webGet, webPost, postFile } from "./WebAPIClient";
 
 jest.mock("axios");
 import Axios from "axios";
@@ -95,5 +95,50 @@ describe("webPost", () => {
     await expect(
       webPost("/api/tStrings", {}, { code: "ABC", tStrings: [] })
     ).rejects.toMatchObject({ type: "HTTP", status: 500 });
+  });
+});
+
+describe("postFile", () => {
+  let mockSet: jest.Mock;
+
+  beforeEach(() => {
+    mockSet = jest.fn();
+    (global as any).FormData = jest.fn(() => ({ set: mockSet }));
+  });
+
+  afterEach(() => {
+    delete (global as any).FormData;
+  });
+
+  test("posts file with form data and returns response data", async () => {
+    mockedAxios.post.mockResolvedValueOnce({
+      data: { uploaded: true },
+      headers: {}
+    } as any);
+
+    const mockFile = {} as File;
+    const result = await postFile("/api/documents", "file", mockFile, {
+      lessonId: 1
+    });
+
+    expect(result).toEqual({ uploaded: true });
+    expect(mockSet).toHaveBeenCalledWith("lessonId", 1);
+    expect(mockSet).toHaveBeenCalledWith("file", mockFile);
+    expect(mockedAxios.post).toHaveBeenCalledWith(
+      "/api/documents",
+      expect.objectContaining({ set: mockSet }),
+      { headers: { "Content-Type": "multipart/form-data" } }
+    );
+  });
+
+  test("throws AppError when upload fails", async () => {
+    mockedAxios.post.mockRejectedValueOnce({
+      request: {},
+      response: { status: 422 }
+    });
+
+    await expect(
+      postFile("/api/documents", "file", {} as File, {})
+    ).rejects.toMatchObject({ type: "HTTP", status: 422 });
   });
 });
