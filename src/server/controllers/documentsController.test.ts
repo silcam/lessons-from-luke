@@ -107,21 +107,31 @@ test("Download Batanga Lesson", async () => {
   expect(response.type).toBe("application/vnd.oasis.opendocument.text");
 });
 
-// Realistically this test doesn't add anything at the moment
-test.skip("Download French Standard Lesson", async () => {
+test("Download document returns 404 for non-existent lesson", async () => {
+  const agent = plainAgent();
+  const response = await agent.get("/api/languages/1/lessons/99999/document");
+  expect(response.status).toBe(404);
+});
+
+test("Download document returns 404 for non-existent language", async () => {
+  const agent = plainAgent();
+  const response = await agent.get("/api/languages/99999/lessons/11/document");
+  expect(response.status).toBe(404);
+});
+
+test("Download English lesson with explicit majorityLanguageId", async () => {
   const agent = plainAgent();
   const response = await agent.get(
-    "/api/languages/2/lessons/11/document?majorityLanguageId=2"
+    "/api/languages/1/lessons/12/document?majorityLanguageId=1"
   );
   expect(response.status).toBe(200);
   expect(response.type).toBe("application/vnd.oasis.opendocument.text");
 });
 
-// Realistically this test doesn't add anything at the moment
-test.skip("Download French Single Language Lesson", async () => {
+test("Download Batanga lesson with majorityLanguageId=0 (single language mode)", async () => {
   const agent = plainAgent();
   const response = await agent.get(
-    "/api/languages/2/lessons/11/document?majorityLanguageId=0"
+    "/api/languages/3/lessons/11/document?majorityLanguageId=0"
   );
   expect(response.status).toBe(200);
   expect(response.type).toBe("application/vnd.oasis.opendocument.text");

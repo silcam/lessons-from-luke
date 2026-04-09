@@ -1,6 +1,6 @@
 /// <reference types="jest" />
 
-import { randInt, zeroPad, sum, average } from "./numberUtils";
+import { randInt, zeroPad, sum, average, percent } from "./numberUtils";
 
 test("Random Int", () => {
   const num = randInt(5);
@@ -22,4 +22,11 @@ test("Sum", () => {
 test("Average", () => {
   expect(average([])).toBe(0);
   expect(average([4, 5, 6])).toBe(5);
+});
+
+test("percent", () => {
+  expect(percent(0, 0)).toBe(0);
+  expect(percent(1, 4)).toBe(25);
+  expect(percent(3, 4)).toBe(75);
+  expect(percent(0, 10)).toBe(0);
 });

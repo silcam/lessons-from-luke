@@ -32,6 +32,8 @@ test("Validate: Several invalid", () => {
   expect(validateFields({ a: "1" }, ["b", "string"] as any)).toBe(false);
   expect(validateFields({ a: [1] }, ["a", "string[]"] as any)).toBe(false);
   expect(validateFields({ a: [1] }, ["b", "string[]"] as any)).toBe(false);
+  // Use proper field tuple array to reach the string[] non-string element branch
+  expect(validateFields({ a: [1] }, [["a", "string[]"]] as any)).toBe(false);
   expect(
     validateFields({ a: 1, b: 2, c: "3" }, [
       ["a", "number"],

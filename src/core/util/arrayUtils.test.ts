@@ -2,6 +2,11 @@
 
 import {
   last,
+  findBy,
+  findIndexBy,
+  findByStrict,
+  set,
+  unset,
   modelListMerge,
   discriminate,
   uniq,
@@ -9,6 +14,46 @@ import {
   insertSorted,
   all
 } from "./arrayUtils";
+
+test("findIndexBy finds item by key", () => {
+  const items = [{ id: 1, name: "a" }, { id: 2, name: "b" }];
+  expect(findIndexBy(items, "id", 2)).toBe(1);
+  expect(findIndexBy(items, "id", 99)).toBe(-1);
+});
+
+test("findByStrict returns item when found", () => {
+  const items = [{ id: 1 }, { id: 2 }];
+  expect(findByStrict(items, "id", 1)).toEqual({ id: 1 });
+});
+
+test("findByStrict throws when not found", () => {
+  const items = [{ id: 1 }];
+  expect(() => findByStrict(items, "id", 99)).toThrow("findByStrict");
+});
+
+test("set adds item when not already in list", () => {
+  const list = ["a", "b"];
+  set(list, "c");
+  expect(list).toEqual(["a", "b", "c"]);
+});
+
+test("set does not add duplicate item", () => {
+  const list = ["a", "b"];
+  set(list, "a");
+  expect(list).toEqual(["a", "b"]);
+});
+
+test("unset removes item when found", () => {
+  const list = ["a", "b", "c"];
+  unset(list, "b");
+  expect(list).toEqual(["a", "c"]);
+});
+
+test("unset does nothing when item not found", () => {
+  const list = ["a", "b"];
+  unset(list, "z");
+  expect(list).toEqual(["a", "b"]);
+});
 
 test("last", () => {
   expect(last([1, 2, 3])).toBe(3);
@@ -25,6 +70,22 @@ test("modelListMerge", () => {
     { id: "3" }
   ];
   expect(modelListMerge(a, b, (a, b) => a.id == b.id)).toEqual(out);
+});
+
+test("modelListMerge with sort function", () => {
+  const a = [{ id: "3" }, { id: "1" }];
+  const b = [{ id: "2" }];
+  const result = modelListMerge(
+    a, b,
+    (a, b) => a.id == b.id,
+    (a, b) => a.id.localeCompare(b.id)
+  );
+  expect(result.map(x => x.id)).toEqual(["1", "2", "3"]);
+});
+
+test("modelListMerge returns aList when bList is empty", () => {
+  const a = [{ id: "1" }];
+  expect(modelListMerge(a, [], (a, b) => a.id == b.id)).toEqual(a);
 });
 
 test("discriminate", () => {

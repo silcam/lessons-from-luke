@@ -7,6 +7,7 @@ import supertest = require("supertest");
 import { WithCode } from "../../core/models/Language";
 import { unset } from "../../core/util/objectUtils";
 
+beforeAll(resetStorage);
 afterAll(closeStorage);
 
 test("Get TStrings", async () => {
@@ -168,6 +169,36 @@ test("Save TString - blank text", async () => {
   expect(await batangaTStringCount(agent)).toBe(3);
 
   await resetStorage();
+});
+
+test("Get TStrings by master ids - invalid languageId returns 400", async () => {
+  const agent = plainAgent();
+  const response = await agent.get("/api/languages/0/tStrings/1,3");
+  expect(response.status).toBe(400);
+});
+
+test("Get TStrings by master ids - invalid masterId in list returns 400", async () => {
+  const agent = plainAgent();
+  const response = await agent.get("/api/languages/3/tStrings/1,abc");
+  expect(response.status).toBe(400);
+});
+
+test("Save TString - invalid tString object returns 422", async () => {
+  const agent = plainAgent();
+  const response = await agent.post("/api/tStrings").send({
+    code: "GHI",
+    tStrings: [{ masterId: "not-a-number", text: 42 }]
+  });
+  expect(response.status).toBe(422);
+});
+
+test("Save TString - empty tStrings array returns 422", async () => {
+  const agent = plainAgent();
+  const response = await agent.post("/api/tStrings").send({
+    code: "GHI",
+    tStrings: []
+  });
+  expect(response.status).toBe(422);
 });
 
 // test("Save TString - Exception to Master", async () => {

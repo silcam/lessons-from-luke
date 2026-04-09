@@ -40,3 +40,37 @@ test("Merge preserve spaces", () => {
   const newXml = docStorage.docXml(newOdtPath).content;
   expect(newXml).toContain(`${sample} <`);
 });
+
+test("Merge skips translations with non-matching xpaths", () => {
+  const docStrings = parse(xmls.content, "content").map(ds => ({
+    ...ds,
+    xpath: "/nonexistent/path/that/will/not/match"
+  }));
+  // Should not throw even when no elements match
+  expect(() => mergeXml(odtPath, newOdtPath, docStrings)).not.toThrow();
+});
+
+test("Merge with clearEmptyParagraphs removes empty translated strings", () => {
+  const docStrings = parse(xmls.content, "content");
+  // Set first docString text to empty to trigger removeParagraph path
+  const withEmpty = docStrings.map((ds, i) =>
+    i === 0 ? { ...ds, text: "" } : ds
+  );
+  expect(() =>
+    mergeXml(odtPath, newOdtPath, withEmpty, { clearEmptyParagraphs: true })
+  ).not.toThrow();
+});
+
+test("Merge with clearEmptyParagraphs and non-matching xpath skips gracefully", () => {
+  const docStrings = [
+    {
+      text: "",
+      type: "content" as const,
+      motherTongue: true,
+      xpath: "/nonexistent/xpath/that/will/not/match"
+    }
+  ];
+  expect(() =>
+    mergeXml(odtPath, newOdtPath, docStrings, { clearEmptyParagraphs: true })
+  ).not.toThrow();
+});
