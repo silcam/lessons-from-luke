@@ -26,9 +26,11 @@
 
 import "cypress-file-upload";
 
-Cypress.Commands.add("loadFixtures", () =>
-  cy.request("POST", "/api/test/reset-storage")
+Cypress.Commands.add("resetDatabase", () =>
+  cy.request({ method: "POST", url: "/api/test/reset-storage", timeout: 30000 })
 );
+
+Cypress.Commands.add("loadFixtures", () => cy.resetDatabase());
 
 Cypress.Commands.add("login", () =>
   cy.request("POST", "/api/users/login", { username: "chris", password: "yo" })

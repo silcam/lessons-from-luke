@@ -406,7 +406,7 @@ function testDbConnect() {
   return postgres(opts);
 }
 
-function transformCol(col: string) {
+export function transformCol(col: string) {
   const cols = [
     "languageId",
     "motherTongue",

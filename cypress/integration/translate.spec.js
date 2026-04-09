@@ -1,6 +1,4 @@
 describe("Translate", () => {
-  before(cy.loadFixtures);
-
   it("Handles bad codes", () => {
     cy.visit("/translate/NOPEDYNOPE");
     cy.contains(

@@ -1,9 +1,6 @@
 /// <reference types="jest" />
 
-import { plainAgent, closeStorage, resetStorage } from "../testHelper";
-
-beforeAll(resetStorage);
-afterAll(closeStorage);
+import { plainAgent } from "../testHelper";
 
 test("Get Sync - invalid timestamp returns 400", async () => {
   const agent = plainAgent();

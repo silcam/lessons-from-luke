@@ -2,8 +2,6 @@
 
 import {
   loggedInAgent,
-  resetStorage,
-  closeStorage,
   plainAgent
 } from "../testHelper";
 import { ENGLISH_ID } from "../../core/models/Language";
@@ -12,9 +10,8 @@ import { LessonString } from "../../core/models/LessonString";
 import { TString } from "../../core/models/TString";
 import { unlinkSafe } from "../../core/util/fsUtils";
 
-afterAll(async () => {
+afterAll(() => {
   unlinkSafe("test/docs/serverDocs/Luke-1-06v01.odt");
-  await closeStorage();
 });
 
 test("Upload new English Lesson", async () => {
@@ -57,7 +54,6 @@ test("Upload new English Lesson", async () => {
     )
   ).toEqual([]);
 
-  await resetStorage();
 });
 
 test("Upload French version", async () => {
@@ -90,7 +86,6 @@ test("Upload French version", async () => {
     text: "The Book of Luke and the Birth of John the Baptizer"
   });
 
-  await resetStorage();
 });
 
 test("Download English Lesson", async () => {

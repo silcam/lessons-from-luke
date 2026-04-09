@@ -4,7 +4,7 @@ import secrets from "./util/secrets";
 
 export const USE_PG = true;
 
-const app = serverApp({ silent: true });
+const app = serverApp({ silent: true, storage: (global as any).testStorage });
 
 export async function loggedInAgent() {
   const agent = request.agent(app);
@@ -27,5 +27,5 @@ export async function resetStorage() {
 }
 
 export async function closeStorage() {
-  return plainAgent().post("/api/test/close-storage");
+  // Storage lifecycle is managed by jestSetupAfterEnv.ts
 }

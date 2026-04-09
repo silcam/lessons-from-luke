@@ -1,6 +1,4 @@
 describe("Translate Fallback", () => {
-  before(cy.loadFixtures);
-
   it("Changes sources", () => {
     cy.visit("/translate/GHI");
     cy.contains("Luke 1-2").click();

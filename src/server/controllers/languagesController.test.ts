@@ -2,9 +2,7 @@
 
 import {
   plainAgent,
-  loggedInAgent,
-  resetStorage,
-  closeStorage
+  loggedInAgent
 } from "../testHelper";
 import {
   isLanguage,
@@ -16,7 +14,6 @@ import { findByStrict } from "../../core/util/arrayUtils";
 
 const usfm = fs.readFileSync("cypress/fixtures/43LUKBMO.SFM").toString();
 
-afterAll(closeStorage);
 
 test("Public Languages", async () => {
   const agent = plainAgent();
@@ -125,7 +122,6 @@ test("POST update language mother tongue status", async () => {
   expect(batanga.motherTongue).toBe(false);
   expect(batanga.progress[0].progress).toBe(5); // Was 6
 
-  await resetStorage();
 });
 
 test("POST update language defaultSrcLang", async () => {
@@ -160,7 +156,6 @@ test("POST usfm", async () => {
       "Luka 1:13 Ndɔ ŋgaŋ ntaoŋ ghɔ chhu ŋa, “Kiʼi mfāʼo pɔgɔ gu, ma Shakaria. Minnwi yaʼo luoŋ yɔ. Ɛlishabe ŋgwɛ ghɔ shi mbhi muuŋ mimbia ɔ chhɔ̄ ligi yi ni Jouŋ."
   });
 
-  await resetStorage();
 });
 
 test("POST usfm with non-existent languageId returns 404", async () => {
@@ -170,7 +165,6 @@ test("POST usfm with non-existent languageId returns 404", async () => {
     .send({ usfm });
   expect(response.status).toBe(404);
 
-  await resetStorage();
 });
 
 test("POST usfm with error expected", async () => {
@@ -185,5 +179,4 @@ test("POST usfm with error expected", async () => {
     "The following error occurred while processing « Luke 1:37 For nothing is impossible with God. » : Could not find 1:37."
   );
 
-  await resetStorage();
 });

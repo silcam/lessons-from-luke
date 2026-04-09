@@ -4,9 +4,7 @@ jest.mock("../actions/webifyLesson");
 
 import {
   loggedInAgent,
-  plainAgent,
-  resetStorage,
-  closeStorage
+  plainAgent
 } from "../testHelper";
 import { LessonString } from "../../core/models/LessonString";
 import { TString } from "../../core/models/TString";
@@ -15,10 +13,8 @@ import { unlinkSafe } from "../../core/util/fsUtils";
 import { findByStrict } from "../../core/util/arrayUtils";
 import webifyLesson from "../actions/webifyLesson";
 
-beforeAll(resetStorage);
-afterAll(async () => {
+afterAll(() => {
   unlinkSafe("test/docs/serverDocs/Luke-1-01v04.odt");
-  await closeStorage();
 });
 
 test("GET Lessons", async () => {
@@ -145,8 +141,6 @@ test("Update Lesson 2", async () => {
     languageId: 1,
     text: "An Angel drops in on Mary"
   });
-
-  await resetStorage();
 });
 
 test("Update Lesson with non-existent lessonId returns 500", async () => {
@@ -251,6 +245,4 @@ test("Lesson Update Issues - TSubs", async () => {
     languageId: 3,
     to: [null, null]
   });
-
-  await resetStorage();
 });
