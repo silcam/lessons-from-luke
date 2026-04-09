@@ -8,3 +8,6 @@ node_modules
 /log/capistrano.log
 /test/docs/serverDocs
 /dist-desktop
+.history/
+.sprite
+/coverage

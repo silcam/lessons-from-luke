@@ -63,7 +63,7 @@ module.exports.down = async () => {
 
 async function dbConnect(cb) {
   const secrets = JSON.parse(fs.readFileSync("secrets.json"));
-  const opts = secrets.db;
+  const opts = process.env.TEST_DB ? secrets.testDb : secrets.db;
   const sql = postgres(opts);
   await sql.begin(async sql => {
     await cb(sql);

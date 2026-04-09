@@ -10,6 +10,11 @@ const defaultSecrets = {
     database: "lessons-from-luke",
     username: "lessons-from-luke",
     password: "lessons-from-luke"
+  },
+  testDb: {
+    database: "lessons-from-luke-test",
+    username: "lessons-from-luke",
+    password: "lessons-from-luke"
   }
 };
 

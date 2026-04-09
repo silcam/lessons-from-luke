@@ -365,6 +365,12 @@ export default class PGStorage implements Persistence {
 }
 
 export class PGTestStorage extends PGStorage implements TestPersistence {
+  constructor() {
+    super();
+    // Replace connection with test database
+    this.sql = testDbConnect();
+  }
+
   async reset() {
     await pgLoadFixtures(this.sql);
   }
@@ -385,6 +391,16 @@ function dbConnect() {
       //   console.log(`QUERY: ${query}`);
       //   console.log(JSON.stringify(params));
       // }
+    }
+  };
+  return postgres(opts);
+}
+
+function testDbConnect() {
+  const opts: Options = {
+    ...secrets.testDb,
+    transform: {
+      column: transformCol
     }
   };
   return postgres(opts);
