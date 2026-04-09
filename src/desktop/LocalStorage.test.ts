@@ -161,4 +161,25 @@ describe("LocalStorage", () => {
     expect(ls2.getLanguages()).toHaveLength(1);
     expect(ls2.getLanguages()[0].name).toBe("French");
   });
+
+  test("writeLogEntry appends a log file (appendTextFile)", () => {
+    const ls = new LocalStorage(testDir);
+    ls.writeLogEntry("Network", "Test log entry");
+    const files = fs.readdirSync(testDir).filter(f => f.startsWith("LOG-Network"));
+    expect(files.length).toBeGreaterThan(0);
+  });
+
+  test("logDataUsed appends to a daily data usage file (appendTextFile)", () => {
+    const ls = new LocalStorage(testDir);
+    ls.logDataUsed(1024);
+    const files = fs.readdirSync(testDir).filter(f => f.startsWith("LOG-DataUsage-"));
+    expect(files.length).toBeGreaterThan(0);
+  });
+
+  test("readFile throws on corrupted JSON", () => {
+    const ls = new LocalStorage(testDir);
+    // Write corrupted JSON directly
+    fs.writeFileSync(path.join(testDir, "lessonStrings_99.json"), "{ bad json");
+    expect(() => ls.getLessonStrings(99)).toThrow();
+  });
 });

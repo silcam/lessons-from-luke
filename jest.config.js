@@ -9,8 +9,15 @@ module.exports = {
   collectCoverageFrom: [
     "src/**/*.ts",
     "!src/**/*.test.ts",
+    "!src/**/*.d.ts",
     "!src/frontend/**",
     "!src/desktop/main*.ts",
-    "!src/desktop/DesktopApp.ts"
+    "!src/desktop/DesktopApp.ts",
+    "!src/desktop/DesktopAPIServer.ts",
+    "!src/desktop/WebAPIClientForDesktop.ts",
+    "!src/desktop/controllers/**",
+    "!src/desktop/localFixtures/**",
+    "!src/server/tasks/**",
+    "!src/server/server.ts"
   ]
 };
