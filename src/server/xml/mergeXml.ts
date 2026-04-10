@@ -56,7 +56,7 @@ function mergeTranslations(
   const namespaces = extractNamespaces(xmlDoc);
   for (let i = 0; i < translations.length; ++i) {
     const translation = translations[i];
-    const element = xmlDoc.get(translation.xpath, namespaces);
+    const element = xmlDoc.get<Element>(translation.xpath, namespaces);
     if (!element) continue;
 
     const toReplace = element.text().trim();
@@ -67,7 +67,7 @@ function mergeTranslations(
       .reverse() // Remove elements starting from the bottom to not mess up xpath addresses that depend on numbering paragraphs
       .filter(t => t.text == "")
       .forEach(translation => {
-        const element = xmlDoc.get(translation.xpath, namespaces);
+        const element = xmlDoc.get<Element>(translation.xpath, namespaces);
         if (element) {
           element.text("");
           removeParagraph(element);
