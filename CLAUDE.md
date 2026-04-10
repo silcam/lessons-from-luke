@@ -9,9 +9,6 @@ Lessons from Luke is a Sunday School curriculum translation and management appli
 ## Development Commands
 
 ```bash
-# When running on macOS Apple silicon, all commands must be run in x86_64 compatibility mode:
-arch -x86_64 zsh
-
 # Install dependencies
 yarn install
 
@@ -41,17 +38,18 @@ yarn deploy          # Capistrano production deploy
 
 ## Docker Environment
 
-A Docker container provides a Node 12 development environment with PostgreSQL. To use it:
+A Docker container provides a Node 20 development environment with PostgreSQL. To use it:
 
 ```bash
 # Build and start the container
 docker compose up -d --build
 
 # Install dependencies (use yarn, not npm — npm can cause TypeScript resolution issues)
-docker compose exec claude-container bash -c "cd /workspace && yarn install"
+# --ignore-engines required because libxmljs2 0.37 declares engine ">=22" but works on Node 20
+docker compose exec claude-container bash -c "cd /workspace && yarn install --ignore-engines"
 
 # Run migrations against the test database
-docker compose exec claude-container bash -c "cd /workspace && TEST_DB=true npx migrate up"
+docker compose exec claude-container bash -c "cd /workspace && yarn migrate:test"
 
 # Run tests
 docker compose exec claude-container bash -c "cd /workspace && NODE_ENV=test npx jest --runInBand"
@@ -61,7 +59,6 @@ docker compose exec claude-container bash -c "cd /workspace && yarn test-coverag
 ```
 
 Key details:
-- The container runs as `linux/amd64` (required — Node 12 native addons like `libxmljs2` have no arm64 pre-built binaries)
 - `NPM_CONFIG_UNSAFE_PERM=true` is set in the Dockerfile to avoid node-gyp permission issues when running as root
 - The workspace is bind-mounted at `/workspace`, so changes are shared between host and container
 - If `node_modules` was previously installed on macOS, delete it before running `yarn install` in the container (native addons are platform-specific)

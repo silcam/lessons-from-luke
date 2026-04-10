@@ -1,4 +1,4 @@
-FROM node:12.22.12-bullseye
+FROM node:20-bullseye
 
 ARG TZ
 ENV TZ="${TZ:-America/Los_Angeles}"

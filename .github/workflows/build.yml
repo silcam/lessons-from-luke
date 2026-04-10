@@ -10,16 +10,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - node-version: 12
-            container: node:12.22.12-bullseye
-          - node-version: 20
-            container: node:20-bullseye
-    continue-on-error: ${{ matrix.node-version == 20 }}
     container:
-      image: ${{ matrix.container }}
+      image: node:20-bullseye
     services:
       postgres:
         image: postgres:13
@@ -62,7 +54,7 @@ jobs:
           }
           EOF
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: yarn install --frozen-lockfile --ignore-engines
         env:
           NPM_CONFIG_UNSAFE_PERM: "true"
       - name: Run migrations
@@ -87,7 +79,7 @@ jobs:
         ref: master
     - uses: actions/setup-node@master
       with:
-        node-version: 12.22.6
+        node-version: 20
     - name: Install dependencies
       run: yarn install
     - name: Build binary
