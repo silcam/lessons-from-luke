@@ -8,10 +8,9 @@ module.exports = {
   devServer: {
     static: false,
     port: 8080,
-    proxy: {
-      "/api": "http://localhost:8081",
-      "/webified": "http://localhost:8081"
-    },
+    proxy: [
+      { context: ["/api", "/webified"], target: "http://localhost:8081" }
+    ],
     historyApiFallback: true
   },
   output: {

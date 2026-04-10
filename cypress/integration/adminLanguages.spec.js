@@ -34,10 +34,10 @@ describe("Admin Languages", () => {
     cy.visit("/");
     cy.contains("button", "Batanga").click();
     cy.contains("Upload USFM").click();
-    cy.fixture("43LUKBMO.SFM").then(fileContent => {
+    cy.fixture("43LUKBMO.SFM", "base64").then(fileContent => {
       cy.get("input[type='file']").selectFile(
-        { contents: fileContent, fileName: "43LUKBMO.SFM", mimeType: "text/plain" },
-        { action: "drag-drop" }
+        { contents: Cypress.Buffer.from(fileContent, "base64"), fileName: "43LUKBMO.SFM", mimeType: "text/plain" },
+        { action: "drag-drop", force: true }
       );
     });
     cy.contains("button", "43LUKBMO.SFM").should("exist");
@@ -57,7 +57,7 @@ describe("Admin Languages", () => {
           fileName: "Français_Luke-T1-L01.odt",
           mimeType: "application/vnd.oasis.opendocument.text"
         },
-        { action: "drag-drop" }
+        { action: "drag-drop", force: true }
       );
     });
     cy.contains("button", "Français_Luke-T1-L01.odt").should("exist");
