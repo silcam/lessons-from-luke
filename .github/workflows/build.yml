@@ -10,16 +10,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - node-version: 12
-            container: node:12.22.12-bullseye
-          - node-version: 20
-            container: node:20-bullseye
-    continue-on-error: ${{ matrix.node-version == 20 }}
+    # Node 20 matrix entry will be added in Phase 7 once dependencies support it
     container:
-      image: ${{ matrix.container }}
+      image: node:12.22.12-bullseye
     services:
       postgres:
         image: postgres:13
