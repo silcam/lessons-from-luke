@@ -2,7 +2,7 @@ name: Build and Test
 
 on:
   push:
-    branches: [master, 'feature/*']
+    branches: [master]
   pull_request:
     branches: [master]
   workflow_dispatch:
@@ -12,18 +12,63 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [12, 20]
+        include:
+          - node-version: 12
+            container: node:12.22.12-bullseye
+          - node-version: 20
+            container: node:20-bullseye
     continue-on-error: ${{ matrix.node-version == 20 }}
+    container:
+      image: ${{ matrix.container }}
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: lessons-from-luke
+          POSTGRES_PASSWORD: lessons-from-luke
+          POSTGRES_DB: lessons-from-luke
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'yarn'
+      - name: Install postgresql-client
+        run: apt-get update -qq && apt-get install -y -qq postgresql-client
+      - name: Create test database
+        run: |
+          PGPASSWORD=lessons-from-luke psql -h postgres -U lessons-from-luke -c \
+            'CREATE DATABASE "lessons-from-luke-test" OWNER "lessons-from-luke";'
+      - name: Generate secrets.json
+        run: |
+          cat > secrets.json << 'EOF'
+          {
+            "cookieSecret": "ci-test-secret",
+            "adminUsername": "admin",
+            "adminPassword": "admin",
+            "db": {
+              "host": "postgres",
+              "database": "lessons-from-luke",
+              "username": "lessons-from-luke",
+              "password": "lessons-from-luke"
+            },
+            "testDb": {
+              "host": "postgres",
+              "database": "lessons-from-luke-test",
+              "username": "lessons-from-luke",
+              "password": "lessons-from-luke"
+            }
+          }
+          EOF
       - name: Install dependencies
         run: yarn install --frozen-lockfile
+        env:
+          NPM_CONFIG_UNSAFE_PERM: "true"
+      - name: Run migrations
+        run: yarn migrate:test
       - name: Run tests
-        run: yarn test --watchAll=false --runInBand
+        run: yarn test:once
 
   build_on_mac:
     runs-on: macos-latest
