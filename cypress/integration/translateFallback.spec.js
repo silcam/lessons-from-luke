@@ -3,7 +3,7 @@ describe("Translate Fallback", () => {
     cy.visit("/translate/GHI");
     cy.contains("Luke 1-2").click({ force: true });
 
-    cy.inLabel("Source Language").select("Français");
+    cy.inLabel("Source Language").select("Français", { force: true });
     cy.contains("Un ange visite Marie").should("exist");
   });
 
