@@ -2,12 +2,14 @@
     "compilerOptions": {
         "module": "commonjs",
         "esModuleInterop": true,
-        "target": "es2017",
+        "target": "es2022",
         "moduleResolution": "node",
         "sourceMap": true,
         "strictNullChecks": true,
         "strict": true,
-        "skipLibCheck": true
+        "useUnknownInCatchVariables": false,
+        "skipLibCheck": true,
+        "ignoreDeprecations": "5.0"
     },
     "exclude": [
         "node_modules",

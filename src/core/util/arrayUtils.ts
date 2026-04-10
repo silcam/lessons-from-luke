@@ -24,7 +24,7 @@ export function findByStrict<T, K extends keyof T>(
   const found = findBy(list, key, value);
   if (!found)
     throw new Error(
-      `findByStrict did not find item with key ${key} value ${value}.`
+      `findByStrict did not find item with key ${String(key)} value ${value}.`
     );
   return found;
 }

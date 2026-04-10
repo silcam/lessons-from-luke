@@ -1,11 +1,21 @@
 module.exports = {
   preset: "ts-jest",
+  transform: {
+    "^.+\\.tsx?$": ["ts-jest", {}]
+  },
   testEnvironment: "node",
   testPathIgnorePatterns: ["/node_modules/", "<rootDir>/test/", "<rootDir>/cypress/"],
   watchPathIgnorePatterns: ["strings", "old", "cypress"],
   globalSetup: "<rootDir>/src/server/jestGlobalSetup.ts",
   setupFilesAfterEnv: ["<rootDir>/src/server/jestSetupAfterEnv.ts"],
   forceExit: true,
+  fakeTimers: {
+    // When tests call jest.useFakeTimers(), only fake setTimeout/clearTimeout.
+    // Excluding setInterval/clearInterval/setImmediate prevents the postgres
+    // connection pool's keep-alive timers from being hijacked, which caused
+    // connection corruption after jest.runAllTimers() in waitFor.test.ts.
+    doNotFake: ["setInterval", "clearInterval", "setImmediate", "clearImmediate", "nextTick"]
+  },
   collectCoverageFrom: [
     "src/**/*.ts",
     "!src/**/*.test.ts",

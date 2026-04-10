@@ -8,7 +8,7 @@ const WATCH_INTERVAL = 3 * 1000;
 
 export default class WebAPIClientForDesktop {
   private connected: boolean = false;
-  private watchTimerId: number = 0;
+  private watchTimerId: ReturnType<typeof setInterval> | undefined;
   private watchLock: boolean = false; // Preventing running watch callback more than once at a time
   private onConnectionChangeListeners: Array<(connected: boolean) => void> = [];
   private baseUrl = "";

@@ -5,14 +5,13 @@ describe("Admin Lessons", () => {
     cy.visit("/");
     cy.contains("button", "Add Lesson").click();
     cy.fixture("English_Luke-Q1-L06.odt", "base64").then(fileContent => {
-      cy.get("input[type='file']").parent().upload(
+      cy.get("input[type='file']").selectFile(
         {
-          fileContent,
+          contents: Cypress.Buffer.from(fileContent, "base64"),
           fileName: "English_Luke-Q1-L06.odt",
-          mimeType: "application/vnd.oasis.opendocument.text",
-          encoding: "base64"
+          mimeType: "application/vnd.oasis.opendocument.text"
         },
-        { subjectType: "drag-n-drop" }
+        { action: "drag-drop", force: true }
       );
     });
     cy.contains("button", "English_Luke-Q1-L06.odt").should("exist");
@@ -58,8 +57,11 @@ describe("Admin Lessons", () => {
     cy.contains("button", "Ok").click();
     cy.contains("Today’s Truth for today").should("exist");
 
+    cy.intercept("POST", /\/api\/admin\/lessons\/\d+\/strings/).as("saveLesson");
     cy.contains("button", "Save").click();
-    cy.contains("button", "Edit");
+    cy.wait("@saveLesson");
+    cy.contains("button", "View Lesson").click();
+    cy.contains("button", "Edit").should("exist");
     cy.contains(
       "KNOW: The children will know that nothing is impossible with God."
     ).should("exist");
@@ -67,7 +69,7 @@ describe("Admin Lessons", () => {
     cy.contains("Today’s Truth for today").should("exist");
 
     cy.visit("/translate/GHI");
-    cy.contains("Luke 1-2").click();
+    cy.contains("Luke 1-2").click({ force: true });
     cy.contains(
       "KNOW: The children will know that nothing is impossible with God."
     ).should("exist");

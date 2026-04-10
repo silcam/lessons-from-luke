@@ -1,5 +1,5 @@
 import parse from "./parse";
-import libxmljs2 from "libxmljs2";
+import libxmljs2, { Element } from "libxmljs2";
 import { extractNamespaces } from "./mergeXml";
 import docStorage from "../storage/docStorage";
 import { saveDocStrings, parseDocStrings } from "../actions/updateLesson";
@@ -110,7 +110,7 @@ test("Verify modified styles are parsed", async () => {
   const namespaces = extractNamespaces(xmlDoc);
 
   let allMTStrings = savedLesson.lessonStrings.map(lessonString => {
-    const lsDomElement = xmlDoc.get(lessonString.xpath, namespaces);
+    const lsDomElement = xmlDoc.get<Element>(lessonString.xpath, namespaces);
     if (lessonString.motherTongue == true) {
       return lsDomElement?.text();
     }

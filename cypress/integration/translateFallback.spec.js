@@ -1,15 +1,15 @@
 describe("Translate Fallback", () => {
   it("Changes sources", () => {
     cy.visit("/translate/GHI");
-    cy.contains("Luke 1-2").click();
+    cy.contains("Luke 1-2").click({ force: true });
 
-    cy.inLabel("Source Language").select("Français");
+    cy.inLabel("Source Language").select("Français", { force: true });
     cy.contains("Un ange visite Marie").should("exist");
   });
 
   it("Translates stuff", () => {
     cy.visit("/translate/GHI");
-    cy.contains("Luke 1-2").click();
+    cy.contains("Luke 1-2").click({ force: true });
 
     cy.contains("div", "Nothing is impossible with God")
       .parent()

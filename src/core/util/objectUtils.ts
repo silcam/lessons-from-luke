@@ -1,6 +1,6 @@
 export function unset<T, F extends keyof T>(obj: T, field: F): Omit<T, F> {
-  return (Object.keys(obj) as (keyof T)[]).reduce((newObj, key) => {
-    if (key === `${field}`) return newObj;
+  return (Object.keys(obj as object) as (keyof T)[]).reduce((newObj, key) => {
+    if (key === `${String(field)}`) return newObj;
     newObj[key] = obj[key];
     return newObj;
   }, {} as Partial<T>) as Omit<T, F>;
@@ -24,7 +24,7 @@ export function validateFields<T>(obj: T, fields: Field<T>[]): boolean {
 }
 
 export function objKeys<T>(t: T): (keyof T)[] {
-  return Object.keys(t) as (keyof T)[];
+  return Object.keys(t as object) as (keyof T)[];
 }
 
 export function objFilter<T, U extends T>(

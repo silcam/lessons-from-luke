@@ -21,8 +21,9 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   const app = express();
   const storage = opts.storage ?? (PRODUCTION ? new PGStorage() : new PGTestStorage());
 
-  app.use(cookieSession({ secret: secrets.cookieSecret }));
-  app.use(bodyParser.json({ limit: "2MB" }));
+  // Casts needed: @types/connect's NextHandleFunction is incompatible with @types/node@20 ServerResponse types
+  app.use(cookieSession({ secret: secrets.cookieSecret }) as any);
+  app.use(bodyParser.json({ limit: "2MB" }) as any);
   app.use("/api/admin", requireUser);
 
   if (PRODUCTION) {

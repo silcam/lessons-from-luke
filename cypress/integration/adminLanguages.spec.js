@@ -34,18 +34,11 @@ describe("Admin Languages", () => {
     cy.visit("/");
     cy.contains("button", "Batanga").click();
     cy.contains("Upload USFM").click();
-    cy.fixture("43LUKBMO.SFM").then(fileContent => {
-      cy.get("input[type='file']")
-        .parent()
-        .upload(
-          {
-            fileContent,
-            fileName: "43LUKBMO.SFM",
-            mimeType: "text/plain",
-            encoding: "utf-8"
-          },
-          { subjectType: "drag-n-drop" }
-        );
+    cy.fixture("43LUKBMO.SFM", "base64").then(fileContent => {
+      cy.get("input[type='file']").selectFile(
+        { contents: Cypress.Buffer.from(fileContent, "base64"), fileName: "43LUKBMO.SFM", mimeType: "text/plain" },
+        { action: "drag-drop", force: true }
+      );
     });
     cy.contains("button", "43LUKBMO.SFM").should("exist");
     cy.contains("Save").click();
@@ -58,17 +51,14 @@ describe("Admin Languages", () => {
     cy.contains("Français").click();
     cy.contains("Upload Document").click();
     cy.fixture("Français_Luke-T1-L01.odt", "base64").then(fileContent => {
-      cy.get("input[type='file']")
-        .parent()
-        .upload(
-          {
-            fileContent,
-            fileName: "Français_Luke-T1-L01.odt",
-            mimeType: "application/vnd.oasis.opendocument.text",
-            encoding: "base64"
-          },
-          { subjectType: "drag-n-drop" }
-        );
+      cy.get("input[type='file']").selectFile(
+        {
+          contents: Cypress.Buffer.from(fileContent, "base64"),
+          fileName: "Français_Luke-T1-L01.odt",
+          mimeType: "application/vnd.oasis.opendocument.text"
+        },
+        { action: "drag-drop", force: true }
+      );
     });
     cy.contains("button", "Français_Luke-T1-L01.odt").should("exist");
     cy.inLabel("Lesson").should("have.value", "11");
