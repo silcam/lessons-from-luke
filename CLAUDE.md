@@ -38,15 +38,14 @@ yarn deploy          # Capistrano production deploy
 
 ## Docker Environment
 
-A Docker container provides a Node 20 development environment with PostgreSQL. To use it:
+A Docker container provides a Node 24 development environment with PostgreSQL. To use it:
 
 ```bash
 # Build and start the container
 docker compose up -d --build
 
 # Install dependencies (use yarn, not npm — npm can cause TypeScript resolution issues)
-# --ignore-engines required because libxmljs2 0.37 declares engine ">=22" but works on Node 20
-docker compose exec claude-container bash -c "cd /workspace && yarn install --ignore-engines"
+docker compose exec claude-container bash -c "cd /workspace && yarn install"
 
 # Run migrations against the test database
 docker compose exec claude-container bash -c "cd /workspace && yarn migrate:test"

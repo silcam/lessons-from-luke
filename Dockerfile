@@ -1,4 +1,4 @@
-FROM node:20-bullseye
+FROM node:24-bookworm
 
 ARG TZ
 ENV TZ="${TZ:-America/Los_Angeles}"

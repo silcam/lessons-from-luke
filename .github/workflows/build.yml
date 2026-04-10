@@ -11,7 +11,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     container:
-      image: node:20-bullseye
+      image: node:24-bookworm
     services:
       postgres:
         image: postgres:13
@@ -54,7 +54,7 @@ jobs:
           }
           EOF
       - name: Install dependencies
-        run: yarn install --frozen-lockfile --ignore-engines
+        run: yarn install --frozen-lockfile
         env:
           NPM_CONFIG_UNSAFE_PERM: "true"
       - name: Run migrations
@@ -79,7 +79,7 @@ jobs:
         ref: master
     - uses: actions/setup-node@master
       with:
-        node-version: 20
+        node-version: 24
     - name: Install dependencies
       run: yarn install
     - name: Build binary
