@@ -65,6 +65,7 @@ Key details:
 - The entrypoint starts PostgreSQL and creates both `lessons-from-luke` and `lessons-from-luke-test` databases automatically
 - A `secrets.json` is auto-generated if not present
 - Migrations use `TEST_DB=true` env var to target the test database; they read connection info from `secrets.json`
+- Migration state is tracked in `.migrate-test` (test) and `.migrate` (dev), which persist in the workspace across container rebuilds. If you rebuild the container and get `relation "languages" does not exist`, the state file thinks migrations already ran against the now-empty database. Reset with: `echo '{"lastRun":null,"migrations":[]}' > .migrate-test && yarn migrate:test`
 - Performance note: tests run under QEMU emulation on Apple Silicon (~80s for the full suite)
 
 ## Architecture
