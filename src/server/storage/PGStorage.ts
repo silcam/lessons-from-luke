@@ -178,23 +178,26 @@ export default class PGStorage implements Persistence {
 
       const masterIds = lessonStrings.map(ls => ls.masterId);
       return this.sql`
-        SELECT masterid, languageid, sourcelanguageid, source, text, history, lessonstringid 
-        FROM tStrings 
-        WHERE languageId=${params.languageId} 
+        SELECT masterid, languageid, sourcelanguageid, source, text, history, lessonstringid
+        FROM tStrings
+        WHERE languageId=${params.languageId}
         AND masterId IN (${masterIds})
+        ORDER BY masterid
       `;
     } else if (params.masterIds) {
       return this.sql`
         SELECT masterid, languageid, sourcelanguageid, source, text, history, lessonstringid
-        FROM tStrings 
-        WHERE languageId=${params.languageId} 
+        FROM tStrings
+        WHERE languageId=${params.languageId}
         AND masterId IN (${params.masterIds})
+        ORDER BY masterid
       `;
     } else {
       return this.sql`
         SELECT masterid, languageid, sourcelanguageid, source, text, history, lessonstringid
         FROM tStrings
         WHERE ${this.sql(params)}
+        ORDER BY masterid
       `;
     }
   }
