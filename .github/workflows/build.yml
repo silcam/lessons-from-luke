@@ -124,7 +124,7 @@ jobs:
         env:
           NPM_CONFIG_UNSAFE_PERM: "true"
       - name: Build server
-        run: tsc -b src/server
+        run: npx tsc -b src/server
       - name: Run migrations
         run: yarn migrate:test
       - uses: cypress-io/github-action@v6
