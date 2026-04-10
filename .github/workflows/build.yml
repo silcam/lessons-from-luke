@@ -67,13 +67,16 @@ jobs:
           NPM_CONFIG_UNSAFE_PERM: "true"
       - name: Run migrations
         run: yarn migrate:test
-      - name: Run tests
+      - name: Run tests (random order x3)
         # libxmljs2 segfaults during GC finalization on exit (code 139) after all
         # tests pass. Treat 139 as success; real test failures exit with code 1.
         run: |
-          set +e; yarn test:once; code=$?; set -e
-          if [ $code -eq 139 ]; then echo "Note: segfault on exit (libxmljs2 known issue)"; exit 0; fi
-          exit $code
+          for i in 1 2 3; do
+            echo "--- Randomized run $i of 3 ---"
+            set +e; yarn test:random; code=$?; set -e
+            if [ $code -eq 139 ]; then echo "Note: segfault on exit (libxmljs2 known issue)"; continue; fi
+            if [ $code -ne 0 ]; then exit $code; fi
+          done
 
   build_on_mac:
     runs-on: macos-latest
