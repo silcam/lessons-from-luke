@@ -1,8 +1,9 @@
 name: Build Electron Executable
 on:
-  push:
-    branches:
-      - master
+  workflow_dispatch:  # Disabled: re-enable after Electron upgrade
+  # push:
+  #   branches:
+  #     - master
 
 jobs:
   build_on_mac:
