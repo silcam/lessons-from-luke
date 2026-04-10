@@ -24,8 +24,6 @@
 // -- This will overwrite an existing command --
 // Cypress.Commands.overwrite("visit", (originalFn, url, options) => { ... })
 
-import "cypress-file-upload";
-
 Cypress.Commands.add("resetDatabase", () =>
   cy.request({ method: "POST", url: "/api/test/reset-storage", timeout: 30000 })
 );

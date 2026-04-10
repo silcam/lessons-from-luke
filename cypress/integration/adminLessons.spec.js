@@ -5,14 +5,13 @@ describe("Admin Lessons", () => {
     cy.visit("/");
     cy.contains("button", "Add Lesson").click();
     cy.fixture("English_Luke-Q1-L06.odt", "base64").then(fileContent => {
-      cy.get("input[type='file']").parent().upload(
+      cy.get("input[type='file']").selectFile(
         {
-          fileContent,
+          contents: Cypress.Buffer.from(fileContent, "base64"),
           fileName: "English_Luke-Q1-L06.odt",
-          mimeType: "application/vnd.oasis.opendocument.text",
-          encoding: "base64"
+          mimeType: "application/vnd.oasis.opendocument.text"
         },
-        { subjectType: "drag-n-drop" }
+        { action: "drag-drop" }
       );
     });
     cy.contains("button", "English_Luke-Q1-L06.odt").should("exist");
