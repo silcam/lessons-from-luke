@@ -93,6 +93,15 @@ describe("combineTSubs", () => {
   test("handles empty input", () => {
     expect(combineTSubs([], [])).toEqual([]);
   });
+
+  test("handles null ids in tSubsLite arrays", () => {
+    const lite = [{ languageId: 3, from: [null], to: [null] }];
+    const result = combineTSubs(lite, []);
+    expect(result[0].engFrom).toEqual([null]);
+    expect(result[0].engTo).toEqual([null]);
+    expect(result[0].from).toEqual([null]);
+    expect(result[0].to).toEqual([null]);
+  });
 });
 
 describe("divideTSubs / combineTSubs roundtrip", () => {
