@@ -34,8 +34,8 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - name: Install postgresql-client
-        run: apt-get update -qq && apt-get install -y -qq postgresql-client
+      - name: Install system dependencies
+        run: apt-get update -qq && apt-get install -y -qq postgresql-client zip
       - name: Create test database
         run: |
           PGPASSWORD=lessons-from-luke psql -h postgres -U lessons-from-luke -c \
