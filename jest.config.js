@@ -1,5 +1,8 @@
 module.exports = {
   preset: "ts-jest",
+  transform: {
+    "^.+\\.tsx?$": ["ts-jest", {}]
+  },
   testEnvironment: "node",
   testPathIgnorePatterns: ["/node_modules/", "<rootDir>/test/", "<rootDir>/cypress/"],
   watchPathIgnorePatterns: ["strings", "old", "cypress"],
