@@ -46,6 +46,7 @@
     "test-desktop-e2e-deps": "NODE_ENV=test concurrently -k -p \"[{name}]\" -n \"Webpack,Server\" -c \"yellow.bold,blue.bold\" \"yarn wpDevServerDesktop\" \"yarn serve\"",
     "cypress:open": "cypress open",
     "cypress:run": "cypress run",
+    "cypress:run:random": "cypress run --spec $(node scripts/shuffle-cypress-specs.js)",
     "test-e2e": "concurrently --kill-others -p \"[{name}]\" -n \"Cypress,WebpackDevServe,Server\" -c \"blue.bold,yellow.bold,green.bold\" \"wait-on http://localhost:8080 && cypress run\" \"yarn wpDevServerWeb\" \"yarn serve\"",
     "deploy": "bundle exec cap production deploy",
     "build-server": "tsc -b ./src/server/tsconfig.prod.json && webpack --config webpack/web.production.config.js",
