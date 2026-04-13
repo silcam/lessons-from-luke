@@ -133,7 +133,7 @@ jobs:
           start: npx concurrently "yarn wpDevServerWeb" "yarn serve"
           wait-on: http://localhost:8080
           wait-on-timeout: 180
-          command: bash -c "for i in 1 2 3; do echo '--- Randomized run '$i' of 3 ---'; yarn cypress:run:random || exit 1; done"
+          command: bash scripts/run-cypress-random.sh
 
   build_on_mac:
     runs-on: macos-latest
