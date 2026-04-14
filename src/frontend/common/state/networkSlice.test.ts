@@ -4,7 +4,13 @@ jest.mock("./appState", () => ({
   useAppSelector: jest.fn()
 }));
 
-import networkSlice, { networkConnectionLostAction } from "./networkSlice";
+import React, { useState } from "react";
+import { render, act } from "@testing-library/react";
+import networkSlice, {
+  networkConnectionLostAction,
+  useNetworkConnectionRestored
+} from "./networkSlice";
+import { useAppSelector } from "./appState";
 
 // The networkSlice uses extraReducers keyed by action type strings.
 // We test by dispatching plain action objects with the matching types.
@@ -110,5 +116,183 @@ describe("networkConnectionLostAction thunk", () => {
 
     // get should not have been called for reconnection
     expect(get).not.toHaveBeenCalled();
+  });
+
+  it("dispatches NetworkConnectionRestored after successful reconnect poll", async () => {
+    const get = jest.fn().mockRejectedValue(new Error("network error"));
+    const dispatch = jest.fn();
+    const getState = jest.fn().mockReturnValue({ network: { connected: true } });
+
+    await networkConnectionLostAction(get)(dispatch, getState);
+
+    // Now the server is reachable
+    get.mockResolvedValue({ id: 1, admin: false });
+    jest.advanceTimersByTime(3000);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // The restored action is itself a thunk — check it was dispatched
+    const dispatchedThunks = dispatch.mock.calls.filter(
+      ([action]) => typeof action === "function"
+    );
+    expect(dispatchedThunks.length).toBeGreaterThan(0);
+  });
+
+  it("retries polling until connection is restored", async () => {
+    const get = jest.fn().mockRejectedValue(new Error("network error"));
+    const dispatch = jest.fn();
+    const getState = jest.fn().mockReturnValue({ network: { connected: true } });
+
+    await networkConnectionLostAction(get)(dispatch, getState);
+
+    // First tick — still failing (get is only called inside the timer interval)
+    jest.advanceTimersByTime(3000);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(get).toHaveBeenCalledTimes(1); // 1 poll so far
+
+    // Second tick — now succeeds
+    get.mockResolvedValue({ id: 1, admin: false });
+    jest.advanceTimersByTime(3000);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(get).toHaveBeenCalledTimes(2); // 2 polls total
+  });
+});
+
+describe("useNetworkConnectionRestored hook", () => {
+  const mockUseAppSelector = useAppSelector as jest.Mock;
+
+  // Helper: renders a component that exposes the hook return value via callbacks
+  function renderHookViaComponent(
+    connected: boolean,
+    onMount: (api: ReturnType<typeof useNetworkConnectionRestored>) => void
+  ) {
+    mockUseAppSelector.mockReturnValue(connected);
+
+    let hookApi: ReturnType<typeof useNetworkConnectionRestored> | undefined;
+
+    function TestComponent({ isConnected }: { isConnected: boolean }) {
+      mockUseAppSelector.mockReturnValue(isConnected);
+      hookApi = useNetworkConnectionRestored();
+      return null;
+    }
+
+    const { rerender } = render(React.createElement(TestComponent, { isConnected: connected }));
+
+    onMount(hookApi!);
+
+    return {
+      rerender: (isConnected: boolean) =>
+        rerender(React.createElement(TestComponent, { isConnected })),
+      getApi: () => hookApi!
+    };
+  }
+
+  it("returns onConnectionRestored and clearHandlers functions", () => {
+    mockUseAppSelector.mockReturnValue(true);
+
+    let api: ReturnType<typeof useNetworkConnectionRestored> | undefined;
+    function TestComponent() {
+      api = useNetworkConnectionRestored();
+      return null;
+    }
+
+    act(() => {
+      render(React.createElement(TestComponent));
+    });
+
+    expect(typeof api!.onConnectionRestored).toBe("function");
+    expect(typeof api!.clearHandlers).toBe("function");
+  });
+
+  it("calls registered handlers when connected transitions from false to true", () => {
+    const handler = jest.fn();
+    let api: ReturnType<typeof useNetworkConnectionRestored> | undefined;
+
+    function TestComponent({ isConnected }: { isConnected: boolean }) {
+      mockUseAppSelector.mockReturnValue(isConnected);
+      api = useNetworkConnectionRestored();
+      return null;
+    }
+
+    const { rerender } = render(
+      React.createElement(TestComponent, { isConnected: false })
+    );
+
+    act(() => {
+      api!.onConnectionRestored(handler);
+    });
+
+    act(() => {
+      rerender(React.createElement(TestComponent, { isConnected: true }));
+    });
+
+    expect(handler).toHaveBeenCalled();
+  });
+
+  it("does not call handlers again after they have been cleared on reconnect", () => {
+    const handler = jest.fn();
+    let api: ReturnType<typeof useNetworkConnectionRestored> | undefined;
+
+    function TestComponent({ isConnected }: { isConnected: boolean }) {
+      mockUseAppSelector.mockReturnValue(isConnected);
+      api = useNetworkConnectionRestored();
+      return null;
+    }
+
+    const { rerender } = render(
+      React.createElement(TestComponent, { isConnected: false })
+    );
+
+    act(() => {
+      api!.onConnectionRestored(handler);
+    });
+
+    // First reconnect — handler fires and list is cleared
+    act(() => {
+      rerender(React.createElement(TestComponent, { isConnected: true }));
+    });
+    expect(handler).toHaveBeenCalledTimes(1);
+
+    // Disconnect again, reconnect — handler should NOT fire (was cleared)
+    act(() => {
+      rerender(React.createElement(TestComponent, { isConnected: false }));
+    });
+    act(() => {
+      rerender(React.createElement(TestComponent, { isConnected: true }));
+    });
+
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it("clearHandlers removes all registered handlers before reconnect", () => {
+    const handler = jest.fn();
+    let api: ReturnType<typeof useNetworkConnectionRestored> | undefined;
+
+    function TestComponent({ isConnected }: { isConnected: boolean }) {
+      mockUseAppSelector.mockReturnValue(isConnected);
+      api = useNetworkConnectionRestored();
+      return null;
+    }
+
+    const { rerender } = render(
+      React.createElement(TestComponent, { isConnected: false })
+    );
+
+    act(() => {
+      api!.onConnectionRestored(handler);
+      api!.clearHandlers();
+    });
+
+    act(() => {
+      rerender(React.createElement(TestComponent, { isConnected: true }));
+    });
+
+    expect(handler).not.toHaveBeenCalled();
   });
 });

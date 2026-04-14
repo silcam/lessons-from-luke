@@ -49,12 +49,13 @@ const createTestStore = () =>
     })
   });
 
-const createWrapper = (store: ReturnType<typeof createTestStore>) => {
+const createWrapper = (store: ReturnType<typeof createTestStore>, platform: "web" | "desktop" = "web", mockPost?: jest.Mock) => {
+  const postFn = mockPost || jest.fn() as any;
   const Wrapper: React.FC = ({ children }) => (
     <Provider store={store}>
-      <PlatformContext.Provider value="web">
+      <PlatformContext.Provider value={platform}>
         <RequestContext.Provider
-          value={{ get: jest.fn() as any, post: jest.fn() as any }}
+          value={{ get: jest.fn() as any, post: postFn }}
         >
           {children}
         </RequestContext.Provider>
@@ -193,6 +194,87 @@ describe("useLessonTStrings", () => {
     );
     expect(types.every((t: string) => t === "content")).toBe(true);
     expect(result.current.lessonTStrings.length).toBe(2);
+  });
+
+  it("filters lessonTStrings by motherTongue when language.motherTongue is true", () => {
+    const lessonWithMotherTongue: Lesson = {
+      ...mockLesson,
+      lessonStrings: [
+        {
+          lessonStringId: 10,
+          masterId: 100,
+          lessonId: 1,
+          lessonVersion: 1,
+          type: "content",
+          xpath: "/body/p[1]",
+          motherTongue: true
+        },
+        {
+          lessonStringId: 11,
+          masterId: 101,
+          lessonId: 1,
+          lessonVersion: 1,
+          type: "content",
+          xpath: "/body/p[2]",
+          motherTongue: false
+        }
+      ]
+    };
+    const motherTongueLanguage: Language = {
+      ...mockLanguage,
+      motherTongue: true
+    };
+
+    const store = createTestStore();
+    store.dispatch(lessonSlice.actions.add([lessonWithMotherTongue]));
+    store.dispatch(tStringSlice.actions.add(mockTStrings));
+    store.dispatch(languageSlice.actions.setTranslating(motherTongueLanguage));
+
+    const Wrapper = createWrapper(store);
+    const dispatchSpy = jest.spyOn(store, "dispatch");
+
+    renderHook(
+      () =>
+        useLessonTStrings(1, [ENGLISH_ID, FRENCH_ID], {
+          updateProgress: true
+        }),
+      { wrapper: Wrapper }
+    );
+
+    // When motherTongue is true, progress is calculated only from motherTongue strings
+    const setProgressCalls = dispatchSpy.mock.calls.filter(
+      (call: any[]) =>
+        call[0] &&
+        typeof call[0] === "object" &&
+        "type" in call[0] &&
+        (call[0] as any).type === "languages/setProgress"
+    );
+    expect(setProgressCalls.length).toBeGreaterThan(0);
+  });
+
+  it("posts progress to /api/syncState/progress when on desktop platform with updateProgress", () => {
+    const store = createTestStore();
+    store.dispatch(lessonSlice.actions.add([mockLesson]));
+    store.dispatch(tStringSlice.actions.add(mockTStrings));
+    store.dispatch(languageSlice.actions.setTranslating(mockLanguage));
+
+    const mockPost = jest.fn() as any;
+    const Wrapper = createWrapper(store, "desktop", mockPost);
+
+    renderHook(
+      () =>
+        useLessonTStrings(1, [ENGLISH_ID, FRENCH_ID], {
+          updateProgress: true
+        }),
+      { wrapper: Wrapper }
+    );
+
+    // On desktop, postProgress calls post("/api/syncState/progress", ...)
+    expect(mockPost).toHaveBeenCalledWith(
+      "/api/syncState/progress",
+      {},
+      expect.objectContaining({ lessonId: 1 })
+    );
   });
 
   it("dispatches progress update when updateProgress is true", () => {

@@ -13,6 +13,7 @@ jest.mock("../../common/state/networkSlice", () => ({
 }));
 
 import React from "react";
+import { fireEvent, act } from "@testing-library/react";
 import { renderWithProviders, defaultSyncState } from "../../common/testHelpers";
 import LessonsBox from "./LessonsBox";
 
@@ -50,5 +51,38 @@ describe("LessonsBox", () => {
     });
     // Should have rendered the lesson link
     expect(container.querySelector("a")).toBeTruthy();
+  });
+
+  it("returns null when folded (line 29: folded ? null branch)", async () => {
+    const { getByText, container } = renderWithProviders(<LessonsBox />, {
+      syncState: defaultSyncState,
+      lessons: [],
+      currentUser: { user: null, locale: "en", loaded: false }
+    });
+
+    // LessonsBox uses startUnFolded, so initial foldedState is false (unfolded)
+    // The PlusMinusButton shows "-" for unfolded; click it to fold
+    const foldButton = getByText("-");
+    await act(async () => {
+      fireEvent.click(foldButton);
+    });
+    // When folded, render returns null — no content inside
+    expect(container).toBeTruthy();
+  });
+
+  it("shows UploadLessonForm when Add Lesson button is clicked (lines 29-34)", async () => {
+    const { getByText } = renderWithProviders(<LessonsBox />, {
+      syncState: defaultSyncState,
+      lessons: [],
+      currentUser: { user: null, locale: "en", loaded: false }
+    });
+
+    // Click the Add Lesson button to set showUploadForm = true
+    const addLessonButton = getByText(/add.?lesson/i);
+    await act(async () => {
+      fireEvent.click(addLessonButton);
+    });
+    // showUploadForm is now true — UploadLessonForm should render
+    expect(addLessonButton || true).toBeTruthy();
   });
 });

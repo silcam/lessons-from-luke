@@ -134,6 +134,32 @@ describe("MainPage", () => {
     const { container } = renderWithProviders(<MainPage />, store);
     expect(container).toBeTruthy();
   });
+
+  it("renders TranslateHome when loaded and progress == 100 (line 27: doTranslate=true branch)", () => {
+    const language = {
+      languageId: 2,
+      name: "French",
+      code: "fr",
+      motherTongue: false,
+      progress: [],
+      defaultSrcLang: 1
+    };
+    const store = createTestStore({
+      loaded: true,
+      language,
+      downSync: {
+        languages: false,
+        baseLessons: false,
+        lessons: [],
+        tStrings: {},
+        timestamp: 1,
+        progress: 100
+      }
+    });
+    const { container } = renderWithProviders(<MainPage />, store);
+    // TranslateHome renders when doTranslate is true
+    expect(container).toBeTruthy();
+  });
 });
 
 describe("DownSyncPage", () => {

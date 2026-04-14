@@ -127,6 +127,44 @@ test("Verify modified styles are parsed", async () => {
   expect(allMTStrings).toContain("INVISIBLE"); // why isn't think working?
 });
 
+// Task: removeTrackedChanges callback coverage
+// The `forEach(node => node.remove())` callback in removeTrackedChanges is only
+// invoked when tracked-changes nodes actually exist in the XML.  The fixture
+// ODT has none, so we test with inline XML that contains a tracked-changes block.
+describe("removeTrackedChanges removes tracked-change nodes", () => {
+  const contentWithTrackedChanges = `<?xml version="1.0"?>
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:body>
+    <office:text>
+      <text:tracked-changes>
+        <text:changed-region text:id="ct1">
+          <text:deletion>
+            <text:p>Unknown Author</text:p>
+          </text:deletion>
+        </text:changed-region>
+      </text:tracked-changes>
+      <text:p text:style-name="Lesson_20_Title">Hello World</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>`;
+
+  test("removes tracked-changes nodes so their text does not appear in results", () => {
+    const result = parse(contentWithTrackedChanges, "content");
+    const unknownAuthor = result.filter(s => s.text.includes("Unknown Author"));
+    expect(unknownAuthor).toHaveLength(0);
+  });
+
+  test("retains other content after removing tracked changes", () => {
+    const result = parse(contentWithTrackedChanges, "content");
+    const helloWorld = result.filter(s => s.text.includes("Hello World"));
+    expect(helloWorld.length).toBeGreaterThan(0);
+  });
+});
+
 // Task 15: XPath generator function tests
 describe("XPath generator functions", () => {
   test("xPathForPWithStyle", () => {
