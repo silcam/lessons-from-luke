@@ -227,7 +227,7 @@ async function updateProgress() {
   });
 }
 
-function join<A, B>(
+export function join<A, B>(
   alist: A[],
   blist: B[],
   match: (a: A, b: B) => boolean
@@ -243,7 +243,7 @@ function join<A, B>(
   );
 }
 
-function outerJoin<A, B>(
+export function outerJoin<A, B>(
   alist: A[],
   blist: B[],
   match: (a: A, b: B) => boolean
