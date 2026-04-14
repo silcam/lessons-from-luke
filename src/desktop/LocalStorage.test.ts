@@ -18,6 +18,7 @@ import LocalStorage, { MEMORY_STORE, defaultMemoryStore } from "./LocalStorage";
 import { BaseLesson } from "../core/models/Lesson";
 import { LessonString } from "../core/models/LessonString";
 import { TString } from "../core/models/TString";
+import { initalStoredSyncState } from "../core/models/SyncState";
 
 let testDir: string;
 
@@ -181,5 +182,251 @@ describe("LocalStorage", () => {
     // Write corrupted JSON directly
     fs.writeFileSync(path.join(testDir, "lessonStrings_99.json"), "{ bad json");
     expect(() => ls.getLessonStrings(99)).toThrow();
+  });
+
+  // Sync state management
+
+  test("getSyncState returns initial state after construction", () => {
+    const ls = new LocalStorage(testDir);
+    const initial = initalStoredSyncState();
+    const state = ls.getSyncState();
+    expect(state.language).toBeNull();
+    expect(state.downSync).toEqual(initial.downSync);
+    expect(state.syncLanguages).toEqual([]);
+  });
+
+  test("setSyncState partial update does not overwrite unrelated fields", () => {
+    const ls = new LocalStorage(testDir);
+    ls.setSyncState({ syncLanguages: [{ languageId: 5, timestamp: 10 }] }, null);
+    ls.setSyncState({ locale: "fr" }, null);
+    const state = ls.getSyncState();
+    expect(state.syncLanguages).toEqual([{ languageId: 5, timestamp: 10 }]);
+    expect(state.locale).toBe("fr");
+  });
+
+  test("setSyncState persists changes to disk (reloaded after restart)", () => {
+    const ls = new LocalStorage(testDir);
+    ls.setSyncState({ syncLanguages: [{ languageId: 3, timestamp: 99 }] }, null);
+
+    const ls2 = new LocalStorage(testDir);
+    expect(ls2.getSyncState().syncLanguages).toEqual([{ languageId: 3, timestamp: 99 }]);
+  });
+
+  test("setSyncState sends ON_SYNC_STATE_CHANGE when app is provided", () => {
+    const ls = new LocalStorage(testDir);
+    const mockWebContents = { send: jest.fn() };
+    const mockApp = { getWindow: jest.fn(() => ({ webContents: mockWebContents })) } as any;
+
+    ls.setSyncState({ locale: "en" }, mockApp);
+    expect(mockWebContents.send).toHaveBeenCalledWith(
+      "onSyncStateChange",
+      expect.objectContaining({ locale: "en" })
+    );
+  });
+
+  test("setSyncState does not throw when app is null", () => {
+    const ls = new LocalStorage(testDir);
+    expect(() => ls.setSyncState({ locale: "fr" }, null)).not.toThrow();
+  });
+
+  // recalcProgress
+
+  test("recalcProgress does nothing when no language is set", () => {
+    const ls = new LocalStorage(testDir);
+    expect(() => ls.recalcProgress(null)).not.toThrow();
+  });
+
+  test("recalcProgress sets empty progress when no lessons", () => {
+    const ls = new LocalStorage(testDir);
+    ls.setSyncState(
+      {
+        language: {
+          languageId: 10,
+          name: "Batanga",
+          code: "btg",
+          motherTongue: false,
+          progress: [],
+          defaultSrcLang: 1
+        }
+      },
+      null
+    );
+    ls.recalcProgress(null);
+    expect(ls.getSyncState().language!.progress).toEqual([]);
+  });
+
+  test("recalcProgress computes 100 percent when all tStrings are present", () => {
+    const ls = new LocalStorage(testDir);
+    ls.setSyncState(
+      {
+        language: {
+          languageId: 10,
+          name: "Batanga",
+          code: "btg",
+          motherTongue: false,
+          progress: [],
+          defaultSrcLang: 1
+        }
+      },
+      null
+    );
+    ls.setLessons([makeLesson(1)]);
+    ls.setLessonStrings(1, [makeLessonString(1, 1), makeLessonString(2, 1)]);
+    ls.setTStrings(10, [makeTStr(1, 10, "Translated A"), makeTStr(2, 10, "Translated B")]);
+
+    ls.recalcProgress(null);
+    const progress = ls.getSyncState().language!.progress;
+    expect(progress).toHaveLength(1);
+    expect(progress[0].lessonId).toBe(1);
+    expect(progress[0].progress).toBe(100);
+  });
+
+  test("recalcProgress sends sync state change when app is provided", () => {
+    const ls = new LocalStorage(testDir);
+    ls.setSyncState(
+      {
+        language: {
+          languageId: 10,
+          name: "Batanga",
+          code: "btg",
+          motherTongue: false,
+          progress: [],
+          defaultSrcLang: 1
+        }
+      },
+      null
+    );
+    const mockWebContents = { send: jest.fn() };
+    const mockApp = { getWindow: jest.fn(() => ({ webContents: mockWebContents })) } as any;
+    ls.recalcProgress(mockApp);
+    expect(mockWebContents.send).toHaveBeenCalled();
+  });
+
+  // Migration
+
+  test("migrateLocalStorage upgrades version 1 store to version 2", () => {
+    const v1Store = {
+      syncState: {
+        language: {
+          languageId: 10,
+          name: "Batanga",
+          code: "btg",
+          motherTongue: false,
+          progress: [],
+          defaultSrcLang: 1
+        },
+        downSync: {},
+        upSync: { dirtyTStrings: [] }
+      },
+      languages: [],
+      lessons: [],
+      localStorageVersion: 1
+    };
+    fs.writeFileSync(path.join(testDir, "memoryStore.json"), JSON.stringify(v1Store));
+    const ls = new LocalStorage(testDir);
+    const state = ls.getSyncState();
+    expect(state.syncLanguages).toBeDefined();
+    expect(Array.isArray(state.syncLanguages)).toBe(true);
+    expect(state.syncLanguages).toContainEqual({ languageId: 10, timestamp: 1 });
+    expect(state.syncLanguages).toContainEqual({ languageId: 1, timestamp: 1 });
+  });
+
+  test("migrateLocalStorage with no language produces empty syncLanguages", () => {
+    const v1Store = {
+      syncState: { language: null, downSync: {}, upSync: { dirtyTStrings: [] } },
+      languages: [],
+      lessons: [],
+      localStorageVersion: 1
+    };
+    fs.writeFileSync(path.join(testDir, "memoryStore.json"), JSON.stringify(v1Store));
+    const ls = new LocalStorage(testDir);
+    expect(ls.getSyncState().syncLanguages).toEqual([]);
+  });
+
+  // Log cleanup (manageLogs)
+
+  test("manageLogs consolidates old DataUsage log files into DataUsageLog", () => {
+    const yesterday = new Date();
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+    const yyyy = yesterday.getUTCFullYear();
+    const mm = String(yesterday.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(yesterday.getUTCDate()).padStart(2, "0");
+    const filename = `LOG-DataUsage-${yyyy}-${mm}-${dd}`;
+    fs.writeFileSync(path.join(testDir, filename), "512\n256\n");
+
+    const ls = new LocalStorage(testDir);
+    const dataUsage = ls.readDataUsed() as { [date: string]: number };
+
+    expect(fs.existsSync(path.join(testDir, filename))).toBe(false);
+    const dateKey = `${yyyy}-${mm}-${dd}`;
+    expect(dataUsage[dateKey]).toBe(768);
+  });
+
+  test("manageLogs deletes old Network log files from last month or earlier", () => {
+    const oldFilename = "LOG-Network-2020-01";
+    fs.writeFileSync(path.join(testDir, oldFilename), "old log content");
+    new LocalStorage(testDir);
+    expect(fs.existsSync(path.join(testDir, oldFilename))).toBe(false);
+  });
+
+  test("manageLogs keeps current month Network log files", () => {
+    const now = new Date();
+    const yyyy = now.getUTCFullYear();
+    const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
+    const currentMonthFilename = `LOG-Network-${yyyy}-${mm}`;
+    fs.writeFileSync(path.join(testDir, currentMonthFilename), "current log");
+    new LocalStorage(testDir);
+    expect(fs.existsSync(path.join(testDir, currentMonthFilename))).toBe(true);
+  });
+
+  test("readDataUsed returns empty object when no data usage log exists", () => {
+    const ls = new LocalStorage(testDir);
+    const usage = ls.readDataUsed();
+    expect(typeof usage).toBe("object");
+  });
+
+  // removeDocPreview
+
+  test("removeDocPreview does not throw for an existing doc preview", () => {
+    const ls = new LocalStorage(testDir);
+    ls.setDocPreview(5, "<html>preview</html>");
+    expect(() => ls.removeDocPreview(5)).not.toThrow();
+  });
+
+  test("removeDocPreview does not throw when preview does not exist", () => {
+    const ls = new LocalStorage(testDir);
+    expect(() => ls.removeDocPreview(999)).not.toThrow();
+  });
+
+  // setProjectLanguageTStrings
+
+  test("setProjectLanguageTStrings appends old text to history", () => {
+    const ls = new LocalStorage(testDir);
+    ls.setSyncState(
+      {
+        language: {
+          languageId: 10,
+          name: "Batanga",
+          code: "btg",
+          motherTongue: false,
+          progress: [],
+          defaultSrcLang: 1
+        }
+      },
+      null
+    );
+    ls.setTStrings(10, [makeTStr(1, 10, "Original")]);
+    ls.setProjectLanguageTStrings([makeTStr(1, 10, "Updated")]);
+
+    const all = ls.getAllTStrings(10);
+    const updated = all.find(t => t.masterId === 1);
+    expect(updated).toBeDefined();
+    expect(updated!.text).toBe("Updated");
+    expect(updated!.history).toContain("Original");
+  });
+
+  test("setProjectLanguageTStrings throws when no project language is set", () => {
+    const ls = new LocalStorage(testDir);
+    expect(() => ls.setProjectLanguageTStrings([makeTStr(1, 10, "Text")])).toThrow();
   });
 });
