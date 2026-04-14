@@ -164,4 +164,157 @@ describe("fetchMissingPreviews", () => {
 
     await expect(fetchMissingPreviews(app)).resolves.toBeUndefined();
   });
+
+  test("fetches previews for multiple lessons, skipping those with existing previews", async () => {
+    const app = makeApp();
+    app.localStorage.getLessons.mockReturnValue([
+      { lessonId: 1, book: "Luke", series: 1, lesson: 1, version: 1 },
+      { lessonId: 2, book: "Luke", series: 1, lesson: 2, version: 1 }
+    ]);
+    app.localStorage.getDocPreview
+      .mockReturnValueOnce("<html>existing</html>") // lesson 1 has preview
+      .mockReturnValueOnce("");                      // lesson 2 does not
+    app.webClient.get.mockResolvedValue({ html: "<html>new preview</html>" });
+
+    await fetchMissingPreviews(app);
+
+    expect(app.webClient.get).toHaveBeenCalledTimes(1);
+    expect(app.localStorage.setDocPreview).toHaveBeenCalledWith(2, "<html>new preview</html>");
+  });
+});
+
+describe("downSync - TString batching", () => {
+  test("fetches tStrings in T_STRING_BATCH_SIZE batches (1000 per batch)", async () => {
+    const { T_STRING_BATCH_SIZE } = require("../../core/models/SyncState");
+    const tStringIds = Array.from({ length: T_STRING_BATCH_SIZE + 5 }, (_, i) => i + 1);
+
+    // Start with empty tStrings in state so the merge doesn't double the count
+    const state = makeSyncState({
+      downSync: makeDownSync({ tStrings: {}, timestamp: 5 }),
+      syncLanguages: [{ languageId: 3, timestamp: 1 }],
+      // No language set so fetchMissingSrcStrings short-circuits early (language == null)
+      language: null
+    });
+    const app = makeApp(state);
+
+    // Server returns 1005 new tString IDs for language 3
+    // downSyncTStrings merges them into state.downSync.tStrings then calls syncTStrings
+    const newDownSyncPackage = {
+      languages: false,
+      baseLessons: false,
+      lessons: [],
+      tStrings: { 3: tStringIds },
+      timestamp: 5,
+      progress: 100
+    };
+    app.webClient.get
+      .mockResolvedValueOnce(newDownSyncPackage) // initial downSync fetch in downSyncTStrings
+      .mockResolvedValue([]); // tStrings batch fetch calls
+
+    await downSyncTStrings(app);
+
+    // Should have fetched in 2 batches (one of 1000, one of 5)
+    const tStringGetCalls = app.webClient.get.mock.calls.filter(
+      (call: any[]) => String(call[0]).includes("tStrings")
+    );
+    expect(tStringGetCalls.length).toBe(2);
+  });
+});
+
+describe("downSync - lesson string sync", () => {
+  test("syncs lesson strings and doc preview for each pending lesson", async () => {
+    const lessonId = 7;
+    const lessonData = {
+      lessonId,
+      book: "Luke",
+      series: 1,
+      lesson: 1,
+      version: 1,
+      lessonStrings: [
+        { lessonStringId: 1, masterId: 100, lessonId, lessonVersion: 1, type: "content", xpath: "/root", motherTongue: false }
+      ]
+    };
+    const syncState = makeSyncState({
+      downSync: makeDownSync({ lessons: [lessonId], timestamp: 10 }),
+      syncLanguages: []
+    });
+    const app = makeApp(syncState);
+
+    // getDownSync will see progress=undefined (falsy) → fetch new downSync
+    const newDownSync = { languages: false, baseLessons: false, lessons: [lessonId], tStrings: {}, timestamp: 10, progress: 50 };
+    app.webClient.get
+      .mockResolvedValueOnce(newDownSync)      // getDownSync
+      .mockResolvedValueOnce(lessonData)       // syncLessons: fetch lesson
+      .mockResolvedValueOnce({ html: "<html>preview</html>" }); // fetchDocPreview
+
+    await downSync(app);
+
+    expect(app.localStorage.setLessonStrings).toHaveBeenCalledWith(lessonId, lessonData.lessonStrings);
+    expect(app.localStorage.setDocPreview).toHaveBeenCalledWith(lessonId, "<html>preview</html>");
+    expect(app.localStorage.recalcProgress).toHaveBeenCalled();
+  });
+});
+
+describe("downSyncTStrings", () => {
+  test("merges tStrings from server into existing downSync tStrings state", async () => {
+    const syncState = makeSyncState({
+      downSync: makeDownSync({
+        tStrings: { 3: [1, 2] },
+        timestamp: 5
+      }),
+      syncLanguages: [{ languageId: 3, timestamp: 1 }],
+      language: { languageId: 10, name: "Batanga", code: "btg", motherTongue: false, progress: [], defaultSrcLang: 1 }
+    });
+    const app = makeApp(syncState);
+
+    const newDownSyncPackage = {
+      languages: false,
+      baseLessons: false,
+      lessons: [],
+      tStrings: { 3: [3, 4] }, // server returns additional IDs
+      timestamp: 5
+    };
+    app.webClient.get
+      .mockResolvedValueOnce(newDownSyncPackage)
+      .mockResolvedValue([]); // tStrings fetch
+
+    await downSyncTStrings(app);
+
+    // setSyncState should have been called to merge tStrings
+    expect(app.localStorage.setSyncState).toHaveBeenCalled();
+  });
+
+  test("handles NO_CONNECTION gracefully during downSyncTStrings", async () => {
+    const syncState = makeSyncState({
+      syncLanguages: [{ languageId: 3, timestamp: 1 }]
+    });
+    const app = makeApp(syncState);
+    app.webClient.get.mockResolvedValue(null); // null → NO_CONNECTION
+
+    await expect(downSyncTStrings(app)).resolves.toBeUndefined();
+  });
+});
+
+describe("downSync - EXPIRED_SYNC", () => {
+  test("catches EXPIRED_SYNC without rethrowing", async () => {
+    // This happens when timestamp changes mid-sync
+    const syncState = makeSyncState({
+      downSync: makeDownSync({ baseLessons: true, timestamp: 5 })
+    });
+    const app = makeApp(syncState);
+
+    // First get returns a different timestamp → causes EXPIRED_SYNC on updateDownSync
+    app.webClient.get
+      .mockResolvedValueOnce({ languages: false, baseLessons: true, lessons: [], tStrings: {}, timestamp: 5 })
+      .mockImplementation(() => {
+        // After baseLessons sync, change the timestamp so updateDownSync throws EXPIRED_SYNC
+        app.localStorage.getSyncState.mockReturnValue({
+          ...makeSyncState({ downSync: makeDownSync({ timestamp: 999 }) })
+        });
+        return Promise.resolve([]);
+      });
+
+    // Should not throw - EXPIRED_SYNC is caught
+    await expect(downSync(app)).resolves.toBeUndefined();
+  });
 });

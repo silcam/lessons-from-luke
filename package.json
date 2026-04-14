@@ -42,6 +42,7 @@
     "test:reverse": "NODE_ENV=test jest --runInBand --watchAll=false --testSequencer=./ReverseSequencer.js",
     "test:verify": "bash scripts/verify-tests.sh",
     "test-coverage": "NODE_ENV=test jest --runInBand --coverage",
+    "test:frontend": "NODE_ENV=test npx jest --config jest.frontend.config.js --runInBand --watchAll=false",
     "test-desktop-e2e": "jest -c jest.playwright-electron.config.js",
     "test-desktop-e2e-deps": "NODE_ENV=test concurrently -k -p \"[{name}]\" -n \"Webpack,Server\" -c \"yellow.bold,blue.bold\" \"yarn wpDevServerDesktop\" \"yarn serve\"",
     "cypress:open": "cypress open",
@@ -96,6 +97,8 @@
     "typescript": "^5.7.3"
   },
   "devDependencies": {
+    "@testing-library/react": "^12",
+    "jest-environment-jsdom": "^29.7.0",
     "concurrently": "^7.0.0",
     "cypress": "^13.0.0",
     "electron-builder": "^25.0.0",

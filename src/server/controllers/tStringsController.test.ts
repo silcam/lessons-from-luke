@@ -4,8 +4,6 @@ import { plainAgent } from "../testHelper";
 import { TString } from "../../core/models/TString";
 import { SuperTest } from "supertest";
 import supertest = require("supertest");
-import { WithCode } from "../../core/models/Language";
-import { unset } from "../../core/util/objectUtils";
 
 
 test("Get TStrings", async () => {
@@ -193,25 +191,6 @@ test("Save TString - empty tStrings array returns 422", async () => {
   expect(response.status).toBe(422);
 });
 
-// test("Save TString - Exception to Master", async () => {
-//   const tString: WithCode<TString> = {
-//     masterId: 3,
-//     languageId: 3,
-//     text: "Again, Njambɛ abowandi mahaleya mahu.",
-//     source: "Dieu entend nos prières.",
-//     sourceLanguageId: 2,
-//     history: [],
-//     lessonStringId: 5,
-//     code: "GHI"
-//   };
-//   expect.assertions(4);
-//   const agent = plainAgent();
-//   expect(await batangaTStringCount(agent)).toBe(3);
-//   let response = await agent.post("/api/tStrings").send(tString);
-//   expect(response.status).toBe(200);
-//   expect(response.body).toEqual(unset(tString, "code"));
-//   expect(await batangaTStringCount(agent)).toBe(4);
-// });
 
 async function batangaTStringCount(
   agent: SuperTest<supertest.Test>

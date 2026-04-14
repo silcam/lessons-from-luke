@@ -32,12 +32,12 @@ export default function mergeXml(
   unlinkRecursive(extractDirPath);
 }
 
-interface SortedDocStrings {
+export interface SortedDocStrings {
   content: DocString[];
   meta: DocString[];
   styles: DocString[];
 }
-function sortDocStrings(docStrings: DocString[]): SortedDocStrings {
+export function sortDocStrings(docStrings: DocString[]): SortedDocStrings {
   return docStrings.reduce(
     (sorted: SortedDocStrings, docStr) => {
       sorted[docStr.type].push(docStr);
@@ -105,14 +105,14 @@ export function extractNamespaces(xmlDoc: Document) {
     }, {} as Namespaces);
 }
 
-function addSpacesForStylesStrings(sortedTStrings: SortedDocStrings) {
+export function addSpacesForStylesStrings(sortedTStrings: SortedDocStrings) {
   sortedTStrings.styles = sortedTStrings.styles.map(str => ({
     ...str,
     text: str.text + " "
   }));
 }
 
-function cleanOpenDocXml(str: string) {
+export function cleanOpenDocXml(str: string) {
   return str
     .replace(/&amp;quot;/g, "&quot;")
     .replace(/&amp;lt;/g, "&lt;")

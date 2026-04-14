@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
 import styled from "styled-components";
 import Colors from "../util/Colors";
-import { FlexCol } from "./Flex";
+import { FlexColBase } from "./Flex";
 
-const ContainerDiv = styled(FlexCol)`
+const ContainerDiv = styled(FlexColBase)`
   position: relative;
 `;
 

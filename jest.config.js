@@ -4,7 +4,7 @@ module.exports = {
     "^.+\\.tsx?$": ["ts-jest", {}]
   },
   testEnvironment: "node",
-  testPathIgnorePatterns: ["/node_modules/", "<rootDir>/test/", "<rootDir>/cypress/"],
+  testPathIgnorePatterns: ["/node_modules/", "<rootDir>/test/", "<rootDir>/cypress/", "<rootDir>/src/frontend/", "<rootDir>/src/desktop/"],
   watchPathIgnorePatterns: ["strings", "old", "cypress"],
   globalSetup: "<rootDir>/src/server/jestGlobalSetup.ts",
   setupFilesAfterEnv: ["<rootDir>/src/server/jestSetupAfterEnv.ts"],
