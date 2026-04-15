@@ -54,3 +54,11 @@ Cypress.Commands.add("inLabel", label =>
     .find("input, select")
     .first()
 );
+
+// Wait for the translate page to finish loading lesson data.
+// Waits for any span.lessonString element to appear (the first lesson is
+// auto-selected by the app). Used instead of hard-coded content assertions
+// as a page-ready signal.
+Cypress.Commands.add("waitForTranslatePage", () => {
+  cy.get("span.lessonString", { timeout: 10000 }).should("exist");
+});

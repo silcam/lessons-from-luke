@@ -6,7 +6,9 @@ describe("Admin Languages", () => {
     cy.contains("button", "Add Language").click();
     cy.inLabel("Source Language").select("Français");
     cy.placeholder("Language Name").type("German");
+    cy.intercept("POST", "/api/admin/languages").as("saveLanguage");
     cy.contains("button", "Save").click();
+    cy.wait("@saveLanguage");
     cy.contains("button", "German").should("exist");
   });
 
@@ -41,7 +43,9 @@ describe("Admin Languages", () => {
       );
     });
     cy.contains("button", "43LUKBMO.SFM").should("exist");
+    cy.intercept("POST", /\/api\/admin\/languages\/\d+\/usfm/).as("importUsfm");
     cy.contains("Save").click();
+    cy.wait("@importUsfm", { timeout: 30000 });
     cy.url().should("eq", "http://localhost:8080/usfmImportResult");
     cy.contains("Luka 1:5-7 A ni mbɔ thɔ Hɛrɔ,").should("exist");
   });
@@ -62,7 +66,9 @@ describe("Admin Languages", () => {
     });
     cy.contains("button", "Français_Luke-T1-L01.odt").should("exist");
     cy.inLabel("Lesson").should("have.value", "11");
+    cy.intercept("POST", "/api/admin/documents").as("uploadDoc");
     cy.contains("button", "Upload").click();
+    cy.wait("@uploadDoc", { timeout: 30000 });
 
     cy.url().should(
       "eq",

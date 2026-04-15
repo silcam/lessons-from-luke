@@ -18,7 +18,9 @@ describe("Admin Lessons", () => {
     cy.inLabel("Book").should("have.value", "Luke");
     cy.inLabel("Series").should("have.value", "1");
     cy.inLabel("Lesson").should("have.value", "6");
+    cy.intercept("POST", "/api/admin/documents").as("uploadLesson");
     cy.contains("button", "Save").click();
+    cy.wait("@uploadLesson", { timeout: 30000 });
     cy.url().should("eq", "http://localhost:8080/update-issues/16");
     cy.contains("h2", "No issues").should("exist");
     cy.contains("button", "View Lesson").click();

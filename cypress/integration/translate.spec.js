@@ -8,13 +8,9 @@ describe("Translate", () => {
 
   it("Changes sources", () => {
     cy.visit("/translate/GHI");
-    // Allow everything to load
-    cy.contains(
-      "span.lessonString.selected",
-      "Pɔh eyamu ya Lukasi etilinɔ na iyabɛnɛ dá Yohanesi Nkahɛdɛni"
-    );
+    cy.waitForTranslatePage();
 
-    cy.inLabel("Source Language").select("Français");
+    cy.inLabel("Source Language").select("Français", { force: true });
     cy.contains("Le livre de Luc").should("exist");
   });
 
@@ -32,6 +28,7 @@ describe("Translate", () => {
 
   it("Translates stuff", () => {
     cy.visit("/translate/GHI");
+    cy.waitForTranslatePage();
     const ctrlsDiv = () =>
       cy.contains("label", "Source Language").closest("div");
     cy.contains("button", ">>>").click();
@@ -41,22 +38,21 @@ describe("Translate", () => {
       "Talk to God every day this week, and be ready to share all the different places and ways you talked to God."
     );
     cy.get("textarea").type(
-      "Langwanaha Njambbɛ buwa kaha buwa bó sɔndɛ tɛh eni...",
+      "Langwanaha Njambbɛ buwa kaha buwa bó sɔndɛ tɛh eni...",
       {
         delay: 0
       }
     );
     cy.contains("Unsaved Changes").should("exist");
+
+    cy.intercept("POST", "/api/tStrings").as("saveTStrings");
     cy.contains("button", "Save").click();
+    cy.wait("@saveTStrings");
     cy.contains("Changes Saved").should("exist");
 
     cy.visit("/translate/GHI");
-    // Allow everything to load
-    cy.contains(
-      "span.lessonString.selected",
-      "Pɔh eyamu ya Lukasi etilinɔ na iyabɛnɛ dá Yohanesi Nkahɛdɛni"
-    );
-    cy.contains("Langwanaha Njambbɛ buwa kaha buwa bó sɔndɛ tɛh eni.").should(
+    cy.waitForTranslatePage();
+    cy.contains("Langwanaha Njambbɛ buwa kaha buwa bó sɔndɛ tɛh eni.").should(
       "exist"
     );
   });
