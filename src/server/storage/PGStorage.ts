@@ -91,7 +91,7 @@ export default class PGStorage implements Persistence {
 
   async lessons(): Promise<BaseLesson[]> {
     return this.sql`
-      SELECT lessonid, book, series, lesson, version FROM lessons
+      SELECT lessonid, book, series, lesson, version FROM lessons ORDER BY lessonid
       `;
   }
 
