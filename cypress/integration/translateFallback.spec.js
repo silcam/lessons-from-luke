@@ -1,7 +1,6 @@
 describe("Translate Fallback", () => {
   it("Changes sources", () => {
-    cy.visit("/translate/GHI");
-    cy.waitForTranslatePage();
+    cy.visitTranslatePage("GHI");
     cy.contains("Luke 1-2").click();
 
     cy.inLabel("Source Language").select("Français", { force: true });
@@ -9,8 +8,7 @@ describe("Translate Fallback", () => {
   });
 
   it("Translates stuff", () => {
-    cy.visit("/translate/GHI");
-    cy.waitForTranslatePage();
+    cy.visitTranslatePage("GHI");
     cy.contains("Luke 1-2").click();
 
     cy.contains("div", "Nothing is impossible with God")
@@ -26,8 +24,7 @@ describe("Translate Fallback", () => {
     cy.wait("@saveTStrings");
     cy.contains("Changes Saved").should("exist");
 
-    cy.visit("/translate/GHI");
-    cy.waitForTranslatePage();
+    cy.visitTranslatePage("GHI");
     cy.contains("Luke 1-2").click();
     cy.contains("Naha dambo dihihitiwɛ boholo ó pɛlɛ ya Njambɛ.").should(
       "exist"

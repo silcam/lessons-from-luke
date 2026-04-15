@@ -7,8 +7,7 @@ describe("Translate", () => {
   });
 
   it("Changes sources", () => {
-    cy.visit("/translate/GHI");
-    cy.waitForTranslatePage();
+    cy.visitTranslatePage("GHI");
 
     cy.inLabel("Source Language").select("Français", { force: true });
     cy.contains("Le livre de Luc").should("exist");
@@ -27,8 +26,7 @@ describe("Translate", () => {
   });
 
   it("Translates stuff", () => {
-    cy.visit("/translate/GHI");
-    cy.waitForTranslatePage();
+    cy.visitTranslatePage("GHI");
     const ctrlsDiv = () =>
       cy.contains("label", "Source Language").closest("div");
     cy.contains("button", ">>>").click();
@@ -50,8 +48,7 @@ describe("Translate", () => {
     cy.wait("@saveTStrings");
     cy.contains("Changes Saved").should("exist");
 
-    cy.visit("/translate/GHI");
-    cy.waitForTranslatePage();
+    cy.visitTranslatePage("GHI");
     cy.contains("Langwanaha Njambbɛ buwa kaha buwa bó sɔndɛ tɛh eni.").should(
       "exist"
     );

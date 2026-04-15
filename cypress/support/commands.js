@@ -55,10 +55,14 @@ Cypress.Commands.add("inLabel", label =>
     .first()
 );
 
-// Wait for the translate page to finish loading lesson data.
-// Waits for any span.lessonString element to appear (the first lesson is
-// auto-selected by the app). Used instead of hard-coded content assertions
-// as a page-ready signal.
-Cypress.Commands.add("waitForTranslatePage", () => {
-  cy.get("span.lessonString", { timeout: 10000 }).should("exist");
+// Visit the translate page for a language code and wait for all data to load.
+// Sets up network intercepts BEFORE visiting so the 3 API calls the page fires
+// on mount are reliably caught, then waits for them to complete. This is more
+// robust than polling the DOM, which can time out on slow CI runners.
+Cypress.Commands.add("visitTranslatePage", code => {
+  cy.intercept("GET", "/api/lessons").as("_tpLessons");
+  cy.intercept("GET", `/api/languages/code/${code}`).as("_tpLanguage");
+  cy.intercept("GET", "/api/languages").as("_tpLanguages");
+  cy.visit(`/translate/${code}`);
+  cy.wait(["@_tpLessons", "@_tpLanguage", "@_tpLanguages"]);
 });
