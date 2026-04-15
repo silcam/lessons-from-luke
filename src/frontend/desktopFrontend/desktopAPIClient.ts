@@ -5,7 +5,6 @@ import {
   PostRoute
 } from "../../core/interfaces/Api";
 import { asAppError } from "../../core/models/AppError";
-import { ipcRenderer } from "electron";
 
 export async function ipcGet<T extends GetRoute>(
   route: T,
@@ -13,7 +12,7 @@ export async function ipcGet<T extends GetRoute>(
 ): Promise<APIGet[T][1]> {
   try {
     console.log(`GET ${route} ${JSON.stringify(params)}`);
-    const response = await ipcRenderer.invoke(route, params);
+    const response = await window.electronAPI.invoke(route, params);
     if (response?.data) return response.data;
     throw response?.error;
   } catch (err) {
@@ -30,7 +29,7 @@ export async function ipcPost<T extends PostRoute>(
     console.log(
       `POST ${route} ${JSON.stringify(params)} WITH ${JSON.stringify(data)}`
     );
-    const response = await ipcRenderer.invoke(route, params, data);
+    const response = await window.electronAPI.invoke(route, params, data);
     if (response?.data) return response.data;
     throw response?.error;
   } catch (err) {
