@@ -30,7 +30,7 @@ export default function Foldable(props: IProps) {
   );
 }
 
-const FoldableDiv = styled.div`
+const FoldableDiv = styled.div<{ children?: React.ReactNode }>`
   border: 1px solid ${Colors.lightGrey};
   border-radius: 8px;
   margin: 1em;

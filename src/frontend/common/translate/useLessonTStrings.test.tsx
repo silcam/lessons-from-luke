@@ -51,7 +51,7 @@ const createTestStore = () =>
 
 const createWrapper = (store: ReturnType<typeof createTestStore>, platform: "web" | "desktop" = "web", mockPost?: jest.Mock) => {
   const postFn = mockPost || jest.fn() as any;
-  const Wrapper: React.FC = ({ children }) => (
+  const Wrapper: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
     <Provider store={store}>
       <PlatformContext.Provider value={platform}>
         <RequestContext.Provider

@@ -1,5 +1,5 @@
 import React from "react";
-import { Switch, Route } from "react-router-dom";
+import { Routes, Route, useParams } from "react-router-dom";
 import TranslateRoute from "../common/translate/TranslateHome";
 import AdminHome from "./home/AdminHome";
 import PublicHome from "./home/PublicHome";
@@ -17,6 +17,47 @@ import MigrateProjectsIndex from "./migrate/MigrateProjectsIndex";
 import MigrateProject from "./migrate/MigrateProject";
 import UpdateIssuesPage from "./lessons/UpdateIssuesPage";
 
+function TranslateRouteWrapper() {
+  const { code } = useParams<{ code: string }>();
+  return <TranslateRoute code={code!} />;
+}
+
+function LessonPageWrapper() {
+  const { id } = useParams<{ id: string }>();
+  return <LessonPage id={parseInt(id!)} />;
+}
+
+function DocStringsPageWrapper() {
+  const { languageId, lessonId } = useParams<{
+    languageId: string;
+    lessonId: string;
+  }>();
+  return (
+    <DocStringsPage
+      languageId={parseInt(languageId!)}
+      lessonId={parseInt(lessonId!)}
+    />
+  );
+}
+
+function MigrateProjectWrapper() {
+  const { datetime, languageId } = useParams<{
+    datetime: string;
+    languageId: string;
+  }>();
+  return (
+    <MigrateProject
+      datetime={parseInt(datetime!)}
+      languageId={parseInt(languageId!)}
+    />
+  );
+}
+
+function UpdateIssuesPageWrapper() {
+  const { lessonId } = useParams<{ lessonId: string }>();
+  return <UpdateIssuesPage lessonId={parseInt(lessonId!)} />;
+}
+
 export default function MainRouter() {
   const { user, loaded } = useSelector((state: AppState) => state.currentUser);
   useLoad(loadCurrentUser);
@@ -25,48 +66,25 @@ export default function MainRouter() {
     <RootDiv>
       <AppLoadingBar />
       {loaded ? (
-        <Switch>
-          <Route
-            path="/translate/:code"
-            render={({ match }) => <TranslateRoute code={match.params.code} />}
-          />
-          <Route
-            path="/lessons/:id"
-            render={({ match }) => (
-              <LessonPage id={parseInt(match.params.id)} />
-            )}
-          />
-          <Route
-            path="/usfmImportResult"
-            render={() => <UsfmImportResultPage />}
-          />
+        <Routes>
+          <Route path="/translate/:code" element={<TranslateRouteWrapper />} />
+          <Route path="/lessons/:id" element={<LessonPageWrapper />} />
+          <Route path="/usfmImportResult" element={<UsfmImportResultPage />} />
           <Route
             path="/languages/:languageId/lessons/:lessonId/docStrings"
-            render={({ match }) => (
-              <DocStringsPage
-                languageId={parseInt(match.params.languageId)}
-                lessonId={parseInt(match.params.lessonId)}
-              />
-            )}
+            element={<DocStringsPageWrapper />}
           />
           <Route
             path="/migrate/:datetime/to/:languageId"
-            render={({ match }) => (
-              <MigrateProject
-                datetime={parseInt(match.params.datetime)}
-                languageId={parseInt(match.params.languageId)}
-              />
-            )}
+            element={<MigrateProjectWrapper />}
           />
-          <Route path="/migrate" render={() => <MigrateProjectsIndex />} />
+          <Route path="/migrate" element={<MigrateProjectsIndex />} />
           <Route
             path="/update-issues/:lessonId"
-            render={({ match }) => (
-              <UpdateIssuesPage lessonId={parseInt(match.params.lessonId)} />
-            )}
+            element={<UpdateIssuesPageWrapper />}
           />
-          <Route render={() => (user ? <AdminHome /> : <PublicHome />)} />
-        </Switch>
+          <Route path="*" element={user ? <AdminHome /> : <PublicHome />} />
+        </Routes>
       ) : (
         <LoadingSnake />
       )}

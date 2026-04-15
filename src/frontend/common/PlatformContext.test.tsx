@@ -9,7 +9,7 @@ describe("PlatformContext", () => {
   });
 
   it("provides 'web' when wrapped with web value", () => {
-    const Wrapper: React.FC = ({ children }) => (
+    const Wrapper: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
       <PlatformContext.Provider value="web">
         {children}
       </PlatformContext.Provider>
@@ -23,7 +23,7 @@ describe("PlatformContext", () => {
   });
 
   it("provides 'desktop' when wrapped with desktop value", () => {
-    const Wrapper: React.FC = ({ children }) => (
+    const Wrapper: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
       <PlatformContext.Provider value="desktop">
         {children}
       </PlatformContext.Provider>
@@ -37,7 +37,7 @@ describe("PlatformContext", () => {
   });
 
   it("allows consumers to check platform equality", () => {
-    const Wrapper: React.FC = ({ children }) => (
+    const Wrapper: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
       <PlatformContext.Provider value="desktop">
         {children}
       </PlatformContext.Provider>

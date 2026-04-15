@@ -36,7 +36,7 @@ const createWrapper = (
   mockPost = jest.fn().mockResolvedValue(null)
 ) => {
   const store = createTestStore();
-  const Wrapper: React.FC = ({ children }) => (
+  const Wrapper: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
     <Provider store={store}>
       <RequestContext.Provider value={{ get: mockGet as any, post: mockPost as any }}>
         {children}
@@ -205,17 +205,17 @@ describe("useLoadMultiple", () => {
     const loader2: Loader<any> = _get => _dispatch => Promise.resolve(null);
 
     const { Wrapper } = createWrapper();
-    let finalValue: boolean | undefined;
+
+    const hook = renderHook(
+      () => useLoadMultiple([loader1, loader2]),
+      { wrapper: Wrapper }
+    );
 
     await act(async () => {
-      const { result } = renderHook(
-        () => useLoadMultiple([loader1, loader2]),
-        { wrapper: Wrapper }
-      );
-      finalValue = result.current;
+      await Promise.resolve();
     });
 
-    expect(typeof finalValue).toBe("boolean");
+    expect(typeof hook.result.current).toBe("boolean");
   });
 });
 

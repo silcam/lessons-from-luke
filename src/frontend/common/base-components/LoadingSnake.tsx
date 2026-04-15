@@ -7,7 +7,7 @@ const ContainerDiv = styled(FlexColBase)`
   position: relative;
 `;
 
-const Bouncy = styled.span`
+const Bouncy = styled.span<React.HTMLAttributes<HTMLSpanElement>>`
   position: absolute;
   color: ${Colors.primary};
   font-weight: bold;

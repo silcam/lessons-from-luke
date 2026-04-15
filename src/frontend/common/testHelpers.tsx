@@ -35,7 +35,8 @@ export const mockGet = jest.fn().mockResolvedValue(null);
 export const mockPost = jest.fn().mockResolvedValue(null);
 
 export function buildStore(initialState?: Record<string, any>) {
-  return configureStore({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (configureStore as any)({
     reducer: {
       languages: languageSlice.reducer,
       tStrings: tStringSlice.reducer,

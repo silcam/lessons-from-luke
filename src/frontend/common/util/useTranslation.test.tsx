@@ -43,7 +43,7 @@ describe("useTranslation", () => {
       currentUser: { user: null, locale: "en", loaded: false }
     });
 
-    const Wrapper: React.FC = ({ children }) => (
+    const Wrapper: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
       <Provider store={store}>
         <PlatformContext.Provider value="web">
           {children}
@@ -66,7 +66,7 @@ describe("useTranslation", () => {
       }
     });
 
-    const Wrapper: React.FC = ({ children }) => (
+    const Wrapper: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
       <Provider store={store}>
         <PlatformContext.Provider value="desktop">
           {children}
@@ -88,7 +88,7 @@ describe("useTranslation", () => {
       }
     });
 
-    const Wrapper: React.FC = ({ children }) => (
+    const Wrapper: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
       <Provider store={store}>
         <PlatformContext.Provider value="desktop">
           {children}
@@ -107,7 +107,7 @@ describe("useTranslation", () => {
       currentUser: { user: null, locale: "fr", loaded: false }
     });
 
-    const Wrapper: React.FC = ({ children }) => (
+    const Wrapper: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
       <Provider store={store}>
         <PlatformContext.Provider value="web">
           {children}

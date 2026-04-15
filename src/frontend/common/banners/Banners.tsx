@@ -87,7 +87,7 @@ function Dots() {
   return <div style={{ display: "inline-block", width: "2em" }}>{dots}</div>;
 }
 
-const ErrBanner = styled.div`
+const ErrBanner = styled.div<{ children?: React.ReactNode }>`
   background-color: ${Colors.danger};
   color: white;
   display: flex;

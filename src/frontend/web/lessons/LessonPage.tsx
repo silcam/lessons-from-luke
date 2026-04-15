@@ -15,7 +15,7 @@ import LessonEditor, { docStringsFromLessonTStrings } from "./LessonEditor";
 import { StdHeaderBarPage } from "../../common/base-components/HeaderBar";
 import Scroll from "../../common/base-components/Scroll";
 import { DocString } from "../../../core/models/DocString";
-import { Link, useHistory } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 interface IProps {
   id: number;
@@ -24,7 +24,7 @@ interface IProps {
 export default function LessonPage(props: IProps) {
   const t = useTranslation();
   const push = usePush();
-  const history = useHistory();
+  const navigate = useNavigate();
   const { lesson, lessonTStrings } = useLessonTStrings(props.id, [ENGLISH_ID]);
 
   const loading = useLoadMultiple([
@@ -41,7 +41,7 @@ export default function LessonPage(props: IProps) {
 
   const save = async () => {
     const lesson = await push(pushLessonStrings(props.id, docStrings));
-    if (lesson) history.push(`/update-issues/${lesson.lessonId}`);
+    if (lesson) navigate(`/update-issues/${lesson.lessonId}`);
   };
 
   return (

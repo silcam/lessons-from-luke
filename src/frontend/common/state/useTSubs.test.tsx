@@ -31,7 +31,7 @@ const createTestStore = () =>
   });
 
 const createWrapper = (store: ReturnType<typeof createTestStore>) => {
-  const Wrapper: React.FC = ({ children }) => (
+  const Wrapper: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
     <Provider store={store}>{children}</Provider>
   );
   return Wrapper;
