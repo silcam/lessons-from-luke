@@ -115,6 +115,47 @@ describe("Admin Languages", () => {
     // );
   });
 
+  it("Rejects non-USFM file upload", () => {
+    cy.visit("/");
+    cy.contains("button", "Batanga").click();
+    cy.contains("Upload USFM").click();
+    cy.get("input[type='file']").selectFile(
+      {
+        contents: Cypress.Buffer.from("This is not valid USFM content"),
+        fileName: "not-usfm.txt",
+        mimeType: "text/plain"
+      },
+      { action: "drag-drop", force: true }
+    );
+    cy.contains("button", "not-usfm.txt").should("exist");
+    cy.intercept("POST", /\/api\/admin\/languages\/\d+\/usfm/).as("importUsfm");
+    cy.contains("Save").click();
+    cy.wait("@importUsfm", { timeout: 10000 });
+    // Invalid USFM causes a server error; user should not reach the import result page
+    cy.url().should("not.include", "usfmImportResult");
+    cy.contains("Server Error").should("exist");
+  });
+
+  it("Rejects non-ODT file for document upload", () => {
+    cy.visit("/");
+    cy.contains("Français").click();
+    cy.contains("Upload Document").click();
+    // The ODT dropzone enforces accept="application/vnd.oasis.opendocument.text";
+    // a PDF file should be silently rejected before reaching the server
+    cy.get("input[type='file']").selectFile(
+      {
+        contents: Cypress.Buffer.from("not an odt file"),
+        fileName: "invalid.pdf",
+        mimeType: "application/pdf"
+      },
+      { action: "drag-drop", force: true }
+    );
+    // File was rejected by dropzone — the filename button should NOT appear
+    cy.contains("button", "invalid.pdf").should("not.exist");
+    // Upload button remains disabled since no valid file was accepted
+    cy.contains("button", "Upload").should("be.disabled");
+  });
+
   // it("Downloads Documents", () => {
   //   cy.visit("/");
   //   cy.contains("button", "Batanga").click();

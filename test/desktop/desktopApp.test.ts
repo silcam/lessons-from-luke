@@ -35,3 +35,59 @@ test("Downsync", async () => {
 
   await app.close();
 }, 15000);
+
+test("Login guard: translation UI is inaccessible before entering a project code", async () => {
+  const app = await electron.launch({
+    args: [path.join(__dirname, "../../dist/desktop/desktop/main-test.js")]
+  });
+  const window = await app.firstWindow();
+
+  // App must reach the online/code-entry state before we can assert anything
+  await window.locator('h1:text("Online")').waitFor();
+
+  // The code-entry text input should be visible
+  await window.locator("input[type='text']").waitFor();
+
+  // The "Start Translating" button must not exist — no translation UI yet
+  const startBtn = window.locator('button:text("Start Translating")');
+  expect(await startBtn.count()).toBe(0);
+
+  await app.close();
+}, 10000);
+
+test("Translation workflow: type and save a translation string", async () => {
+  const app = await electron.launch({
+    args: [path.join(__dirname, "../../dist/desktop/desktop/main-test.js")]
+  });
+  const window = await app.firstWindow();
+
+  // Complete downsync
+  await window.locator('h1:text("Online")').waitFor();
+  await window.click("input[type='text']");
+  await window.keyboard.type("GHI");
+  await window.click("button:text('OK')");
+  await window.locator('button:text("Start Translating")').waitFor();
+  await window.click('button:text("Start Translating")');
+
+  // Wait for the translation UI to load (a lesson string becomes visible)
+  await window
+    .locator('p:text("The Book of Luke and the Birth of John the Baptizer")')
+    .waitFor();
+
+  // Find the first translation textarea (placeholder = language name "Batanga")
+  const textarea = window.locator('textarea[placeholder="Batanga"]').first();
+  await textarea.waitFor();
+
+  // Type a translation and blur to trigger the auto-save
+  await textarea.click();
+  await textarea.fill("Test translation");
+  // Click elsewhere to trigger onBlur → save
+  await window.locator('h1:text("Lessons from Luke")').click();
+
+  // Header should reflect saved or uploading state
+  await window
+    .locator('h1:text("Changes Saved"), h1:text("Uploading")')
+    .waitFor({ timeout: 5000 });
+
+  await app.close();
+}, 20000);
