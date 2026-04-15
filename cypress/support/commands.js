@@ -56,13 +56,18 @@ Cypress.Commands.add("inLabel", label =>
 );
 
 // Visit the translate page for a language code and wait for all data to load.
-// Sets up network intercepts BEFORE visiting so the 3 API calls the page fires
-// on mount are reliably caught, then waits for them to complete. This is more
-// robust than polling the DOM, which can time out on slow CI runners.
+// 1. Clears localStorage so no prior lesson selection (which disables that button)
+//    leaks from a previous test.
+// 2. Registers intercepts BEFORE visiting so the 3 initial API calls are caught.
+// 3. After the 3 calls complete, waits for span.lessonString to appear — those
+//    elements only render once the lesson tStrings have also loaded, so this
+//    serves as the final "page fully ready" signal.
 Cypress.Commands.add("visitTranslatePage", code => {
+  cy.clearLocalStorage();
   cy.intercept("GET", "/api/lessons").as("_tpLessons");
   cy.intercept("GET", `/api/languages/code/${code}`).as("_tpLanguage");
   cy.intercept("GET", "/api/languages").as("_tpLanguages");
   cy.visit(`/translate/${code}`);
   cy.wait(["@_tpLessons", "@_tpLanguage", "@_tpLanguages"]);
+  cy.get("span.lessonString", { timeout: 20000 }).should("exist");
 });

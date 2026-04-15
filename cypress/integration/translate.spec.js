@@ -9,7 +9,9 @@ describe("Translate", () => {
   it("Changes sources", () => {
     cy.visitTranslatePage("GHI");
 
+    cy.intercept("GET", /\/api\/languages\/\d+\/lessons\/\d+\/tStrings/).as("srcTStrings");
     cy.inLabel("Source Language").select("Français", { force: true });
+    cy.wait("@srcTStrings");
     cy.contains("Le livre de Luc").should("exist");
   });
 
