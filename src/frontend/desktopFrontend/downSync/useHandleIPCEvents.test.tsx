@@ -2,7 +2,6 @@ import React from "react";
 import { render, act } from "@testing-library/react";
 import { configureStore, combineReducers } from "@reduxjs/toolkit";
 import { Provider } from "react-redux";
-import { ipcRenderer } from "electron";
 import useHandleIPCEvents from "./useHandleIPCEvents";
 import syncStateSlice from "../../common/state/syncStateSlice";
 import bannerSlice from "../../common/banners/bannerSlice";
@@ -13,8 +12,25 @@ import {
   ON_ERROR
 } from "../../../core/api/IpcChannels";
 
-const mockOn = ipcRenderer.on as jest.Mock;
-const mockRemoveListener = ipcRenderer.removeListener as jest.Mock;
+// Mocks for window.electronAPI.on — each call returns a unique unsubscribe fn
+const mockUnsubSync = jest.fn();
+const mockUnsubError = jest.fn();
+const mockOn = jest.fn();
+
+beforeAll(() => {
+  Object.defineProperty(window, "electronAPI", {
+    value: { invoke: jest.fn(), on: mockOn },
+    writable: true
+  });
+});
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  // Return distinct unsubscribe functions based on call order
+  mockOn
+    .mockReturnValueOnce(mockUnsubSync)
+    .mockReturnValueOnce(mockUnsubError);
+});
 
 // Build a minimal store with only the slices that useHandleIPCEvents dispatches to
 function createTestStore() {
@@ -42,10 +58,6 @@ function renderHarnessWithStore(store: ReturnType<typeof createTestStore>) {
   );
 }
 
-beforeEach(() => {
-  jest.clearAllMocks();
-});
-
 describe("useHandleIPCEvents", () => {
   it("registers IPC listeners for ON_SYNC_STATE_CHANGE and ON_ERROR on mount", () => {
     const store = createTestStore();
@@ -63,14 +75,8 @@ describe("useHandleIPCEvents", () => {
     const { unmount } = renderHarnessWithStore(store);
     unmount();
 
-    expect(mockRemoveListener).toHaveBeenCalledWith(
-      ON_SYNC_STATE_CHANGE,
-      expect.any(Function)
-    );
-    expect(mockRemoveListener).toHaveBeenCalledWith(
-      ON_ERROR,
-      expect.any(Function)
-    );
+    expect(mockUnsubSync).toHaveBeenCalled();
+    expect(mockUnsubError).toHaveBeenCalled();
   });
 
   it("dispatches setSyncState when ON_SYNC_STATE_CHANGE fires", () => {
@@ -86,7 +92,7 @@ describe("useHandleIPCEvents", () => {
 
     const syncStateUpdate = { connected: true, loaded: true };
     act(() => {
-      listener({} /* event */, syncStateUpdate);
+      listener(syncStateUpdate);
     });
 
     const state = store.getState().syncState;
@@ -113,7 +119,7 @@ describe("useHandleIPCEvents", () => {
     };
 
     act(() => {
-      listener({}, { language });
+      listener({ language });
     });
 
     const langState = store.getState().languages;
@@ -132,7 +138,7 @@ describe("useHandleIPCEvents", () => {
 
     const error = { type: "Unknown" };
     act(() => {
-      errorListener({}, error);
+      errorListener(error);
     });
 
     const banners = store.getState().banners;

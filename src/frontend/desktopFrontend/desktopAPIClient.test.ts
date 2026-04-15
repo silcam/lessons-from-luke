@@ -1,8 +1,14 @@
-import { ipcRenderer } from "electron";
 import { ipcGet, ipcPost } from "./desktopAPIClient";
 
-// Cast the mock to jest.Mock for assertion helpers
-const mockInvoke = ipcRenderer.invoke as jest.Mock;
+// Mock window.electronAPI
+const mockInvoke = jest.fn();
+
+beforeAll(() => {
+  Object.defineProperty(window, "electronAPI", {
+    value: { invoke: mockInvoke, on: jest.fn() },
+    writable: true
+  });
+});
 
 beforeEach(() => {
   jest.clearAllMocks();
