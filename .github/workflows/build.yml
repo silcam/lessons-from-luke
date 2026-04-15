@@ -139,22 +139,21 @@ jobs:
     runs-on: macos-latest
     if: github.event_name == 'workflow_dispatch'
     steps:
-    - uses: actions/checkout@master
+    - uses: actions/checkout@v4
       with:
         ref: master
-    - uses: actions/setup-node@master
+    - uses: actions/setup-node@v4
       with:
         node-version: 24
     - name: Install dependencies
       run: yarn install
     - name: Build binary
       run: yarn build-desktop
-      continue-on-error: true
     - name: Look at what we've got
       run: ls -l ./dist-desktop
     - name: Look at what we've got num2
       run: ls -l ./dist-desktop/mac
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v4
       with:
         name: platform-build
         path: |
