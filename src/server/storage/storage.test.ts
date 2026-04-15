@@ -7,7 +7,7 @@ import { TString } from "../../core/models/TString";
 import { PGTestStorage, transformCol } from "./PGStorage";
 import testStorage from "./testStorage";
 import { findBy, findByStrict } from "../../core/util/arrayUtils";
-import { USE_PG } from "../testHelper";
+import { USE_PG } from "../testConfig";
 
 let storage: TestPersistence;
 storage = USE_PG ? (global as any).testStorage : testStorage;

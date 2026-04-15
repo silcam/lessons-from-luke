@@ -17,6 +17,7 @@ services:
         statsig.com
     volumes:
       - ./:/workspace:rw                        # dedicated workspace folder, RW
+      - node_modules:/workspace/node_modules    # named volume for Linux-native node_modules
       - ./.history:/commandhistory:rw                    # persist shell history
     ports:
       - 8183:8080
@@ -28,3 +29,6 @@ services:
     # security_opt:
     #   - no-new-privileges
     pids_limit: 256
+
+volumes:
+  node_modules:
