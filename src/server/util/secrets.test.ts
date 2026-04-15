@@ -25,17 +25,27 @@ import path from "path";
 const secretsJsonPath = path.join(process.cwd(), "secrets.json");
 
 describe("secrets — file-based branch (line 21 true path)", () => {
-  let originalExists: boolean;
+  let originalContent: string | null = null;
 
   beforeAll(() => {
-    originalExists = fs.existsSync(secretsJsonPath);
+    // Snapshot the original file (if present) so we can restore it after each
+    // test.  In Docker/CI the entrypoint generates secrets.json; the first test
+    // overwrites it, and without a restore the next test suite would load our
+    // fake credentials and fail to connect to the database.
+    if (fs.existsSync(secretsJsonPath)) {
+      originalContent = fs.readFileSync(secretsJsonPath, "utf8");
+    }
   });
 
   afterEach(() => {
-    // Always clean up the temp file and module cache
-    if (!originalExists && fs.existsSync(secretsJsonPath)) {
+    // Restore (or remove) secrets.json to exactly its pre-test state.
+    if (originalContent !== null) {
+      fs.writeFileSync(secretsJsonPath, originalContent, "utf8");
+    } else if (fs.existsSync(secretsJsonPath)) {
       fs.unlinkSync(secretsJsonPath);
     }
+    // Clear the module cache so jest.resetModules() doesn't leak stale
+    // credentials into later test suites.
     jest.resetModules();
   });
 
