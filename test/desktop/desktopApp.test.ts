@@ -17,7 +17,8 @@ beforeAll(async () => {
 
 test("Downsync", async () => {
   const app = await electron.launch({
-    args: [path.join(__dirname, "../../dist/desktop/desktop/main-test.js")]
+    args: [path.join(__dirname, "../../dist/desktop/main-test.js")],
+    env: { ...process.env, FIXTURES: "fresh-install" }
   });
   const window = await app.firstWindow();
 
@@ -38,7 +39,8 @@ test("Downsync", async () => {
 
 test("Login guard: translation UI is inaccessible before entering a project code", async () => {
   const app = await electron.launch({
-    args: [path.join(__dirname, "../../dist/desktop/desktop/main-test.js")]
+    args: [path.join(__dirname, "../../dist/desktop/main-test.js")],
+    env: { ...process.env, FIXTURES: "fresh-install" }
   });
   const window = await app.firstWindow();
 
@@ -57,7 +59,8 @@ test("Login guard: translation UI is inaccessible before entering a project code
 
 test("Translation workflow: type and save a translation string", async () => {
   const app = await electron.launch({
-    args: [path.join(__dirname, "../../dist/desktop/desktop/main-test.js")]
+    args: [path.join(__dirname, "../../dist/desktop/main-test.js")],
+    env: { ...process.env, FIXTURES: "fresh-install" }
   });
   const window = await app.firstWindow();
 
@@ -81,8 +84,8 @@ test("Translation workflow: type and save a translation string", async () => {
   // Type a translation and blur to trigger the auto-save
   await textarea.click();
   await textarea.fill("Test translation");
-  // Click elsewhere to trigger onBlur → save
-  await window.locator('h1:text("Lessons from Luke")').click();
+  // Blur the textarea to trigger onBlur → save
+  await textarea.press("Tab");
 
   // Header should reflect saved or uploading state
   await window

@@ -11,6 +11,9 @@ module.exports = {
     proxy: [
       { context: ["/api", "/webified"], target: "http://localhost:8081" }
     ],
-    historyApiFallback: true
+    historyApiFallback: true,
+    client: {
+      overlay: { errors: true, warnings: false, runtimeErrors: false }
+    }
   }
 };
