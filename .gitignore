@@ -14,5 +14,4 @@ node_modules
 .sprite
 /coverage
 autoresearch-results.tsv
-/package-lock.json
 cypress/fixtures/*_FILES/
