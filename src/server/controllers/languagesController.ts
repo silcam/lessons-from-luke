@@ -27,6 +27,11 @@ export default function languagesController(
     if (!isNewLanguage(newLanguage)) {
       throw { status: 422 };
     }
+    const existing = await storage.languages();
+    const duplicate = existing.some(
+      lang => lang.name.toLowerCase() === newLanguage.name.toLowerCase()
+    );
+    if (duplicate) throw { status: 409 };
     const language = await storage.createLanguage(newLanguage);
     defaultTranslations(storage, language.languageId);
     return language;

@@ -21,6 +21,7 @@ import styled from "styled-components";
 import update from "immutability-helper";
 import { FlexRow } from "../../common/base-components/Flex";
 import Div from "../../common/base-components/Div";
+import Alert from "../../common/base-components/Alert";
 
 interface IProps {
   datetime: number; // effective id number for legacy project
@@ -46,6 +47,7 @@ export default function MigrateProject(props: IProps) {
   const [legacyStringsIndex, setLegacyStringsIndex] = useState(0);
   const currentLegacyString = legacyStrings[legacyStringsIndex];
   const [inputValues, setInputValues] = useState<string[][]>([]);
+  const [fetchError, setFetchError] = useState("");
 
   useLoad(loadLanguages(true));
   useEffect(() => {
@@ -60,6 +62,9 @@ export default function MigrateProject(props: IProps) {
             legStr.matches.map(() => "")
           )
         );
+      })
+      .catch(() => {
+        setFetchError("Migration data could not be loaded — the request may have timed out. Try again with a smaller dataset.");
       })
       .finally(() => {
         dispatch(loadingSlice.actions.subtractLoading());
@@ -129,7 +134,9 @@ export default function MigrateProject(props: IProps) {
   return (
     <StdHeaderBarPage title={`Migrating ${language?.name}`}>
       <Div pad>
-        {exactLegacyStrings.length + legacyStrings.length == 0 ? (
+        {fetchError ? (
+          <Alert danger>{fetchError}</Alert>
+        ) : exactLegacyStrings.length + legacyStrings.length == 0 ? (
           <p>
             Correlating legacy project source strings with current French
             strings. This could take a minute...

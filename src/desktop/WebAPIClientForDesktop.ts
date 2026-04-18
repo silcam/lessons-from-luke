@@ -82,7 +82,14 @@ export default class WebAPIClientForDesktop {
     } catch (err) {
       this.log(`Attempted ${this.baseUrl}`);
       this.log(`ERROR  ${err.log || err}`);
-      const error = asAppError(err);
+      const isNetworkError =
+        err?.code &&
+        ["ECONNREFUSED", "ENOTFOUND", "ETIMEDOUT", "ECONNRESET"].includes(
+          err.code
+        );
+      const error = isNetworkError
+        ? ({ type: "No Connection" } as AppError)
+        : asAppError(err);
       if (error.type == "No Connection") {
         this.setConnected(false);
         return null;
