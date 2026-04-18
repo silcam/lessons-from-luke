@@ -62,7 +62,6 @@ describe("Admin Lessons", () => {
     cy.intercept("POST", /\/api\/admin\/lessons\/\d+\/strings/).as("saveLesson");
     cy.contains("button", "Save").click();
     cy.wait("@saveLesson");
-    cy.contains("button", "View Lesson").click();
     cy.contains("button", "Edit").should("exist");
     cy.contains(
       "KNOW: The children will know that nothing is impossible with God."
