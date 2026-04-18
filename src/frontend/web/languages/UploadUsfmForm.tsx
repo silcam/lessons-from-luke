@@ -6,7 +6,7 @@ import Heading from "../../common/base-components/Heading";
 import { useDropzone } from "react-dropzone";
 import Button from "../../common/base-components/Button";
 import { usePush } from "../../common/api/useLoad";
-import { useHistory } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { pushUsfm } from "../../common/state/languageSlice";
 
 interface IProps {
@@ -17,7 +17,7 @@ interface IProps {
 export default function UploadUsfmForm(props: IProps) {
   const t = useTranslation();
   const push = usePush();
-  const history = useHistory();
+  const navigate = useNavigate();
 
   const [usfm, setUsfm] = useState("");
   const [inputCaption, setInputCaption] = useState(t("Add_file"));
@@ -35,7 +35,7 @@ export default function UploadUsfmForm(props: IProps) {
 
   const save = async () => {
     const result = await push(pushUsfm(props.language.languageId, usfm));
-    if (result) history.push("/usfmImportResult");
+    if (result) navigate("/usfmImportResult");
   };
 
   return (

@@ -4,6 +4,7 @@ import Colors from "../util/Colors";
 
 interface StyleProps {
   borders?: boolean;
+  children?: React.ReactNode;
 }
 
 const STable = styled.table<StyleProps>`

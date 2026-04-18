@@ -2,7 +2,7 @@ import request from "supertest";
 import serverApp from "./serverApp";
 import secrets from "./util/secrets";
 
-export const USE_PG = true;
+export { USE_PG } from "./testConfig";
 
 const app = serverApp({ silent: true, storage: (global as any).testStorage });
 

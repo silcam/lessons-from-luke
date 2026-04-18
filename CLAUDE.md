@@ -9,9 +9,6 @@ Lessons from Luke is a Sunday School curriculum translation and management appli
 ## Development Commands
 
 ```bash
-# When running on macOS Apple silicon, all commands must be run in x86_64 compatibility mode:
-arch -x86_64 zsh
-
 # Install dependencies
 yarn install
 
@@ -41,7 +38,7 @@ yarn deploy          # Capistrano production deploy
 
 ## Docker Environment
 
-A Docker container provides a Node 12 development environment with PostgreSQL. To use it:
+A Docker container provides a Node 24 development environment with PostgreSQL. To use it:
 
 ```bash
 # Build and start the container
@@ -51,7 +48,7 @@ docker compose up -d --build
 docker compose exec claude-container bash -c "cd /workspace && yarn install"
 
 # Run migrations against the test database
-docker compose exec claude-container bash -c "cd /workspace && TEST_DB=true npx migrate up"
+docker compose exec claude-container bash -c "cd /workspace && yarn migrate:test"
 
 # Run tests
 docker compose exec claude-container bash -c "cd /workspace && NODE_ENV=test npx jest --runInBand"
@@ -61,14 +58,14 @@ docker compose exec claude-container bash -c "cd /workspace && yarn test-coverag
 ```
 
 Key details:
-- The container runs as `linux/amd64` (required — Node 12 native addons like `libxmljs2` have no arm64 pre-built binaries)
 - `NPM_CONFIG_UNSAFE_PERM=true` is set in the Dockerfile to avoid node-gyp permission issues when running as root
 - The workspace is bind-mounted at `/workspace`, so changes are shared between host and container
 - If `node_modules` was previously installed on macOS, delete it before running `yarn install` in the container (native addons are platform-specific)
 - The entrypoint starts PostgreSQL and creates both `lessons-from-luke` and `lessons-from-luke-test` databases automatically
 - A `secrets.json` is auto-generated if not present
 - Migrations use `TEST_DB=true` env var to target the test database; they read connection info from `secrets.json`
-- Performance note: tests run under QEMU emulation on Apple Silicon (~80s for the full suite)
+- Migration state is tracked in `.migrate-test` (test) and `.migrate` (dev), which persist in the workspace across container rebuilds. If you rebuild the container and get `relation "languages" does not exist`, the state file thinks migrations already ran against the now-empty database. Reset with: `echo '{"lastRun":null,"migrations":[]}' > .migrate-test && yarn migrate:test`
+- The container runs natively on Apple Silicon (no QEMU emulation)
 
 ## Architecture
 

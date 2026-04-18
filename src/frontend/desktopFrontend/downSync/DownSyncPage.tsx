@@ -28,7 +28,7 @@ export default function DownSyncPage(props: IProps) {
     return () => {
       clearInterval(interval);
     };
-  });
+  }, []);
 
   return (
     <StdHeaderBarPage title="Lessons from Luke" logoNoLink>

@@ -4,10 +4,10 @@ import { TestPersistence } from "../../core/interfaces/Persistence";
 import { ENGLISH_ID } from "../../core/models/Language";
 import { DraftLessonString } from "../../core/models/LessonString";
 import { TString } from "../../core/models/TString";
-import { PGTestStorage } from "./PGStorage";
+import { PGTestStorage, transformCol } from "./PGStorage";
 import testStorage from "./testStorage";
 import { findBy, findByStrict } from "../../core/util/arrayUtils";
-import { USE_PG } from "../testHelper";
+import { USE_PG } from "../testConfig";
 
 let storage: TestPersistence;
 storage = USE_PG ? (global as any).testStorage : testStorage;
@@ -548,8 +548,163 @@ test("oldLessonStrings without version returns all old strings for lesson", asyn
   expect(Array.isArray(result)).toBe(true);
 });
 
+// ─── Task 10: pgLoadFixtures fixture integrity ────────────────────────────────
+
+test("fixtures: exactly 3 languages loaded", async () => {
+  if (!(storage instanceof PGTestStorage)) return;
+  const languages = await storage.languages();
+  expect(languages.length).toBe(3);
+  const names = languages.map((l: any) => l.name);
+  expect(names).toContain("English");
+  expect(names).toContain("Français");
+  expect(names).toContain("Batanga");
+});
+
+test("fixtures: lessonId=11 exists (Luke Q1 L01)", async () => {
+  if (!(storage instanceof PGTestStorage)) return;
+  const lesson = await storage.lesson(11);
+  expect(lesson).not.toBeNull();
+  expect(lesson).toMatchObject({
+    lessonId: 11,
+    book: "Luke",
+    series: 1,
+    lesson: 1
+  });
+});
+
+test("fixtures: language sequence restarted — new language gets languageId=4", async () => {
+  if (!(storage instanceof PGTestStorage)) return;
+  const newLang = await storage.createLanguage({ name: "Swahili", defaultSrcLang: 1 });
+  expect(newLang.languageId).toBe(4);
+});
+
+test("fixtures: tStrings masterid sequence starts at 655", async () => {
+  if (!(storage instanceof PGTestStorage)) return;
+  const newStrings = await storage.addOrFindMasterStrings(["Brand new string xyz123"]);
+  expect(newStrings[0].masterId).toBeGreaterThanOrEqual(655);
+});
+
+// ─── Task 11: transformCol ────────────────────────────────────────────────────
+
+test("transformCol: returns camelCase column names", () => {
+  expect(transformCol("languageid")).toBe("languageId");
+  expect(transformCol("mothertongue")).toBe("motherTongue");
+  expect(transformCol("lessonid")).toBe("lessonId");
+  expect(transformCol("lessonstringid")).toBe("lessonStringId");
+  expect(transformCol("masterid")).toBe("masterId");
+  expect(transformCol("lessonversion")).toBe("lessonVersion");
+  expect(transformCol("sourcelanguageid")).toBe("sourceLanguageId");
+  expect(transformCol("defaultsrclang")).toBe("defaultSrcLang");
+});
+
+test("transformCol: passes through unrecognised column names unchanged", () => {
+  expect(transformCol("name")).toBe("name");
+  expect(transformCol("code")).toBe("code");
+  expect(transformCol("progress")).toBe("progress");
+  expect(transformCol("unknowncolumn")).toBe("unknowncolumn");
+});
+
+// ─── Task 11: error paths ─────────────────────────────────────────────────────
+
+test("lesson returns null for a non-existent lesson id", async () => {
+  const result = await storage.lesson(99999);
+  expect(result).toBeNull();
+});
+
+test("language returns null for a non-existent language id", async () => {
+  const result = await storage.language({ languageId: 99999 });
+  expect(result).toBeNull();
+});
+
+test("language returns null for a non-existent language code", async () => {
+  const result = await storage.language({ code: "ZZZNOPE" });
+  expect(result).toBeNull();
+});
+
+test("tStrings returns empty array for non-existent language", async () => {
+  const result = await storage.tStrings({ languageId: 99999 });
+  expect(result.length).toBe(0);
+});
+
 function timeout(ms: number) {
   return new Promise((res, _) => {
     setTimeout(res, ms);
   });
 }
+
+// ─── saveTStrings without awaitProgress (fire-and-forget, line 282) ──────────
+
+test("saveTStrings without awaitProgress option still saves and returns", async () => {
+  if (!(storage instanceof PGTestStorage)) return;
+  const newTStrings: TString[] = [
+    {
+      masterId: 19,
+      languageId: 3,
+      text: "Bt Luke 1:13 fire-and-forget",
+      history: [],
+      sourceLanguageId: 2
+    }
+  ];
+
+  // Call WITHOUT awaitProgress — exercises the fire-and-forget else branch
+  const result = await storage.saveTStrings(newTStrings);
+  expect(result).toHaveLength(1);
+  expect(result[0].text).toBe("Bt Luke 1:13 fire-and-forget");
+});
+
+// ─── withProgressUpdate<T> wrapper (lines 288-290) ───────────────────────────
+
+test("withProgressUpdate executes callback and returns its value", async () => {
+  if (!(storage instanceof PGTestStorage)) return;
+  const expected = { marker: "hello from callback" };
+  const result = await (storage as any).withProgressUpdate(async () => expected);
+  expect(result).toBe(expected);
+});
+
+test("withProgressUpdate triggers background progress update", async () => {
+  if (!(storage instanceof PGTestStorage)) return;
+  const updateProgressSpy = jest
+    .spyOn(storage as any, "updateProgress")
+    .mockResolvedValue(undefined);
+  try {
+    await (storage as any).withProgressUpdate(async () => "done");
+    // Give the fire-and-forget a tick to be called
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(updateProgressSpy).toHaveBeenCalled();
+  } finally {
+    updateProgressSpy.mockRestore();
+  }
+});
+
+// ─── PGTestStorage.reset() calls pgLoadFixtures (line 378) ───────────────────
+//
+// The TransactionalTestStorage.reset() test already covers this for the shared
+// global storage (which wraps each test in a transaction).  Here we verify
+// PGTestStorage.reset() directly by constructing a fresh instance outside the
+// transaction scaffolding so pgLoadFixtures can run without a deadlock.
+
+test("PGTestStorage.reset() calls pgLoadFixtures and restores fixture state", async () => {
+  if (!(storage instanceof PGTestStorage)) return;
+
+  // Create a dedicated PGTestStorage that is NOT wrapped in a transaction.
+  // We use it only to verify that reset() invokes pgLoadFixtures.
+  const fresh = new PGTestStorage();
+  try {
+    // Reset to known fixture state first, then verify the count.
+    await fresh.reset();
+    const languages = await fresh.languages();
+    expect(languages.length).toBe(3);
+    const names = languages.map((l: any) => l.name);
+    expect(names).toContain("English");
+  } finally {
+    await fresh.close();
+  }
+}, 30000);
+
+// ─── close() calls this.sql.end() (line 366) ─────────────────────────────────
+
+test("close() resolves without error when called on a fresh PGTestStorage", async () => {
+  // We create a fresh instance so we don't close the shared test storage.
+  const fresh = new PGTestStorage();
+  await expect(fresh.close()).resolves.toBeUndefined();
+});

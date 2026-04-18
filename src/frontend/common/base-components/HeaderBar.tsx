@@ -12,7 +12,7 @@ import PlatformContext from "../PlatformContext";
 import { useAppSelector } from "../state/appState";
 import useTranslation from "../util/useTranslation";
 
-const HeaderBar = styled.div`
+const HeaderBar = styled.div<{ children?: React.ReactNode }>`
   background-color: ${Colors.darkBG};
   color: white;
   padding: 1em;

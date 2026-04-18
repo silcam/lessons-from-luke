@@ -32,12 +32,12 @@ export default function mergeXml(
   unlinkRecursive(extractDirPath);
 }
 
-interface SortedDocStrings {
+export interface SortedDocStrings {
   content: DocString[];
   meta: DocString[];
   styles: DocString[];
 }
-function sortDocStrings(docStrings: DocString[]): SortedDocStrings {
+export function sortDocStrings(docStrings: DocString[]): SortedDocStrings {
   return docStrings.reduce(
     (sorted: SortedDocStrings, docStr) => {
       sorted[docStr.type].push(docStr);
@@ -56,7 +56,7 @@ function mergeTranslations(
   const namespaces = extractNamespaces(xmlDoc);
   for (let i = 0; i < translations.length; ++i) {
     const translation = translations[i];
-    const element = xmlDoc.get(translation.xpath, namespaces);
+    const element = xmlDoc.get<Element>(translation.xpath, namespaces);
     if (!element) continue;
 
     const toReplace = element.text().trim();
@@ -67,7 +67,7 @@ function mergeTranslations(
       .reverse() // Remove elements starting from the bottom to not mess up xpath addresses that depend on numbering paragraphs
       .filter(t => t.text == "")
       .forEach(translation => {
-        const element = xmlDoc.get(translation.xpath, namespaces);
+        const element = xmlDoc.get<Element>(translation.xpath, namespaces);
         if (element) {
           element.text("");
           removeParagraph(element);
@@ -105,14 +105,14 @@ export function extractNamespaces(xmlDoc: Document) {
     }, {} as Namespaces);
 }
 
-function addSpacesForStylesStrings(sortedTStrings: SortedDocStrings) {
+export function addSpacesForStylesStrings(sortedTStrings: SortedDocStrings) {
   sortedTStrings.styles = sortedTStrings.styles.map(str => ({
     ...str,
     text: str.text + " "
   }));
 }
 
-function cleanOpenDocXml(str: string) {
+export function cleanOpenDocXml(str: string) {
   return str
     .replace(/&amp;quot;/g, "&quot;")
     .replace(/&amp;lt;/g, "&lt;")

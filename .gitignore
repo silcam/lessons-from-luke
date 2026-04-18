@@ -14,3 +14,4 @@ node_modules
 .sprite
 /coverage
 autoresearch-results.tsv
+cypress/fixtures/*_FILES/

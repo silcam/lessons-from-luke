@@ -1,5 +1,5 @@
 import React from "react";
-import ReactDOM from "react-dom";
+import { createRoot } from "react-dom/client";
 
 import PlatformContext from "./common/PlatformContext";
 import RequestContext from "./common/api/RequestContext";
@@ -20,7 +20,7 @@ mainElement.style.height = "100%";
 document.body.appendChild(mainElement);
 
 // Render components
-ReactDOM.render(
+createRoot(mainElement!).render(
   <Provider store={store}>
     <PlatformContext.Provider value="desktop">
       <RequestContext.Provider value={{ get: ipcGet, post: ipcPost }}>
@@ -29,6 +29,5 @@ ReactDOM.render(
         </RootDiv>
       </RequestContext.Provider>
     </PlatformContext.Provider>
-  </Provider>,
-  mainElement
+  </Provider>
 );

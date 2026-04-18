@@ -5,7 +5,7 @@ module.exports = {
   ...baseConfig,
   mode: "production",
   output: {
-    filename: "web.[hash].bundle.js",
+    filename: "web.[contenthash].bundle.js",
     path: path.resolve(__dirname, "..", "dist", "frontend"),
     publicPath: "/"
   }

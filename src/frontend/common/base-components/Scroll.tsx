@@ -1,8 +1,7 @@
 import styled from "styled-components";
-import Div from "./Div";
-import { FlexCol } from "./Flex";
+import { FlexColBase } from "./Flex";
 
-const Scroll = styled(FlexCol)`
+const Scroll = styled(FlexColBase)`
   overflow: auto;
   /* flex-shrink: 1; */
 `;

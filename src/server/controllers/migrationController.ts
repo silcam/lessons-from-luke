@@ -36,12 +36,13 @@ export default function migrationController(
       );
       const frenchStrings = await getFrenchTStrings(storage);
 
+      const startTime = Date.now();
       const response = legacyStrings.reduce(
         (accum: GetProjectResponse, legStr) => {
           const exact = frenchStrings.find(frStr => frStr.text == legStr.src);
           if (exact) {
             accum.exactLegacyStrings.push({ ...legStr, matches: [exact] });
-          } else {
+          } else if (Date.now() - startTime < 25000) {
             accum.legacyStrings.push({
               ...legStr,
               matches: bestMatches(legStr, frenchStrings)

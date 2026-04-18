@@ -8,7 +8,7 @@ const WATCH_INTERVAL = 3 * 1000;
 
 export default class WebAPIClientForDesktop {
   private connected: boolean = false;
-  private watchTimerId: number = 0;
+  private watchTimerId: ReturnType<typeof setInterval> | undefined;
   private watchLock: boolean = false; // Preventing running watch callback more than once at a time
   private onConnectionChangeListeners: Array<(connected: boolean) => void> = [];
   private baseUrl = "";
@@ -82,7 +82,14 @@ export default class WebAPIClientForDesktop {
     } catch (err) {
       this.log(`Attempted ${this.baseUrl}`);
       this.log(`ERROR  ${err.log || err}`);
-      const error = asAppError(err);
+      const isNetworkError =
+        err?.code &&
+        ["ECONNREFUSED", "ENOTFOUND", "ETIMEDOUT", "ECONNRESET"].includes(
+          err.code
+        );
+      const error = isNetworkError
+        ? ({ type: "No Connection" } as AppError)
+        : asAppError(err);
       if (error.type == "No Connection") {
         this.setConnected(false);
         return null;

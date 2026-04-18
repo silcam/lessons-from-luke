@@ -1,7 +1,9 @@
+import React from "react";
 import styled from "styled-components";
 
 interface IProps {
   bigger?: boolean;
+  children?: React.ReactNode;
 }
 
 const PDiv = styled.div<IProps>`

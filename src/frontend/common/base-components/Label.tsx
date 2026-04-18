@@ -1,12 +1,12 @@
 import React, { PropsWithChildren } from "react";
 import styled from "styled-components";
 
-const StyledLabel = styled.label`
+const StyledLabel = styled.label<{ children?: React.ReactNode }>`
   font-weight: 200;
   display: block;
 `;
 
-const SpacedSpan = styled.span`
+const SpacedSpan = styled.span<{ children?: React.ReactNode }>`
   margin-right: 1em;
 `;
 

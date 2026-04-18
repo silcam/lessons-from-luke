@@ -49,7 +49,7 @@ export default function DocPreview(props: IProps) {
   return <PreviewDiv dangerouslySetInnerHTML={{ __html: finalHtml }} />;
 }
 
-const PreviewDiv = styled.div`
+const PreviewDiv = styled.div<React.HTMLAttributes<HTMLDivElement>>`
   width: min-content;
   min-width: 660px;
   padding: 12px;

@@ -1,3 +1,4 @@
+import { readFileSync } from "fs";
 import LocalStorage from "./LocalStorage";
 import WebAPIClientForDesktop from "./WebAPIClientForDesktop";
 import {
@@ -46,16 +47,32 @@ export default class DesktopApp {
   }
 
   protected appReady() {
-    protocol.interceptFileProtocol(
-      "file",
-      (request, callback) => {
-        const filename = request.url.replace(/^.*\//, "");
-        callback(path.join(__dirname, "..", "web", filename));
-      },
-      err => {
-        if (err) console.error("Failed to register protocol");
+    protocol.handle("file", (request) => {
+      try {
+        const filename = new URL(request.url).pathname.replace(/^.*\//, "");
+        const filePath = path.join(__dirname, "..", "web", filename);
+        const data = readFileSync(filePath);
+        const ext = path.extname(filename).toLowerCase().slice(1);
+        const mimeTypes: Record<string, string> = {
+          html: "text/html",
+          js: "application/javascript",
+          css: "text/css",
+          png: "image/png",
+          jpg: "image/jpeg",
+          jpeg: "image/jpeg",
+          svg: "image/svg+xml",
+          woff: "font/woff",
+          woff2: "font/woff2",
+        };
+        return new Response(data, {
+          headers: {
+            "content-type": mimeTypes[ext] || "application/octet-stream",
+          },
+        });
+      } catch {
+        return new Response("Not Found", { status: 404 });
       }
-    );
+    });
     DesktopAPIServer.listen(this);
     this.startDownSync();
     this.setupMenu();
@@ -140,7 +157,9 @@ export default class DesktopApp {
       width: windowState.width,
       height: windowState.height,
       webPreferences: {
-        nodeIntegration: true
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, "preload.js")
       }
     });
     windowState.manage(this.mainWindow);

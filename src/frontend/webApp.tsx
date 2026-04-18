@@ -1,5 +1,5 @@
 import React from "react";
-import ReactDOM from "react-dom";
+import { createRoot } from "react-dom/client";
 import PlatformContext from "./common/PlatformContext";
 import { BrowserRouter } from "react-router-dom";
 import MainRouter from "./web/MainRouter";
@@ -33,4 +33,4 @@ mainElement.style.height = "100%";
 document.body.appendChild(mainElement);
 
 // Render components
-ReactDOM.render(<WebApp />, mainElement);
+createRoot(mainElement!).render(<WebApp />);

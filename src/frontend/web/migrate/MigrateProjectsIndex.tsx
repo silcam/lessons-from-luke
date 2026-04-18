@@ -16,14 +16,14 @@ import { loadLanguages, pushLanguage } from "../../common/state/languageSlice";
 import { useAppSelector } from "../../common/state/appState";
 import TextInput from "../../common/base-components/TextInput";
 import SelectInput from "../../common/base-components/SelectInput";
-import { useHistory } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import loadingSlice from "../../common/api/loadingSlice";
 
 export default function MigrateProjectsIndex() {
   const push = usePush();
   const dispatch = useDispatch();
-  const history = useHistory();
+  const navigate = useNavigate();
   const languages = useAppSelector(state => state.languages.adminLanguages);
 
   const [projects, setProjects] = useState<LegacyProject[]>([]);
@@ -56,7 +56,7 @@ export default function MigrateProjectsIndex() {
       languageId = newLanguage?.languageId;
     }
     if (!languageId) return;
-    history.push(`/migrate/${selectedProject?.datetime}/to/${languageId}`);
+    navigate(`/migrate/${selectedProject?.datetime}/to/${languageId}`);
   };
 
   useLoad(loadLanguages(true));

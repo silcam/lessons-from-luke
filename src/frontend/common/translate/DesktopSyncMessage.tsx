@@ -2,7 +2,7 @@ import React, { useContext, useState, useEffect } from "react";
 import useTranslation from "../util/useTranslation";
 import PlatformContext from "../PlatformContext";
 import { useAppSelector } from "../state/appState";
-import { FlexRow } from "../base-components/Flex";
+import { FlexRow, FlexRowBase } from "../base-components/Flex";
 import ProgressBar from "../base-components/ProgressBar";
 import Label from "../base-components/Label";
 import { count } from "../../../core/util/arrayUtils";
@@ -31,7 +31,7 @@ export default function DesktopSyncMessage() {
   return <FlexRow></FlexRow>;
 }
 
-const SyncMessageDiv = styled(FlexRow)`
+const SyncMessageDiv = styled(FlexRowBase)`
   padding: 0 0.4em 0.2em;
   justify-content: flex-end;
   align-items: center;
