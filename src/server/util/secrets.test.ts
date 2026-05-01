@@ -63,6 +63,11 @@ describe("secrets — file-based branch (line 21 true path)", () => {
         database: "my-test-db",
         username: "my-user",
         password: "my-pass"
+      },
+      devDb: {
+        database: "my-dev-db",
+        username: "my-user",
+        password: "my-pass"
       }
     };
 
@@ -84,6 +89,7 @@ describe("secrets — file-based branch (line 21 true path)", () => {
     expect(freshSecrets.adminPassword).toBe("hunter2");
     expect(freshSecrets.db.database).toBe("my-db");
     expect(freshSecrets.testDb.database).toBe("my-test-db");
+    expect(freshSecrets.devDb.database).toBe("my-dev-db");
   });
 
   test("falls back to defaultSecrets when secrets.json does not exist", () => {
@@ -100,5 +106,6 @@ describe("secrets — file-based branch (line 21 true path)", () => {
     expect(freshSecrets.adminUsername).toBe("chris");
     expect(freshSecrets.db.database).toBe("lessons-from-luke");
     expect(freshSecrets.testDb.database).toBe("lessons-from-luke-test");
+    expect(freshSecrets.devDb.database).toBe("lessons-from-luke-dev");
   });
 });

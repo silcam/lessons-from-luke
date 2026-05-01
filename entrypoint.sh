@@ -16,6 +16,9 @@ su - postgres -c "psql -v ON_ERROR_STOP=0 --dbname=postgres -c \
 su - postgres -c "psql -v ON_ERROR_STOP=0 --dbname=postgres -c \
     \"CREATE DATABASE \\\"lessons-from-luke-test\\\" OWNER \\\"lessons-from-luke\\\";\"" 2>/dev/null || true
 
+su - postgres -c "psql -v ON_ERROR_STOP=0 --dbname=postgres -c \
+    \"CREATE DATABASE \\\"lessons-from-luke-dev\\\" OWNER \\\"lessons-from-luke\\\";\"" 2>/dev/null || true
+
 # Generate secrets.json if it doesn't exist
 if [ ! -f /workspace/secrets.json ]; then
     cat > /workspace/secrets.json <<'SECRETS'
@@ -30,6 +33,11 @@ if [ ! -f /workspace/secrets.json ]; then
   },
   "testDb": {
     "database": "lessons-from-luke-test",
+    "username": "lessons-from-luke",
+    "password": "lessons-from-luke"
+  },
+  "devDb": {
+    "database": "lessons-from-luke-dev",
     "username": "lessons-from-luke",
     "password": "lessons-from-luke"
   }

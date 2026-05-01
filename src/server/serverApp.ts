@@ -9,7 +9,7 @@ import requireUser from "./middle/requireUser";
 import tStringsController from "./controllers/tStringsController";
 import testController from "./controllers/testController";
 import documentsController from "./controllers/documentsController";
-import PGStorage, { PGTestStorage } from "./storage/PGStorage";
+import PGStorage, { PGTestStorage, PGDevStorage } from "./storage/PGStorage";
 import { Persistence } from "../core/interfaces/Persistence";
 import docStorage from "./storage/docStorage";
 import migrationController from "./controllers/migrationController";
@@ -19,7 +19,21 @@ const PRODUCTION = process.env.NODE_ENV == "production";
 
 function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   const app = express();
-  const storage = opts.storage ?? (PRODUCTION ? new PGStorage() : new PGTestStorage());
+  const storage =
+    opts.storage ??
+    (PRODUCTION
+      ? new PGStorage()
+      : process.env.NODE_ENV === "test"
+      ? new PGTestStorage()
+      : new PGDevStorage());
+
+  if (!opts.storage && !PRODUCTION && !opts.silent) {
+    const cls =
+      process.env.NODE_ENV === "test" ? "PGTestStorage" : "PGDevStorage";
+    console.log(
+      `[serverApp] NODE_ENV=${process.env.NODE_ENV} storage=${cls}`
+    );
+  }
 
   // Casts needed: @types/connect's NextHandleFunction is incompatible with @types/node@20 ServerResponse types
   app.use(cookieSession({ secret: secrets.cookieSecret }) as any);
@@ -54,7 +68,7 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   migrationController(app, storage);
   syncController(app, storage);
 
-  if (!PRODUCTION) {
+  if (process.env.NODE_ENV === "test") {
     testController(app, storage as PGTestStorage);
   }
 

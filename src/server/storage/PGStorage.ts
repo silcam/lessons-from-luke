@@ -383,6 +383,13 @@ export class PGTestStorage extends PGStorage implements TestPersistence {
   }
 }
 
+export class PGDevStorage extends PGStorage {
+  constructor() {
+    super();
+    this.sql = devDbConnect();
+  }
+}
+
 function dbConnect() {
   const opts: Options = {
     ...secrets.db,
@@ -402,6 +409,16 @@ function dbConnect() {
 function testDbConnect() {
   const opts: Options = {
     ...secrets.testDb,
+    transform: {
+      column: transformCol
+    }
+  };
+  return postgres(opts);
+}
+
+function devDbConnect() {
+  const opts: Options = {
+    ...secrets.devDb,
     transform: {
       column: transformCol
     }

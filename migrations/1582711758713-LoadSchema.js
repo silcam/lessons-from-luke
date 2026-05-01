@@ -1,6 +1,7 @@
 "use strict";
-const postgres = require("postgres");
-const fs = require("fs");
+const { makeDbConnect } = require("./_helpers");
+
+const dbConnect = makeDbConnect(false);
 
 async function up() {
   await dbConnect(async sql => {
@@ -81,11 +82,4 @@ async function down() {
   });
 }
 
-async function dbConnect(cb) {
-  const secrets = JSON.parse(fs.readFileSync("secrets.json"));
-  const opts = process.env.TEST_DB ? secrets.testDb : secrets.db;
-  const sql = postgres(opts);
-  await cb(sql);
-  await sql.end();
-}
 module.exports = { up, down, dbConnect };
