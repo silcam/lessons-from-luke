@@ -29,7 +29,7 @@ export function legacyTStrings(project: LegacyProject): LegacyTString[] {
 }
 
 function legacyStringsDirPath() {
-  return process.env.NODE_ENV == "test"
+  return process.env.NODE_ENV !== "production"
     ? `${process.cwd()}/strings`
     : `/var/www/luke-lessons/shared/strings`;
 }

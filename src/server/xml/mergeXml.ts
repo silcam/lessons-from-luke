@@ -14,22 +14,27 @@ export default function mergeXml(
   translations: DocString[],
   opts: Opts = {}
 ) {
+  if (!fs.existsSync(inDocPath)) throw { status: 404 };
+
   const extractDirPath = inDocPath.replace(/\.odt$/, "_odt");
-  mkdirSafe(extractDirPath);
-  unzip(inDocPath, extractDirPath);
+  try {
+    mkdirSafe(extractDirPath);
+    unzip(inDocPath, extractDirPath);
 
-  const sortedDocStrings = sortDocStrings(translations);
-  addSpacesForStylesStrings(sortedDocStrings);
-  const xmlTypes: (keyof SortedDocStrings)[] = ["content", "meta", "styles"];
-  xmlTypes.forEach(xmlType => {
-    if (sortedDocStrings[xmlType].length > 0) {
-      const xmlPath = `${extractDirPath}/${xmlType}.xml`;
-      mergeTranslations(xmlPath, sortedDocStrings[xmlType], opts);
-    }
-  });
+    const sortedDocStrings = sortDocStrings(translations);
+    addSpacesForStylesStrings(sortedDocStrings);
+    const xmlTypes: (keyof SortedDocStrings)[] = ["content", "meta", "styles"];
+    xmlTypes.forEach(xmlType => {
+      if (sortedDocStrings[xmlType].length > 0) {
+        const xmlPath = `${extractDirPath}/${xmlType}.xml`;
+        mergeTranslations(xmlPath, sortedDocStrings[xmlType], opts);
+      }
+    });
 
-  zip(extractDirPath, outDocPath);
-  unlinkRecursive(extractDirPath);
+    zip(extractDirPath, outDocPath);
+  } finally {
+    unlinkRecursive(extractDirPath);
+  }
 }
 
 export interface SortedDocStrings {

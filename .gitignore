@@ -5,6 +5,7 @@ node_modules
 
 /.migrate
 /.migrate-dev
+/.migrate-prod
 /.migrate-test
 /secrets.json
 /log/capistrano.log

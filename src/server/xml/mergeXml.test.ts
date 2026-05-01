@@ -1,3 +1,4 @@
+import fs from "fs";
 import docStorage from "../storage/docStorage";
 import parse from "./parse";
 import mergeXml, {
@@ -63,6 +64,16 @@ test("Merge with clearEmptyParagraphs removes empty translated strings", () => {
   expect(() =>
     mergeXml(odtPath, newOdtPath, withEmpty, { clearEmptyParagraphs: true })
   ).not.toThrow();
+});
+
+test("Merge throws status 404 when input ODT does not exist and leaves no extract dir", () => {
+  const missingOdtPath = process.cwd() + "/cypress/fixtures/__does_not_exist__.odt";
+  const expectedExtractDir = missingOdtPath.replace(/\.odt$/, "_odt");
+  expect(fs.existsSync(missingOdtPath)).toBe(false);
+  expect(() => mergeXml(missingOdtPath, newOdtPath, [])).toThrow(
+    expect.objectContaining({ status: 404 })
+  );
+  expect(fs.existsSync(expectedExtractDir)).toBe(false);
 });
 
 test("Merge with clearEmptyParagraphs and non-matching xpath skips gracefully", () => {

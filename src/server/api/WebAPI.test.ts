@@ -39,3 +39,26 @@ test("handleErrors: error without status field — defaults to 500 and logs", as
   expect(spy).toHaveBeenCalled();
   spy.mockRestore();
 });
+
+test("handleErrors: error with non-HTTP integer status (e.g. unzip exit code 9) — defaults to 500", async () => {
+  const res = mockRes();
+  const spy = jest.spyOn(console, "error").mockImplementation(() => {});
+  const err: any = new Error("unzip failed");
+  err.status = 9;
+  await handleErrors(res, async () => {
+    throw err;
+  });
+  expect(res._status).toBe(500);
+  expect(spy).toHaveBeenCalled();
+  spy.mockRestore();
+});
+
+test("handleErrors: error with non-integer status — defaults to 500", async () => {
+  const res = mockRes();
+  const spy = jest.spyOn(console, "error").mockImplementation(() => {});
+  await handleErrors(res, async () => {
+    throw { status: "ENOENT" };
+  });
+  expect(res._status).toBe(500);
+  spy.mockRestore();
+});

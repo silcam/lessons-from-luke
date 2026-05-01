@@ -61,11 +61,44 @@ Key details:
 - `NPM_CONFIG_UNSAFE_PERM=true` is set in the Dockerfile to avoid node-gyp permission issues when running as root
 - The workspace is bind-mounted at `/workspace`, so changes are shared between host and container
 - If `node_modules` was previously installed on macOS, delete it before running `yarn install` in the container (native addons are platform-specific)
-- The entrypoint starts PostgreSQL and creates both `lessons-from-luke` and `lessons-from-luke-test` databases automatically
-- A `secrets.json` is auto-generated if not present
-- Migrations use `TEST_DB=true` env var to target the test database; they read connection info from `secrets.json`
-- Migration state is tracked in `.migrate-test` (test) and `.migrate` (dev), which persist in the workspace across container rebuilds. If you rebuild the container and get `relation "languages" does not exist`, the state file thinks migrations already ran against the now-empty database. Reset with: `echo '{"lastRun":null,"migrations":[]}' > .migrate-test && yarn migrate:test`
+- The entrypoint starts PostgreSQL and creates three databases automatically: `lessons-from-luke` (production), `lessons-from-luke-test` (Jest/Cypress/Playwright), and `lessons-from-luke-dev` (interactive `dev-web`/`dev-desktop`)
+- A `secrets.json` is auto-generated if not present, containing `db`, `testDb`, and `devDb` blocks
+- Migrations target databases by env var: `TEST_DB=true` → test DB, `DEV_DB=true` → dev DB, no flag → production DB. Connection info comes from `secrets.json`
+- Migration state files: `.migrate-test`, `.migrate-dev`, `.migrate-prod` (one per environment). Each persists in the workspace across container rebuilds. The legacy `.migrate` file is auto-copied to `.migrate-prod` on first run for backward compatibility
+- If you rebuild the container and get `relation "languages" does not exist`, the state file thinks migrations already ran against the now-empty database. Reset with e.g. `echo '{"lastRun":null,"migrations":[]}' > .migrate-test && yarn migrate:test`
 - The container runs natively on Apple Silicon (no QEMU emulation)
+
+## Environments
+
+There are three runtime environments, fully isolated from one another:
+
+| Env | `NODE_ENV` | Storage class | Database | ODT root | Used by |
+|---|---|---|---|---|---|
+| Production | `production` | `PGStorage` | `lessons-from-luke` | `docs/` | deployed server |
+| Development | `development` | `PGDevStorage` | `lessons-from-luke-dev` | `docs/dev/` | `yarn dev-web`, `yarn dev-desktop`, `yarn serve-dev` |
+| Test | `test` | `PGTestStorage` | `lessons-from-luke-test` | `test/docs/serverDocs/` | `yarn test*`, `yarn test-e2e` (Cypress), `yarn test-desktop-e2e-deps` (Playwright) |
+
+Only the test environment mounts the `/api/test/reset-storage` endpoint; in dev and production it returns 404. Dev resets through the `yarn reset:dev` CLI instead.
+
+### One-time setup for an existing dev workstation
+
+Existing checkouts of this repo only have the production and test DBs. To opt in to the dev environment:
+
+1. Create the dev database:
+   - Docker: `docker compose up -d --build` (the entrypoint creates it automatically)
+   - Non-Docker: `createdb -U lessons-from-luke lessons-from-luke-dev`
+2. Add a `devDb` block to `secrets.json` (delete and let it regenerate, or hand-add):
+   ```json
+   "devDb": {
+     "database": "lessons-from-luke-dev",
+     "username": "lessons-from-luke",
+     "password": "lessons-from-luke"
+   }
+   ```
+3. `yarn migrate:dev`
+4. `yarn reset:dev` (loads fixtures into the dev DB; requires `dist/` built — `tsc -b ./src/server` first if needed)
+5. `yarn seed-dev-docs` (copies `Luke-1-0[1-5]v03.odt` from `test/docs/serverDocs/` to `docs/dev/`)
+6. `yarn dev-web`
 
 ## Architecture
 

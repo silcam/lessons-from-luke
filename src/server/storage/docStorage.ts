@@ -113,10 +113,14 @@ function webifyPath() {
 }
 
 function docsDirPath() {
-  const docsPath =
-    process.cwd() +
-    (process.env.NODE_ENV === "test" ? "/test/docs/serverDocs" : "/docs");
-  return requireDir(docsPath);
+  const env = process.env.NODE_ENV;
+  const subpath =
+    env === "test"
+      ? "/test/docs/serverDocs"
+      : env === "development"
+      ? "/docs/dev"
+      : "/docs";
+  return requireDir(process.cwd() + subpath);
 }
 
 function requireDir(dirPath: string) {
