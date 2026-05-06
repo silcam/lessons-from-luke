@@ -4,6 +4,7 @@ import { TestPersistence } from "../../core/interfaces/Persistence";
 import { ENGLISH_ID } from "../../core/models/Language";
 import { DraftLessonString } from "../../core/models/LessonString";
 import { TString } from "../../core/models/TString";
+import { makeDocStrings } from "../../core/models/DocString";
 import { PGTestStorage, transformCol } from "./PGStorage";
 import testStorage from "./testStorage";
 import { findBy, findByStrict } from "../../core/util/arrayUtils";
@@ -707,4 +708,163 @@ test("close() resolves without error when called on a fresh PGTestStorage", asyn
   // We create a fresh instance so we don't close the shared test storage.
   const fresh = new PGTestStorage();
   await expect(fresh.close()).resolves.toBeUndefined();
+});
+
+// ─── Bug 1: tStrings() must constrain to current-version lessonStringIds ─────
+
+test("tStrings rendering picks current-version row, not historical (Bug 1)", async () => {
+  if (!(storage instanceof PGTestStorage)) return;
+
+  const MASTER_ID = 19;
+  const ORIGINAL_LSID = 26;
+
+  // 1. Save initial Batanga translation tied to the current lessonStringId.
+  await storage.saveTStrings(
+    [
+      {
+        masterId: MASTER_ID,
+        languageId: 3,
+        lessonStringId: ORIGINAL_LSID,
+        text: "OLD VERSION",
+        history: []
+      }
+    ],
+    { awaitProgress: true }
+  );
+
+  // 2. Bump the lesson version. Re-use the existing lesson strings so the
+  // same masterId remains in the lesson, but each row gets a fresh
+  // lessonStringId allocated from the sequence.
+  const lesson = (await storage.lesson(11))!;
+  const draftLessonStrings: DraftLessonString[] = lesson.lessonStrings.map(
+    ls => ({
+      masterId: ls.masterId,
+      lessonId: ls.lessonId,
+      type: ls.type,
+      xpath: ls.xpath,
+      motherTongue: ls.motherTongue
+    })
+  );
+  await storage.updateLesson(11, lesson.version + 1, draftLessonStrings);
+
+  // 3. Find the new lessonStringId for the masterId we care about.
+  const updatedLesson = (await storage.lesson(11))!;
+  const newLs = updatedLesson.lessonStrings.find(
+    ls => ls.masterId === MASTER_ID && ls.motherTongue
+  )!;
+  expect(newLs.lessonStringId).not.toBe(ORIGINAL_LSID);
+
+  // 4. Save the new translation against the new lessonStringId.
+  await storage.saveTStrings(
+    [
+      {
+        masterId: MASTER_ID,
+        languageId: 3,
+        lessonStringId: newLs.lessonStringId,
+        text: "NEW VERSION",
+        history: []
+      }
+    ],
+    { awaitProgress: true }
+  );
+
+  // 5. Render via makeDocStrings — assert the latest text wins.
+  const tStrings = await storage.tStrings({ languageId: 3, lessonId: 11 });
+  const docStrings = makeDocStrings(updatedLesson.lessonStrings, tStrings, []);
+  const idx = updatedLesson.lessonStrings.findIndex(
+    ls => ls.masterId === MASTER_ID && ls.motherTongue
+  );
+  expect(docStrings[idx].text).toBe("NEW VERSION");
+});
+
+// ─── Bug 2: saveTStrings UPDATE must not smear across historical rows ───────
+
+test("saveTStrings UPDATE preserves historical rows (Bug 2)", async () => {
+  if (!(storage instanceof PGTestStorage)) return;
+
+  const MASTER_ID = 19;
+  const ORIGINAL_LSID = 26;
+
+  // 1. Save initial Batanga translation at the current lessonStringId.
+  await storage.saveTStrings(
+    [
+      {
+        masterId: MASTER_ID,
+        languageId: 3,
+        lessonStringId: ORIGINAL_LSID,
+        text: "OLD VERSION",
+        history: []
+      }
+    ],
+    { awaitProgress: true }
+  );
+
+  // 2. Bump the lesson version (same masterId stays in the lesson, gets new lsid).
+  const lesson = (await storage.lesson(11))!;
+  const draftLessonStrings: DraftLessonString[] = lesson.lessonStrings.map(
+    ls => ({
+      masterId: ls.masterId,
+      lessonId: ls.lessonId,
+      type: ls.type,
+      xpath: ls.xpath,
+      motherTongue: ls.motherTongue
+    })
+  );
+  await storage.updateLesson(11, lesson.version + 1, draftLessonStrings);
+
+  const updatedLesson = (await storage.lesson(11))!;
+  const newLs = updatedLesson.lessonStrings.find(
+    ls => ls.masterId === MASTER_ID && ls.motherTongue
+  )!;
+
+  // 3. INSERT a translation at the new lessonStringId.
+  await storage.saveTStrings(
+    [
+      {
+        masterId: MASTER_ID,
+        languageId: 3,
+        lessonStringId: newLs.lessonStringId,
+        text: "FIRST NEW",
+        history: []
+      }
+    ],
+    { awaitProgress: true }
+  );
+
+  // 4. Re-save at the new lessonStringId with different text — exercises the
+  // UPDATE branch where Bug 2 used to smear across historical rows.
+  await storage.saveTStrings(
+    [
+      {
+        masterId: MASTER_ID,
+        languageId: 3,
+        lessonStringId: newLs.lessonStringId,
+        text: "NEW VERSION",
+        history: []
+      }
+    ],
+    { awaitProgress: true }
+  );
+
+  // 5. Verify both rows still exist with their correct text and lessonStringId.
+  const rows = await (storage as PGTestStorage).sql`
+    SELECT masterid, languageid, lessonstringid, text
+    FROM tstrings
+    WHERE masterid=${MASTER_ID} AND languageid=3
+    ORDER BY lessonstringid
+  `;
+
+  expect(rows.length).toBe(2);
+
+  const historical = rows.find((r: any) => r.lessonStringId === ORIGINAL_LSID);
+  const current = rows.find(
+    (r: any) => r.lessonStringId === newLs.lessonStringId
+  );
+
+  expect(historical).toBeDefined();
+  expect(historical!.text).toBe("OLD VERSION");
+  expect(historical!.lessonStringId).toBe(ORIGINAL_LSID);
+
+  expect(current).toBeDefined();
+  expect(current!.text).toBe("NEW VERSION");
 });
