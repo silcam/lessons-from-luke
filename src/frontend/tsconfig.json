@@ -5,6 +5,8 @@
       "target": "es5",
       "jsx": "react",
       "allowSyntheticDefaultImports": true,
-    }
+      "outDir": "../../dist/frontend"
+    },
+    "references": [{ "path": "../core" }]
   }
 
