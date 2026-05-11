@@ -1,24 +1,21 @@
-FROM node:24-bookworm
+FROM ubuntu:noble
 
 ARG TZ
 ENV TZ="${TZ:-America/Los_Angeles}"
 ENV PROJECT="oo7"
 
 ARG CLAUDE_CODE_VERSION=latest
+ARG NVM_VERSION=v0.40.1
 
-# Add PostgreSQL Global Development Group repo (Debian's default postgresql package is PG15; we need PG18)
+# Postgres 16 is Noble's default — no third-party repo needed.
+# build-essential / python3-pip are here because nvm/node-gyp needs them to
+# compile native addons (libxmljs2 etc.) during yarn install.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      curl ca-certificates gnupg2 \
-    && install -d /usr/share/postgresql-common/pgdg \
-    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
-         -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
-    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
-         > /etc/apt/sources.list.d/pgdg.list
-
-# Install basic development tools and iptables/ipset
-RUN apt-get update
-RUN apt-get install -y --no-install-recommends \
-    postgresql-18 \
+    postgresql \
+    curl \
+    ca-certificates \
+    gnupg2 \
+    build-essential \
     zip \
     less \
     git \
@@ -28,7 +25,7 @@ RUN apt-get install -y --no-install-recommends \
     zsh \
     man-db \
     unzip \
-    gnupg2 \
+    wget \
     iptables \
     ipset \
     iproute2 \
@@ -42,9 +39,12 @@ RUN apt-get install -y --no-install-recommends \
     emacs-nox \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Ensure default node user has access to /usr/local/share
-RUN mkdir -p /usr/local/share/npm-global && \
-  chown -R node:node /usr/local/share
+# Replace Noble's default `ubuntu` UID-1000 user with `node` UID-1000 so the
+# rest of the Dockerfile (chown lines, USER directives) and bind-mount UIDs
+# from the macOS host stay consistent with the previous node:24-bookworm base.
+RUN userdel -r ubuntu 2>/dev/null || true \
+    && groupadd -g 1000 node \
+    && useradd -m -u 1000 -g node -s /bin/bash node
 
 ARG USERNAME=node
 
@@ -78,10 +78,25 @@ RUN ARCH=$(dpkg --print-architecture) && \
 # Set up non-root user
 USER node
 
-# Install global packages
-ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
-ENV NPM_CONFIG_UNSAFE_PERM=true
-ENV PATH=$PATH:/usr/local/share/npm-global/bin:/home/node/.local/bin
+# Mirror production: install nvm, then nvm-install the version this repo pins
+# via .nvmrc (single source of truth — same file capistrano-nvm reads on the
+# deploy host via config/deploy.rb). yarn is installed under that Node so it
+# lives under $NVM_DIR/<version>/bin/yarn, matching prod's
+# ~lessons-from-luke/.nvm/versions/node/v24.*/bin/yarn.
+ENV NVM_DIR=/home/node/.nvm
+COPY --chown=node:node .nvmrc /tmp/.nvmrc
+RUN mkdir -p $NVM_DIR \
+    && curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh | bash \
+    && bash -lc "source $NVM_DIR/nvm.sh \
+                 && nvm install $(cat /tmp/.nvmrc) \
+                 && nvm alias default $(cat /tmp/.nvmrc) \
+                 && npm install -g yarn" \
+    && ln -sf $NVM_DIR/versions/node/$(ls $NVM_DIR/versions/node | sort -V | tail -1) $NVM_DIR/current \
+    && rm /tmp/.nvmrc
+
+# Make node/npm/yarn discoverable in non-interactive shells (e.g.
+# `docker compose exec ... yarn ...`) and from the runtime root user.
+ENV PATH=$NVM_DIR/current/bin:/home/node/.local/bin:$PATH
 
 # Set the default shell to zsh rather than sh
 ENV SHELL=/bin/zsh

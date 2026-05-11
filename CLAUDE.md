@@ -58,9 +58,9 @@ docker compose exec claude-container bash -c "cd /workspace && yarn test-coverag
 ```
 
 Key details:
-- `NPM_CONFIG_UNSAFE_PERM=true` is set in the Dockerfile to avoid node-gyp permission issues when running as root
+- Node is installed via `nvm` under `/home/node/.nvm` to mirror the production deploy host (which uses `capistrano-nvm`). The version comes from `.nvmrc` (currently 24). `node`/`npm`/`yarn` are on `PATH` via `$NVM_DIR/current/bin`
 - The workspace is bind-mounted at `/workspace`, so changes are shared between host and container
-- If `node_modules` was previously installed on macOS, delete it before running `yarn install` in the container (native addons are platform-specific)
+- `node_modules` lives in a Docker named volume (`node_modules:/workspace/node_modules` in `docker-compose.yml`) that shadows any host `node_modules`, so a host-built tree from macOS won't conflict. After rebasing the container image, run `docker compose down -v` to drop the named volume so native addons (libxmljs2, etc.) get rebuilt against the new Node
 - The entrypoint starts PostgreSQL and creates three databases automatically: `lessons-from-luke` (production), `lessons-from-luke-test` (Jest/Cypress/Playwright), and `lessons-from-luke-dev` (interactive `dev-web`/`dev-desktop`)
 - A `secrets.json` is auto-generated if not present, containing `db`, `testDb`, and `devDb` blocks
 - Migrations target databases by env var: `TEST_DB=true` → test DB, `DEV_DB=true` → dev DB, no flag → production DB. Connection info comes from `secrets.json`
