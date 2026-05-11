@@ -6,10 +6,19 @@ ENV PROJECT="oo7"
 
 ARG CLAUDE_CODE_VERSION=latest
 
+# Add PostgreSQL Global Development Group repo (Debian's default postgresql package is PG15; we need PG18)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      curl ca-certificates gnupg2 \
+    && install -d /usr/share/postgresql-common/pgdg \
+    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+         -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
+         > /etc/apt/sources.list.d/pgdg.list
+
 # Install basic development tools and iptables/ipset
 RUN apt-get update
 RUN apt-get install -y --no-install-recommends \
-    postgresql \
+    postgresql-18 \
     zip \
     less \
     git \
