@@ -58,7 +58,7 @@ docker compose exec claude-container bash -c "cd /workspace && yarn test-coverag
 ```
 
 Key details:
-- Node is installed via `nvm` under `/home/node/.nvm` to mirror the production deploy host (which uses `capistrano-nvm`). The version comes from `.nvmrc` (currently 24). `node`/`npm`/`yarn` are on `PATH` via `$NVM_DIR/current/bin`
+- Node is installed via `nvm` under `/home/ubuntu/.nvm` to mirror the production deploy host (which uses `capistrano-nvm`). The version comes from `.nvmrc` (currently 24). `node`/`npm`/`yarn` are on `PATH` via `$NVM_DIR/current/bin`
 - The workspace is bind-mounted at `/workspace`, so changes are shared between host and container
 - `node_modules` lives in a Docker named volume (`node_modules:/workspace/node_modules` in `docker-compose.yml`) that shadows any host `node_modules`, so a host-built tree from macOS won't conflict. After rebasing the container image, run `docker compose down -v` to drop the named volume so native addons (libxmljs2, etc.) get rebuilt against the new Node
 - The entrypoint starts PostgreSQL and creates three databases automatically: `lessons-from-luke` (production), `lessons-from-luke-test` (Jest/Cypress/Playwright), and `lessons-from-luke-dev` (interactive `dev-web`/`dev-desktop`)

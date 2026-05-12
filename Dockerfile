@@ -39,14 +39,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     emacs-nox \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Replace Noble's default `ubuntu` UID-1000 user with `node` UID-1000 so the
-# rest of the Dockerfile (chown lines, USER directives) and bind-mount UIDs
-# from the macOS host stay consistent with the previous node:24-bookworm base.
-RUN userdel -r ubuntu 2>/dev/null || true \
-    && groupadd -g 1000 node \
-    && useradd -m -u 1000 -g node -s /bin/bash node
-
-ARG USERNAME=node
+ARG USERNAME=ubuntu
 
 # Persist bash history.
 RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
@@ -58,8 +51,8 @@ RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhisto
 ENV DEVCONTAINER=true
 
 # Create workspace and config directories and set permissions
-RUN mkdir -p /workspace /home/node/.claude && \
-  chown -R node:node /workspace /home/node/.claude
+RUN mkdir -p /workspace /home/ubuntu/.claude && \
+  chown -R ubuntu:ubuntu /workspace /home/ubuntu/.claude
 
 WORKDIR /workspace
 
@@ -76,15 +69,15 @@ RUN ARCH=$(dpkg --print-architecture) && \
     rm "pandoc-${PANDOC_VERSION}-1-${ARCH}.deb"
 
 # Set up non-root user
-USER node
+USER ubuntu
 
 # Mirror production: install nvm, then nvm-install the version this repo pins
 # via .nvmrc (single source of truth — same file capistrano-nvm reads on the
 # deploy host via config/deploy.rb). yarn is installed under that Node so it
 # lives under $NVM_DIR/<version>/bin/yarn, matching prod's
 # ~lessons-from-luke/.nvm/versions/node/v24.*/bin/yarn.
-ENV NVM_DIR=/home/node/.nvm
-COPY --chown=node:node .nvmrc /tmp/.nvmrc
+ENV NVM_DIR=/home/ubuntu/.nvm
+COPY --chown=ubuntu:ubuntu .nvmrc /tmp/.nvmrc
 RUN mkdir -p $NVM_DIR \
     && curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh | bash \
     && bash -lc "source $NVM_DIR/nvm.sh \
@@ -96,7 +89,7 @@ RUN mkdir -p $NVM_DIR \
 
 # Make node/npm/yarn discoverable in non-interactive shells (e.g.
 # `docker compose exec ... yarn ...`) and from the runtime root user.
-ENV PATH=$NVM_DIR/current/bin:/home/node/.local/bin:$PATH
+ENV PATH=$NVM_DIR/current/bin:/home/ubuntu/.local/bin:$PATH
 
 # Set the default shell to zsh rather than sh
 ENV SHELL=/bin/zsh
@@ -134,15 +127,15 @@ COPY init-firewall.sh /usr/local/bin/
 USER root
 
 RUN chmod +x /usr/local/bin/init-firewall.sh && \
-  echo "node ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/node-firewall && \
-  chmod 0440 /etc/sudoers.d/node-firewall
+  echo "ubuntu ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/ubuntu-firewall && \
+  chmod 0440 /etc/sudoers.d/ubuntu-firewall
 RUN mkdir -p /var/local/env && \
-    chown node:node /var/local/env
+    chown ubuntu:ubuntu /var/local/env
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-USER node
+USER ubuntu
 # Configure git
 RUN git config --global user.name "David Eyk" && git config --global user.email "david@worldsenoughstudios.com"
 
