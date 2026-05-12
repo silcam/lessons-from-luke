@@ -1,32 +1,66 @@
 GEM
   remote: https://rubygems.org/
   specs:
-    airbrussh (1.4.0)
+    airbrussh (1.6.1)
       sshkit (>= 1.6.1, != 1.7.0)
-    capistrano (3.12.0)
+    base64 (0.3.0)
+    bcrypt_pbkdf (1.1.2)
+    capistrano (3.20.0)
       airbrussh (>= 1.0.0)
       i18n
       rake (>= 10.0.0)
       sshkit (>= 1.9.0)
     capistrano-nvm (0.0.7)
       capistrano (~> 3.1)
-    concurrent-ruby (1.1.6)
-    i18n (1.8.2)
+    concurrent-ruby (1.3.6)
+    ed25519 (1.2.4)
+    i18n (1.14.8)
       concurrent-ruby (~> 1.0)
-    net-scp (2.0.0)
-      net-ssh (>= 2.6.5, < 6.0.0)
-    net-ssh (5.2.0)
-    rake (13.0.1)
-    sshkit (1.20.0)
+    logger (1.7.0)
+    mutex_m (0.3.0)
+    net-scp (4.1.0)
+      net-ssh (>= 2.6.5, < 8.0.0)
+    net-sftp (4.0.0)
+      net-ssh (>= 5.0.0, < 8.0.0)
+    net-ssh (7.3.2)
+    ostruct (0.6.3)
+    rake (13.4.2)
+    sshkit (1.25.0)
+      base64
+      logger
       net-scp (>= 1.1.2)
+      net-sftp (>= 2.1.2)
       net-ssh (>= 2.8.0)
+      ostruct
 
 PLATFORMS
   ruby
+  x86_64-linux
 
 DEPENDENCIES
-  capistrano (~> 3.12)
+  bcrypt_pbkdf (~> 1.1, >= 1.1.2)
+  capistrano (~> 3.20.0)
   capistrano-nvm
+  ed25519 (~> 1.2.4)
+  mutex_m (~> 0.3.0)
+
+CHECKSUMS
+  airbrussh (1.6.1) sha256=9a5fc95583cefe722054a016d26ff0338cf00072b031b829086dde2039d5836a
+  base64 (0.3.0) sha256=27337aeabad6ffae05c265c450490628ef3ebd4b67be58257393227588f5a97b
+  bcrypt_pbkdf (1.1.2) sha256=c2414c23ce66869b3eb9f643d6a3374d8322dfb5078125c82792304c10b94cf6
+  capistrano (3.20.0) sha256=0113e58dda99add0342e56a244f664734c59f442c5ed734f5303b0b559b479c9
+  capistrano-nvm (0.0.7) sha256=08840032d33705052a7d101781302c2938b56f28ea4d640ab3cba34f1ee8210f
+  concurrent-ruby (1.3.6) sha256=6b56837e1e7e5292f9864f34b69c5a2cbc75c0cf5338f1ce9903d10fa762d5ab
+  ed25519 (1.2.4) sha256=dc62c3491e9484d566519ab2bfca1406c7527694c902e6d05074c3a33ecab3b8
+  i18n (1.14.8) sha256=285778639134865c5e0f6269e0b818256017e8cde89993fdfcbfb64d088824a5
+  logger (1.7.0) sha256=196edec7cc44b66cfb40f9755ce11b392f21f7967696af15d274dde7edff0203
+  mutex_m (0.3.0) sha256=cfcb04ac16b69c4813777022fdceda24e9f798e48092a2b817eb4c0a782b0751
+  net-scp (4.1.0) sha256=a99b0b92a1e5d360b0de4ffbf2dc0c91531502d3d4f56c28b0139a7c093d1a5d
+  net-sftp (4.0.0) sha256=65bb91c859c2f93b09826757af11b69af931a3a9155050f50d1b06d384526364
+  net-ssh (7.3.2) sha256=65029e213c380e20e5fd92ece663934ab0a0fe888e0cd7cc6a5b664074362dd4
+  ostruct (0.6.3) sha256=95a2ed4a4bd1d190784e666b47b2d3f078e4a9efda2fccf18f84ddc6538ed912
+  rake (13.4.2) sha256=cb825b2bd5f1f8e91ca37bddb4b9aaf345551b4731da62949be002fa89283701
+  sshkit (1.25.0) sha256=c8c6543cdb60f91f1d277306d585dd11b6a064cb44eab0972827e4311ff96744
 
 BUNDLED WITH
-   2.0.1
+  4.0.8

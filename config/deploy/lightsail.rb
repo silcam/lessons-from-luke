@@ -6,7 +6,7 @@
 # server "example.com", user: "deploy", roles: %w{app db web}, my_property: :my_value
 # server "example.com", user: "deploy", roles: %w{app web}, other_property: :other_value
 # server "db.example.com", user: "deploy", roles: %w{db}
-server "lightsail", user: "lessons", roles: %w{app db web}
+server "newlukeserver", user: "lessons", roles: %w{app db web}
 
 
 # role-based syntax
@@ -31,6 +31,9 @@ server "lightsail", user: "lessons", roles: %w{app db web}
 # http://capistranorb.com/documentation/getting-started/configuration/
 # Feel free to add new variables to customise your setup.
 set :default_env, { PYTHON: "/usr/bin/python2" }
+
+# Override branch for now.
+set :branch, "feature/node-24-migration"
 
 # Custom SSH Options
 # ==================
