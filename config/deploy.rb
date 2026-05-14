@@ -1,5 +1,5 @@
 # config valid for current version and patch releases of Capistrano
-lock "~> 3.12.0"
+lock "~> 3.20.0"
 
 set :application, "lessons-from-luke"
 set :repo_url, "https://github.com/silcam/lessons-from-luke.git"
