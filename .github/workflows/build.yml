@@ -14,7 +14,7 @@ jobs:
       image: node:24-bookworm
     services:
       postgres:
-        image: postgres:18
+        image: postgres:16
         env:
           POSTGRES_USER: lessons-from-luke
           POSTGRES_PASSWORD: lessons-from-luke
@@ -75,7 +75,7 @@ jobs:
     needs: test
     services:
       postgres:
-        image: postgres:18
+        image: postgres:16
         env:
           POSTGRES_USER: lessons-from-luke
           POSTGRES_PASSWORD: lessons-from-luke
