@@ -11,7 +11,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     container:
-      image: node:24-bookworm
+      image: node:24.15.0-bookworm
     services:
       postgres:
         image: postgres:16
@@ -91,7 +91,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: '.nvmrc'
       - name: Install system dependencies
         run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
       - name: Create test database
@@ -142,7 +142,7 @@ jobs:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
       with:
-        node-version: 24
+        node-version-file: '.nvmrc'
     - name: Install dependencies
       run: yarn install
     - name: Build binary
