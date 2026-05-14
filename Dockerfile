@@ -73,9 +73,9 @@ USER ubuntu
 
 # Mirror production: install nvm, then nvm-install the version this repo pins
 # via .nvmrc (single source of truth — same file capistrano-nvm reads on the
-# deploy host via config/deploy.rb). yarn is installed under that Node so it
-# lives under $NVM_DIR/<version>/bin/yarn, matching prod's
-# ~lessons-from-luke/.nvm/versions/node/v24.*/bin/yarn.
+# deploy host via config/deploy.rb). yarn is provisioned via corepack (ships
+# with Node 24), which defers to the version pinned in package.json's
+# packageManager field and the committed binary at .yarn/releases/.
 ENV NVM_DIR=/home/ubuntu/.nvm
 COPY --chown=ubuntu:ubuntu .nvmrc /tmp/.nvmrc
 RUN mkdir -p $NVM_DIR \
@@ -83,7 +83,8 @@ RUN mkdir -p $NVM_DIR \
     && bash -lc "source $NVM_DIR/nvm.sh \
                  && nvm install $(cat /tmp/.nvmrc) \
                  && nvm alias default $(cat /tmp/.nvmrc) \
-                 && npm install -g yarn" \
+                 && corepack enable \
+                 && corepack prepare yarn@4.14.1 --activate" \
     && ln -sf $NVM_DIR/versions/node/$(ls $NVM_DIR/versions/node | sort -V | tail -1) $NVM_DIR/current \
     && rm /tmp/.nvmrc
 

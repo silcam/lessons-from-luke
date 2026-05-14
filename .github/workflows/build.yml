@@ -54,7 +54,7 @@ jobs:
           }
           EOF
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: yarn install --immutable
         env:
           NPM_CONFIG_UNSAFE_PERM: "true"
       - name: Run migrations
@@ -120,7 +120,7 @@ jobs:
           }
           EOF
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: yarn install --immutable
         env:
           NPM_CONFIG_UNSAFE_PERM: "true"
       - name: Build server
@@ -144,7 +144,7 @@ jobs:
       with:
         node-version-file: '.nvmrc'
     - name: Install dependencies
-      run: yarn install
+      run: yarn install --immutable
     - name: Build binary
       run: yarn build-desktop
     - name: Look at what we've got
