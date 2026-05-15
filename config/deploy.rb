@@ -23,7 +23,7 @@ set :repo_url, "https://github.com/silcam/lessons-from-luke.git"
 
 # Default value for :linked_files is []
 # append :linked_files, "config/database.yml"
-append :linked_files, "secrets.json", ".migrate"
+append :linked_files, "secrets.json", ".migrate-prod"
 
 # Default value for linked_dirs is []
 # append :linked_dirs, "log", "tmp/pids", "tmp/cache", "tmp/sockets", "public/system"
@@ -41,7 +41,7 @@ append :linked_dirs, "node_modules", "docs"
 # Uncomment the following to require manually verifying the host key before first deploy.
 # set :ssh_options, verify_host_key: :secure
 
-set :nvm_node, 'v24.15.0'
+set :nvm_node, File.read(File.expand_path("../.nvmrc", __dir__)).strip
 
 namespace :deploy do
   before 'deploy:symlink:release', "custom:yarn_build"

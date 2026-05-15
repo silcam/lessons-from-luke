@@ -21,3 +21,14 @@ cypress/fixtures/*_FILES/
 src/**/*.js
 src/**/*.js.map
 src/**/*.tsbuildinfo
+*.lock
+!yarn.lock
+
+# Yarn Berry
+.yarn/*
+!.yarn/releases
+!.yarn/patches
+!.yarn/plugins
+!.yarn/sdks
+!.yarn/versions
+.pnp.*

@@ -11,10 +11,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     container:
-      image: node:24-bookworm
+      image: node:24.15.0-bookworm
     services:
       postgres:
-        image: postgres:13
+        image: postgres:16
         env:
           POSTGRES_USER: lessons-from-luke
           POSTGRES_PASSWORD: lessons-from-luke
@@ -54,7 +54,7 @@ jobs:
           }
           EOF
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: yarn install --immutable
         env:
           NPM_CONFIG_UNSAFE_PERM: "true"
       - name: Run migrations
@@ -75,7 +75,7 @@ jobs:
     needs: test
     services:
       postgres:
-        image: postgres:13
+        image: postgres:16
         env:
           POSTGRES_USER: lessons-from-luke
           POSTGRES_PASSWORD: lessons-from-luke
@@ -91,7 +91,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: '.nvmrc'
       - name: Install system dependencies
         run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
       - name: Create test database
@@ -120,7 +120,7 @@ jobs:
           }
           EOF
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: yarn install --immutable
         env:
           NPM_CONFIG_UNSAFE_PERM: "true"
       - name: Build server
@@ -142,9 +142,9 @@ jobs:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
       with:
-        node-version: 24
+        node-version-file: '.nvmrc'
     - name: Install dependencies
-      run: yarn install
+      run: yarn install --immutable
     - name: Build binary
       run: yarn build-desktop
     - name: Look at what we've got
