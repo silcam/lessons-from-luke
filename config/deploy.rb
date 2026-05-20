@@ -27,7 +27,7 @@ append :linked_files, "secrets.json", ".migrate-prod"
 
 # Default value for linked_dirs is []
 # append :linked_dirs, "log", "tmp/pids", "tmp/cache", "tmp/sockets", "public/system"
-append :linked_dirs, "node_modules", "docs"
+append :linked_dirs, "node_modules", "docs", ".yarn/cache"
 
 # Default value for default_env is {}
 # set :default_env, { path: "/opt/ruby/bin:$PATH" }
