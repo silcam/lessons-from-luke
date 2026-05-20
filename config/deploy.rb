@@ -41,7 +41,7 @@ append :linked_dirs, "node_modules", "docs"
 # Uncomment the following to require manually verifying the host key before first deploy.
 # set :ssh_options, verify_host_key: :secure
 
-set :nvm_node, File.read(File.expand_path("../.nvmrc", __dir__)).strip
+set :nvm_node, "v#{File.read(File.expand_path('../.nvmrc', __dir__)).strip.delete_prefix('v')}"
 
 namespace :deploy do
   before 'deploy:symlink:release', "custom:yarn_build"
