@@ -10,13 +10,19 @@ import {
   LegacyTStringWithMatches,
   LegacyTString
 } from "../../core/models/Legacy";
+import { handleErrors } from "../api/WebAPI";
 
 export default function migrationController(
   app: Express,
   storage: Persistence
 ) {
+  // Issue #59: legacyProjects() reads strings/projects.json synchronously and
+  // throws if it's missing. Without handleErrors, that throw becomes an
+  // unhandled promise rejection in this async handler and crashes the server.
   app.get("/api/admin/legacy/projects", async (req, res) => {
-    res.json(legacyProjects());
+    handleErrors(res, async () => {
+      res.json(legacyProjects());
+    });
   });
 
   type GetProjectResponse = {
