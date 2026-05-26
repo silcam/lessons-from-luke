@@ -16,6 +16,7 @@ import DocStringsPage from "./lessons/DocStringsPage";
 import MigrateProjectsIndex from "./migrate/MigrateProjectsIndex";
 import MigrateProject from "./migrate/MigrateProject";
 import UpdateIssuesPage from "./lessons/UpdateIssuesPage";
+import { useClearBannersOnNavigation } from "../common/banners/useClearBannersOnNavigation";
 
 function TranslateRouteWrapper() {
   const { code } = useParams<{ code: string }>();
@@ -61,6 +62,7 @@ function UpdateIssuesPageWrapper() {
 export default function MainRouter() {
   const { user, loaded } = useSelector((state: AppState) => state.currentUser);
   useLoad(loadCurrentUser);
+  useClearBannersOnNavigation();
 
   return (
     <RootDiv>
