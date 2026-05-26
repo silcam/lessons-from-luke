@@ -149,7 +149,7 @@ React 16 with Redux Toolkit for state management:
 - **common/state/**: Redux store and slices
 - **common/api/**: Request context for API calls
 - **common/translate/**: Translation UI components
-- **web/**: Web-specific pages (home, languages, lessons, documents, migrate)
+- **web/**: Web-specific pages (home, languages, lessons, documents)
 
 Platform context (`PlatformContext`) distinguishes between "web" and "desktop" modes.
 

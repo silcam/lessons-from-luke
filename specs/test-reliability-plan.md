@@ -226,7 +226,6 @@ export function createTestApp(): express.Express {
 - `src/server/controllers/tStringsController.test.ts`
 - `src/server/controllers/documentsController.test.ts`
 - `src/server/controllers/syncController.test.ts`
-- `src/server/controllers/migrationController.test.ts`
 
 ### Acceptance Criteria
 - [ ] Each Jest test runs in its own transaction

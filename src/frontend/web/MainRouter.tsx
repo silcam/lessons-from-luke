@@ -13,9 +13,8 @@ import LessonPage from "./lessons/LessonPage";
 import AppLoadingBar from "../common/api/AppLoadingBar";
 import UsfmImportResultPage from "./languages/UsfmImportResultPage";
 import DocStringsPage from "./lessons/DocStringsPage";
-import MigrateProjectsIndex from "./migrate/MigrateProjectsIndex";
-import MigrateProject from "./migrate/MigrateProject";
 import UpdateIssuesPage from "./lessons/UpdateIssuesPage";
+import { useClearBannersOnNavigation } from "../common/banners/useClearBannersOnNavigation";
 
 function TranslateRouteWrapper() {
   const { code } = useParams<{ code: string }>();
@@ -40,19 +39,6 @@ function DocStringsPageWrapper() {
   );
 }
 
-function MigrateProjectWrapper() {
-  const { datetime, languageId } = useParams<{
-    datetime: string;
-    languageId: string;
-  }>();
-  return (
-    <MigrateProject
-      datetime={parseInt(datetime!)}
-      languageId={parseInt(languageId!)}
-    />
-  );
-}
-
 function UpdateIssuesPageWrapper() {
   const { lessonId } = useParams<{ lessonId: string }>();
   return <UpdateIssuesPage lessonId={parseInt(lessonId!)} />;
@@ -61,6 +47,7 @@ function UpdateIssuesPageWrapper() {
 export default function MainRouter() {
   const { user, loaded } = useSelector((state: AppState) => state.currentUser);
   useLoad(loadCurrentUser);
+  useClearBannersOnNavigation();
 
   return (
     <RootDiv>
@@ -74,11 +61,6 @@ export default function MainRouter() {
             path="/languages/:languageId/lessons/:lessonId/docStrings"
             element={<DocStringsPageWrapper />}
           />
-          <Route
-            path="/migrate/:datetime/to/:languageId"
-            element={<MigrateProjectWrapper />}
-          />
-          <Route path="/migrate" element={<MigrateProjectsIndex />} />
           <Route
             path="/update-issues/:lessonId"
             element={<UpdateIssuesPageWrapper />}
