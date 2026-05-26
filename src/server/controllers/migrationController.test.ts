@@ -74,3 +74,24 @@ describe("migrationController with mock legacy data", () => {
     expect(response.status).toBe(404);
   });
 });
+
+// Regression test for issue #59: when projects.json is missing, the handler
+// previously threw synchronously inside an `async` function, which Express 4
+// does not catch — the resulting unhandled promise rejection took down the
+// whole server process.
+describe("migrationController without legacy data files", () => {
+  beforeAll(() => {
+    // Previous describe's afterAll already removed `stringsDir`, but be
+    // defensive in case test ordering changes.
+    if (fs.existsSync(stringsDir)) unlinkRecursive(stringsDir);
+  });
+
+  test("GET /api/admin/legacy/projects responds with 5xx instead of crashing when projects.json is missing", async () => {
+    const agent = await loggedInAgent();
+    const response = await agent
+      .get("/api/admin/legacy/projects")
+      .timeout({ deadline: 5000 });
+    expect(response.status).toBeGreaterThanOrEqual(500);
+    expect(response.status).toBeLessThan(600);
+  }, 10000);
+});
