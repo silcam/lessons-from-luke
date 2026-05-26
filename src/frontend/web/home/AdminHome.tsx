@@ -6,7 +6,6 @@ import LanguagesBox from "../languages/LanguagesBox";
 import LessonsBox from "../lessons/LessonsBox";
 import { StdHeaderBarPage } from "../../common/base-components/HeaderBar";
 import Button from "../../common/base-components/Button";
-import { Link } from "react-router-dom";
 
 export default function AdminHome() {
   const push = usePush();
@@ -18,9 +17,6 @@ export default function AdminHome() {
       title={t("Home")}
       renderRight={() => <Button text={t("Log_out")} onClick={logOut} />}
     >
-      <Link to="/migrate">
-        <Button text="Migrate Legacy Project" onClick={() => {}} />
-      </Link>
       <LanguagesBox />
       <LessonsBox />
     </StdHeaderBarPage>
