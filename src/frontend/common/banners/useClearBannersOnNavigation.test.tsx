@@ -51,11 +51,11 @@ describe("useClearBannersOnNavigation", () => {
 
     const { getByText } = render(
       <Provider store={store}>
-        <MemoryRouter initialEntries={["/migrate"]}>
+        <MemoryRouter initialEntries={["/page-a"]}>
           <HookHost />
           <Routes>
             <Route
-              path="/migrate"
+              path="/page-a"
               element={<PageWithNavigateButton to="/" label="go home" />}
             />
             <Route path="/" element={<div>home</div>} />
@@ -83,12 +83,12 @@ describe("useClearBannersOnNavigation", () => {
 
     render(
       <Provider store={store}>
-        <MemoryRouter initialEntries={["/migrate"]}>
+        <MemoryRouter initialEntries={["/page-a"]}>
           <HookHost />
           <Routes>
             <Route
-              path="/migrate"
-              element={<PageWithNavigateButton to="/migrate" label="stay" />}
+              path="/page-a"
+              element={<PageWithNavigateButton to="/page-a" label="stay" />}
             />
           </Routes>
         </MemoryRouter>

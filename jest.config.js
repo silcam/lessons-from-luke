@@ -95,8 +95,6 @@ module.exports = {
     '!src/frontend/web/MainRouter.tsx',
     // Pure layout pages with no extractable logic:
     '!src/frontend/web/home/AdminHome.tsx',
-    '!src/frontend/web/migrate/MigrateProject.tsx',
-    '!src/frontend/web/migrate/MigrateProjectsIndex.tsx',
     // Complex lesson page views — UI only, no standalone logic:
     '!src/frontend/web/lessons/DocStringsPage.tsx',
     '!src/frontend/web/lessons/LessonEditor.tsx',

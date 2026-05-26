@@ -254,7 +254,6 @@ function languagesController(app: Express, storage: Persistence) {
 - **documentsController**: Document generation and preview
 - **syncController**: Continuous sync endpoint for desktop
 - **usersController**: Authentication
-- **migrationController**: Legacy project migration
 
 ### Storage (`src/server/storage/`)
 
@@ -418,7 +417,6 @@ const reducer = combineReducers({
 - **MainRouter**: React Router configuration
 - **LanguageView**: Language detail and progress
 - **LessonPage**: Lesson detail with strings
-- **MigrateProject**: Legacy project migration UI
 - **UploadLessonForm**: Document upload interface
 
 #### Desktop-Specific (`src/frontend/desktopFrontend/`)

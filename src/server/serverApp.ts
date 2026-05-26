@@ -12,7 +12,6 @@ import documentsController from "./controllers/documentsController";
 import PGStorage, { PGTestStorage, PGDevStorage } from "./storage/PGStorage";
 import { Persistence } from "../core/interfaces/Persistence";
 import docStorage from "./storage/docStorage";
-import migrationController from "./controllers/migrationController";
 import syncController from "./controllers/syncController";
 
 const PRODUCTION = process.env.NODE_ENV == "production";
@@ -65,7 +64,6 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   lessonsController(app, storage);
   tStringsController(app, storage);
   documentsController(app, storage);
-  migrationController(app, storage);
   syncController(app, storage);
 
   if (process.env.NODE_ENV === "test") {
