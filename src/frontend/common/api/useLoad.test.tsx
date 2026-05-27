@@ -175,7 +175,7 @@ describe("useLoad", () => {
 });
 
 describe("useLoadMultiple", () => {
-  it("returns true when all loaders are still loading", async () => {
+  it("returns true while any loader is still loading", async () => {
     let resolve1!: (v: any) => void;
     let resolve2!: (v: any) => void;
     const p1 = new Promise(res => { resolve1 = res; });
@@ -190,17 +190,24 @@ describe("useLoadMultiple", () => {
       { wrapper: Wrapper }
     );
 
-    // Both are loading (notYetStarted is true for each), so every() returns true
     expect(result.current).toBe(true);
 
     await act(async () => {
       resolve1(null);
-      resolve2(null);
-      await Promise.all([p1, p2]);
+      await p1;
     });
+
+    expect(result.current).toBe(true);
+
+    await act(async () => {
+      resolve2(null);
+      await p2;
+    });
+
+    expect(result.current).toBe(false);
   });
 
-  it("returns false when any loader has finished loading", async () => {
+  it("returns false only after every loader has finished", async () => {
     const loader1: Loader<any> = _get => _dispatch => Promise.resolve(null);
     const loader2: Loader<any> = _get => _dispatch => Promise.resolve(null);
 
@@ -215,7 +222,7 @@ describe("useLoadMultiple", () => {
       await Promise.resolve();
     });
 
-    expect(typeof hook.result.current).toBe("boolean");
+    expect(hook.result.current).toBe(false);
   });
 });
 
