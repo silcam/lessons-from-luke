@@ -11,6 +11,7 @@ node_modules
 /log/capistrano.log
 /test/docs/serverDocs
 /dist-desktop
+/.desktop-build-stage
 .history/
 .sprite
 /coverage
