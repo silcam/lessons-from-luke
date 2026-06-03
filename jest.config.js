@@ -37,6 +37,7 @@ module.exports = {
         "^.+\\.tsx?$": ["ts-jest", { tsconfig: { jsx: 'react' } }]
       },
       testEnvironment: 'jsdom',
+      setupFilesAfterEnv: ['<rootDir>/src/frontend/jestSetupAfterEnv.ts'],
       // Frontend/desktop tests don't use postgres, so we can fake all timers
       fakeTimers: {},
       testMatch: [
