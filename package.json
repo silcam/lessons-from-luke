@@ -46,6 +46,7 @@
     "test:verify": "bash scripts/verify-tests.sh",
     "test-coverage": "NODE_ENV=test jest --runInBand --coverage",
     "test:frontend": "NODE_ENV=test npx jest --config jest.frontend.config.js --runInBand --watchAll=false",
+    "test:integration": "NODE_ENV=test npx jest --config jest.integration.config.js --runInBand --watchAll=false",
     "test-desktop-e2e": "jest -c jest.playwright-electron.config.js",
     "test-desktop-e2e-deps": "NODE_ENV=test concurrently -k -p \"[{name}]\" -n \"Webpack,Server\" -c \"yellow.bold,blue.bold\" \"yarn wpDevServerDesktop\" \"yarn serve\"",
     "cypress:open": "cypress open",

@@ -16,7 +16,8 @@ module.exports = {
         '<rootDir>/src/frontend/',
         '<rootDir>/src/desktop/',
         '<rootDir>/dist-desktop/',
-        '<rootDir>/.desktop-build-stage/'
+        '<rootDir>/.desktop-build-stage/',
+        '\\.integration\\.test\\.tsx?$'
       ],
       modulePathIgnorePatterns: [
         '<rootDir>/dist-desktop/',
@@ -49,7 +50,8 @@ module.exports = {
         '<rootDir>/test/',
         '<rootDir>/cypress/',
         '<rootDir>/dist-desktop/',
-        '<rootDir>/.desktop-build-stage/'
+        '<rootDir>/.desktop-build-stage/',
+        '\\.integration\\.test\\.tsx?$'
       ],
       modulePathIgnorePatterns: [
         '<rootDir>/dist-desktop/',
