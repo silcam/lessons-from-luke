@@ -35,7 +35,9 @@ function renderHeaderBar(
       <RequestContext.Provider
         value={{ get: jest.fn() as any, post: jest.fn() as any }}
       >
-        <MemoryRouter>
+        <MemoryRouter
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
           <PlatformContext.Provider value={platform}>
             <StdHeaderBar {...props} />
           </PlatformContext.Provider>

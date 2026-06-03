@@ -15,12 +15,8 @@ module.exports = {
   ],
   testPathIgnorePatterns: ["/node_modules/", "<rootDir>/test/", "<rootDir>/cypress/"],
   // ts-jest needs jsx enabled since base tsconfig.json does not set it
-  globals: {
-    'ts-jest': {
-      tsConfig: {
-        jsx: 'react'
-      }
-    }
+  transform: {
+    "^.+\\.tsx?$": ["ts-jest", { tsconfig: { jsx: 'react' } }]
   },
   moduleNameMapper: {
     // Mock electron APIs

@@ -51,7 +51,10 @@ describe("useClearBannersOnNavigation", () => {
 
     const { getByText } = render(
       <Provider store={store}>
-        <MemoryRouter initialEntries={["/page-a"]}>
+        <MemoryRouter
+          initialEntries={["/page-a"]}
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
           <HookHost />
           <Routes>
             <Route
@@ -83,7 +86,10 @@ describe("useClearBannersOnNavigation", () => {
 
     render(
       <Provider store={store}>
-        <MemoryRouter initialEntries={["/page-a"]}>
+        <MemoryRouter
+          initialEntries={["/page-a"]}
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
           <HookHost />
           <Routes>
             <Route
@@ -126,7 +132,10 @@ describe("useClearBannersOnNavigation", () => {
 
     render(
       <Provider store={store}>
-        <MemoryRouter initialEntries={["/start"]}>
+        <MemoryRouter
+          initialEntries={["/start"]}
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
           <HookHost />
           <MultiNav />
         </MemoryRouter>

@@ -63,7 +63,11 @@ export function renderWithProviders(
   return render(
     <Provider store={store}>
       <RequestContext.Provider value={{ get: mockGet, post: mockPost }}>
-        <MemoryRouter>{ui}</MemoryRouter>
+        <MemoryRouter
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
+          {ui}
+        </MemoryRouter>
       </RequestContext.Provider>
     </Provider>
   );

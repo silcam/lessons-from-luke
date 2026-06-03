@@ -64,7 +64,9 @@ describe("InterfaceLanguagePicker", () => {
     const { container } = render(
       <Provider store={store}>
         <RequestContext.Provider value={{ get: jest.fn() as any, post: mockPost as any }}>
-          <MemoryRouter>
+          <MemoryRouter
+            future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+          >
             <PlatformContext.Provider value="desktop">
               <InterfaceLanguagePicker />
             </PlatformContext.Provider>

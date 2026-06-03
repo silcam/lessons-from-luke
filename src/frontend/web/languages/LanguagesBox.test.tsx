@@ -18,25 +18,27 @@ import { renderWithProviders, sampleLanguage, defaultSyncState } from "../../com
 import LanguagesBox from "./LanguagesBox";
 
 describe("LanguagesBox", () => {
-  it("renders without crashing with empty languages", () => {
+  it("renders without crashing with empty languages", async () => {
     const { container } = renderWithProviders(<LanguagesBox />, {
       syncState: defaultSyncState,
       languages: { languages: [], adminLanguages: [] },
       currentUser: { user: null, locale: "en", loaded: false }
     });
+    await act(async () => {});
     expect(container).toBeTruthy();
   });
 
-  it("renders languages header", () => {
+  it("renders languages header", async () => {
     const { getByText } = renderWithProviders(<LanguagesBox />, {
       syncState: defaultSyncState,
       languages: { languages: [], adminLanguages: [] },
       currentUser: { user: null, locale: "en", loaded: false }
     });
+    await act(async () => {});
     expect(getByText(/languages/i)).toBeTruthy();
   });
 
-  it("renders a list of languages when provided", () => {
+  it("renders a list of languages when provided", async () => {
     const { getByText } = renderWithProviders(<LanguagesBox />, {
       syncState: defaultSyncState,
       languages: {
@@ -45,6 +47,7 @@ describe("LanguagesBox", () => {
       },
       currentUser: { user: null, locale: "en", loaded: false }
     });
+    await act(async () => {});
     expect(getByText("Test Language")).toBeTruthy();
   });
 
@@ -54,6 +57,7 @@ describe("LanguagesBox", () => {
       languages: { languages: [], adminLanguages: [] },
       currentUser: { user: null, locale: "en", loaded: false }
     });
+    await act(async () => {});
 
     // Initially the add form is not shown
     // Click the "+" button to unfold first if folded, then click Add Language
@@ -75,6 +79,7 @@ describe("LanguagesBox", () => {
       },
       currentUser: { user: null, locale: "en", loaded: false }
     });
+    await act(async () => {});
 
     // The PlusMinusButton shows "-" when unfolded (since Foldable starts with folded=false in LanguagesBox)
     // Actually LanguagesBox uses folded state starting at false (useState(false))
@@ -97,6 +102,7 @@ describe("LanguagesBox", () => {
       },
       currentUser: { user: null, locale: "en", loaded: false }
     });
+    await act(async () => {});
 
     // Click on the language name button to select it (line 62: setSelectedLanguage)
     const langButton = getByText("Test Language");

@@ -27,7 +27,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  fs.rmdirSync(testDir, { recursive: true });
+  fs.rmSync(testDir, { recursive: true, force: true });
 });
 
 function makeLesson(lessonId: number): BaseLesson {

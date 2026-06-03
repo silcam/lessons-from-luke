@@ -4,7 +4,7 @@ module.exports = {
       displayName: 'server',
       preset: 'ts-jest',
       transform: {
-        "^.+\\.tsx?$": ["ts-jest", {}]
+        "^.+\\.tsx?$": ["ts-jest", { tsconfig: { jsx: 'react' } }]
       },
       testEnvironment: 'node',
       globalSetup: '<rootDir>/src/server/jestGlobalSetup.ts',
@@ -14,7 +14,13 @@ module.exports = {
         '<rootDir>/test/',
         '<rootDir>/cypress/',
         '<rootDir>/src/frontend/',
-        '<rootDir>/src/desktop/'
+        '<rootDir>/src/desktop/',
+        '<rootDir>/dist-desktop/',
+        '<rootDir>/.desktop-build-stage/'
+      ],
+      modulePathIgnorePatterns: [
+        '<rootDir>/dist-desktop/',
+        '<rootDir>/.desktop-build-stage/'
       ],
       fakeTimers: {
         // When tests call jest.useFakeTimers(), only fake setTimeout/clearTimeout.
@@ -23,20 +29,12 @@ module.exports = {
         // connection corruption after jest.runAllTimers() in waitFor.test.ts.
         doNotFake: ["setInterval", "clearInterval", "setImmediate", "clearImmediate", "nextTick"]
       },
-      // jsx needed for coverage instrumentation of .tsx files in collectCoverageFrom
-      globals: {
-        'ts-jest': {
-          tsConfig: {
-            jsx: 'react'
-          }
-        }
-      },
     },
     {
       displayName: 'frontend',
       preset: 'ts-jest',
       transform: {
-        "^.+\\.tsx?$": ["ts-jest", {}]
+        "^.+\\.tsx?$": ["ts-jest", { tsconfig: { jsx: 'react' } }]
       },
       testEnvironment: 'jsdom',
       // Frontend/desktop tests don't use postgres, so we can fake all timers
@@ -45,15 +43,17 @@ module.exports = {
         '**/*src/frontend/**/*.test.{ts,tsx}',
         '**/*src/desktop/**/*.test.{ts,tsx}'
       ],
-      testPathIgnorePatterns: ['/node_modules/', '<rootDir>/test/', '<rootDir>/cypress/'],
-      // ts-jest needs jsx enabled since base tsconfig.json does not set it
-      globals: {
-        'ts-jest': {
-          tsConfig: {
-            jsx: 'react'
-          }
-        }
-      },
+      testPathIgnorePatterns: [
+        '/node_modules/',
+        '<rootDir>/test/',
+        '<rootDir>/cypress/',
+        '<rootDir>/dist-desktop/',
+        '<rootDir>/.desktop-build-stage/'
+      ],
+      modulePathIgnorePatterns: [
+        '<rootDir>/dist-desktop/',
+        '<rootDir>/.desktop-build-stage/'
+      ],
       moduleNameMapper: {
         // Mock electron APIs
         '^electron$': '<rootDir>/__mocks__/electron.ts',
@@ -64,6 +64,10 @@ module.exports = {
   ],
   // Top-level settings apply to all projects for coverage collection
   forceExit: true,
+  modulePathIgnorePatterns: [
+    '<rootDir>/dist-desktop/',
+    '<rootDir>/.desktop-build-stage/',
+  ],
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
     '!src/**/*.test.{ts,tsx}',

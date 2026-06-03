@@ -90,7 +90,11 @@ function renderWithProviders(
     <Provider store={store}>
       <RequestContext.Provider value={{ get: mockGet as any, post: mockPost as any }}>
         <PlatformContext.Provider value="desktop">
-          <MemoryRouter>{ui}</MemoryRouter>
+          <MemoryRouter
+            future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+          >
+            {ui}
+          </MemoryRouter>
         </PlatformContext.Provider>
       </RequestContext.Provider>
     </Provider>

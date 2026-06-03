@@ -25,30 +25,33 @@ const sampleLesson = {
 };
 
 describe("LessonsBox", () => {
-  it("renders without crashing with no lessons", () => {
+  it("renders without crashing with no lessons", async () => {
     const { container } = renderWithProviders(<LessonsBox />, {
       syncState: defaultSyncState,
       lessons: [],
       currentUser: { user: null, locale: "en", loaded: false }
     });
+    await act(async () => {});
     expect(container).toBeTruthy();
   });
 
-  it("renders Lessons heading", () => {
+  it("renders Lessons heading", async () => {
     const { getByText } = renderWithProviders(<LessonsBox />, {
       syncState: defaultSyncState,
       lessons: [],
       currentUser: { user: null, locale: "en", loaded: false }
     });
+    await act(async () => {});
     expect(getByText(/lessons/i)).toBeTruthy();
   });
 
-  it("renders lesson names when lessons are provided", () => {
+  it("renders lesson names when lessons are provided", async () => {
     const { container } = renderWithProviders(<LessonsBox />, {
       syncState: defaultSyncState,
       lessons: [sampleLesson],
       currentUser: { user: null, locale: "en", loaded: false }
     });
+    await act(async () => {});
     // Should have rendered the lesson link
     expect(container.querySelector("a")).toBeTruthy();
   });
@@ -59,6 +62,7 @@ describe("LessonsBox", () => {
       lessons: [],
       currentUser: { user: null, locale: "en", loaded: false }
     });
+    await act(async () => {});
 
     // LessonsBox uses startUnFolded, so initial foldedState is false (unfolded)
     // The PlusMinusButton shows "-" for unfolded; click it to fold
@@ -76,6 +80,7 @@ describe("LessonsBox", () => {
       lessons: [],
       currentUser: { user: null, locale: "en", loaded: false }
     });
+    await act(async () => {});
 
     // Click the Add Lesson button to set showUploadForm = true
     const addLessonButton = getByText(/add.?lesson/i);
