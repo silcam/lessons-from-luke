@@ -28,6 +28,16 @@ export default [
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  // Project-wide TypeScript rule tuning
+  {
+    files: ["**/*.{ts,tsx}"],
+    rules: {
+      // Downgraded pending opportunistic refactor — too many call sites to
+      // gate commits on. New violations should still be addressed during
+      // touched-file work.
+      "@typescript-eslint/no-explicit-any": "warn",
+    },
+  },
   // CommonJS .js files (configs, scripts, webpack, migrations, mocks, root tooling)
   {
     files: [
