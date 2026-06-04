@@ -1,5 +1,6 @@
 /// <reference types="jest" />
 
+import os from "os";
 import path from "path";
 import process from "process";
 
@@ -131,10 +132,13 @@ describe("docStorage", () => {
 
       const result = docStorage.docXml(docPath);
 
-      // mkdirSafe should have been called to create the extract dir
+      // mkdirSafe should have been called to create the extract dir, which
+      // lives under the OS temp dir (outside the watched project tree) and is
+      // named from the source ODT's basename.
       expect(mockMkdirSafe).toHaveBeenCalledTimes(1);
       const extractDir = mockMkdirSafe.mock.calls[0][0];
-      expect(extractDir).toContain(docPath);
+      expect(extractDir.startsWith(os.tmpdir())).toBe(true);
+      expect(extractDir).toContain(path.basename(docPath));
       expect(extractDir).toContain("_FILES");
 
       // unzip should be called
