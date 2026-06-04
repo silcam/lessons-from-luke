@@ -131,7 +131,12 @@ jobs:
         with:
           install: false
           start: npx concurrently "yarn wpDevServerWeb" "yarn serve"
-          wait-on: http://localhost:8080
+          # Wait for BOTH the webpack dev server (8080) and the API server (8081)
+          # before running specs. /api/languages is public and DB-backed, so a 200
+          # confirms the API process is up AND can reach Postgres — without it,
+          # Cypress charges ahead the moment 8080 responds and every spec fails its
+          # before-each with a proxy 504 if the API is still starting (or crashed).
+          wait-on: "http://localhost:8080, http://localhost:8081/api/languages"
           wait-on-timeout: 180
           command: bash scripts/run-cypress-random.sh
 
