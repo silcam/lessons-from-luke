@@ -1,4 +1,11 @@
 module.exports = {
+  // The server project's tests all share one test database and reset its
+  // sequences via process-global `ALTER SEQUENCE ... RESTART` DDL (see
+  // TransactionalTestStorage), so they MUST run serially — parallel workers
+  // exhaust connections and corrupt each other's sequence/row state. Every
+  // test:* script already passes --runInBand; pinning maxWorkers here makes a
+  // bare `npx jest` or IDE test runner safe too.
+  maxWorkers: 1,
   projects: [
     {
       displayName: 'server',
