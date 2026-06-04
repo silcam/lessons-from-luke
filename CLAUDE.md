@@ -58,6 +58,7 @@ docker compose exec claude-container bash -c "cd /workspace && yarn test-coverag
 ```
 
 Key details:
+
 - Node is installed via `nvm` under `/home/ubuntu/.nvm` to mirror the production deploy host (which uses `capistrano-nvm`). The version comes from `.nvmrc` (currently 24). `node`/`npm`/`yarn` are on `PATH` via `$NVM_DIR/current/bin`
 - The workspace is bind-mounted at `/workspace`, so changes are shared between host and container
 - `node_modules` lives in a Docker named volume (`node_modules:/workspace/node_modules` in `docker-compose.yml`) that shadows any host `node_modules`, so a host-built tree from macOS won't conflict. After rebasing the container image, run `docker compose down -v` to drop the named volume so native addons (libxmljs2, etc.) get rebuilt against the new Node
@@ -72,11 +73,11 @@ Key details:
 
 There are three runtime environments, fully isolated from one another:
 
-| Env | `NODE_ENV` | Storage class | Database | ODT root | Used by |
-|---|---|---|---|---|---|
-| Production | `production` | `PGStorage` | `lessons-from-luke` | `docs/` | deployed server |
-| Development | `development` | `PGDevStorage` | `lessons-from-luke-dev` | `docs/dev/` | `yarn dev-web`, `yarn dev-desktop`, `yarn serve-dev` |
-| Test | `test` | `PGTestStorage` | `lessons-from-luke-test` | `test/docs/serverDocs/` | `yarn test*`, `yarn test-e2e` (Cypress), `yarn test-desktop-e2e-deps` (Playwright) |
+| Env         | `NODE_ENV`    | Storage class   | Database                 | ODT root                | Used by                                                                            |
+| ----------- | ------------- | --------------- | ------------------------ | ----------------------- | ---------------------------------------------------------------------------------- |
+| Production  | `production`  | `PGStorage`     | `lessons-from-luke`      | `docs/`                 | deployed server                                                                    |
+| Development | `development` | `PGDevStorage`  | `lessons-from-luke-dev`  | `docs/dev/`             | `yarn dev-web`, `yarn dev-desktop`, `yarn serve-dev`                               |
+| Test        | `test`        | `PGTestStorage` | `lessons-from-luke-test` | `test/docs/serverDocs/` | `yarn test*`, `yarn test-e2e` (Cypress), `yarn test-desktop-e2e-deps` (Playwright) |
 
 Only the test environment mounts the `/api/test/reset-storage` endpoint; in dev and production it returns 404. Dev resets through the `yarn reset:dev` CLI instead.
 
@@ -128,6 +129,7 @@ Platform-agnostic business logic shared across all environments:
 - **util/**: Shared utilities
 
 Key concepts:
+
 - **TString**: A translated string with history tracking, linked to a master ID
 - **Lesson**: Organized by Book (Luke/Acts), Series, and Lesson number
 - **LessonString**: Links master strings to lessons with type (content/styles/meta) and xpath
@@ -136,6 +138,7 @@ Key concepts:
 ### Server Layer (`src/server/`)
 
 Express.js API server:
+
 - **controllers/**: Route handlers (languages, lessons, tStrings, documents, sync, users)
 - **storage/**: `PGStorage` for PostgreSQL persistence, implements `Persistence` interface
 - **xml/**: ODT document processing using libxmljs2
@@ -146,6 +149,7 @@ The server serves the web frontend in production and provides REST API endpoints
 ### Frontend Layer (`src/frontend/`)
 
 React 16 with Redux Toolkit for state management:
+
 - **common/state/**: Redux store and slices
 - **common/api/**: Request context for API calls
 - **common/translate/**: Translation UI components
@@ -156,6 +160,7 @@ Platform context (`PlatformContext`) distinguishes between "web" and "desktop" m
 ### Desktop Layer (`src/desktop/`)
 
 Electron main process:
+
 - **LocalStorage.ts**: Implements `Persistence` for offline-first local storage
 - **DesktopApp.ts**: Electron window management
 - **WebAPIClientForDesktop.ts**: API client that works offline
@@ -165,12 +170,14 @@ Electron main process:
 ### TypeScript Configuration
 
 Multiple tsconfig files for different compilation targets:
+
 - `tsconfig.json`: Base configuration (strict mode enabled)
 - `src/*/tsconfig.json`: Layer-specific settings with project references
 
 ### Storage Abstraction
 
 The `Persistence` interface (`src/core/interfaces/Persistence.ts`) defines all data operations. Implementations:
+
 - `PGStorage`: PostgreSQL for server
 - `PGTestStorage`: In-memory PostgreSQL for tests
 - `LocalStorage`: Electron local storage
@@ -178,6 +185,7 @@ The `Persistence` interface (`src/core/interfaces/Persistence.ts`) defines all d
 ### API Pattern
 
 Controllers receive the Express app and storage instance:
+
 ```typescript
 function languagesController(app: Express, storage: Persistence) {
   app.get("/api/languages", async (req, res) => { ... });
@@ -189,6 +197,33 @@ function languagesController(app: Express, storage: Persistence) {
 - Jest for unit/integration tests (`*.test.ts` files alongside source)
 - Cypress for E2E tests (`cypress/integration/`)
 - Test files are excluded from TypeScript compilation
+
+## Workflow & Pre-commit
+
+### `/sp:*` feature-lifecycle workflow
+
+The `.claude/commands/sp/` directory provides a structured feature-development pipeline:
+constitution → brainstorm → specify → plan → red-team → tasks → analyze → implement → harden.
+Backed by `br` (beads_rust) for task tracking. Run `/sp:00-constitution` through `/sp:08-harden`,
+or `/sp:next` to advance the current feature.
+
+**Prerequisite:** `br` (beads_rust) must be installed on `PATH` for task-tracking commands to work.
+Install separately if needed.
+
+### Pre-commit pipeline
+
+`.husky/pre-commit` runs on every `git commit` (do **not** bypass with `--no-verify`):
+
+1. `yarn typecheck` — full project type-check (`tsc -b ./src/server ./src/desktop --noEmit`)
+2. `npx lint-staged` — on staged files only:
+   - `*.{ts,tsx}` → `eslint --fix` → `prettier --write` → `jest --findRelatedTests --bail --passWithNoTests --runInBand`
+   - `*.{js,json,md,yml,yaml}` → `prettier --write`
+
+Helper scripts:
+
+- `yarn lint` / `yarn lint:fix` — ESLint over the whole project
+- `yarn format` / `yarn format:check` — Prettier over the whole project
+- `yarn typecheck` — TypeScript project-references typecheck
 
 ## Subagents
 

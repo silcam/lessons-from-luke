@@ -1,4 +1,42 @@
 {
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true,
+    "excludedCommands": [
+      "git commit",
+      "yarn test",
+      "yarn test:once",
+      "yarn test:frontend",
+      "yarn test:integration",
+      "yarn migrate",
+      "yarn migrate:test",
+      "yarn migrate:dev",
+      "yarn build-server",
+      "yarn build-desktop",
+      "npx jest"
+    ],
+    "network": {
+      "allowedHosts": ["github.com", "api.github.com", "*.github.com"]
+    }
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd $CLAUDE_PROJECT_DIR/.claude/hooks && cat | npx tsx pre-tool-use-bash.ts"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [{ "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/on-stop.sh" }]
+      }
+    ]
+  },
   "statusLine": {
     "type": "command",
     "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/status-line.sh"

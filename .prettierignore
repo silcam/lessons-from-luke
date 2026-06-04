@@ -1,0 +1,9 @@
+dist
+dist-desktop
+node_modules
+coverage
+strings
+docs
+log
+art
+**/*.odt
