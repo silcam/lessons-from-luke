@@ -31,7 +31,7 @@
     "dev-desktop": "NODE_ENV=development concurrently -k -p \"[{name}]\" -n \"Webpack,Typescript,Electron\" -c \"yellow.bold,blue.bold,green.bold\" \"yarn wpDevServerDesktop\" \"tsc -b -w ./src/desktop ./src/server\" \"yarn run-test-desktop\"",
     "wpDevServerWeb": "webpack-dev-server --config webpack/web.development.config.js --host 0.0.0.0",
     "wpDevServerDesktop": "webpack-dev-server --config webpack/desktop.development.config.js",
-    "serve": "NODE_ENV=test nodemon -w dist/server/ dist/server/server.js",
+    "serve": "NODE_ENV=test nodemon -w dist/server/ --exec \"node dist/server/server.js\"",
     "serve-dev": "NODE_ENV=development nodemon -w dist/server/ --exec \"node dist/server/server.js\"",
     "run-test-desktop": "nodemon -w dist/desktop/ --exec yarn electron dist/desktop/main-test.js",
     "migrate": "node scripts/migrate.js",
