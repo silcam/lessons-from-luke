@@ -16,7 +16,7 @@ test("serverApp logging middleware fires when silent is false", async () => {
   const app = serverApp({ silent: false });
   const response = await request(app).get("/api/languages");
   // Give the finish event a tick to fire
-  await new Promise(resolve => setTimeout(resolve, 50));
+  await new Promise((resolve) => setTimeout(resolve, 50));
   expect(response.status).toBe(200);
   expect(spy).toHaveBeenCalled();
   spy.mockRestore();
@@ -58,7 +58,6 @@ describe("serverApp production branch", () => {
     process.env.NODE_ENV = "production";
     jest.resetModules();
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const freshServerApp = require("./serverApp").default;
       const app = freshServerApp({ silent: true });
 
@@ -78,7 +77,6 @@ describe("serverApp production branch", () => {
     process.env.NODE_ENV = "production";
     jest.resetModules();
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const freshServerApp = require("./serverApp").default;
       const app = freshServerApp({ silent: true });
 
@@ -98,7 +96,6 @@ describe("serverApp production branch", () => {
     process.env.NODE_ENV = "production";
     jest.resetModules();
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const freshServerApp = require("./serverApp").default;
       const app = freshServerApp({ silent: true });
 

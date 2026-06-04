@@ -8,10 +8,7 @@ interface BaseDocString {
   text: string;
 }
 
-export default function parse(
-  xml: string,
-  xmlType: LessonStringType
-): DocString[] {
+export default function parse(xml: string, xmlType: LessonStringType): DocString[] {
   switch (xmlType) {
     case "meta":
       return parseMeta(xml);
@@ -43,48 +40,45 @@ function parseContent(contentXml: string) {
     "M.T._20_Lesson_20_title_20_-_20_invisible",
     "M.T._20_Cover_20_title",
     "M.T._20_Cover_20_subtitle",
-    "M.T._20_Example_20_text"
+    "M.T._20_Example_20_text",
   ];
   const knownStyleNamePatterns = ["M.T._20_Text", "L.M."];
 
   const allStyleNames = knownStyleNames
     .concat(
       knownStyleNames.reduce(
-        (styles, styleName) =>
-          styles.concat(findStylesToMatch(xmlDoc, namespaces, styleName)),
+        (styles, styleName) => styles.concat(findStylesToMatch(xmlDoc, namespaces, styleName)),
         [] as string[]
       )
     )
     .concat(
       knownStyleNamePatterns.reduce(
-        (styles, pattern) =>
-          styles.concat(findStylesToMatch(xmlDoc, namespaces, "", pattern)),
+        (styles, pattern) => styles.concat(findStylesToMatch(xmlDoc, namespaces, "", pattern)),
         [] as string[]
       )
     );
 
   const xPath =
-    knownStyleNamePatterns
-      .map(pattern => xPathForPWithStyleNameContains(pattern))
-      .join(" | ") +
+    knownStyleNamePatterns.map((pattern) => xPathForPWithStyleNameContains(pattern)).join(" | ") +
     " | " +
-    allStyleNames.map(name => xPathForPWithStyle(name)).join(" | ") + " | " +
-    allStyleNames.map(name => xPathForHWithStyle(name)).join(" | ");
-    
+    allStyleNames.map((name) => xPathForPWithStyle(name)).join(" | ") +
+    " | " +
+    allStyleNames.map((name) => xPathForHWithStyle(name)).join(" | ");
+
   const nodes = xmlDoc.root()!.find(xPath, namespaces);
 
-  const translatableStrings: DocString[] = parseNodes(
-    nodes as Element[]
-  ).map(str => ({ ...str, type: "content", motherTongue: true }));
-  const allStrings: DocString[] = parseNode(xmlDoc.root()!).map(str => ({
+  const translatableStrings: DocString[] = parseNodes(nodes as Element[]).map((str) => ({
     ...str,
     type: "content",
-    motherTongue: false
+    motherTongue: true,
+  }));
+  const allStrings: DocString[] = parseNode(xmlDoc.root()!).map((str) => ({
+    ...str,
+    type: "content",
+    motherTongue: false,
   }));
   const mergedStrings = allStrings.map(
-    docString =>
-      translatableStrings.find(mtStr => mtStr.xpath == docString.xpath) ||
-      docString
+    (docString) => translatableStrings.find((mtStr) => mtStr.xpath == docString.xpath) || docString
   );
 
   return mergedStrings;
@@ -96,10 +90,10 @@ function parseMeta(metaXml: string): DocString[] {
 
   const xPath = "//dc:subject | //dc:title";
   const nodes = xmlDoc.root()!.find(xPath, namespaces);
-  return parseNodes(nodes as Element[]).map(str => ({
+  return parseNodes(nodes as Element[]).map((str) => ({
     ...str,
     type: "meta",
-    motherTongue: false
+    motherTongue: false,
   }));
 }
 
@@ -108,8 +102,8 @@ function parseStyles(stylesXml: string): DocString[] {
   const docStrings = parseNode(xmlDoc.root()!);
   const justNumberPattern = /^\d+$/;
   return docStrings
-    .filter(docStr => !justNumberPattern.test(docStr.text))
-    .map(docStr => ({ ...docStr, type: "styles", motherTongue: false }));
+    .filter((docStr) => !justNumberPattern.test(docStr.text))
+    .map((docStr) => ({ ...docStr, type: "styles", motherTongue: false }));
 }
 
 // parentStyleName is ignored if parentStylePattern is provided
@@ -126,9 +120,9 @@ export function findStylesToMatch(
   const nodes = xmlDoc.root()!.find(xPath, namespaces) as Element[];
   let styles: string[] = [];
   for (let i = 0; i < nodes.length; ++i) {
-    let style = nodes[i].attr("name")!.value();
+    const style = nodes[i].attr("name")!.value();
     styles.push(style);
-    let childStyles = findStylesToMatch(xmlDoc, namespaces, style);
+    const childStyles = findStylesToMatch(xmlDoc, namespaces, style);
     styles = styles.concat(childStyles);
   }
   return styles;
@@ -161,8 +155,8 @@ function parseNode(node: Element): BaseDocString[] {
       return [
         {
           xpath: node.path(),
-          text: node.text().trim()
-        }
+          text: node.text().trim(),
+        },
       ];
     }
     return [];
@@ -191,8 +185,6 @@ function parseNodes(nodes: Element[]) {
 // }
 
 function removeTrackedChanges(doc: Document, namespaces: Namespaces) {
-  const trackedChangesNodes = doc
-    .root()!
-    .find("//text:tracked-changes", namespaces);
-  trackedChangesNodes.forEach(node => node.remove());
+  const trackedChangesNodes = doc.root()!.find("//text:tracked-changes", namespaces);
+  trackedChangesNodes.forEach((node) => node.remove());
 }

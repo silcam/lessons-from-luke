@@ -2,10 +2,7 @@
 
 jest.mock("../actions/webifyLesson");
 
-import {
-  loggedInAgent,
-  plainAgent
-} from "../testHelper";
+import { loggedInAgent, plainAgent } from "../testHelper";
 import { LessonString } from "../../core/models/LessonString";
 import { TString } from "../../core/models/TString";
 import { DocString } from "../../core/models/DocString";
@@ -27,7 +24,7 @@ test("GET Lessons", async () => {
     book: "Luke",
     series: 1,
     lesson: 1,
-    version: 3
+    version: 3,
   });
 });
 
@@ -41,7 +38,7 @@ test("GET Lesson by Id", async () => {
     book: "Luke",
     series: 1,
     lesson: 1,
-    version: 3
+    version: 3,
   });
   expect(response.body.lessonStrings[0]).toMatchObject({
     lessonStringId: 7,
@@ -49,7 +46,7 @@ test("GET Lesson by Id", async () => {
     lessonId: 11,
     lessonVersion: 3,
     type: "content",
-    motherTongue: false
+    motherTongue: false,
   });
 });
 
@@ -100,13 +97,11 @@ test("Update Lesson 2", async () => {
   const oldLessonStringCount = lessonStrings.length;
   response = await agent.get("/api/languages/1/lessons/12/tStrings");
   const tStrings: TString[] = response.body;
-  const docStrings: DocString[] = lessonStrings.map(lStr => ({
+  const docStrings: DocString[] = lessonStrings.map((lStr) => ({
     motherTongue: lStr.motherTongue,
     type: lStr.type,
     xpath: lStr.xpath,
-    text: tStrings.find(
-      tStr => tStr.languageId == 1 && tStr.masterId == lStr.masterId
-    )!.text
+    text: tStrings.find((tStr) => tStr.languageId == 1 && tStr.masterId == lStr.masterId)!.text,
   }));
 
   // Eliminate one string
@@ -121,39 +116,29 @@ test("Update Lesson 2", async () => {
 
   // The one we removed
   expect(
-    response.body.lesson.lessonStrings.find(
-      (str: LessonString) => str.xpath == xPathToNotFindLater
-    )
+    response.body.lesson.lessonStrings.find((str: LessonString) => str.xpath == xPathToNotFindLater)
   ).toBeUndefined();
-  expect(response.body.lesson.lessonStrings.length).toBe(
-    oldLessonStringCount - 1
-  );
+  expect(response.body.lesson.lessonStrings.length).toBe(oldLessonStringCount - 1);
 
   // The one we edited
   expect(
-    findByStrict(
-      response.body.tStrings as TString[],
-      "text",
-      "An Angel drops in on Mary"
-    )
+    findByStrict(response.body.tStrings as TString[], "text", "An Angel drops in on Mary")
   ).toMatchObject({
     history: [],
     languageId: 1,
-    text: "An Angel drops in on Mary"
+    text: "An Angel drops in on Mary",
   });
 });
 
 test("Update Lesson with non-existent lessonId returns 500", async () => {
   const agent = await loggedInAgent();
-  const response = await agent
-    .post("/api/admin/lessons/99999/strings")
-    .send([]);
+  const response = await agent.post("/api/admin/lessons/99999/strings").send([]);
   expect(response.status).toBe(500);
 });
 
 test("Empty Lesson Update Issues", async () => {
   const agent = await loggedInAgent();
-  let response = await agent.get("/api/admin/lessons/11/lessonUpdateIssues");
+  const response = await agent.get("/api/admin/lessons/11/lessonUpdateIssues");
   expect(response.status).toBe(200);
   expect(response.body).toEqual([]);
 });
@@ -166,13 +151,11 @@ test("Lesson Update Issues - TSubs", async () => {
   const lessonStrings: LessonString[] = response.body.lessonStrings;
   response = await agent.get("/api/languages/1/lessons/12/tStrings");
   const tStrings: TString[] = response.body;
-  const docStrings: DocString[] = lessonStrings.map(lStr => ({
+  const docStrings: DocString[] = lessonStrings.map((lStr) => ({
     motherTongue: lStr.motherTongue,
     type: lStr.type,
     xpath: lStr.xpath,
-    text: tStrings.find(
-      tStr => tStr.languageId == 1 && tStr.masterId == lStr.masterId
-    )!.text
+    text: tStrings.find((tStr) => tStr.languageId == 1 && tStr.masterId == lStr.masterId)!.text,
   }));
   docStrings[1].text = "An Angel drops in on Mary";
   docStrings[2].text = "An Angel drops in on Mary";
@@ -190,7 +173,7 @@ test("Lesson Update Issues - TSubs", async () => {
         masterId: 4,
         source: null,
         sourceLanguageId: null,
-        text: "An Angel Visits Mary"
+        text: "An Angel Visits Mary",
       },
       {
         history: [],
@@ -199,8 +182,8 @@ test("Lesson Update Issues - TSubs", async () => {
         masterId: 4,
         source: null,
         sourceLanguageId: null,
-        text: "An Angel Visits Mary"
-      }
+        text: "An Angel Visits Mary",
+      },
     ],
     engTo: [
       {
@@ -210,7 +193,7 @@ test("Lesson Update Issues - TSubs", async () => {
         masterId: 655,
         source: null,
         sourceLanguageId: null,
-        text: "An Angel drops in on Mary"
+        text: "An Angel drops in on Mary",
       },
       {
         history: [],
@@ -219,8 +202,8 @@ test("Lesson Update Issues - TSubs", async () => {
         masterId: 655,
         source: null,
         sourceLanguageId: null,
-        text: "An Angel drops in on Mary"
-      }
+        text: "An Angel drops in on Mary",
+      },
     ],
     from: [
       {
@@ -230,7 +213,7 @@ test("Lesson Update Issues - TSubs", async () => {
         masterId: 4,
         source: "Un ange visite Marie",
         sourceLanguageId: 2,
-        text: "Engelesi epepwandi Mariya"
+        text: "Engelesi epepwandi Mariya",
       },
       {
         history: [],
@@ -239,10 +222,10 @@ test("Lesson Update Issues - TSubs", async () => {
         masterId: 4,
         source: "Un ange visite Marie",
         sourceLanguageId: 2,
-        text: "Engelesi epepwandi Mariya"
-      }
+        text: "Engelesi epepwandi Mariya",
+      },
     ],
     languageId: 3,
-    to: [null, null]
+    to: [null, null],
   });
 });
