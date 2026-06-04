@@ -36,6 +36,15 @@ export default [
       // gate commits on. New violations should still be addressed during
       // touched-file work.
       "@typescript-eslint/no-explicit-any": "warn",
+      // `_`-prefix marks intentionally unused (interface conformance, etc.)
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
     },
   },
   // CommonJS .js files (configs, scripts, webpack, migrations, mocks, root tooling)
