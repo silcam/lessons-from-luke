@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from "react";
 import styled from "styled-components";
 import Colors from "../util/Colors";
-import { FlexCol } from "./Flex";
+import { FlexColBase } from "./Flex";
 
-const ContainerDiv = styled(FlexCol)`
+const ContainerDiv = styled(FlexColBase)`
   position: relative;
 `;
 
-const Bouncy = styled.span`
+const Bouncy = styled.span<React.HTMLAttributes<HTMLSpanElement>>`
   position: absolute;
   color: ${Colors.primary};
   font-weight: bold;

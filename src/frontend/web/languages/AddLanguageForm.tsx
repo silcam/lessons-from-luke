@@ -10,6 +10,7 @@ import { useAppSelector } from "../../common/state/appState";
 import Label from "../../common/base-components/Label";
 import SelectInput from "../../common/base-components/SelectInput";
 import { ENGLISH_ID } from "../../../core/models/Language";
+import Alert from "../../common/base-components/Alert";
 
 interface IProps {
   done: () => void;
@@ -22,10 +23,17 @@ export default function AddLanguageForm(props: IProps) {
 
   const [name, setName] = useState("");
   const [defaultSrcLang, setDefaultSrcLang] = useState(ENGLISH_ID);
+  const [nameError, setNameError] = useState("");
   const formValid = name.length > 0;
 
   const save = async () => {
-    const language = await push(pushLanguage({ name, defaultSrcLang }));
+    const language = await push(pushLanguage({ name, defaultSrcLang }), err => {
+      if (err.type === "HTTP" && err.status === 409) {
+        setNameError("A language with that name already exists.");
+        return true;
+      }
+      return false;
+    });
     if (language) props.done();
   };
 
@@ -43,8 +51,9 @@ export default function AddLanguageForm(props: IProps) {
         <TextInput
           placeholder={t("Language_name")}
           value={name}
-          setValue={setName}
+          setValue={v => { setName(v); setNameError(""); }}
         />
+        {nameError && <Alert danger>{nameError}</Alert>}
       </Div>
       <Button disabled={!formValid} onClick={save} text={t("Save")} />
       <Button red onClick={props.done} text={t("Cancel")} />

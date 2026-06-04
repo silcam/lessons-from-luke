@@ -1,7 +1,17 @@
 {
     "extends": "./tsconfig.json",
     "compilerOptions": {
-        "sourceMap": false
+        "sourceMap": false,
+        // NOTE: `references` is NOT inherited through `extends`, so this prod config
+        // has no project reference to ../core. core is therefore recompiled from source
+        // into this build, which inflates rootDir to src/ and NESTS output one level:
+        // dist/desktop/desktop/main.js. That nesting is REQUIRED — the packaged app's
+        // file:// handler (DesktopApp.ts: path.join(__dirname, "..", "web", ...)) only
+        // resolves to the webpack renderer output (dist/desktop/web) when main sits at
+        // dist/desktop/desktop/. The `main` field points at the nested path to match.
+        // rootDir is pinned to src/ to lock that layout in deterministically; do not
+        // "fix" it to flat without also rewriting DesktopApp.ts's renderer paths, the
+        // `main` field, and validating a packaged build.
+        "rootDir": ".."
     }
-
 }

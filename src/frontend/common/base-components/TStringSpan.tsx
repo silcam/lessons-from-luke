@@ -4,6 +4,7 @@ import Colors from "../util/Colors";
 
 interface SpanProps {
   motherTongue?: boolean;
+  children?: React.ReactNode;
 }
 
 const StyledSpan = styled.span<SpanProps>`

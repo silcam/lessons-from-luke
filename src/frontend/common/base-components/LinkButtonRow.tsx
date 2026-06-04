@@ -24,7 +24,7 @@ export default function LinkButtonRow(props: IProps) {
   );
 }
 
-const LBRDiv = styled.div`
+const LBRDiv = styled.div<{ children?: React.ReactNode }>`
   margin: 0.5em 0;
 
   span {

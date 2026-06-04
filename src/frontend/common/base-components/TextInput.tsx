@@ -2,7 +2,7 @@ import React from "react";
 import styled from "styled-components";
 import Colors from "../util/Colors";
 
-interface STIProps {
+interface STIProps extends React.InputHTMLAttributes<HTMLInputElement> {
   minWidth?: number;
   bigger?: boolean;
 }
@@ -42,7 +42,7 @@ export default function TextInput(props: IProps) {
   return (
     <StyledTextInput
       type={props.password ? "password" : "text"}
-      onChange={e => props.setValue(e.target.value)}
+      onChange={(e: React.ChangeEvent<HTMLInputElement>) => props.setValue(e.target.value)}
       {...inputProps}
     />
   );

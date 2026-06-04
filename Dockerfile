@@ -1,15 +1,21 @@
-FROM node:12.22.12-bullseye
+FROM ubuntu:noble
 
 ARG TZ
 ENV TZ="${TZ:-America/Los_Angeles}"
 ENV PROJECT="oo7"
 
 ARG CLAUDE_CODE_VERSION=latest
+ARG NVM_VERSION=v0.40.1
 
-# Install basic development tools and iptables/ipset
-RUN apt-get update
-RUN apt-get install -y --no-install-recommends \
+# Postgres 16 is Noble's default — no third-party repo needed.
+# build-essential / python3-pip are here because nvm/node-gyp needs them to
+# compile native addons (libxmljs2 etc.) during yarn install.
+RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql \
+    curl \
+    ca-certificates \
+    gnupg2 \
+    build-essential \
     zip \
     less \
     git \
@@ -19,7 +25,7 @@ RUN apt-get install -y --no-install-recommends \
     zsh \
     man-db \
     unzip \
-    gnupg2 \
+    wget \
     iptables \
     ipset \
     iproute2 \
@@ -33,11 +39,7 @@ RUN apt-get install -y --no-install-recommends \
     emacs-nox \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Ensure default node user has access to /usr/local/share
-RUN mkdir -p /usr/local/share/npm-global && \
-  chown -R node:node /usr/local/share
-
-ARG USERNAME=node
+ARG USERNAME=ubuntu
 
 # Persist bash history.
 RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
@@ -49,8 +51,8 @@ RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhisto
 ENV DEVCONTAINER=true
 
 # Create workspace and config directories and set permissions
-RUN mkdir -p /workspace /home/node/.claude && \
-  chown -R node:node /workspace /home/node/.claude
+RUN mkdir -p /workspace /home/ubuntu/.claude && \
+  chown -R ubuntu:ubuntu /workspace /home/ubuntu/.claude
 
 WORKDIR /workspace
 
@@ -67,12 +69,28 @@ RUN ARCH=$(dpkg --print-architecture) && \
     rm "pandoc-${PANDOC_VERSION}-1-${ARCH}.deb"
 
 # Set up non-root user
-USER node
+USER ubuntu
 
-# Install global packages
-ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
-ENV NPM_CONFIG_UNSAFE_PERM=true
-ENV PATH=$PATH:/usr/local/share/npm-global/bin:/home/node/.local/bin
+# Mirror production: install nvm, then nvm-install the version this repo pins
+# via .nvmrc (single source of truth — same file capistrano-nvm reads on the
+# deploy host via config/deploy.rb). yarn is provisioned via corepack (ships
+# with Node 24), which defers to the version pinned in package.json's
+# packageManager field and the committed binary at .yarn/releases/.
+ENV NVM_DIR=/home/ubuntu/.nvm
+COPY --chown=ubuntu:ubuntu .nvmrc /tmp/.nvmrc
+RUN mkdir -p $NVM_DIR \
+    && curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh | bash \
+    && bash -lc "source $NVM_DIR/nvm.sh \
+                 && nvm install $(cat /tmp/.nvmrc) \
+                 && nvm alias default $(cat /tmp/.nvmrc) \
+                 && corepack enable \
+                 && corepack prepare yarn@4.14.1 --activate" \
+    && ln -sf $NVM_DIR/versions/node/$(ls $NVM_DIR/versions/node | sort -V | tail -1) $NVM_DIR/current \
+    && rm /tmp/.nvmrc
+
+# Make node/npm/yarn discoverable in non-interactive shells (e.g.
+# `docker compose exec ... yarn ...`) and from the runtime root user.
+ENV PATH=$NVM_DIR/current/bin:/home/ubuntu/.local/bin:$PATH
 
 # Set the default shell to zsh rather than sh
 ENV SHELL=/bin/zsh
@@ -110,15 +128,15 @@ COPY init-firewall.sh /usr/local/bin/
 USER root
 
 RUN chmod +x /usr/local/bin/init-firewall.sh && \
-  echo "node ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/node-firewall && \
-  chmod 0440 /etc/sudoers.d/node-firewall
+  echo "ubuntu ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/ubuntu-firewall && \
+  chmod 0440 /etc/sudoers.d/ubuntu-firewall
 RUN mkdir -p /var/local/env && \
-    chown node:node /var/local/env
+    chown ubuntu:ubuntu /var/local/env
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-USER node
+USER ubuntu
 # Configure git
 RUN git config --global user.name "David Eyk" && git config --global user.email "david@worldsenoughstudios.com"
 

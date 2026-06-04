@@ -24,13 +24,13 @@ import Label from "../../common/base-components/Label";
 import { usePush } from "../../common/api/useLoad";
 import { pushDocument } from "../../common/state/lessonSlice";
 import { useAppSelector } from "../../common/state/appState";
-import { useHistory } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Checkbox from "../../common/base-components/Checkbox";
 
 export default function UploadLessonForm(props: { done: () => void }) {
   const t = useTranslation();
   const push = usePush();
-  const history = useHistory();
+  const navigate = useNavigate();
 
   const [uploadMeta, setUploadMeta] = useState<EnglishUploadMeta>(
     defaultEnglishUploadMeta()
@@ -45,7 +45,7 @@ export default function UploadLessonForm(props: { done: () => void }) {
   const save = async () => {
     if (file) {
       const lesson = await push(pushDocument(file, uploadMeta));
-      if (lesson) history.push(`/update-issues/${lesson.lessonId}`);
+      if (lesson) navigate(`/update-issues/${lesson.lessonId}`);
     }
   };
 
@@ -99,7 +99,7 @@ export function UploadDocForTranslationForm(props: {
 }) {
   const t = useTranslation();
   const push = usePush();
-  const history = useHistory();
+  const navigate = useNavigate();
   const lessons = useAppSelector(state => state.lessons);
 
   const [lessonId, setLessonId] = useState(0);
@@ -115,7 +115,7 @@ export function UploadDocForTranslationForm(props: {
       const meta: OtherUploadMeta = { languageId: props.languageId, lessonId };
       const lesson = await push(pushDocument(file, meta));
       if (lesson)
-        history.push(
+        navigate(
           `/languages/${props.languageId}/lessons/${lessonId}/docStrings`
         );
     }

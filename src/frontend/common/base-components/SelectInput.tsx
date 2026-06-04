@@ -12,7 +12,7 @@ export default function SelectInput(props: IProps) {
   return (
     <StyledSelect
       value={props.value}
-      onChange={e => props.setValue(e.target.value)}
+      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => props.setValue(e.target.value)}
     >
       {props.options.map(option => (
         <option key={option[0]} value={option[0]}>
@@ -29,6 +29,6 @@ export function optionsDisplayIsKey(options: readonly string[]): Options {
 
 // export function optionsTranslated(options: TKey)
 
-const StyledSelect = styled.select`
+const StyledSelect = styled.select<React.SelectHTMLAttributes<HTMLSelectElement> & { children?: React.ReactNode }>`
   font-size: 1em;
 `;

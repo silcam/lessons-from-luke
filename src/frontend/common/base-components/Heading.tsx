@@ -5,6 +5,7 @@ interface HProps {
   level: number;
   text: string;
   style?: CSSProperties;
+  children?: React.ReactNode;
 }
 
 const StyledHeading = styled.h1<HProps>`

@@ -227,7 +227,7 @@ async function updateProgress() {
   });
 }
 
-function join<A, B>(
+export function join<A, B>(
   alist: A[],
   blist: B[],
   match: (a: A, b: B) => boolean
@@ -243,7 +243,7 @@ function join<A, B>(
   );
 }
 
-function outerJoin<A, B>(
+export function outerJoin<A, B>(
   alist: A[],
   blist: B[],
   match: (a: A, b: B) => boolean
@@ -252,7 +252,7 @@ function outerJoin<A, B>(
     const matches = blist
       .filter(bitem => match(aitem, bitem))
       .map(bitem => ({ ...bitem, ...aitem }));
-    return jlist.concat(matches.length > 0 ? matches : [aitem]);
+    return jlist.concat(matches.length > 0 ? matches : ([aitem] as (A & Partial<B>)[]));
   }, [] as (A & Partial<B>)[]);
 }
 

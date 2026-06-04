@@ -11,7 +11,7 @@ module.exports = {
       filename: "desktop.html"
     })
   ],
-  target: "electron-renderer",
+  target: "web",
   output: {
     filename: "desktop.bundle.js",
     path: path.resolve(__dirname, "..", "dist", "frontend"),

@@ -1,9 +1,10 @@
 #!/bin/bash
 set -e
 
-# Start Postgres cluster
-echo "Starting PostgreSQL 13..."
-su - postgres -c "pg_ctlcluster 13 main start"
+# Start Postgres cluster (detect installed version)
+PG_VERSION=$(ls /etc/postgresql/ | sort -V | tail -1)
+echo "Starting PostgreSQL ${PG_VERSION}..."
+su - postgres -c "pg_ctlcluster ${PG_VERSION} main start"
 
 # Create database user and databases (ignore errors if they already exist)
 su - postgres -c "psql -v ON_ERROR_STOP=0 --dbname=postgres -c \
@@ -14,6 +15,9 @@ su - postgres -c "psql -v ON_ERROR_STOP=0 --dbname=postgres -c \
 
 su - postgres -c "psql -v ON_ERROR_STOP=0 --dbname=postgres -c \
     \"CREATE DATABASE \\\"lessons-from-luke-test\\\" OWNER \\\"lessons-from-luke\\\";\"" 2>/dev/null || true
+
+su - postgres -c "psql -v ON_ERROR_STOP=0 --dbname=postgres -c \
+    \"CREATE DATABASE \\\"lessons-from-luke-dev\\\" OWNER \\\"lessons-from-luke\\\";\"" 2>/dev/null || true
 
 # Generate secrets.json if it doesn't exist
 if [ ! -f /workspace/secrets.json ]; then
@@ -29,6 +33,11 @@ if [ ! -f /workspace/secrets.json ]; then
   },
   "testDb": {
     "database": "lessons-from-luke-test",
+    "username": "lessons-from-luke",
+    "password": "lessons-from-luke"
+  },
+  "devDb": {
+    "database": "lessons-from-luke-dev",
     "username": "lessons-from-luke",
     "password": "lessons-from-luke"
   }

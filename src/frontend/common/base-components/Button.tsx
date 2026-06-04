@@ -2,12 +2,11 @@ import React from "react";
 import styled, { css } from "styled-components";
 import Colors, { faded, darker } from "../util/Colors";
 
-interface SBProps {
+interface SBProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   red?: boolean;
   bigger?: boolean;
   unButton?: boolean;
-  disabled?: boolean;
-  className?: string;
+  children?: React.ReactNode;
 }
 
 interface IProps extends SBProps {
@@ -85,7 +84,7 @@ export default function Button(props: IProps) {
   const SButton = link ? LinkStyledButton : StyledButton;
   return (
     <SButton
-      onMouseUp={e => (e.target as HTMLButtonElement).blur()}
+      onMouseUp={(e: React.MouseEvent<HTMLButtonElement>) => (e.target as HTMLButtonElement).blur()}
       disabled={sbProps.disabled || sbProps.unButton}
       {...sbProps}
     >

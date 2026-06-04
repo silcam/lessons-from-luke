@@ -91,7 +91,7 @@ export default class PGStorage implements Persistence {
 
   async lessons(): Promise<BaseLesson[]> {
     return this.sql`
-      SELECT lessonid, book, series, lesson, version FROM lessons
+      SELECT lessonid, book, series, lesson, version FROM lessons ORDER BY lessonid
       `;
   }
 
@@ -177,24 +177,29 @@ export default class PGStorage implements Persistence {
       if (lessonStrings.length == 0) return [];
 
       const masterIds = lessonStrings.map(ls => ls.masterId);
+      const lessonStringIds = lessonStrings.map(ls => ls.lessonStringId);
       return this.sql`
-        SELECT masterid, languageid, sourcelanguageid, source, text, history, lessonstringid 
-        FROM tStrings 
-        WHERE languageId=${params.languageId} 
+        SELECT masterid, languageid, sourcelanguageid, source, text, history, lessonstringid
+        FROM tStrings
+        WHERE languageId=${params.languageId}
         AND masterId IN (${masterIds})
+        AND (lessonStringId IN (${lessonStringIds}) OR lessonStringId IS NULL)
+        ORDER BY masterid
       `;
     } else if (params.masterIds) {
       return this.sql`
         SELECT masterid, languageid, sourcelanguageid, source, text, history, lessonstringid
-        FROM tStrings 
-        WHERE languageId=${params.languageId} 
+        FROM tStrings
+        WHERE languageId=${params.languageId}
         AND masterId IN (${params.masterIds})
+        ORDER BY masterid
       `;
     } else {
       return this.sql`
         SELECT masterid, languageid, sourcelanguageid, source, text, history, lessonstringid
         FROM tStrings
         WHERE ${this.sql(params)}
+        ORDER BY masterid
       `;
     }
   }
@@ -266,13 +271,18 @@ export default class PGStorage implements Persistence {
       )}`;
 
     await Promise.all(
-      toUpdate.map(
-        tStr =>
-          this.sql`UPDATE tstrings SET ${this.sql({
-            ...sqlizeTString(tStr),
-            modified: timestamp
-          })} WHERE languageid=${tStr.languageId} AND masterid=${tStr.masterId}`
-      )
+      toUpdate.map(tStr => {
+        const set = { ...sqlizeTString(tStr), modified: timestamp };
+        return tStr.lessonStringId == null
+          ? this.sql`UPDATE tstrings SET ${this.sql(set)}
+                     WHERE languageid=${tStr.languageId}
+                     AND masterid=${tStr.masterId}
+                     AND lessonstringid IS NULL`
+          : this.sql`UPDATE tstrings SET ${this.sql(set)}
+                     WHERE languageid=${tStr.languageId}
+                     AND masterid=${tStr.masterId}
+                     AND lessonstringid=${tStr.lessonStringId}`;
+      })
     );
 
     if (opts.awaitProgress) await this.updateProgress();
@@ -380,6 +390,13 @@ export class PGTestStorage extends PGStorage implements TestPersistence {
   }
 }
 
+export class PGDevStorage extends PGStorage {
+  constructor() {
+    super();
+    this.sql = devDbConnect();
+  }
+}
+
 function dbConnect() {
   const opts: Options = {
     ...secrets.db,
@@ -399,6 +416,16 @@ function dbConnect() {
 function testDbConnect() {
   const opts: Options = {
     ...secrets.testDb,
+    transform: {
+      column: transformCol
+    }
+  };
+  return postgres(opts);
+}
+
+function devDbConnect() {
+  const opts: Options = {
+    ...secrets.devDb,
     transform: {
       column: transformCol
     }

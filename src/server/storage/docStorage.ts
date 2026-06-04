@@ -1,5 +1,6 @@
 import process from "process";
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { UploadedFile } from "express-fileupload";
 import { BaseLesson } from "../../core/models/Lesson";
@@ -52,17 +53,28 @@ function cleanTmpDir() {
 // }
 
 function docXml(docPath: string) {
-  const extractDirPath = `${docPath}_${new Date().valueOf()}_FILES`;
+  // Extract into an OS temp dir (outside the project tree) rather than next to
+  // the source ODT. When this transient tree lived under docs/, jest-haste-map's
+  // NodeWatcher — the fallback watcher used in Docker/Linux where watchman and
+  // fsevents are absent — would crash with ENOENT trying to fs.watch() a
+  // subdirectory that unlinkRecursive had already deleted mid-scan.
+  const extractDirPath = path.join(
+    os.tmpdir(),
+    `${path.basename(docPath)}_${new Date().valueOf()}_FILES`
+  );
   mkdirSafe(extractDirPath);
-  unzip(docPath, extractDirPath);
-  const xmls = { content: "", meta: "", styles: "" };
-  objKeys(xmls).forEach(xmlType => {
-    const xmlPath = path.join(extractDirPath, `${xmlType}.xml`);
-    const xml = fs.readFileSync(xmlPath).toString();
-    xmls[xmlType] = xml;
-  });
-  unlinkRecursive(extractDirPath);
-  return xmls;
+  try {
+    unzip(docPath, extractDirPath);
+    const xmls = { content: "", meta: "", styles: "" };
+    objKeys(xmls).forEach(xmlType => {
+      const xmlPath = path.join(extractDirPath, `${xmlType}.xml`);
+      const xml = fs.readFileSync(xmlPath).toString();
+      xmls[xmlType] = xml;
+    });
+    return xmls;
+  } finally {
+    unlinkRecursive(extractDirPath);
+  }
 }
 
 function docFilepath(lesson: BaseLesson) {
@@ -113,10 +125,14 @@ function webifyPath() {
 }
 
 function docsDirPath() {
-  const docsPath =
-    process.cwd() +
-    (process.env.NODE_ENV === "test" ? "/test/docs/serverDocs" : "/docs");
-  return requireDir(docsPath);
+  const env = process.env.NODE_ENV;
+  const subpath =
+    env === "test"
+      ? "/test/docs/serverDocs"
+      : env === "development"
+      ? "/docs/dev"
+      : "/docs";
+  return requireDir(process.cwd() + subpath);
 }
 
 function requireDir(dirPath: string) {

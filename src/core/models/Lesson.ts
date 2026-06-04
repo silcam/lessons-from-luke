@@ -31,7 +31,6 @@ export function lessonName(
 }
 
 export function documentName(languageName: string, lesson: BaseLesson) {
-  console.log("DOCNAME!!");
   return (
     `${languageName}_${lesson.book}-Q${lesson.series}-` +
     (isTOCLesson(lesson) ? "TOC.odt" : `L${zeroPad(lesson.lesson, 2)}.odt`)

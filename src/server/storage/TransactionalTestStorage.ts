@@ -116,7 +116,11 @@ export class TransactionalTestStorage extends PGTestStorage {
 
   async close(): Promise<void> {
     if (this.rollbackFn) {
+      // Called mid-test (e.g. via /api/test/close-storage): roll back the
+      // current transaction but leave the pools alive so subsequent tests can
+      // still begin their own transactions.
       await this.rollbackTransaction();
+      return;
     }
     await this.txPool.end();
     await this.rootSql.end();

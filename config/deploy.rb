@@ -1,5 +1,5 @@
 # config valid for current version and patch releases of Capistrano
-lock "~> 3.12.0"
+lock "~> 3.20.0"
 
 set :application, "lessons-from-luke"
 set :repo_url, "https://github.com/silcam/lessons-from-luke.git"
@@ -23,11 +23,11 @@ set :repo_url, "https://github.com/silcam/lessons-from-luke.git"
 
 # Default value for :linked_files is []
 # append :linked_files, "config/database.yml"
-append :linked_files, "secrets.json", ".migrate"
+append :linked_files, "secrets.json", ".migrate-prod"
 
 # Default value for linked_dirs is []
 # append :linked_dirs, "log", "tmp/pids", "tmp/cache", "tmp/sockets", "public/system"
-append :linked_dirs, "node_modules", "docs"
+append :linked_dirs, "node_modules", "docs", ".yarn/cache"
 
 # Default value for default_env is {}
 # set :default_env, { path: "/opt/ruby/bin:$PATH" }
@@ -41,7 +41,7 @@ append :linked_dirs, "node_modules", "docs"
 # Uncomment the following to require manually verifying the host key before first deploy.
 # set :ssh_options, verify_host_key: :secure
 
-set :nvm_node, 'v12.22.6'
+set :nvm_node, "v#{File.read(File.expand_path('../.nvmrc', __dir__)).strip.delete_prefix('v')}"
 
 namespace :deploy do
   before 'deploy:symlink:release', "custom:yarn_build"

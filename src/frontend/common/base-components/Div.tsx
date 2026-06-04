@@ -1,3 +1,4 @@
+import React from "react";
 import styled from "styled-components";
 import { CSSProperties } from "react";
 
@@ -7,6 +8,7 @@ interface IProps {
   marginBelow?: boolean;
   marginRight?: boolean;
   style?: CSSProperties;
+  children?: React.ReactNode;
 }
 
 const Div = styled.div<IProps>`

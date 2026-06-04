@@ -1,5 +1,12 @@
-import parse from "./parse";
-import libxmljs2 from "libxmljs2";
+import parse, {
+  findStylesToMatch,
+  xPathForPWithStyle,
+  xPathForHWithStyle,
+  xPathForPWithStyleNameContains,
+  xPathForParentStyle,
+  xPathForParentStyleNameContains
+} from "./parse";
+import libxmljs2, { Element } from "libxmljs2";
 import { extractNamespaces } from "./mergeXml";
 import docStorage from "../storage/docStorage";
 import { saveDocStrings, parseDocStrings } from "../actions/updateLesson";
@@ -12,17 +19,15 @@ beforeAll(() => {
   xmls = docStorage.docXml(odtPath);
 });
 
-/* 
-  I'm pretty sure the current test doc doesn't have any tracked changes in it, so this test would be useless
-*/
-// test("Remove tracked changes", () => {
-//   // We should ignore the <text:tracked-changes> block. That block has many strings with the text "Unkown Author"
-//   const srcStrings = parse(xmls.content, "content");
-//   const unkownAuthorStrings = srcStrings.filter(str =>
-//     str.text.includes("Unknown Author")
-//   );
-//   expect(unkownAuthorStrings.length).toBe(0);
-// });
+test("Remove tracked changes", () => {
+  // We should ignore the <text:tracked-changes> block. That block has many strings with the text "Unknown Author"
+  // The fixture doesn't have tracked changes, so we verify the result is 0 Unknown Author strings
+  const srcStrings = parse(xmls.content, "content");
+  const unknownAuthorStrings = srcStrings.filter(str =>
+    str.text.includes("Unknown Author")
+  );
+  expect(unknownAuthorStrings.length).toBe(0);
+});
 
 test("Parse Meta Xml", () => {
   const metaSrcStrings = parse(xmls.meta, "meta");
@@ -110,7 +115,7 @@ test("Verify modified styles are parsed", async () => {
   const namespaces = extractNamespaces(xmlDoc);
 
   let allMTStrings = savedLesson.lessonStrings.map(lessonString => {
-    const lsDomElement = xmlDoc.get(lessonString.xpath, namespaces);
+    const lsDomElement = xmlDoc.get<Element>(lessonString.xpath, namespaces);
     if (lessonString.motherTongue == true) {
       return lsDomElement?.text();
     }
@@ -120,4 +125,179 @@ test("Verify modified styles are parsed", async () => {
   expect(allMTStrings).toContain("MT_coloring_page_truth");
   expect(allMTStrings).not.toContain("non_coloring_page");
   expect(allMTStrings).toContain("INVISIBLE"); // why isn't think working?
+});
+
+// Task: removeTrackedChanges callback coverage
+// The `forEach(node => node.remove())` callback in removeTrackedChanges is only
+// invoked when tracked-changes nodes actually exist in the XML.  The fixture
+// ODT has none, so we test with inline XML that contains a tracked-changes block.
+describe("removeTrackedChanges removes tracked-change nodes", () => {
+  const contentWithTrackedChanges = `<?xml version="1.0"?>
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:body>
+    <office:text>
+      <text:tracked-changes>
+        <text:changed-region text:id="ct1">
+          <text:deletion>
+            <text:p>Unknown Author</text:p>
+          </text:deletion>
+        </text:changed-region>
+      </text:tracked-changes>
+      <text:p text:style-name="Lesson_20_Title">Hello World</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>`;
+
+  test("removes tracked-changes nodes so their text does not appear in results", () => {
+    const result = parse(contentWithTrackedChanges, "content");
+    const unknownAuthor = result.filter(s => s.text.includes("Unknown Author"));
+    expect(unknownAuthor).toHaveLength(0);
+  });
+
+  test("retains other content after removing tracked changes", () => {
+    const result = parse(contentWithTrackedChanges, "content");
+    const helloWorld = result.filter(s => s.text.includes("Hello World"));
+    expect(helloWorld.length).toBeGreaterThan(0);
+  });
+});
+
+// Task 15: XPath generator function tests
+describe("XPath generator functions", () => {
+  test("xPathForPWithStyle", () => {
+    expect(xPathForPWithStyle("Lesson_20_Title")).toBe(
+      "//text:p[@text:style-name='Lesson_20_Title']"
+    );
+  });
+
+  test("xPathForHWithStyle", () => {
+    expect(xPathForHWithStyle("Lesson_20_Title")).toBe(
+      "//text:h[@text:style-name='Lesson_20_Title']"
+    );
+  });
+
+  test("xPathForPWithStyleNameContains", () => {
+    expect(xPathForPWithStyleNameContains("M.T._20_Text")).toBe(
+      "//text:p[contains(@text:style-name, 'M.T._20_Text')]"
+    );
+  });
+
+  test("xPathForParentStyle", () => {
+    expect(xPathForParentStyle("M.T._20_Text")).toBe(
+      "//style:style[@style:parent-style-name='M.T._20_Text']"
+    );
+  });
+
+  test("xPathForParentStyleNameContains", () => {
+    expect(xPathForParentStyleNameContains("M.T._20")).toBe(
+      "//style:style[contains(@style:parent-style-name, 'M.T._20')]"
+    );
+  });
+});
+
+// Task 16: findStylesToMatch tests
+describe("findStylesToMatch", () => {
+  const minimalStylesXml = `<?xml version="1.0"?>
+<office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:styles>
+    <style:style style:name="Child_Style" style:parent-style-name="Parent_Style"/>
+    <style:style style:name="Another_MT_Child" style:parent-style-name="M.T._20_Text"/>
+    <style:style style:name="Pattern_Child" style:parent-style-name="M.T._20_Pattern"/>
+  </office:styles>
+</office:document-styles>`;
+
+  let xmlDoc: ReturnType<typeof libxmljs2.parseXml>;
+  let namespaces: ReturnType<typeof extractNamespaces>;
+
+  beforeAll(() => {
+    xmlDoc = libxmljs2.parseXml(minimalStylesXml);
+    namespaces = extractNamespaces(xmlDoc);
+  });
+
+  test("returns empty array when no matching styles found", () => {
+    const result = findStylesToMatch(xmlDoc, namespaces, "Nonexistent_Style");
+    expect(result).toEqual([]);
+  });
+
+  test("exact match: finds child style by parent name", () => {
+    const result = findStylesToMatch(xmlDoc, namespaces, "Parent_Style");
+    expect(result).toContain("Child_Style");
+  });
+
+  test("pattern match: finds styles by parent style name pattern", () => {
+    const result = findStylesToMatch(xmlDoc, namespaces, "", "M.T._20");
+    expect(result).toContain("Another_MT_Child");
+    expect(result).toContain("Pattern_Child");
+  });
+
+  test("styles are concatenated (not deduplicated) for multiple matches", () => {
+    // Both Another_MT_Child and Pattern_Child match "M.T._20" pattern
+    const result = findStylesToMatch(xmlDoc, namespaces, "", "M.T._20");
+    expect(result.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// Task 18: Spanish and Cishingini parse roundtrip tests
+describe("Parse Spanish ODT", () => {
+  const spanishOdtPath =
+    process.cwd() + "/test/fixtures/Spanish_Luke-Q1-L01.odt";
+  let spanishXmls: ReturnType<typeof docStorage.docXml>;
+
+  beforeAll(() => {
+    spanishXmls = docStorage.docXml(spanishOdtPath);
+  });
+
+  test("Parse Spanish content produces DocStrings", () => {
+    const docStrings = parse(spanishXmls.content, "content");
+    expect(docStrings.length).toBeGreaterThan(0);
+    expect(docStrings[0]).toHaveProperty("text");
+    expect(docStrings[0]).toHaveProperty("xpath");
+    expect(docStrings[0].type).toBe("content");
+  });
+
+  test("Parse Spanish meta produces DocStrings", () => {
+    const metaStrings = parse(spanishXmls.meta, "meta");
+    expect(metaStrings.length).toBeGreaterThan(0);
+    expect(metaStrings[0].type).toBe("meta");
+  });
+
+  test("Parse Spanish styles produces DocStrings", () => {
+    const stylesStrings = parse(spanishXmls.styles, "styles");
+    expect(stylesStrings.length).toBeGreaterThan(0);
+    expect(stylesStrings[0].type).toBe("styles");
+  });
+});
+
+describe("Parse Cishingini ODT", () => {
+  const cishinginiOdtPath =
+    process.cwd() + "/test/fixtures/Cishingini (asg)_Luke-Q1-L01.odt";
+  let cishinginiXmls: ReturnType<typeof docStorage.docXml>;
+
+  beforeAll(() => {
+    cishinginiXmls = docStorage.docXml(cishinginiOdtPath);
+  });
+
+  test("Parse Cishingini content produces DocStrings", () => {
+    const docStrings = parse(cishinginiXmls.content, "content");
+    expect(docStrings.length).toBeGreaterThan(0);
+    expect(docStrings[0]).toHaveProperty("text");
+    expect(docStrings[0]).toHaveProperty("xpath");
+    expect(docStrings[0].type).toBe("content");
+  });
+
+  test("Parse Cishingini meta produces DocStrings", () => {
+    const metaStrings = parse(cishinginiXmls.meta, "meta");
+    expect(metaStrings.length).toBeGreaterThan(0);
+    expect(metaStrings[0].type).toBe("meta");
+  });
+
+  test("Parse Cishingini styles produces DocStrings", () => {
+    const stylesStrings = parse(cishinginiXmls.styles, "styles");
+    expect(stylesStrings.length).toBeGreaterThan(0);
+    expect(stylesStrings[0].type).toBe("styles");
+  });
 });

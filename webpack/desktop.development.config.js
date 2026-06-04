@@ -6,12 +6,14 @@ module.exports = {
   mode: "development",
   devtool: "inline-source-map",
   devServer: {
-    contentBase: false,
+    static: false,
     port: 8082,
-    proxy: {
-      "/api": "http://localhost:8081",
-      "/webified": "http://localhost:8081"
-    },
-    historyApiFallback: true
+    proxy: [
+      { context: ["/api", "/webified"], target: "http://localhost:8081" }
+    ],
+    historyApiFallback: true,
+    client: {
+      overlay: { errors: true, warnings: false, runtimeErrors: false }
+    }
   }
 };

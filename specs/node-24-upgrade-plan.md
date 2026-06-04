@@ -41,10 +41,10 @@ Upgrade Lessons from Luke from Node 12 to Node 24, including Webpack 4→5, Elec
 **Goal**: Upgrade tools with minimal breaking changes
 
 ### Dependencies
-| Package | From | To |
-|---------|------|-----|
-| nodemon | 1.19.4 | 3.x |
-| concurrently | 5.0.0 | 9.x |
+| Package | From | To | Notes |
+|---------|------|-----|-------|
+| nodemon | 1.19.4 | 2.x | 3.x requires Node 16+ (minimatch dep); upgrade to 3.x in Phase 7 |
+| concurrently | 5.0.0 | 7.x | 8.x+ requires Node 14+/18+; upgrade to 9.x in Phase 7 |
 
 ### Validation
 - `yarn dev-web` starts successfully

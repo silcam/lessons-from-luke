@@ -15,13 +15,14 @@ const networkSlice = createSlice({
     connected: true
   } as NetworkState,
   reducers: {},
-  extraReducers: {
-    NetworkConnectionLost: state => {
-      state.connected = false;
-    },
-    NetworkConnectionRestored: state => {
-      state.connected = true;
-    }
+  extraReducers: builder => {
+    builder
+      .addCase("NetworkConnectionLost", state => {
+        state.connected = false;
+      })
+      .addCase("NetworkConnectionRestored", state => {
+        state.connected = true;
+      });
   }
 });
 export default networkSlice;

@@ -5,7 +5,7 @@
  * This covers branches that storage.test.ts misses because it runs against PGTestStorage.
  */
 import fs from "fs";
-import storage from "./testStorage";
+import storage, { outerJoin, join } from "./testStorage";
 import { ENGLISH_ID } from "../../core/models/Language";
 
 beforeEach(async () => {
@@ -252,5 +252,139 @@ describe("close", () => {
   test("resolves to undefined", async () => {
     const result = await storage.close!();
     expect(result).toBeUndefined();
+  });
+});
+
+// ─── updateLesson sequential lessonStringId assignment (lines 87-93) ─────────
+//
+// The branch is only meaningful when multiple lesson strings are passed at
+// once: `nextLessonStringId` starts at `last(testDb.lessonStrings).lessonStringId + 1`
+// and is incremented by 1 for each string in the input array.
+
+describe("updateLesson sequential lessonStringId assignment", () => {
+  test("assigns consecutive lessonStringIds to multiple lesson strings", async () => {
+    // Provide 3 draft lesson strings in a single update call
+    const drafts = [
+      { masterId: 1, lessonId: 11, type: "content" as const, xpath: "/a", motherTongue: false },
+      { masterId: 2, lessonId: 11, type: "content" as const, xpath: "/b", motherTongue: false },
+      { masterId: 3, lessonId: 11, type: "content" as const, xpath: "/c", motherTongue: false }
+    ];
+
+    const lesson = await storage.updateLesson(11, 5, drafts);
+    expect(lesson.lessonStrings).toHaveLength(3);
+
+    const ids = lesson.lessonStrings.map(ls => ls.lessonStringId);
+    // Each id should be exactly 1 more than the previous
+    expect(ids[1]).toBe(ids[0] + 1);
+    expect(ids[2]).toBe(ids[1] + 1);
+  });
+
+  test("assigns non-overlapping lessonStringIds across two consecutive updates", async () => {
+    const draftsA = [
+      { masterId: 1, lessonId: 11, type: "content" as const, xpath: "/x1", motherTongue: false },
+      { masterId: 2, lessonId: 11, type: "content" as const, xpath: "/x2", motherTongue: false }
+    ];
+    const draftsB = [
+      { masterId: 3, lessonId: 11, type: "content" as const, xpath: "/y1", motherTongue: false },
+      { masterId: 4, lessonId: 11, type: "content" as const, xpath: "/y2", motherTongue: false }
+    ];
+
+    const firstLesson = await storage.updateLesson(11, 5, draftsA);
+    const secondLesson = await storage.updateLesson(11, 6, draftsB);
+
+    const firstIds = firstLesson.lessonStrings.map(ls => ls.lessonStringId);
+    const secondIds = secondLesson.lessonStrings.map(ls => ls.lessonStringId);
+
+    // The second batch of IDs must come after the first batch
+    expect(Math.min(...secondIds)).toBeGreaterThan(Math.max(...firstIds));
+  });
+});
+
+// ─── outerJoin<A, B>() (lines 246-257) ───────────────────────────────────────
+//
+// `outerJoin` is exported from testStorage.ts so it can be tested directly.
+
+describe("outerJoin", () => {
+  test("returns merged objects when there are matching pairs", () => {
+    const alist = [{ id: 1, aVal: "a" }, { id: 2, aVal: "b" }];
+    const blist = [{ id: 1, bVal: "x" }, { id: 3, bVal: "z" }];
+    const result = outerJoin(alist, blist, (a, b) => a.id === b.id);
+
+    // id=1 matches → merged object; id=2 has no match → kept as-is
+    expect(result).toHaveLength(2);
+    expect(result).toContainEqual({ id: 1, aVal: "a", bVal: "x" });
+    expect(result).toContainEqual({ id: 2, aVal: "b" });
+  });
+
+  test("keeps all a-side items when no b-side matches exist", () => {
+    const alist = [{ id: 1 }, { id: 2 }];
+    const blist = [{ id: 99 }];
+    const result = outerJoin(alist, blist, (a, b) => a.id === b.id);
+
+    expect(result).toHaveLength(2);
+    expect(result).toContainEqual({ id: 1 });
+    expect(result).toContainEqual({ id: 2 });
+  });
+
+  test("returns empty array when alist is empty", () => {
+    const result = outerJoin([], [{ id: 1 }], (a: any, b) => false);
+    expect(result).toEqual([]);
+  });
+
+  test("duplicates a-side item for each b-side match", () => {
+    const alist = [{ id: 1, aVal: "a" }];
+    const blist = [{ id: 1, bVal: "x" }, { id: 1, bVal: "y" }];
+    const result = outerJoin(alist, blist, (a, b) => a.id === b.id);
+
+    // One a-item matches two b-items → two result rows
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({ id: 1, aVal: "a", bVal: "x" });
+    expect(result[1]).toMatchObject({ id: 1, aVal: "a", bVal: "y" });
+  });
+
+  test("a-side properties override b-side properties on key conflict", () => {
+    const alist = [{ id: 1, shared: "from-a" }];
+    const blist = [{ id: 1, shared: "from-b", extra: "b-only" }];
+    const result = outerJoin(alist, blist, (a, b) => a.id === b.id);
+
+    // The spread order is { ...bitem, ...aitem } so a wins
+    expect(result[0].shared).toBe("from-a");
+    expect((result[0] as any).extra).toBe("b-only");
+  });
+});
+
+// ─── join<A, B>() (lines 230-244) ────────────────────────────────────────────
+//
+// `join` is an inner join: only a-side items with at least one b-side match
+// are included. Unlike `outerJoin`, unmatched a-side items are dropped.
+
+describe("join", () => {
+  test("returns merged objects for matching pairs only", () => {
+    const alist = [{ id: 1, aVal: "a" }, { id: 2, aVal: "b" }];
+    const blist = [{ id: 1, bVal: "x" }, { id: 3, bVal: "z" }];
+    const result = join(alist, blist, (a, b) => a.id === b.id);
+
+    // Only id=1 matches; id=2 is dropped (inner join)
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ id: 1, aVal: "a", bVal: "x" });
+  });
+
+  test("returns empty array when no matches", () => {
+    const alist = [{ id: 1 }, { id: 2 }];
+    const blist = [{ id: 99 }];
+    const result = join(alist, blist, (a, b) => a.id === b.id);
+    expect(result).toEqual([]);
+  });
+
+  test("returns empty array when alist is empty", () => {
+    const result = join([], [{ id: 1 }], (_a: any, _b: any) => true);
+    expect(result).toEqual([]);
+  });
+
+  test("duplicates a-side item for each b-side match", () => {
+    const alist = [{ id: 1, aVal: "a" }];
+    const blist = [{ id: 1, bVal: "x" }, { id: 1, bVal: "y" }];
+    const result = join(alist, blist, (a, b) => a.id === b.id);
+    expect(result).toHaveLength(2);
   });
 });

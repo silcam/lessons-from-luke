@@ -7,6 +7,7 @@ interface StyleProps {
   noBorders?: boolean;
   hoverStriping?: boolean;
   noXPad?: boolean;
+  children?: React.ReactNode;
 }
 
 interface IProps<T> extends StyleProps {

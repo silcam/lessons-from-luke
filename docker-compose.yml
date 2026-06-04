@@ -1,6 +1,5 @@
 services:
   claude-container:
-    platform: linux/amd64
     build:
       context: .
       args:
@@ -18,14 +17,21 @@ services:
         statsig.com
     volumes:
       - ./:/workspace:rw                        # dedicated workspace folder, RW
+      - node_modules:/workspace/node_modules    # named volume for Linux-native node_modules
       - ./.history:/commandhistory:rw                    # persist shell history
     ports:
       - 8183:8080
-    tmpfs:
-      - /tmp                                             # avoid writing to container FS
+    # /tmp left as the container's overlay FS rather than a tmpfs mount: the
+    # docker tmpfs default (and the compose long-form default on this daemon)
+    # both set noexec, which breaks Yarn 4 — it writes wrapper scripts to
+    # /tmp/xfs-XXXX/ during script execution and exec's them. The overlay-FS
+    # /tmp has no such restriction.
     read_only: false                                     # repo is already RW
     # cap_drop:
     #   - ALL
     # security_opt:
     #   - no-new-privileges
     pids_limit: 256
+
+volumes:
+  node_modules:

@@ -5,12 +5,31 @@ node_modules
 
 /.migrate
 /.migrate-dev
+/.migrate-prod
 /.migrate-test
 /secrets.json
 /log/capistrano.log
 /test/docs/serverDocs
 /dist-desktop
+/.desktop-build-stage
 .history/
 .sprite
 /coverage
 autoresearch-results.tsv
+cypress/fixtures/*_FILES/
+
+# TS build leakage — sources live as .ts; compiled .js/.map belong in /dist
+src/**/*.js
+src/**/*.js.map
+*.tsbuildinfo
+*.lock
+!yarn.lock
+
+# Yarn Berry
+.yarn/*
+!.yarn/releases
+!.yarn/patches
+!.yarn/plugins
+!.yarn/sdks
+!.yarn/versions
+.pnp.*

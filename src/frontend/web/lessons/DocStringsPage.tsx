@@ -3,7 +3,7 @@ import useTranslation from "../../common/util/useTranslation";
 import { usePush } from "../../common/api/useLoad";
 import { useAppSelector } from "../../common/state/appState";
 import { findBy } from "../../../core/util/arrayUtils";
-import { Redirect, useHistory } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { StdHeaderBarPage } from "../../common/base-components/HeaderBar";
 import { lessonName } from "../../../core/models/Lesson";
 import { DocString } from "../../../core/models/DocString";
@@ -36,7 +36,7 @@ interface LessonDocStr {
 export default function DocStringsPage(props: IProps) {
   const t = useTranslation();
   const push = usePush();
-  const history = useHistory();
+  const navigate = useNavigate();
 
   const language = useAppSelector(state =>
     findBy(state.languages.adminLanguages, "languageId", props.languageId)
@@ -58,7 +58,7 @@ export default function DocStringsPage(props: IProps) {
 
   if (!language || !lesson || !origDocStrings) {
     console.log("Can't show docStrings");
-    return <Redirect to="/" />;
+    return <Navigate to="/" replace />;
   }
 
   const lessonDocStrings: LessonDocStr[] = [];
@@ -119,7 +119,7 @@ export default function DocStringsPage(props: IProps) {
         )
       );
     const result = await push(pushTStrings(tStrings, language));
-    if (result) history.push("/");
+    if (result) navigate("/");
   };
 
   return (

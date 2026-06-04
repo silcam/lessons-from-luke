@@ -1,4 +1,4 @@
-import React, { useState, useEffect, ComponentProps } from "react";
+import React, { useState, useEffect, useRef, ComponentProps } from "react";
 import styled, { css } from "styled-components";
 import TextArea from "./TextArea";
 import Colors from "../util/Colors";
@@ -26,11 +26,25 @@ export default function StatusfulTextArea(props: IProps) {
 
   const save = async () => {
     if (inputState == "none") return;
+    if (!text.trim()) return;
 
     setInputState("working");
     const success = await saveValue(text);
     // setInputState(success ? "clean" : "dirty");
   };
+
+  const latestRef = useRef({ inputState, text, saveValue });
+  useEffect(() => {
+    latestRef.current = { inputState, text, saveValue };
+  });
+
+  useEffect(() => {
+    return () => {
+      if (latestRef.current.inputState === "dirty") {
+        latestRef.current.saveValue(latestRef.current.text);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     // Change of props value

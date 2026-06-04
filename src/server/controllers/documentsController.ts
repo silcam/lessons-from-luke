@@ -15,7 +15,8 @@ import {
 import webifyLesson from "../actions/webifyLesson";
 import makeLessonFile from "../actions/makeLessonFile";
 
-const formDataParser = bodyParser.urlencoded({ extended: false });
+// Cast needed: @types/connect's NextHandleFunction is incompatible with @types/node@20 ServerResponse types
+const formDataParser = bodyParser.urlencoded({ extended: false }) as any;
 
 export default function documentsController(
   app: Express,
@@ -31,7 +32,7 @@ export default function documentsController(
         const lesson = await storage.lesson(parseInt(req.params.lessonId));
         if (!lesson || !language) throw { status: 404 };
 
-        let majorityLangId: number = parseInt(req.query.majorityLanguageId);
+        let majorityLangId: number = parseInt(req.query.majorityLanguageId as string);
         if (isNaN(majorityLangId))
           majorityLangId = language.motherTongue
             ? language.defaultSrcLang

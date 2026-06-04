@@ -2,7 +2,7 @@ import React, { useEffect, useRef, MutableRefObject } from "react";
 import styled, { css } from "styled-components";
 import Colors from "../util/Colors";
 
-interface STAProps {}
+interface STAProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {}
 
 interface IProps extends STAProps {
   placeholder?: string;
@@ -45,10 +45,12 @@ export default function TextArea(props: IProps) {
   const transformValue = (value: string) =>
     props.commonSubs ? value.replace(/<</g, "«").replace(/>>/g, "»") : value;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const StyledTextAreaWithRef = StyledTextArea as any;
   return (
-    <StyledTextArea
+    <StyledTextAreaWithRef
       ref={ref}
-      onChange={e => props.setValue(transformValue(e.target.value))}
+      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => props.setValue(transformValue(e.target.value))}
       {...inputProps}
     />
   );

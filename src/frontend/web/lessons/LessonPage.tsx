@@ -15,7 +15,8 @@ import LessonEditor, { docStringsFromLessonTStrings } from "./LessonEditor";
 import { StdHeaderBarPage } from "../../common/base-components/HeaderBar";
 import Scroll from "../../common/base-components/Scroll";
 import { DocString } from "../../../core/models/DocString";
-import { Link, useHistory } from "react-router-dom";
+import { Link } from "react-router-dom";
+import HeaderMessage, { HdrMessage } from "../../common/translate/HeaderMessage";
 
 interface IProps {
   id: number;
@@ -24,7 +25,6 @@ interface IProps {
 export default function LessonPage(props: IProps) {
   const t = useTranslation();
   const push = usePush();
-  const history = useHistory();
   const { lesson, lessonTStrings } = useLessonTStrings(props.id, [ENGLISH_ID]);
 
   const loading = useLoadMultiple([
@@ -33,6 +33,7 @@ export default function LessonPage(props: IProps) {
   ]);
 
   const [editing, setEditing] = useState(false);
+  const [hdrMessage, setHdrMessage] = useState<HdrMessage>("none");
   const [docStrings, setDocStrings] = useState<DocString[]>([]);
   const startEditing = () => {
     setDocStrings(docStringsFromLessonTStrings(lessonTStrings));
@@ -40,8 +41,12 @@ export default function LessonPage(props: IProps) {
   };
 
   const save = async () => {
-    const lesson = await push(pushLessonStrings(props.id, docStrings));
-    if (lesson) history.push(`/update-issues/${lesson.lessonId}`);
+    const result = await push(pushLessonStrings(props.id, docStrings));
+    if (result) {
+      setEditing(false);
+      setHdrMessage("changesSaved");
+      setTimeout(() => setHdrMessage("none"), 3000);
+    }
   };
 
   return (
@@ -50,10 +55,11 @@ export default function LessonPage(props: IProps) {
       renderRight={() =>
         editing ? (
           <React.Fragment>
+            <HeaderMessage hdrMessage={hdrMessage} />
             <Button text={t("Save")} onClick={save} />
             <Button red text={t("Cancel")} onClick={() => setEditing(false)} />
           </React.Fragment>
-        ) : loading ? null : (
+        ) : loading || !lesson ? null : (
           <FlexRow>
             <Button text={t("Edit")} onClick={startEditing} />
             <Link to={`/update-issues/${props.id}`}>

@@ -24,8 +24,6 @@
 // -- This will overwrite an existing command --
 // Cypress.Commands.overwrite("visit", (originalFn, url, options) => { ... })
 
-import "cypress-file-upload";
-
 Cypress.Commands.add("resetDatabase", () =>
   cy.request({ method: "POST", url: "/api/test/reset-storage", timeout: 30000 })
 );
@@ -56,3 +54,20 @@ Cypress.Commands.add("inLabel", label =>
     .find("input, select")
     .first()
 );
+
+// Visit the translate page for a language code and wait for all data to load.
+// 1. Clears localStorage so no prior lesson selection (which disables that button)
+//    leaks from a previous test.
+// 2. Registers intercepts BEFORE visiting so the 3 initial API calls are caught.
+// 3. After the 3 calls complete, waits for span.lessonString to appear — those
+//    elements only render once the lesson tStrings have also loaded, so this
+//    serves as the final "page fully ready" signal.
+Cypress.Commands.add("visitTranslatePage", code => {
+  cy.clearLocalStorage();
+  cy.intercept("GET", "/api/lessons").as("_tpLessons");
+  cy.intercept("GET", `/api/languages/code/${code}`).as("_tpLanguage");
+  cy.intercept("GET", "/api/languages").as("_tpLanguages");
+  cy.visit(`/translate/${code}`);
+  cy.wait(["@_tpLessons", "@_tpLanguage", "@_tpLanguages"]);
+  cy.get("span.lessonString", { timeout: 20000 }).should("exist");
+});

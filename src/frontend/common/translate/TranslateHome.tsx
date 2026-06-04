@@ -21,6 +21,7 @@ import styled from "styled-components";
 import Heading from "../base-components/Heading";
 import DesktopSyncMessage from "./DesktopSyncMessage";
 import HeaderMessage, { HdrMessage } from "./HeaderMessage";
+import { Link } from "react-router-dom";
 
 const SELECTED_ITEM_KEY = "selectedItem";
 
@@ -72,7 +73,12 @@ function CodeError() {
   const t = useTranslation();
   return (
     <MiddleOfPage>
-      <Alert danger>{t("Code_error")}</Alert>
+      <FlexCol>
+        <Alert danger>{t("Code_error")}</Alert>
+        <Link to="/">
+          <Button link text="Go home" onClick={() => {}} />
+        </Link>
+      </FlexCol>
     </MiddleOfPage>
   );
 }
@@ -90,6 +96,7 @@ function TranslateLanguage(props: {
   );
   const setSelectedLessonId = (id: number) => {
     _setSelectedLessonId(id);
+    props.setHdrMessage("none");
     window.localStorage.setItem(SELECTED_ITEM_KEY, id.toString());
   };
 

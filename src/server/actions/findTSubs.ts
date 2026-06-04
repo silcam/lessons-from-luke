@@ -51,7 +51,7 @@ export default async function findTSubs(
   return finalTSubs;
 }
 
-function combineLessonDiffs(diffs: LessonDiff[]) {
+export function combineLessonDiffs(diffs: LessonDiff[]) {
   return uniqIdSubs(
     diffs.reduce((idSubs: IdSub[], diff) => idSubs.concat(diff.diff), [])
   );
@@ -119,7 +119,7 @@ async function diffLesson(storage: Persistence, lessonId: number) {
   return uniqIdSubs(diffLessonStrings(lesson.lessonStrings, oldLStrings));
 }
 
-function diffLessonStrings(
+export function diffLessonStrings(
   newLStrings: LessonString[],
   oldLStrings: LessonString[]
 ): IdSub[] {

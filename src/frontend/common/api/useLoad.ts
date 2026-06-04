@@ -73,7 +73,7 @@ export function useLoad<T>(
 
 export function useLoadMultiple(loaders: Loader<any>[]) {
   const loadings = loaders.map(loader => useLoad(loader));
-  return loadings.every(loading => loading);
+  return loadings.some(loading => loading);
 }
 
 export type Pusher<T> = (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect } from "react";
 import { useDispatch } from "react-redux";
 import { useAppSelector } from "../state/appState";
 import bannerSlice from "./bannerSlice";
@@ -8,21 +8,10 @@ import Button from "../base-components/Button";
 import { TFunc } from "../../../core/i18n/I18n";
 import styled from "styled-components";
 import Colors from "../util/Colors";
-import { useLocation } from "react-router-dom";
-import PlatformContext from "../PlatformContext";
 
 export default function Banners() {
   const dispatch = useDispatch();
   let banners = useAppSelector(state => state.banners);
-
-  // Clear banners on location change
-  const webContext = useContext(PlatformContext) == "web";
-  if (webContext) {
-    const location = useLocation();
-    useEffect(() => {
-      dispatch(bannerSlice.actions.reset());
-    }, [location.pathname]);
-  }
 
   return (
     <div>
@@ -87,7 +76,7 @@ function Dots() {
   return <div style={{ display: "inline-block", width: "2em" }}>{dots}</div>;
 }
 
-const ErrBanner = styled.div`
+const ErrBanner = styled.div<{ children?: React.ReactNode }>`
   background-color: ${Colors.danger};
   color: white;
   display: flex;

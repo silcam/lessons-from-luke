@@ -1,27 +1,139 @@
 module.exports = {
-  preset: "ts-jest",
-  testEnvironment: "node",
-  testPathIgnorePatterns: ["/node_modules/", "<rootDir>/test/", "<rootDir>/cypress/"],
-  watchPathIgnorePatterns: ["strings", "old", "cypress"],
-  globalSetup: "<rootDir>/src/server/jestGlobalSetup.ts",
-  setupFilesAfterEnv: ["<rootDir>/src/server/jestSetupAfterEnv.ts"],
+  // The server project's tests all share one test database and reset its
+  // sequences via process-global `ALTER SEQUENCE ... RESTART` DDL (see
+  // TransactionalTestStorage), so they MUST run serially — parallel workers
+  // exhaust connections and corrupt each other's sequence/row state. Every
+  // test:* script already passes --runInBand; pinning maxWorkers here makes a
+  // bare `npx jest` or IDE test runner safe too.
+  maxWorkers: 1,
+  projects: [
+    {
+      displayName: 'server',
+      preset: 'ts-jest',
+      transform: {
+        "^.+\\.tsx?$": ["ts-jest", { tsconfig: { jsx: 'react' } }]
+      },
+      testEnvironment: 'node',
+      globalSetup: '<rootDir>/src/server/jestGlobalSetup.ts',
+      setupFilesAfterEnv: ['<rootDir>/src/server/jestSetupAfterEnv.ts'],
+      testPathIgnorePatterns: [
+        '/node_modules/',
+        '<rootDir>/test/',
+        '<rootDir>/cypress/',
+        '<rootDir>/src/frontend/',
+        '<rootDir>/src/desktop/',
+        '<rootDir>/dist-desktop/',
+        '<rootDir>/.desktop-build-stage/',
+        '\\.integration\\.test\\.tsx?$'
+      ],
+      modulePathIgnorePatterns: [
+        '<rootDir>/dist-desktop/',
+        '<rootDir>/.desktop-build-stage/'
+      ],
+      fakeTimers: {
+        // When tests call jest.useFakeTimers(), only fake setTimeout/clearTimeout.
+        // Excluding setInterval/clearInterval/setImmediate prevents the postgres
+        // connection pool's keep-alive timers from being hijacked, which caused
+        // connection corruption after jest.runAllTimers() in waitFor.test.ts.
+        doNotFake: ["setInterval", "clearInterval", "setImmediate", "clearImmediate", "nextTick"]
+      },
+    },
+    {
+      displayName: 'frontend',
+      preset: 'ts-jest',
+      transform: {
+        "^.+\\.tsx?$": ["ts-jest", { tsconfig: { jsx: 'react' } }]
+      },
+      testEnvironment: 'jsdom',
+      setupFilesAfterEnv: ['<rootDir>/src/frontend/jestSetupAfterEnv.ts'],
+      // Frontend/desktop tests don't use postgres, so we can fake all timers
+      fakeTimers: {},
+      testMatch: [
+        '**/*src/frontend/**/*.test.{ts,tsx}',
+        '**/*src/desktop/**/*.test.{ts,tsx}'
+      ],
+      testPathIgnorePatterns: [
+        '/node_modules/',
+        '<rootDir>/test/',
+        '<rootDir>/cypress/',
+        '<rootDir>/dist-desktop/',
+        '<rootDir>/.desktop-build-stage/',
+        '\\.integration\\.test\\.tsx?$'
+      ],
+      modulePathIgnorePatterns: [
+        '<rootDir>/dist-desktop/',
+        '<rootDir>/.desktop-build-stage/'
+      ],
+      moduleNameMapper: {
+        // Mock electron APIs
+        '^electron$': '<rootDir>/__mocks__/electron.ts',
+        // Handle CSS/assets
+        '\\.(css|less|scss|svg|png|jpg|jpeg|gif|ico)$': '<rootDir>/__mocks__/styleMock.js',
+      },
+    },
+  ],
+  // Top-level settings apply to all projects for coverage collection
   forceExit: true,
+  modulePathIgnorePatterns: [
+    '<rootDir>/dist-desktop/',
+    '<rootDir>/.desktop-build-stage/',
+  ],
   collectCoverageFrom: [
-    "src/**/*.ts",
-    "!src/**/*.test.ts",
-    "!src/**/*.d.ts",
-    "!src/frontend/**",
-    "!src/desktop/main*.ts",
-    "!src/desktop/DesktopApp.ts",
-    "!src/desktop/DesktopAPIServer.ts",
-    "!src/desktop/WebAPIClientForDesktop.ts",
-    "!src/desktop/LocalStorage.ts",
-    "!src/desktop/controllers/**",
-    "!src/desktop/localFixtures/**",
-    "!src/server/tasks/**",
-    "!src/server/server.ts",
-    "!src/server/testHelper.ts",
-    "!src/server/util/sampleSecrets.ts"
+    'src/**/*.{ts,tsx}',
+    '!src/**/*.test.{ts,tsx}',
+    '!src/**/*.d.ts',
+    // Truly untestable Electron entry points:
+    '!src/desktop/main*.ts',
+    '!src/desktop/DesktopApp.ts',
+    '!src/desktop/DesktopAPIServer.ts',
+    '!src/desktop/localFixtures/**',
+    // Server infra not under test:
+    '!src/server/tasks/**',
+    '!src/server/server.ts',
+    '!src/server/testHelper.ts',
+    '!src/server/util/sampleSecrets.ts',
+    '!src/server/jestGlobalSetup.ts',
+    '!src/server/jestSetupAfterEnv.ts',
+    // Web/desktop app entry points (no meaningful unit tests):
+    '!src/frontend/webApp.tsx',
+    '!src/frontend/desktopApp.tsx',
+    // Pure visual animation components — no testable logic:
+    '!src/frontend/common/base-components/LoadingBox.tsx',
+    '!src/frontend/common/base-components/LoadingDots.tsx',
+    '!src/frontend/common/base-components/LoadingSwirl.tsx',
+    '!src/frontend/common/base-components/LoadingSnake.tsx',
+    // Loading overlay / banner display — rendering only:
+    '!src/frontend/common/api/AppLoadingBar.tsx',
+    '!src/frontend/common/banners/Banners.tsx',
+    // Route definitions — integration-level only, not unit testable:
+    '!src/frontend/web/MainRouter.tsx',
+    // Pure layout pages with no extractable logic:
+    '!src/frontend/web/home/AdminHome.tsx',
+    // Complex lesson page views — UI only, no standalone logic:
+    '!src/frontend/web/lessons/DocStringsPage.tsx',
+    '!src/frontend/web/lessons/LessonEditor.tsx',
+    '!src/frontend/web/lessons/LessonPage.tsx',
+    '!src/frontend/web/lessons/LessonStringEditor.tsx',
+    '!src/frontend/web/lessons/UpdateIssuesPage.tsx',
+    // Pure rendering components without testable logic:
+    '!src/frontend/common/translate/TranslateIndex.tsx',
+    '!src/frontend/common/translate/DocPreview.tsx',
+    '!src/frontend/common/translate/TStringHistoryView.tsx',
+    '!src/frontend/common/translate/DesktopSyncMessage.tsx',
+    '!src/frontend/common/translate/TranslateHome.tsx',
+    '!src/frontend/common/translate/TranslateLesson.tsx',
+    '!src/frontend/common/translate/TranslateWithPreview.tsx',
+    '!src/frontend/common/translate/TranslateFallback.tsx',
+    '!src/frontend/desktopFrontend/downSync/DownSyncPage.tsx',
+    '!src/frontend/desktopFrontend/downSync/SyncCodeForm.tsx',
+    // Web-only page views not covered by unit tests:
+    '!src/frontend/web/languages/LanguageView.tsx',
+    '!src/frontend/web/languages/AddLanguageForm.tsx',
+    '!src/frontend/web/languages/ToggleMotherTongue.tsx',
+    '!src/frontend/web/languages/UploadUsfmForm.tsx',
+    '!src/frontend/web/languages/UsfmImportResultPage.tsx',
+    '!src/frontend/web/lessons/UploadLessonForm.tsx',
+    '!src/frontend/web/documents/useGetDocument.tsx',
   ],
   coverageThreshold: {
     global: {
@@ -30,5 +142,6 @@ module.exports = {
       lines: 95,
       statements: 95
     }
-  }
+  },
+  watchPathIgnorePatterns: ['strings', 'old', 'cypress'],
 };

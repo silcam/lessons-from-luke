@@ -113,7 +113,7 @@ function parseStyles(stylesXml: string): DocString[] {
 }
 
 // parentStyleName is ignored if parentStylePattern is provided
-function findStylesToMatch(
+export function findStylesToMatch(
   xmlDoc: Document,
   namespaces: Namespaces,
   parentStyleName: string,
@@ -134,23 +134,23 @@ function findStylesToMatch(
   return styles;
 }
 
-function xPathForPWithStyleNameContains(stylePattern: string) {
+export function xPathForPWithStyleNameContains(stylePattern: string) {
   return `//text:p[contains(@text:style-name, '${stylePattern}')]`;
 }
 
-function xPathForParentStyleNameContains(stylePattern: string) {
+export function xPathForParentStyleNameContains(stylePattern: string) {
   return `//style:style[contains(@style:parent-style-name, '${stylePattern}')]`;
 }
 
-function xPathForPWithStyle(styleName: string) {
+export function xPathForPWithStyle(styleName: string) {
   return `//text:p[@text:style-name='${styleName}']`;
 }
 
-function xPathForHWithStyle(styleName: string) {
+export function xPathForHWithStyle(styleName: string) {
   return `//text:h[@text:style-name='${styleName}']`;
 }
 
-function xPathForParentStyle(parentStyleName: string) {
+export function xPathForParentStyle(parentStyleName: string) {
   return `//style:style[@style:parent-style-name='${parentStyleName}']`;
 }
 

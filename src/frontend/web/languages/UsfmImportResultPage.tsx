@@ -5,7 +5,7 @@ import { StdHeaderBarPage } from "../../common/base-components/HeaderBar";
 import Heading from "../../common/base-components/Heading";
 import List from "../../common/base-components/List";
 import Div from "../../common/base-components/Div";
-import { Redirect } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 
 export default function UsfmImportResultPage() {
   const t = useTranslation();
@@ -15,7 +15,7 @@ export default function UsfmImportResultPage() {
 
   if (!usfmImportResult) {
     console.log("No USFM Import Result");
-    return <Redirect to="/" />;
+    return <Navigate to="/" replace />;
   }
 
   const { language, tStrings, errors } = usfmImportResult;

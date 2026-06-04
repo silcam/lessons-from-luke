@@ -1,8 +1,10 @@
+import React from "react";
 import styled from "styled-components";
 import Colors from "../util/Colors";
 
 interface IProps {
   danger?: boolean;
+  children?: React.ReactNode;
 }
 
 const Alert = styled.div<IProps>`
