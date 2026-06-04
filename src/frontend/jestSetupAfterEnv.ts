@@ -1,1 +1,1 @@
-import "../jestSilenceConsole";
+import "../testSupport/jestSilenceConsole";

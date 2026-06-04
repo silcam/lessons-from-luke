@@ -1,4 +1,4 @@
-import "../jestSilenceConsole";
+import "../testSupport/jestSilenceConsole";
 import { TransactionalTestStorage } from "./storage/TransactionalTestStorage";
 
 const storage = new TransactionalTestStorage();
