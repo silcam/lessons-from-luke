@@ -7277,6 +7277,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"globals@npm:^17.6.0":
+  version: 17.6.0
+  resolution: "globals@npm:17.6.0"
+  checksum: 10c0/cf94fb4329cc5c68cf81018fd68324f413181ee169f0235b0b33b82bc93fe7825a21beea951f83a80e8e4bbdad9c0c80515a145b5fd4b5cb52f2a80db899a93f
+  languageName: node
+  linkType: hard
+
 "globalthis@npm:^1.0.1, globalthis@npm:^1.0.4":
   version: 1.0.4
   resolution: "globalthis@npm:1.0.4"
@@ -9342,6 +9349,7 @@ __metadata:
     express: "npm:^4.21.2"
     express-fileupload: "npm:^1.1.9"
     file-saver: "npm:^2.0.2"
+    globals: "npm:^17.6.0"
     html-webpack-plugin: "npm:^5.6.3"
     husky: "npm:^9.1.7"
     immer: "npm:^9.0.6"
