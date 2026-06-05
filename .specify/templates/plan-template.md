@@ -31,8 +31,8 @@
 
 > _Delete this section entirely for backend-only features with no user-facing UI._
 
-**Component Framework**: [e.g., DaisyUI 5 + Tailwind CSS 4, or N/A]
-**Interaction Patterns**: [e.g., HTMX partial swaps, Alpine.js reactive state, static Hugo pages]
+**Component Framework**: [e.g., React 16 + styled-components, or N/A]
+**Interaction Patterns**: [e.g., Redux Toolkit state, React Router navigation, server-rendered pages]
 **Accessibility Target**: [e.g., WCAG 2.2 AA, AAA, or N/A]
 
 ### UI Decisions
@@ -43,10 +43,10 @@
   to generate presentation layer sub-tasks with the right design-* skills.
 -->
 
-| Screen / Component        | User Story | Approach                            | Design Skills                        |
-| ------------------------- | ---------- | ----------------------------------- | ------------------------------------ |
-| [e.g., 404 error page]    | US1        | [DaisyUI hero + alert, static HTML] | `/design-language-to-daisyui`        |
-| [e.g., Onboarding wizard] | US2        | [Multi-step Alpine.js, empty state] | `/design-onboard`, `/design-clarify` |
+| Screen / Component        | User Story | Approach                              | Design Skills |
+| ------------------------- | ---------- | ------------------------------------- | ------------- |
+| [e.g., 404 error page]    | US1        | [React form + styled-components]      | [—]           |
+| [e.g., Onboarding wizard] | US2        | [Multi-step React wizard, empty state]| [—]           |
 
 ### Quality Pass
 
