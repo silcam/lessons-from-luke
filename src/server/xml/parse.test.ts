@@ -4,7 +4,7 @@ import parse, {
   xPathForHWithStyle,
   xPathForPWithStyleNameContains,
   xPathForParentStyle,
-  xPathForParentStyleNameContains
+  xPathForParentStyleNameContains,
 } from "./parse";
 import libxmljs2, { Element } from "libxmljs2";
 import { extractNamespaces } from "./mergeXml";
@@ -23,9 +23,7 @@ test("Remove tracked changes", () => {
   // We should ignore the <text:tracked-changes> block. That block has many strings with the text "Unknown Author"
   // The fixture doesn't have tracked changes, so we verify the result is 0 Unknown Author strings
   const srcStrings = parse(xmls.content, "content");
-  const unknownAuthorStrings = srcStrings.filter(str =>
-    str.text.includes("Unknown Author")
-  );
+  const unknownAuthorStrings = srcStrings.filter((str) => str.text.includes("Unknown Author"));
   expect(unknownAuthorStrings.length).toBe(0);
 });
 
@@ -36,20 +34,20 @@ test("Parse Meta Xml", () => {
       text: "Review: Lessons 1-5",
       xpath: "/office:document-meta/office:meta/dc:subject/text()",
       motherTongue: false,
-      type: "meta"
+      type: "meta",
     },
     {
       motherTongue: false,
       text: "Lessons from Luke",
       type: "meta",
-      xpath: "/office:document-meta/office:meta/dc:title/text()"
-    }
+      xpath: "/office:document-meta/office:meta/dc:title/text()",
+    },
   ]);
 });
 
 test("Parse Styles Xml", () => {
   const stylesSrcStrings = parse(xmls.styles, "styles");
-  const stylesTexts = stylesSrcStrings.map(docStr => docStr.text);
+  const stylesTexts = stylesSrcStrings.map((docStr) => docStr.text);
   expect(stylesTexts).toEqual([
     "Quarter",
     "Lesson",
@@ -75,46 +73,47 @@ test("Parse Styles Xml", () => {
     "Quarter",
     "Lesson",
     "Review: Lessons 1-5",
-    "Page"
+    "Page",
   ]);
 });
 
 test("Verify modified styles are parsed", async () => {
   // updated odt with new styles
   const newOdtPath = process.cwd() + "/cypress/fixtures/Luke-1-01-ChangedStyles.odt";
-  let changedXmls: ReturnType<typeof docStorage.docXml>;
-  changedXmls = docStorage.docXml(newOdtPath);
+  const changedXmls: ReturnType<typeof docStorage.docXml> = docStorage.docXml(newOdtPath);
 
-  let allStyles = parse(changedXmls.styles, "styles");
-  //console.log("XXXX: ALL STYLES");
-  //console.log(allStyles);
-  //console.log("YYYYY: ALL STYLES");
+  parse(changedXmls.styles, "styles");
 
-  let docStrings = parseDocStrings(newOdtPath);
-  let allStrings = docStrings.map(docStr => docStr.text);
+  const docStrings = parseDocStrings(newOdtPath);
+  const allStrings = docStrings.map((docStr) => docStr.text);
 
- // console.log(docStrings);
+  // console.log(docStrings);
 
   // this means they are parsed out of the doc, but not necessarily translatable
   expect(allStrings).toContain("MT_coloring_page_truth");
   expect(allStrings).toContain("MT_coloring_page_memory_verse");
   expect(allStrings).toContain("INVISIBLE");
 
-  let storage = (global as any).testStorage;
-  let newLesson = await storage.lesson(12);
+  const storage = (global as any).testStorage;
+  const newLesson = await storage.lesson(12);
   expect(newLesson).not.toBe(null);
 
-  let savedLesson = await saveDocStrings(newLesson!.lessonId, newLesson!.lessonId + 1, docStrings, storage);
-  
-  const tStrings = await storage.tStrings({
+  const savedLesson = await saveDocStrings(
+    newLesson!.lessonId,
+    newLesson!.lessonId + 1,
+    docStrings,
+    storage
+  );
+
+  await storage.tStrings({
     languageId: ENGLISH_ID,
-    lessonId: savedLesson.lessonId
+    lessonId: savedLesson.lessonId,
   });
 
   const xmlDoc = libxmljs2.parseXml(changedXmls.content);
   const namespaces = extractNamespaces(xmlDoc);
 
-  let allMTStrings = savedLesson.lessonStrings.map(lessonString => {
+  const allMTStrings = savedLesson.lessonStrings.map((lessonString) => {
     const lsDomElement = xmlDoc.get<Element>(lessonString.xpath, namespaces);
     if (lessonString.motherTongue == true) {
       return lsDomElement?.text();
@@ -154,13 +153,13 @@ describe("removeTrackedChanges removes tracked-change nodes", () => {
 
   test("removes tracked-changes nodes so their text does not appear in results", () => {
     const result = parse(contentWithTrackedChanges, "content");
-    const unknownAuthor = result.filter(s => s.text.includes("Unknown Author"));
+    const unknownAuthor = result.filter((s) => s.text.includes("Unknown Author"));
     expect(unknownAuthor).toHaveLength(0);
   });
 
   test("retains other content after removing tracked changes", () => {
     const result = parse(contentWithTrackedChanges, "content");
-    const helloWorld = result.filter(s => s.text.includes("Hello World"));
+    const helloWorld = result.filter((s) => s.text.includes("Hello World"));
     expect(helloWorld.length).toBeGreaterThan(0);
   });
 });
@@ -243,8 +242,7 @@ describe("findStylesToMatch", () => {
 
 // Task 18: Spanish and Cishingini parse roundtrip tests
 describe("Parse Spanish ODT", () => {
-  const spanishOdtPath =
-    process.cwd() + "/test/fixtures/Spanish_Luke-Q1-L01.odt";
+  const spanishOdtPath = process.cwd() + "/test/fixtures/Spanish_Luke-Q1-L01.odt";
   let spanishXmls: ReturnType<typeof docStorage.docXml>;
 
   beforeAll(() => {
@@ -273,8 +271,7 @@ describe("Parse Spanish ODT", () => {
 });
 
 describe("Parse Cishingini ODT", () => {
-  const cishinginiOdtPath =
-    process.cwd() + "/test/fixtures/Cishingini (asg)_Luke-Q1-L01.odt";
+  const cishinginiOdtPath = process.cwd() + "/test/fixtures/Cishingini (asg)_Luke-Q1-L01.odt";
   let cishinginiXmls: ReturnType<typeof docStorage.docXml>;
 
   beforeAll(() => {

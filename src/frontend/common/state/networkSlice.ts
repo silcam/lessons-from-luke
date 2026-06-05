@@ -3,8 +3,6 @@ import { AppDispatch, AppState, useAppSelector } from "./appState";
 import { GetRequest } from "../api/RequestContext";
 import { useState, useEffect } from "react";
 
-type AppAction = (dispatch: AppDispatch) => void;
-
 interface NetworkState {
   connected: boolean;
 }
@@ -12,18 +10,18 @@ interface NetworkState {
 const networkSlice = createSlice({
   name: "network",
   initialState: {
-    connected: true
+    connected: true,
   } as NetworkState,
   reducers: {},
-  extraReducers: builder => {
+  extraReducers: (builder) => {
     builder
-      .addCase("NetworkConnectionLost", state => {
+      .addCase("NetworkConnectionLost", (state) => {
         state.connected = false;
       })
-      .addCase("NetworkConnectionRestored", state => {
+      .addCase("NetworkConnectionRestored", (state) => {
         state.connected = true;
       });
-  }
+  },
 });
 export default networkSlice;
 
@@ -35,7 +33,7 @@ export function networkConnectionLostAction(get: GetRequest) {
     const wasConnected = getState().network.connected;
 
     const action: NetworkConnectionLostAction = {
-      type: "NetworkConnectionLost"
+      type: "NetworkConnectionLost",
     };
     dispatch(action);
 
@@ -53,26 +51,30 @@ async function tryToReconnect(get: GetRequest, onReconnect: () => void) {
       await get("/api/users/current", {});
       clearInterval(timer);
       onReconnect();
-    } catch (err) {
+    } catch {
       // Do nothing
     }
   }, 3000);
 }
 
 function networkConnectionRestoredAction() {
-  return async (dispatch: AppDispatch, getState: () => AppState) => {
+  return async (dispatch: AppDispatch) => {
     dispatch({ type: "NetworkConnectionRestored" });
   };
 }
 
 export function useNetworkConnectionRestored() {
   const [eventHandlers, setEventHandlers] = useState<Array<() => void>>([]);
-  const connected = useAppSelector(state => state.network.connected);
+  const connected = useAppSelector((state) => state.network.connected);
   useEffect(() => {
     if (connected) {
-      eventHandlers.forEach(handler => handler());
+      eventHandlers.forEach((handler) => handler());
+      // clear queue after firing handlers; cascading render intended
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setEventHandlers([]);
     }
+    // fire queued handlers only on reconnect transition; eventHandlers read via closure
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected]);
   const onConnectionRestored = (handler: () => void) =>
     setEventHandlers([...eventHandlers, handler]);

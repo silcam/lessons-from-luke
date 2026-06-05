@@ -1,11 +1,8 @@
 /// <reference types="jest" />
 
-import {
-  loggedInAgent,
-  plainAgent
-} from "../testHelper";
+import { loggedInAgent, plainAgent } from "../testHelper";
 import { ENGLISH_ID } from "../../core/models/Language";
-import { last, findBy } from "../../core/util/arrayUtils";
+import { findBy } from "../../core/util/arrayUtils";
 import { LessonString } from "../../core/models/LessonString";
 import { TString } from "../../core/models/TString";
 import { unlinkSafe } from "../../core/util/fsUtils";
@@ -17,7 +14,7 @@ afterAll(() => {
 test("Upload new English Lesson", async () => {
   expect.assertions(5);
   const agent = await loggedInAgent();
-  let response = await agent
+  const response = await agent
     .post("/api/admin/documents")
     .field("languageId", ENGLISH_ID)
     .field("book", "Luke")
@@ -29,31 +26,26 @@ test("Upload new English Lesson", async () => {
     version: 1,
     book: "Luke",
     series: 1,
-    lesson: 6
+    lesson: 6,
   });
   expect(response.body.lesson.lessonStrings[2]).toMatchObject({
     lessonVersion: 1,
     type: "content",
     motherTongue: true,
     xpath:
-      "/office:document-content/office:body/office:text/table:table/table:table-row/table:table-cell[2]/text:p[1]/text()"
+      "/office:document-content/office:body/office:text/table:table/table:table-row/table:table-cell[2]/text:p[1]/text()",
   });
-  expect(
-    findBy(response.body.tStrings as TString[], "text", "Review: Lessons 1-5")
-  ).toMatchObject({
+  expect(findBy(response.body.tStrings as TString[], "text", "Review: Lessons 1-5")).toMatchObject({
     history: [],
     languageId: 1,
-    text: "Review: Lessons 1-5"
+    text: "Review: Lessons 1-5",
   });
   expect(
     response.body.lesson.lessonStrings.filter(
       (lStr: LessonString) =>
-        !response.body.tStrings.some(
-          (tStr: TString) => tStr.masterId == lStr.masterId
-        )
+        !response.body.tStrings.some((tStr: TString) => tStr.masterId == lStr.masterId)
     )
   ).toEqual([]);
-
 });
 
 test("Upload French version", async () => {
@@ -70,22 +62,19 @@ test("Upload French version", async () => {
     text: "Le livre de Luc et la naissance de Jean Baptiste",
     type: "content",
     xpath:
-      "/office:document-content/office:body/office:text/table:table[1]/table:table-row/table:table-cell[2]/text:p[1]/text()"
+      "/office:document-content/office:body/office:text/table:table[1]/table:table-row/table:table-cell[2]/text:p[1]/text()",
   });
   expect(response.body.lesson).toMatchObject({ lessonId: 11 });
   expect(response.body.lesson.lessonStrings[0]).toMatchObject({
-    lessonStringId: 7
+    lessonStringId: 7,
   });
   expect(
-    response.body.tStrings.find(
-      (tStr: TString) => tStr.masterId == 1 && tStr.languageId == 1
-    )
+    response.body.tStrings.find((tStr: TString) => tStr.masterId == 1 && tStr.languageId == 1)
   ).toMatchObject({
     masterId: 1,
     languageId: 1,
-    text: "The Book of Luke and the Birth of John the Baptizer"
+    text: "The Book of Luke and the Birth of John the Baptizer",
   });
-
 });
 
 test("Download English Lesson", async () => {
@@ -116,18 +105,14 @@ test("Download document returns 404 for non-existent language", async () => {
 
 test("Download English lesson with explicit majorityLanguageId", async () => {
   const agent = plainAgent();
-  const response = await agent.get(
-    "/api/languages/1/lessons/12/document?majorityLanguageId=1"
-  );
+  const response = await agent.get("/api/languages/1/lessons/12/document?majorityLanguageId=1");
   expect(response.status).toBe(200);
   expect(response.type).toBe("application/vnd.oasis.opendocument.text");
 });
 
 test("Download Batanga lesson with majorityLanguageId=0 (single language mode)", async () => {
   const agent = plainAgent();
-  const response = await agent.get(
-    "/api/languages/3/lessons/11/document?majorityLanguageId=0"
-  );
+  const response = await agent.get("/api/languages/3/lessons/11/document?majorityLanguageId=0");
   expect(response.status).toBe(200);
   expect(response.type).toBe("application/vnd.oasis.opendocument.text");
 });

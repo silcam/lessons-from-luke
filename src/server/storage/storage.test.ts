@@ -7,11 +7,10 @@ import { TString } from "../../core/models/TString";
 import { makeDocStrings } from "../../core/models/DocString";
 import { PGTestStorage, transformCol } from "./PGStorage";
 import testStorage from "./testStorage";
-import { findBy, findByStrict } from "../../core/util/arrayUtils";
+import { findByStrict } from "../../core/util/arrayUtils";
 import { USE_PG } from "../testConfig";
 
-let storage: TestPersistence;
-storage = USE_PG ? (global as any).testStorage : testStorage;
+const storage: TestPersistence = USE_PG ? (global as any).testStorage : testStorage;
 
 test("Get languages", async () => {
   const languages = await storage.languages();
@@ -22,11 +21,11 @@ test("Get languages", async () => {
     languageId: 1,
     code: "ABC",
     motherTongue: false,
-    defaultSrcLang: 1
+    defaultSrcLang: 1,
   });
   expect(english.progress[0]).toEqual({
     lessonId: 11,
-    progress: 100
+    progress: 100,
   });
 });
 
@@ -36,11 +35,11 @@ test("Get language by id", async () => {
     name: "English",
     languageId: 1,
     code: "ABC",
-    motherTongue: false
+    motherTongue: false,
   });
   expect(english!.progress[0]).toEqual({
     lessonId: 11,
-    progress: 100
+    progress: 100,
   });
 });
 
@@ -57,37 +56,33 @@ test("Get language by missing", async () => {
 test("Create Language", async () => {
   const german = await storage.createLanguage({
     name: "German",
-    defaultSrcLang: 2
+    defaultSrcLang: 2,
   });
   expect(german).toMatchObject({
     motherTongue: true,
     name: "German",
     progress: [],
-    defaultSrcLang: 2
+    defaultSrcLang: 2,
   });
   expect(german.languageId).toBeGreaterThan(3);
   expect(german.code.length).toBeGreaterThan(3);
-
-
 });
 
 test("Update Language", async () => {
   const batanga = await storage.updateLanguage(3, {
     motherTongue: false,
-    defaultSrcLang: 2
+    defaultSrcLang: 2,
   });
   expect(batanga).toMatchObject({
     languageId: 3,
     name: "Batanga",
     motherTongue: false,
-    defaultSrcLang: 2
+    defaultSrcLang: 2,
   });
   expect(batanga.progress[0]).toEqual({
     lessonId: 11,
-    progress: 5 // Was 6
+    progress: 5, // Was 6
   });
-
-
 });
 
 test("Invalid Code - valid", async () => {
@@ -111,7 +106,7 @@ test("Get Lessons", async () => {
     book: "Luke",
     series: 1,
     lesson: 1,
-    version: 3
+    version: 3,
   });
 });
 
@@ -122,7 +117,7 @@ test("Get Lessons by id", async () => {
     book: "Luke",
     series: 1,
     lesson: 2,
-    version: 3
+    version: 3,
   });
   expect(lesson!.lessonStrings.length).toBe(280);
   expect(lesson!.lessonStrings).toContainEqual({
@@ -133,7 +128,7 @@ test("Get Lessons by id", async () => {
     motherTongue: false,
     type: "content",
     xpath:
-      "/office:document-content/office:body/office:text/table:table[1]/table:table-row/table:table-cell[1]/text:p/text()"
+      "/office:document-content/office:body/office:text/table:table[1]/table:table-row/table:table-cell[1]/text:p/text()",
   });
 });
 
@@ -145,21 +140,19 @@ test("Create Lesson", async () => {
   const lesson = await storage.createLesson({
     book: "Luke",
     series: 1,
-    lesson: 6
+    lesson: 6,
   });
   expect(lesson).toMatchObject({
     book: "Luke",
     series: 1,
     lesson: 6,
-    version: 0
+    version: 0,
   });
   expect(lesson.lessonId).toBeGreaterThan(15);
 
   // PROGRESS
   const english = await storage.language({ languageId: ENGLISH_ID });
   expect(english!.progress.length).toBe(5); // The new one doesn't count since it has no strings
-
-
 });
 
 test("Update Lesson", async () => {
@@ -169,15 +162,15 @@ test("Update Lesson", async () => {
       lessonId: 11,
       type: "content",
       xpath: "some:/xpath",
-      motherTongue: true
+      motherTongue: true,
     },
     {
       masterId: 342,
       lessonId: 11,
       type: "content",
       xpath: "some:/more/xpath",
-      motherTongue: false
-    }
+      motherTongue: false,
+    },
   ];
 
   const lesson = await storage.updateLesson(11, 4, draftLessonStrings);
@@ -186,22 +179,18 @@ test("Update Lesson", async () => {
     book: "Luke",
     series: 1,
     lesson: 1,
-    version: 4
+    version: 4,
   });
   expect(lesson.lessonStrings.length).toBe(2);
-  draftLessonStrings.forEach((ds, index) =>
-    expect(lesson.lessonStrings[index]).toMatchObject(ds)
-  );
+  draftLessonStrings.forEach((ds, index) => expect(lesson.lessonStrings[index]).toMatchObject(ds));
 
   await timeout(100);
   // Progress
   const batanga = await storage.language({ languageId: 3 });
   expect(batanga!.progress).toContainEqual({
     lessonId: 11,
-    progress: 100
+    progress: 100,
   });
-
-
 });
 
 test("Get TStrings by Language", async () => {
@@ -213,7 +202,7 @@ test("Get TStrings by Language", async () => {
     history: [],
     source: "Le livre de Luc et la naissance de Jean Baptiste",
     sourceLanguageId: 2,
-    text: "Pɔh eyamu ya Lukasi etilinɔ na iyabɛnɛ dá Yohanesi Nkahɛdɛni"
+    text: "Pɔh eyamu ya Lukasi etilinɔ na iyabɛnɛ dá Yohanesi Nkahɛdɛni",
   });
 });
 
@@ -224,7 +213,7 @@ test("Get TStrings by nonexistant language", async () => {
 test("Get TStrings by language and lesson", async () => {
   const less1BatStrings = await storage.tStrings({
     languageId: 3,
-    lessonId: 11
+    lessonId: 11,
   });
   expect(less1BatStrings.length).toBe(3);
 });
@@ -232,7 +221,7 @@ test("Get TStrings by language and lesson", async () => {
 test("Get Tstrings by master id and language", async () => {
   const coupleBatanga = await storage.tStrings({
     languageId: 3,
-    masterIds: [1, 3]
+    masterIds: [1, 3],
   });
   expect(coupleBatanga).toHaveLength(2);
   expect(coupleBatanga).toContainEqual({
@@ -242,7 +231,7 @@ test("Get Tstrings by master id and language", async () => {
     source: "Le livre de Luc et la naissance de Jean Baptiste",
     sourceLanguageId: 2,
     history: [],
-    lessonStringId: null
+    lessonStringId: null,
   });
 });
 
@@ -258,20 +247,20 @@ test("Save TStrings", async () => {
     {
       masterId: 1,
       source: "Livre de Luc...",
-      text: "Luke's Book"
+      text: "Luke's Book",
     },
     { masterId: 3, source: "Dieu entend...", text: "" },
     {
       masterId: 19,
       source: "Luc 1:13...",
-      text: "Bt Luke 1:13..."
-    }
-  ].map(tStr => ({ ...tStr, history: [], sourceLanguageId: 2, languageId: 3 }));
+      text: "Bt Luke 1:13...",
+    },
+  ].map((tStr) => ({ ...tStr, history: [], sourceLanguageId: 2, languageId: 3 }));
 
   let batanga = await storage.language({ languageId: 3 });
   expect(batanga!.progress[0]).toEqual({ lessonId: 11, progress: 6 });
   const tStrings = await storage.saveTStrings(newTStrings, {
-    awaitProgress: true
+    awaitProgress: true,
   });
   expect(tStrings.length).toBe(3);
   expect(tStrings[0]).toEqual({
@@ -280,7 +269,7 @@ test("Save TStrings", async () => {
     text: "Luke's Book",
     history: ["Pɔh eyamu ya Lukasi etilinɔ na iyabɛnɛ dá Yohanesi Nkahɛdɛni"],
     sourceLanguageId: 2,
-    languageId: 3
+    languageId: 3,
   });
   expect(tStrings[1]).toEqual({
     masterId: 3,
@@ -288,7 +277,7 @@ test("Save TStrings", async () => {
     text: "",
     history: ["Njambɛ abowandi mahaleya mahu."],
     sourceLanguageId: 2,
-    languageId: 3
+    languageId: 3,
   });
   expect(tStrings[2]).toEqual({
     masterId: 19,
@@ -296,13 +285,11 @@ test("Save TStrings", async () => {
     text: "Bt Luke 1:13...",
     history: [],
     sourceLanguageId: 2,
-    languageId: 3
+    languageId: 3,
   });
 
   batanga = await storage.language({ languageId: 3 });
   expect(batanga!.progress[0]).toEqual({ lessonId: 11, progress: 4 });
-
-
 });
 
 test("Save TStrings - duplicate masters in input", async () => {
@@ -312,14 +299,12 @@ test("Save TStrings - duplicate masters in input", async () => {
     text: "Luke's Book",
     history: [],
     sourceLanguageId: 2,
-    languageId: 3
+    languageId: 3,
   };
   const newTStrings = [newTString, { ...newTString }];
 
   const tStrings = await storage.saveTStrings(newTStrings);
   expect(tStrings.length).toBe(1);
-
-
 });
 
 test("Don't resave if new text is the same", async () => {
@@ -330,8 +315,8 @@ test("Don't resave if new text is the same", async () => {
       text: "Pɔh eyamu ya Lukasi etilinɔ na iyabɛnɛ dá Yohanesi Nkahɛdɛni",
       history: [],
       sourceLanguageId: 2,
-      languageId: 3
-    }
+      languageId: 3,
+    },
   ];
 
   const tStrings = await storage.saveTStrings(newTStrings);
@@ -340,64 +325,58 @@ test("Don't resave if new text is the same", async () => {
 
 test("Save TStrings progress", async () => {
   const engScripStrs = await storage.englishScriptureTStrings();
-  const batScripStrs: TString[] = engScripStrs.map(eng => ({
+  const batScripStrs: TString[] = engScripStrs.map((eng) => ({
     masterId: eng.masterId,
     languageId: 3,
     text: `Batange: ${eng.text}`,
-    history: []
+    history: [],
   }));
   const tStrings = await storage.saveTStrings(batScripStrs, {
-    awaitProgress: true
+    awaitProgress: true,
   });
   expect(tStrings.length).toBe(batScripStrs.length);
   const batanga = await storage.language({ languageId: 3 });
   expect(batanga!.progress[0]).toEqual({ lessonId: 11, progress: 23 }); // Was 6
-
-
 });
 
 test("Add or Find Master Strings", async () => {
   expect((await storage.tStrings({ languageId: ENGLISH_ID })).length).toBe(654);
   const tStrings = await storage.addOrFindMasterStrings([
     "The Book of Luke and the Birth of John the Baptizer",
-    "Pizza is Tasty!"
+    "Pizza is Tasty!",
   ]);
   expect(tStrings[0]).toMatchObject({
     languageId: 1,
     masterId: 1,
     text: "The Book of Luke and the Birth of John the Baptizer",
-    history: []
+    history: [],
   });
   expect(tStrings[1]).toMatchObject({
     languageId: 1,
     text: "Pizza is Tasty!",
-    history: []
+    history: [],
   });
   expect(tStrings[1].masterId).toBeGreaterThan(653);
   expect((await storage.tStrings({ languageId: ENGLISH_ID })).length).toBe(655);
-
-
 });
 
 test("Don't add duplicate master strings!", async () => {
   const tStrings = await storage.addOrFindMasterStrings([
     "Pizza is Tasty!",
     "The Book of Luke and the Birth of John the Baptizer",
-    "Pizza is Tasty!"
+    "Pizza is Tasty!",
   ]);
   expect(tStrings[2].masterId).toBe(tStrings[0].masterId);
 });
 
 test("Empty Sync", async () => {
   const recent = 1594232387331;
-  const syncPackage = await storage.sync(recent, [
-    { languageId: 2, timestamp: recent }
-  ]);
+  const syncPackage = await storage.sync(recent, [{ languageId: 2, timestamp: recent }]);
   expect(syncPackage).toMatchObject({
     languages: false,
     baseLessons: false,
     lessons: [],
-    tStrings: { 2: [] }
+    tStrings: { 2: [] },
   });
   expect(syncPackage.timestamp).toBeGreaterThan(Date.now() - 1000);
   expect(syncPackage.timestamp).toBeLessThan(Date.now() + 1000);
@@ -405,12 +384,10 @@ test("Empty Sync", async () => {
 
 test("Full Sync", async () => {
   const old = 594232387331;
-  const syncPackage = await storage.sync(old, [
-    { languageId: 3, timestamp: old }
-  ]);
+  const syncPackage = await storage.sync(old, [{ languageId: 3, timestamp: old }]);
   expect(syncPackage).toMatchObject({
     languages: true,
-    baseLessons: true
+    baseLessons: true,
   });
   expect(syncPackage.lessons).toContain(11);
   expect(syncPackage.tStrings[3]).toContain(1);
@@ -419,13 +396,11 @@ test("Full Sync", async () => {
 test("Sync - add language so to speak", async () => {
   const recent = 1594232387331;
   const neverSynced = 1;
-  const syncPackage = await storage.sync(recent, [
-    { languageId: 3, timestamp: neverSynced }
-  ]);
+  const syncPackage = await storage.sync(recent, [{ languageId: 3, timestamp: neverSynced }]);
   expect(syncPackage).toMatchObject({
     languages: false,
     baseLessons: false,
-    lessons: []
+    lessons: [],
   });
   expect(syncPackage.tStrings[3].length).toBe(4);
 });
@@ -437,8 +412,6 @@ test("Sync: new language", async () => {
 
   const syncPackage = await storage.sync(syncTimestamp, []);
   expect(syncPackage.languages).toBe(true);
-
-
 });
 
 test("Sync: new lesson", async () => {
@@ -448,8 +421,6 @@ test("Sync: new lesson", async () => {
 
   const syncPackage = await storage.sync(syncTimestamp, []);
   expect(syncPackage.baseLessons).toBe(true);
-
-
 });
 
 test("Sync: Updated lesson", async () => {
@@ -461,14 +432,12 @@ test("Sync: Updated lesson", async () => {
       lessonId: 11,
       xpath: "",
       masterId: 1001,
-      type: "content"
-    }
+      type: "content",
+    },
   ]);
 
   const syncPackage = await storage.sync(syncTimestamp, []);
   expect(syncPackage.lessons).toEqual([11]);
-
-
 });
 
 test("Sync: tString to Update", async () => {
@@ -479,26 +448,24 @@ test("Sync: tString to Update", async () => {
       masterId: 1,
       languageId: 3,
       text: "Pɔh Pɔh Pɔh",
-      history: []
+      history: [],
     },
     {
       masterId: 19,
       languageId: 3,
       text: "Luca 1:13",
-      history: []
-    }
+      history: [],
+    },
   ]);
 
-  let syncPackage = await storage.sync(syncTimestamp, [
+  const syncPackage = await storage.sync(syncTimestamp, [
     { languageId: 2, timestamp: syncTimestamp },
-    { languageId: 3, timestamp: syncTimestamp }
+    { languageId: 3, timestamp: syncTimestamp },
   ]);
   expect(syncPackage.tStrings[3]).toHaveLength(2);
   expect(syncPackage.tStrings[3]).toContain(1);
   expect(syncPackage.tStrings[3]).toContain(19);
   expect(syncPackage.tStrings[2]).toHaveLength(0);
-
-
 });
 
 test("updateProgress silently ignores errors in non-production mode", async () => {
@@ -538,9 +505,7 @@ test("updateProgress logs error to console in production mode", async () => {
 
 test("updateLesson throws when lessonId does not exist", async () => {
   if (!(storage instanceof PGTestStorage)) return;
-  await expect(
-    (storage as PGTestStorage).updateLesson(99999, 1, [])
-  ).rejects.toBeTruthy();
+  await expect((storage as PGTestStorage).updateLesson(99999, 1, [])).rejects.toBeTruthy();
 });
 
 test("oldLessonStrings without version returns all old strings for lesson", async () => {
@@ -569,7 +534,7 @@ test("fixtures: lessonId=11 exists (Luke Q1 L01)", async () => {
     lessonId: 11,
     book: "Luke",
     series: 1,
-    lesson: 1
+    lesson: 1,
   });
 });
 
@@ -643,8 +608,8 @@ test("saveTStrings without awaitProgress option still saves and returns", async 
       languageId: 3,
       text: "Bt Luke 1:13 fire-and-forget",
       history: [],
-      sourceLanguageId: 2
-    }
+      sourceLanguageId: 2,
+    },
   ];
 
   // Call WITHOUT awaitProgress — exercises the fire-and-forget else branch
@@ -670,7 +635,7 @@ test("withProgressUpdate triggers background progress update", async () => {
   try {
     await (storage as any).withProgressUpdate(async () => "done");
     // Give the fire-and-forget a tick to be called
-    await new Promise(resolve => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, 10));
     expect(updateProgressSpy).toHaveBeenCalled();
   } finally {
     updateProgressSpy.mockRestore();
@@ -726,8 +691,8 @@ test("tStrings rendering picks current-version row, not historical (Bug 1)", asy
         languageId: 3,
         lessonStringId: ORIGINAL_LSID,
         text: "OLD VERSION",
-        history: []
-      }
+        history: [],
+      },
     ],
     { awaitProgress: true }
   );
@@ -736,21 +701,19 @@ test("tStrings rendering picks current-version row, not historical (Bug 1)", asy
   // same masterId remains in the lesson, but each row gets a fresh
   // lessonStringId allocated from the sequence.
   const lesson = (await storage.lesson(11))!;
-  const draftLessonStrings: DraftLessonString[] = lesson.lessonStrings.map(
-    ls => ({
-      masterId: ls.masterId,
-      lessonId: ls.lessonId,
-      type: ls.type,
-      xpath: ls.xpath,
-      motherTongue: ls.motherTongue
-    })
-  );
+  const draftLessonStrings: DraftLessonString[] = lesson.lessonStrings.map((ls) => ({
+    masterId: ls.masterId,
+    lessonId: ls.lessonId,
+    type: ls.type,
+    xpath: ls.xpath,
+    motherTongue: ls.motherTongue,
+  }));
   await storage.updateLesson(11, lesson.version + 1, draftLessonStrings);
 
   // 3. Find the new lessonStringId for the masterId we care about.
   const updatedLesson = (await storage.lesson(11))!;
   const newLs = updatedLesson.lessonStrings.find(
-    ls => ls.masterId === MASTER_ID && ls.motherTongue
+    (ls) => ls.masterId === MASTER_ID && ls.motherTongue
   )!;
   expect(newLs.lessonStringId).not.toBe(ORIGINAL_LSID);
 
@@ -762,8 +725,8 @@ test("tStrings rendering picks current-version row, not historical (Bug 1)", asy
         languageId: 3,
         lessonStringId: newLs.lessonStringId,
         text: "NEW VERSION",
-        history: []
-      }
+        history: [],
+      },
     ],
     { awaitProgress: true }
   );
@@ -772,7 +735,7 @@ test("tStrings rendering picks current-version row, not historical (Bug 1)", asy
   const tStrings = await storage.tStrings({ languageId: 3, lessonId: 11 });
   const docStrings = makeDocStrings(updatedLesson.lessonStrings, tStrings, []);
   const idx = updatedLesson.lessonStrings.findIndex(
-    ls => ls.masterId === MASTER_ID && ls.motherTongue
+    (ls) => ls.masterId === MASTER_ID && ls.motherTongue
   );
   expect(docStrings[idx].text).toBe("NEW VERSION");
 });
@@ -793,28 +756,26 @@ test("saveTStrings UPDATE preserves historical rows (Bug 2)", async () => {
         languageId: 3,
         lessonStringId: ORIGINAL_LSID,
         text: "OLD VERSION",
-        history: []
-      }
+        history: [],
+      },
     ],
     { awaitProgress: true }
   );
 
   // 2. Bump the lesson version (same masterId stays in the lesson, gets new lsid).
   const lesson = (await storage.lesson(11))!;
-  const draftLessonStrings: DraftLessonString[] = lesson.lessonStrings.map(
-    ls => ({
-      masterId: ls.masterId,
-      lessonId: ls.lessonId,
-      type: ls.type,
-      xpath: ls.xpath,
-      motherTongue: ls.motherTongue
-    })
-  );
+  const draftLessonStrings: DraftLessonString[] = lesson.lessonStrings.map((ls) => ({
+    masterId: ls.masterId,
+    lessonId: ls.lessonId,
+    type: ls.type,
+    xpath: ls.xpath,
+    motherTongue: ls.motherTongue,
+  }));
   await storage.updateLesson(11, lesson.version + 1, draftLessonStrings);
 
   const updatedLesson = (await storage.lesson(11))!;
   const newLs = updatedLesson.lessonStrings.find(
-    ls => ls.masterId === MASTER_ID && ls.motherTongue
+    (ls) => ls.masterId === MASTER_ID && ls.motherTongue
   )!;
 
   // 3. INSERT a translation at the new lessonStringId.
@@ -825,8 +786,8 @@ test("saveTStrings UPDATE preserves historical rows (Bug 2)", async () => {
         languageId: 3,
         lessonStringId: newLs.lessonStringId,
         text: "FIRST NEW",
-        history: []
-      }
+        history: [],
+      },
     ],
     { awaitProgress: true }
   );
@@ -840,8 +801,8 @@ test("saveTStrings UPDATE preserves historical rows (Bug 2)", async () => {
         languageId: 3,
         lessonStringId: newLs.lessonStringId,
         text: "NEW VERSION",
-        history: []
-      }
+        history: [],
+      },
     ],
     { awaitProgress: true }
   );
@@ -857,9 +818,7 @@ test("saveTStrings UPDATE preserves historical rows (Bug 2)", async () => {
   expect(rows.length).toBe(2);
 
   const historical = rows.find((r: any) => r.lessonStringId === ORIGINAL_LSID);
-  const current = rows.find(
-    (r: any) => r.lessonStringId === newLs.lessonStringId
-  );
+  const current = rows.find((r: any) => r.lessonStringId === newLs.lessonStringId);
 
   expect(historical).toBeDefined();
   expect(historical!.text).toBe("OLD VERSION");

@@ -1,31 +1,18 @@
-import React, { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { AppDispatch } from "../state/appState";
 import { useDispatch } from "react-redux";
-import {
-  AppError,
-  asAppError,
-  AppErrorHandler
-} from "../../../core/models/AppError";
+import { AppError, asAppError, AppErrorHandler } from "../../../core/models/AppError";
 import bannerSlice from "../banners/bannerSlice";
 import loadingSlice from "./loadingSlice";
-import {
-  networkConnectionLostAction,
-  useNetworkConnectionRestored
-} from "../state/networkSlice";
+import { networkConnectionLostAction, useNetworkConnectionRestored } from "../state/networkSlice";
 import RequestContext, { GetRequest, PostRequest } from "./RequestContext";
 
-function dispatchError(
-  get: GetRequest,
-  dispatch: AppDispatch,
-  error: AppError
-) {
+function dispatchError(get: GetRequest, dispatch: AppDispatch, error: AppError) {
   if (error.type == "No Connection") dispatch(networkConnectionLostAction(get));
   else dispatch(bannerSlice.actions.add({ type: "Error", error }));
 }
 
-export type Loader<T> = (
-  get: GetRequest
-) => (dispatch: AppDispatch) => Promise<T>;
+export type Loader<T> = (get: GetRequest) => (dispatch: AppDispatch) => Promise<T>;
 
 export function useJustLoad(
   errorHandler: AppErrorHandler = () => false
@@ -39,13 +26,12 @@ export function useJustLoad(
     setLoading(true);
     dispatch(loadingSlice.actions.addLoading());
     dispatch(loader(get))
-      .catch(anyErr => {
+      .catch((anyErr) => {
         const err = asAppError(anyErr);
         if (!errorHandler(err)) {
           dispatchError(get, dispatch, err);
         }
-        if (err.type == "No Connection")
-          onConnectionRestored(() => load(loader));
+        if (err.type == "No Connection") onConnectionRestored(() => load(loader));
       })
       .finally(() => {
         dispatch(loadingSlice.actions.subtractLoading());
@@ -65,36 +51,32 @@ export function useLoad<T>(
 
   useEffect(() => {
     load(loader);
+    // setNotYetStarted flips a mount-completion flag; cascading render is intended
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setNotYetStarted(false);
+    // caller controls deps via the `deps` arg; `load`/`loader` intentionally excluded
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
   return loading || notYetStarted;
 }
 
 export function useLoadMultiple(loaders: Loader<any>[]) {
-  const loadings = loaders.map(loader => useLoad(loader));
-  return loadings.some(loading => loading);
+  // useLoad is intentionally called per-loader; loaders array length is expected to be stable
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const loadings = loaders.map((loader) => useLoad(loader));
+  return loadings.some((loading) => loading);
 }
 
-export type Pusher<T> = (
-  post: PostRequest,
-  dispatch: AppDispatch
-) => Promise<T | null>;
-
-interface PushOpts {
-  noConnectionRetry?: boolean;
-}
+export type Pusher<T> = (post: PostRequest, dispatch: AppDispatch) => Promise<T | null>;
 
 export function usePush() {
   const { get, post } = useContext(RequestContext);
   const dispatch: AppDispatch = useDispatch();
-  const push = <T>(
-    pusher: Pusher<T>,
-    errorHandler: AppErrorHandler = () => false
-  ) => {
+  const push = <T>(pusher: Pusher<T>, errorHandler: AppErrorHandler = () => false) => {
     dispatch(loadingSlice.actions.addLoading());
     return pusher(post, dispatch)
-      .catch(anyErr => {
+      .catch((anyErr) => {
         const err = asAppError(anyErr);
         if (!errorHandler(err)) {
           dispatchError(get, dispatch, err);
