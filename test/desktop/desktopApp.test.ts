@@ -18,6 +18,13 @@ beforeAll(async () => {
   try {
     await Axios.get("http://localhost:8081/api/users/current");
     await Axios.get("http://localhost:8082/desktop.html", {});
+    // Seed the test API's database from fixtures so the GHI project / Batanga
+    // language exist. Without this, a freshly-migrated CI database has only
+    // schema, the downsync request for "GHI" returns nothing, and every test
+    // times out waiting for the "Syncing Batanga project..." screen. (Locally
+    // this worked by accident because the test DB carried over fixtures from
+    // the previous jest run.)
+    await Axios.post("http://localhost:8081/api/test/reset-storage");
   } catch (err) {
     console.error(
       "Please ensure that the Server App is running on port 8081 and webpack for desktop on port 8082. (Try starting yarn test-desktop-e2e-deps.)"
