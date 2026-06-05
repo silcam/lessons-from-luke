@@ -224,6 +224,9 @@ jobs:
   desktop-e2e:
     runs-on: ubuntu-latest
     needs: static-checks
+    # Hard cap so a hung Electron/Xvfb session can't burn the default 360-min
+    # job timeout. The suite itself runs in ~30s locally; 10min is generous.
+    timeout-minutes: 10
     services:
       postgres:
         image: postgres:16
