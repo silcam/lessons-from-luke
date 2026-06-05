@@ -60,7 +60,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "tsc --noEmit -p ./src/core && tsc --noEmit -p ./src/server && tsc --noEmit -p ./src/desktop && tsc --noEmit -p ./src/frontend",
+    "typecheck": "tsc -b ./src/core && tsc --noEmit -p ./src/server && tsc --noEmit -p ./src/desktop && tsc --noEmit -p ./src/frontend",
     "prepare": "husky"
   },
   "lint-staged": {

@@ -214,7 +214,7 @@ Install separately if needed.
 
 `.husky/pre-commit` runs on every `git commit` (do **not** bypass with `--no-verify`):
 
-1. `yarn typecheck` — full project type-check (`tsc -b ./src/server ./src/desktop --noEmit`)
+1. `yarn typecheck` — full project type-check across core, server, desktop, and frontend (builds `src/core` declarations first because the other projects reference it, then runs `tsc --noEmit -p` against each)
 2. `npx lint-staged` — on staged files only:
    - `*.{ts,tsx}` → `eslint --fix` → `prettier --write` → `jest --findRelatedTests --bail --passWithNoTests --runInBand`
    - `*.{js,json,md,yml,yaml}` → `prettier --write`
