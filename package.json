@@ -64,7 +64,7 @@
     "prepare": "husky"
   },
   "lint-staged": {
-    "src/**/*.{ts,tsx}": [
+    "**/*.{ts,tsx}": [
       "eslint --fix",
       "prettier --write",
       "bash -c 'NODE_ENV=test npx jest --findRelatedTests --bail --passWithNoTests --runInBand \"$@\"' --"
