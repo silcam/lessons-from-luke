@@ -3,6 +3,17 @@ import { _electron as electron } from "playwright";
 import Axios from "axios";
 import path from "path";
 
+// Headless-test flags appended to every electron.launch:
+// - --no-sandbox: Chromium's setuid sandbox is unavailable on Ubuntu CI runners
+//   without privileged userns (we already toggle the apparmor restriction in
+//   the desktop-e2e workflow, but --no-sandbox is the belt-and-suspenders fix
+//   that doesn't rely on the runner's kernel config).
+// - --disable-gpu / --disable-software-rasterizer: under Xvfb there is no real
+//   GPU; Chromium spends seconds negotiating GPU initialization before falling
+//   back to software rendering, which was pushing the Downsync and Translation
+//   tests past their 15-20s timeouts in CI.
+const ELECTRON_TEST_ARGS = ["--no-sandbox", "--disable-gpu", "--disable-software-rasterizer"];
+
 beforeAll(async () => {
   try {
     await Axios.get("http://localhost:8081/api/users/current");
@@ -17,7 +28,7 @@ beforeAll(async () => {
 
 test("Downsync", async () => {
   const app = await electron.launch({
-    args: [path.join(__dirname, "../../dist/desktop/main-test.js")],
+    args: [path.join(__dirname, "../../dist/desktop/main-test.js"), ...ELECTRON_TEST_ARGS],
     env: { ...process.env, FIXTURES: "fresh-install" },
   });
   const window = await app.firstWindow();
@@ -37,7 +48,7 @@ test("Downsync", async () => {
 
 test("Login guard: translation UI is inaccessible before entering a project code", async () => {
   const app = await electron.launch({
-    args: [path.join(__dirname, "../../dist/desktop/main-test.js")],
+    args: [path.join(__dirname, "../../dist/desktop/main-test.js"), ...ELECTRON_TEST_ARGS],
     env: { ...process.env, FIXTURES: "fresh-install" },
   });
   const window = await app.firstWindow();
@@ -57,7 +68,7 @@ test("Login guard: translation UI is inaccessible before entering a project code
 
 test("Translation workflow: type and save a translation string", async () => {
   const app = await electron.launch({
-    args: [path.join(__dirname, "../../dist/desktop/main-test.js")],
+    args: [path.join(__dirname, "../../dist/desktop/main-test.js"), ...ELECTRON_TEST_ARGS],
     env: { ...process.env, FIXTURES: "fresh-install" },
   });
   const window = await app.firstWindow();
