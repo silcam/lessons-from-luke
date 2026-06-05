@@ -31,12 +31,7 @@ function DocStringsPageWrapper() {
     languageId: string;
     lessonId: string;
   }>();
-  return (
-    <DocStringsPage
-      languageId={parseInt(languageId!)}
-      lessonId={parseInt(lessonId!)}
-    />
-  );
+  return <DocStringsPage languageId={parseInt(languageId!)} lessonId={parseInt(lessonId!)} />;
 }
 
 function UpdateIssuesPageWrapper() {
@@ -61,10 +56,7 @@ export default function MainRouter() {
             path="/languages/:languageId/lessons/:lessonId/docStrings"
             element={<DocStringsPageWrapper />}
           />
-          <Route
-            path="/update-issues/:lessonId"
-            element={<UpdateIssuesPageWrapper />}
-          />
+          <Route path="/update-issues/:lessonId" element={<UpdateIssuesPageWrapper />} />
           <Route path="*" element={user ? <AdminHome /> : <PublicHome />} />
         </Routes>
       ) : (

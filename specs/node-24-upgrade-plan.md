@@ -10,15 +10,15 @@ Upgrade Lessons from Luke from Node 12 to Node 24, including Webpack 4→5, Elec
 
 ## Current State
 
-| Component | Current | Target | Risk |
-|-----------|---------|--------|------|
-| Node | 12 | 24 | HIGH |
-| TypeScript | 3.7.2 | 5.x | MED |
-| Webpack | 4.41.2 | 5.x | MED |
-| Jest | 24.9.0 | 29.x | MED |
-| Cypress | 4.1.0 | 13.x | MED |
-| Electron | 7.2.4 | 33.x | HIGH |
-| libxmljs2 | 0.22.0 | 0.37+ | HIGH |
+| Component  | Current | Target | Risk |
+| ---------- | ------- | ------ | ---- |
+| Node       | 12      | 24     | HIGH |
+| TypeScript | 3.7.2   | 5.x    | MED  |
+| Webpack    | 4.41.2  | 5.x    | MED  |
+| Jest       | 24.9.0  | 29.x   | MED  |
+| Cypress    | 4.1.0   | 13.x   | MED  |
+| Electron   | 7.2.4   | 33.x   | HIGH |
+| libxmljs2  | 0.22.0  | 0.37+  | HIGH |
 
 ---
 
@@ -27,11 +27,13 @@ Upgrade Lessons from Luke from Node 12 to Node 24, including Webpack 4→5, Elec
 **Goal**: Establish baseline, set up dual-version CI
 
 ### Tasks
+
 1. Verify tests pass on Node 12: `yarn test --watchAll=false`
 2. Create migration branch: `git checkout -b feature/node-24-migration`
 3. Update CI to matrix build (Node 12 + 20, allow 20 to fail initially)
 
 ### Files to Modify
+
 - `.github/workflows/build.yml` - Add test job with matrix strategy
 
 ---
@@ -41,12 +43,14 @@ Upgrade Lessons from Luke from Node 12 to Node 24, including Webpack 4→5, Elec
 **Goal**: Upgrade tools with minimal breaking changes
 
 ### Dependencies
-| Package | From | To | Notes |
-|---------|------|-----|-------|
-| nodemon | 1.19.4 | 2.x | 3.x requires Node 16+ (minimatch dep); upgrade to 3.x in Phase 7 |
-| concurrently | 5.0.0 | 7.x | 8.x+ requires Node 14+/18+; upgrade to 9.x in Phase 7 |
+
+| Package      | From   | To  | Notes                                                            |
+| ------------ | ------ | --- | ---------------------------------------------------------------- |
+| nodemon      | 1.19.4 | 2.x | 3.x requires Node 16+ (minimatch dep); upgrade to 3.x in Phase 7 |
+| concurrently | 5.0.0  | 7.x | 8.x+ requires Node 14+/18+; upgrade to 9.x in Phase 7            |
 
 ### Validation
+
 - `yarn dev-web` starts successfully
 - Hot reload works
 
@@ -57,18 +61,21 @@ Upgrade Lessons from Luke from Node 12 to Node 24, including Webpack 4→5, Elec
 **Goal**: Foundation for type safety
 
 ### Dependencies
-| Package | From | To |
-|---------|------|-----|
-| typescript | 3.7.2 | 5.7.x |
-| ts-loader | 6.2.1 | 9.x |
-| @types/node | (old) | 20.x |
+
+| Package     | From  | To    |
+| ----------- | ----- | ----- |
+| typescript  | 3.7.2 | 5.7.x |
+| ts-loader   | 6.2.1 | 9.x   |
+| @types/node | (old) | 20.x  |
 
 ### Breaking Changes to Address
+
 - `useUnknownInCatchVariables` - may require type narrowing in catch blocks
 - Update `target` from `es2017` to `es2022`
 - Update various `@types/*` packages for TS 5 compatibility
 
 ### Files to Modify
+
 - `package.json`
 - `tsconfig.json` - base config
 - `src/core/tsconfig.json`
@@ -77,6 +84,7 @@ Upgrade Lessons from Luke from Node 12 to Node 24, including Webpack 4→5, Elec
 - `src/desktop/tsconfig.json`
 
 ### Validation
+
 - `tsc -b` completes without errors
 
 ---
@@ -86,13 +94,15 @@ Upgrade Lessons from Luke from Node 12 to Node 24, including Webpack 4→5, Elec
 **Goal**: Get unit tests green on Node 20
 
 ### Dependencies
-| Package | From | To |
-|---------|------|-----|
-| jest | 24.9.0 | 29.x |
-| ts-jest | 24.1.0 | 29.x |
+
+| Package     | From    | To   |
+| ----------- | ------- | ---- |
+| jest        | 24.9.0  | 29.x |
+| ts-jest     | 24.1.0  | 29.x |
 | @types/jest | 24.0.22 | 29.x |
 
 ### Config Migration
+
 ```javascript
 // Old format (jest.config.js)
 { preset: "ts-jest", ... }
@@ -108,11 +118,13 @@ Upgrade Lessons from Luke from Node 12 to Node 24, including Webpack 4→5, Elec
 ```
 
 ### Files to Modify
+
 - `package.json`
 - `jest.config.js`
 - `src/server/jestGlobalSetup.ts` (if needed)
 
 ### Validation
+
 - `yarn test --watchAll=false` passes all tests
 
 ---
@@ -122,18 +134,20 @@ Upgrade Lessons from Luke from Node 12 to Node 24, including Webpack 4→5, Elec
 **Goal**: Dev and production builds work
 
 ### Dependencies
-| Package | From | To |
-|---------|------|-----|
-| webpack | 4.41.2 | 5.x |
-| webpack-cli | 3.3.10 | 5.x |
-| webpack-dev-server | 3.9.0 | 5.x |
-| webpack-dev-middleware | 3.7.2 | 7.x |
-| html-webpack-plugin | 3.2.0 | 5.x |
-| file-loader | 5.1.0 | REMOVE |
+
+| Package                | From   | To     |
+| ---------------------- | ------ | ------ |
+| webpack                | 4.41.2 | 5.x    |
+| webpack-cli            | 3.3.10 | 5.x    |
+| webpack-dev-server     | 3.9.0  | 5.x    |
+| webpack-dev-middleware | 3.7.2  | 7.x    |
+| html-webpack-plugin    | 3.2.0  | 5.x    |
+| file-loader            | 5.1.0  | REMOVE |
 
 ### Breaking Changes
 
 **1. devServer config** (`webpack/web.development.config.js:9`):
+
 ```javascript
 // Old
 devServer: { contentBase: false, ... }
@@ -143,15 +157,17 @@ devServer: { static: false, ... }
 ```
 
 **2. Hash placeholders** (`webpack/web.production.config.js:8`):
+
 ```javascript
 // Old
-filename: "web.[hash].bundle.js"
+filename: "web.[hash].bundle.js";
 
 // New
-filename: "web.[contenthash].bundle.js"
+filename: "web.[contenthash].bundle.js";
 ```
 
 **3. Asset modules** replace file-loader (`webpack/base.config.js`):
+
 ```javascript
 // Old
 { test: /\.(jpg|png|svg)$/, use: "file-loader" }
@@ -161,6 +177,7 @@ filename: "web.[contenthash].bundle.js"
 ```
 
 ### Files to Modify
+
 - `package.json`
 - `webpack/base.config.js`
 - `webpack/web.base.config.js`
@@ -171,6 +188,7 @@ filename: "web.[contenthash].bundle.js"
 - `webpack/desktop.production.config.js`
 
 ### Validation
+
 - `yarn dev-web` starts with hot reload
 - `yarn build-server` produces valid bundle
 
@@ -181,12 +199,14 @@ filename: "web.[contenthash].bundle.js"
 **Goal**: E2E tests pass
 
 ### Dependencies
-| Package | From | To |
-|---------|------|-----|
-| cypress | 4.1.0 | 13.x |
+
+| Package             | From  | To                    |
+| ------------------- | ----- | --------------------- |
+| cypress             | 4.1.0 | 13.x                  |
 | cypress-file-upload | 3.5.3 | REMOVE (built-in now) |
 
 ### Config Migration
+
 ```javascript
 // Old: cypress.json
 { "baseUrl": "http://localhost:8080" }
@@ -202,12 +222,14 @@ module.exports = defineConfig({
 ```
 
 ### Files to Modify
+
 - `package.json`
 - `cypress.json` → `cypress.config.js`
 - `cypress/plugins/index.js` (migrate to setupNodeEvents)
 - `cypress/support/commands.js` (update file upload usage)
 
 ### Validation
+
 - All 5 E2E test specs pass
 
 ---
@@ -217,17 +239,21 @@ module.exports = defineConfig({
 **Goal**: ODT processing works on Node 20/24
 
 ### Strategy
+
 1. **Try upgrade first**: `yarn add libxmljs2@^0.37.0`
 2. Verify prebuilt binary installs (no compile)
 3. Run XML tests: `yarn test src/server/xml`
 
 ### Fallback Plan (if upgrade fails)
+
 Replace with `fast-xml-parser` (pure JS, no native deps)
+
 - Rewrite `src/server/xml/parse.ts`
 - Rewrite `src/server/xml/mergeXml.ts`
 - Estimated: +2-3 days
 
 ### Files Potentially Affected
+
 - `package.json`
 - `src/server/xml/parse.ts`
 - `src/server/xml/mergeXml.ts`
@@ -239,12 +265,14 @@ Replace with `fast-xml-parser` (pure JS, no native deps)
 **Goal**: Primary development on Node 20
 
 ### Tasks
+
 1. Update `.nvmrc` to `20`
 2. Update CI primary version to 20
 3. Clean install: `rm -rf node_modules yarn.lock && yarn install`
 4. Full test suite validation
 
 ### Files to Modify
+
 - `.nvmrc`
 - `.github/workflows/build.yml`
 - `CLAUDE.md` (update instructions)
@@ -257,12 +285,13 @@ Replace with `fast-xml-parser` (pure JS, no native deps)
 
 ### 8A: Electron 7 → 14 (Security Boundary)
 
-| Package | From | To |
-|---------|------|-----|
-| electron | 7.2.4 | 14.x |
-| @electron/remote | N/A | 2.x (NEW) |
+| Package          | From  | To        |
+| ---------------- | ----- | --------- |
+| electron         | 7.2.4 | 14.x      |
+| @electron/remote | N/A   | 2.x (NEW) |
 
 **Key Change** (`src/desktop/DesktopApp.ts:142-144`):
+
 ```javascript
 // Current
 webPreferences: { nodeIntegration: true }
@@ -280,10 +309,12 @@ require('@electron/remote/main').enable(mainWindow.webContents);
 ```
 
 ### 8B: Electron 14 → 23
+
 - Update electron helper packages
 - Handle sandbox changes
 
 ### 8C: Electron 23 → 33
+
 - Update electron-builder to 25.x
 - Final security hardening
 
@@ -303,6 +334,7 @@ await window.locator('h1:text("Online")').waitFor();
 ```
 
 ### Files to Modify
+
 - `package.json`
 - `src/desktop/DesktopApp.ts`
 - `src/desktop/main.ts`
@@ -317,6 +349,7 @@ await window.locator('h1:text("Online")').waitFor();
 **Goal**: Production on Node 24
 
 ### Tasks
+
 1. Update `.nvmrc` to `24`
 2. Update CI to Node 24
 3. Full validation: tests, dev, build
@@ -347,7 +380,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'yarn'
+          cache: "yarn"
       - run: yarn install --frozen-lockfile
       - run: yarn tsc -b --noEmit
       - run: yarn test --watchAll=false
@@ -365,7 +398,7 @@ jobs:
       - uses: cypress-io/github-action@v6
         with:
           start: yarn dev-web
-          wait-on: 'http://localhost:8080'
+          wait-on: "http://localhost:8080"
 
   build-desktop:
     runs-on: macos-latest
@@ -388,26 +421,26 @@ jobs:
 
 ## Risk Mitigation
 
-| Risk | Mitigation |
-|------|------------|
+| Risk                    | Mitigation                     |
+| ----------------------- | ------------------------------ |
 | libxmljs2 compile fails | fast-xml-parser fallback ready |
-| Electron upgrade breaks | Incremental path (7→14→23→33) |
-| Webpack 5 issues | Keep webpack 4 branch |
-| Test failures | CI on both Node versions |
+| Electron upgrade breaks | Incremental path (7→14→23→33)  |
+| Webpack 5 issues        | Keep webpack 4 branch          |
+| Test failures           | CI on both Node versions       |
 
 ---
 
 ## Critical Files Summary
 
-| File | Phase | Change |
-|------|-------|--------|
-| `.nvmrc` | 7, 9 | 12 → 20 → 24 |
-| `package.json` | All | Dependency updates |
-| `.github/workflows/build.yml` | 0, 7, 9 | Matrix CI |
-| `jest.config.js` | 3 | Jest 29 format |
-| `cypress.json` → `cypress.config.js` | 5 | New config format |
-| `tsconfig.json` | 2 | TS 5 settings |
-| `webpack/*.config.js` | 4 | Webpack 5 syntax |
-| `src/desktop/DesktopApp.ts` | 8 | Security model |
-| `src/server/xml/*.ts` | 6 | libxmljs2 upgrade |
-| `test/desktop/desktopApp.test.ts` | 8D | Playwright migration |
+| File                                 | Phase   | Change               |
+| ------------------------------------ | ------- | -------------------- |
+| `.nvmrc`                             | 7, 9    | 12 → 20 → 24         |
+| `package.json`                       | All     | Dependency updates   |
+| `.github/workflows/build.yml`        | 0, 7, 9 | Matrix CI            |
+| `jest.config.js`                     | 3       | Jest 29 format       |
+| `cypress.json` → `cypress.config.js` | 5       | New config format    |
+| `tsconfig.json`                      | 2       | TS 5 settings        |
+| `webpack/*.config.js`                | 4       | Webpack 5 syntax     |
+| `src/desktop/DesktopApp.ts`          | 8       | Security model       |
+| `src/server/xml/*.ts`                | 6       | libxmljs2 upgrade    |
+| `test/desktop/desktopApp.test.ts`    | 8D      | Playwright migration |

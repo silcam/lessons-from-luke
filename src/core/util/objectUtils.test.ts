@@ -1,12 +1,6 @@
 /// <reference types="jest" />
 
-import {
-  unset,
-  validateFields,
-  Field,
-  objKeys,
-  objFilter
-} from "./objectUtils";
+import { unset, validateFields, Field, objKeys, objFilter } from "./objectUtils";
 
 test("Unset", () => {
   const obj = { a: 1, b: 2, c: 3 };
@@ -19,7 +13,7 @@ test("Validate: All Valid", () => {
     ["a", "number"],
     ["b", "string"],
     ["c", "string[]"],
-    ["d", "string[]"]
+    ["d", "string[]"],
     // No e - extra fields are OK
   ];
   expect(validateFields(obj, fields)).toBe(true);
@@ -38,7 +32,7 @@ test("Validate: Several invalid", () => {
     validateFields({ a: 1, b: 2, c: "3" }, [
       ["a", "number"],
       ["b", "string"],
-      ["c", "string"]
+      ["c", "string"],
     ] as any)
   ).toBe(false);
 });

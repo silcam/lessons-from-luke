@@ -17,8 +17,8 @@ interface IProps extends SBProps {
 
 const StyledButton = styled.button<SBProps>`
   color: white;
-  background-color: ${props => (props.red ? Colors.danger : Colors.primary)};
-  font-size: ${props => (props.bigger ? "1.3em" : "1em")};
+  background-color: ${(props) => (props.red ? Colors.danger : Colors.primary)};
+  font-size: ${(props) => (props.bigger ? "1.3em" : "1em")};
   border-width: 0;
   border-radius: 0.25em;
   padding: 0.5em 1em;
@@ -26,8 +26,7 @@ const StyledButton = styled.button<SBProps>`
   cursor: pointer;
 
   &:active {
-    background-color: ${props =>
-      darker(props.red ? Colors.danger : Colors.primary)};
+    background-color: ${(props) => darker(props.red ? Colors.danger : Colors.primary)};
   }
 
   &:active:focus {
@@ -36,14 +35,13 @@ const StyledButton = styled.button<SBProps>`
 
   &:disabled {
     cursor: default;
-    background-color: ${props =>
-      faded(props.red ? Colors.danger : Colors.primary)};
+    background-color: ${(props) => faded(props.red ? Colors.danger : Colors.primary)};
   }
 `;
 
 const LinkStyledButton = styled.button<SBProps>`
-  color: ${props => (props.red ? Colors.danger : Colors.primary)};
-  font-size: ${props => (props.bigger ? "1.3em" : "1em")};
+  color: ${(props) => (props.red ? Colors.danger : Colors.primary)};
+  font-size: ${(props) => (props.bigger ? "1.3em" : "1em")};
   background-color: inherit;
   border: none;
   cursor: pointer;
@@ -54,10 +52,10 @@ const LinkStyledButton = styled.button<SBProps>`
   }
 
   &:active {
-    color: ${props => darker(props.red ? Colors.danger : Colors.primary)};
+    color: ${(props) => darker(props.red ? Colors.danger : Colors.primary)};
   }
 
-  ${props => (props.unButton ? UnButton : "")}
+  ${(props) => (props.unButton ? UnButton : "")}
 `;
 
 const UnButton = css`

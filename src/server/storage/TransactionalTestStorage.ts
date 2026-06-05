@@ -24,7 +24,7 @@ export class TransactionalTestStorage extends PGTestStorage {
 
   async beginTransaction(): Promise<void> {
     let signalReady!: () => void;
-    const ready = new Promise<void>(r => {
+    const ready = new Promise<void>((r) => {
       signalReady = r;
     });
 
@@ -100,10 +100,7 @@ export class TransactionalTestStorage extends PGTestStorage {
   // from fire-and-forget code (e.g. defaultTranslations) that races across
   // the rollback boundary; those writes would produce orphaned rows in the
   // real DB and pollute subsequent tests.
-  async saveTStrings(
-    tStrings: TString[],
-    opts: { awaitProgress?: boolean } = {}
-  ) {
+  async saveTStrings(tStrings: TString[], opts: { awaitProgress?: boolean } = {}) {
     if (!this.inTransaction) return [];
     return super.saveTStrings(tStrings, { ...opts, awaitProgress: true });
   }

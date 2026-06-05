@@ -20,7 +20,7 @@ export default function TStringInput(props: IProps) {
   const save = async (text: string) => {
     const savedStr = await push(
       pushTStrings([{ ...props.tString, text }], props.language),
-      err => {
+      (err) => {
         if (err.type == "No Connection") onConnectionRestored(() => save(text));
         return false;
       }

@@ -7,7 +7,7 @@ interface IProps {
 export default function HandleKey(props: PropsWithChildren<IProps>) {
   return (
     <div
-      onKeyPress={e => {
+      onKeyPress={(e) => {
         // console.log(`Key: ${e.key}`);
         const cb = props[`on${e.key}`];
         if (typeof cb == "function") cb();

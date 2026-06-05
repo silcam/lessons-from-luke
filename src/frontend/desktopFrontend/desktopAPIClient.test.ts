@@ -6,7 +6,7 @@ const mockInvoke = jest.fn();
 beforeAll(() => {
   Object.defineProperty(window, "electronAPI", {
     value: { invoke: mockInvoke, on: jest.fn() },
-    writable: true
+    writable: true,
   });
 });
 
@@ -44,7 +44,7 @@ describe("ipcGet", () => {
     mockInvoke.mockRejectedValueOnce(new Error("IPC failure"));
 
     await expect(ipcGet("/api/readyToTranslate", {})).rejects.toMatchObject({
-      type: "Unknown"
+      type: "Unknown",
     });
   });
 });
@@ -58,22 +58,18 @@ describe("ipcPost", () => {
         baseLessons: false,
         lessons: [],
         tStrings: {},
-        timestamp: 1
+        timestamp: 1,
       },
       syncLanguages: [],
       upSync: { dirtyTStrings: [] },
       connected: true,
-      loaded: true
+      loaded: true,
     };
     mockInvoke.mockResolvedValueOnce({ data: syncState });
 
     const result = await ipcPost("/api/syncState/code", {}, { code: "ABCDEF" });
 
-    expect(mockInvoke).toHaveBeenCalledWith(
-      "/api/syncState/code",
-      {},
-      { code: "ABCDEF" }
-    );
+    expect(mockInvoke).toHaveBeenCalledWith("/api/syncState/code", {}, { code: "ABCDEF" });
     expect(result).toEqual(syncState);
   });
 
@@ -85,12 +81,12 @@ describe("ipcPost", () => {
         baseLessons: false,
         lessons: [],
         tStrings: {},
-        timestamp: 1
+        timestamp: 1,
       },
       syncLanguages: [],
       upSync: { dirtyTStrings: [] },
       connected: false,
-      loaded: false
+      loaded: false,
     };
     mockInvoke.mockResolvedValueOnce({ data });
 
@@ -103,16 +99,14 @@ describe("ipcPost", () => {
     const error = { type: "HTTP", status: 500 };
     mockInvoke.mockResolvedValueOnce({ error });
 
-    await expect(
-      ipcPost("/api/syncState/code", {}, { code: "XYZ" })
-    ).rejects.toEqual(error);
+    await expect(ipcPost("/api/syncState/code", {}, { code: "XYZ" })).rejects.toEqual(error);
   });
 
   it("throws an AppError when ipcRenderer.invoke rejects", async () => {
     mockInvoke.mockRejectedValueOnce(new Error("IPC failure"));
 
-    await expect(
-      ipcPost("/api/syncState/code", {}, { code: "XYZ" })
-    ).rejects.toMatchObject({ type: "Unknown" });
+    await expect(ipcPost("/api/syncState/code", {}, { code: "XYZ" })).rejects.toMatchObject({
+      type: "Unknown",
+    });
   });
 });

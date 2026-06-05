@@ -1,11 +1,7 @@
 import fs from "fs";
 import docStorage from "../storage/docStorage";
 import parse from "./parse";
-import mergeXml, {
-  cleanOpenDocXml,
-  sortDocStrings,
-  addSpacesForStylesStrings
-} from "./mergeXml";
+import mergeXml, { cleanOpenDocXml, sortDocStrings, addSpacesForStylesStrings } from "./mergeXml";
 import { unlinkSafe } from "../../core/util/fsUtils";
 
 const odtPath = process.cwd() + "/cypress/fixtures/English_Luke-Q1-L06.odt";
@@ -39,7 +35,7 @@ test("Merge preserve spaces", () => {
   const sample = "Picture book, Bible, chalk";
   expect(xmls.content).toContain(`${sample} <`);
   const docStrings = parse(xmls.content, "content");
-  expect(docStrings.find(ds => ds.text == sample)?.text).toBe(sample);
+  expect(docStrings.find((ds) => ds.text == sample)?.text).toBe(sample);
 
   mergeXml(odtPath, newOdtPath, docStrings);
   const newXml = docStorage.docXml(newOdtPath).content;
@@ -47,9 +43,9 @@ test("Merge preserve spaces", () => {
 });
 
 test("Merge skips translations with non-matching xpaths", () => {
-  const docStrings = parse(xmls.content, "content").map(ds => ({
+  const docStrings = parse(xmls.content, "content").map((ds) => ({
     ...ds,
-    xpath: "/nonexistent/path/that/will/not/match"
+    xpath: "/nonexistent/path/that/will/not/match",
   }));
   // Should not throw even when no elements match
   expect(() => mergeXml(odtPath, newOdtPath, docStrings)).not.toThrow();
@@ -58,9 +54,7 @@ test("Merge skips translations with non-matching xpaths", () => {
 test("Merge with clearEmptyParagraphs removes empty translated strings", () => {
   const docStrings = parse(xmls.content, "content");
   // Set first docString text to empty to trigger removeParagraph path
-  const withEmpty = docStrings.map((ds, i) =>
-    i === 0 ? { ...ds, text: "" } : ds
-  );
+  const withEmpty = docStrings.map((ds, i) => (i === 0 ? { ...ds, text: "" } : ds));
   expect(() =>
     mergeXml(odtPath, newOdtPath, withEmpty, { clearEmptyParagraphs: true })
   ).not.toThrow();
@@ -82,8 +76,8 @@ test("Merge with clearEmptyParagraphs and non-matching xpath skips gracefully", 
       text: "",
       type: "content" as const,
       motherTongue: true,
-      xpath: "/nonexistent/xpath/that/will/not/match"
-    }
+      xpath: "/nonexistent/xpath/that/will/not/match",
+    },
   ];
   expect(() =>
     mergeXml(odtPath, newOdtPath, docStrings, { clearEmptyParagraphs: true })
@@ -93,9 +87,7 @@ test("Merge with clearEmptyParagraphs and non-matching xpath skips gracefully", 
 // Task 17: Parse utility function tests
 describe("cleanOpenDocXml", () => {
   test("replaces &amp;quot; with &quot;", () => {
-    expect(cleanOpenDocXml("say &amp;quot;hello&amp;quot;")).toBe(
-      'say &quot;hello&quot;'
-    );
+    expect(cleanOpenDocXml("say &amp;quot;hello&amp;quot;")).toBe("say &quot;hello&quot;");
   });
 
   test("replaces &amp;lt; with &lt;", () => {
@@ -125,7 +117,7 @@ describe("sortDocStrings", () => {
       { text: "a", xpath: "/x", motherTongue: false, type: "content" as const },
       { text: "b", xpath: "/y", motherTongue: false, type: "styles" as const },
       { text: "c", xpath: "/z", motherTongue: false, type: "meta" as const },
-      { text: "d", xpath: "/w", motherTongue: false, type: "content" as const }
+      { text: "d", xpath: "/w", motherTongue: false, type: "content" as const },
     ];
     const sorted = sortDocStrings(docStrings);
     expect(sorted.content.length).toBe(2);
@@ -148,15 +140,9 @@ describe("sortDocStrings", () => {
 describe("addSpacesForStylesStrings", () => {
   test("adds trailing space to styles strings", () => {
     const sorted = {
-      content: [
-        { text: "hello", xpath: "/x", motherTongue: false, type: "content" as const }
-      ],
-      meta: [
-        { text: "title", xpath: "/y", motherTongue: false, type: "meta" as const }
-      ],
-      styles: [
-        { text: "Quarter", xpath: "/z", motherTongue: false, type: "styles" as const }
-      ]
+      content: [{ text: "hello", xpath: "/x", motherTongue: false, type: "content" as const }],
+      meta: [{ text: "title", xpath: "/y", motherTongue: false, type: "meta" as const }],
+      styles: [{ text: "Quarter", xpath: "/z", motherTongue: false, type: "styles" as const }],
     };
     addSpacesForStylesStrings(sorted);
     expect(sorted.styles[0].text).toBe("Quarter ");
@@ -171,8 +157,8 @@ describe("addSpacesForStylesStrings", () => {
       meta: [],
       styles: [
         { text: "A", xpath: "/a", motherTongue: false, type: "styles" as const },
-        { text: "B", xpath: "/b", motherTongue: false, type: "styles" as const }
-      ]
+        { text: "B", xpath: "/b", motherTongue: false, type: "styles" as const },
+      ],
     };
     addSpacesForStylesStrings(sorted);
     expect(sorted.styles[0].text).toBe("A ");
@@ -182,8 +168,7 @@ describe("addSpacesForStylesStrings", () => {
 
 // Task 18: Spanish roundtrip test
 describe("Spanish ODT roundtrip", () => {
-  const spanishOdtPath =
-    process.cwd() + "/test/fixtures/Spanish_Luke-Q1-L01.odt";
+  const spanishOdtPath = process.cwd() + "/test/fixtures/Spanish_Luke-Q1-L01.odt";
   const spanishNewOdtPath = spanishOdtPath.replace(".odt", "v02.odt");
   let spanishXmls: ReturnType<typeof docStorage.docXml>;
 
@@ -199,9 +184,7 @@ describe("Spanish ODT roundtrip", () => {
     const docStrings = parse(spanishXmls.content, "content")
       .concat(parse(spanishXmls.meta, "meta"))
       .concat(parse(spanishXmls.styles, "styles"));
-    expect(() =>
-      mergeXml(spanishOdtPath, spanishNewOdtPath, docStrings)
-    ).not.toThrow();
+    expect(() => mergeXml(spanishOdtPath, spanishNewOdtPath, docStrings)).not.toThrow();
     // Verify the roundtripped ODT produces the same DocStrings when parsed
     const newXmls = docStorage.docXml(spanishNewOdtPath);
     const newDocStrings = parse(newXmls.content, "content")
@@ -209,8 +192,8 @@ describe("Spanish ODT roundtrip", () => {
       .concat(parse(newXmls.styles, "styles"));
     // Both should have the same number of strings and the same text content
     expect(newDocStrings.length).toBe(docStrings.length);
-    const origTexts = docStrings.map(ds => ds.text).sort();
-    const newTexts = newDocStrings.map(ds => ds.text).sort();
+    const origTexts = docStrings.map((ds) => ds.text).sort();
+    const newTexts = newDocStrings.map((ds) => ds.text).sort();
     expect(newTexts).toEqual(origTexts);
   });
 });

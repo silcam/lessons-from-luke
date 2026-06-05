@@ -11,13 +11,13 @@ const docPreviewSlice = createSlice({
   reducers: {
     add: (state, action: PayloadAction<DocPreviewState>) => ({
       ...state,
-      ...action.payload
-    })
-  }
+      ...action.payload,
+    }),
+  },
 });
 
 export function loadDocPreview(lessonId: number): Loader<void> {
-  return get => async dispatch => {
+  return (get) => async (dispatch) => {
     const data = await get("/api/lessons/:lessonId/webified", { lessonId });
     if (data) {
       dispatch(docPreviewSlice.actions.add({ [lessonId]: data.html }));

@@ -14,25 +14,21 @@ const lessonSlice = createSlice({
   initialState: [] as Array<BaseLesson | Lesson>,
   reducers: {
     add: (state, action: PayloadAction<BaseLesson[]>) =>
-      modelListMerge(
-        state,
-        action.payload,
-        (a, b) => a.lessonId == b.lessonId
-      ).sort(lessonCompare)
-  }
+      modelListMerge(state, action.payload, (a, b) => a.lessonId == b.lessonId).sort(lessonCompare),
+  },
 });
 
 export default lessonSlice;
 
 export function loadLessons(): Loader<void> {
-  return get => async dispatch => {
+  return (get) => async (dispatch) => {
     const lessons = await get("/api/lessons", {});
     if (lessons) dispatch(lessonSlice.actions.add(lessons));
   };
 }
 
 export function loadLesson(lessonId: number): Loader<void> {
-  return get => async dispatch => {
+  return (get) => async (dispatch) => {
     const lesson = await get(`/api/lessons/:lessonId`, { lessonId });
     if (lesson) dispatch(lessonSlice.actions.add([lesson]));
   };
@@ -53,7 +49,7 @@ export function pushDocument(file: File, meta: DocUploadMeta): Pusher<Lesson> {
           docStringSlice.actions.add({
             languageId: meta.languageId,
             lessonId: data.lesson.lessonId,
-            docStrings: data.docStrings
+            docStrings: data.docStrings,
           })
         );
       return data.lesson;
@@ -62,16 +58,9 @@ export function pushDocument(file: File, meta: DocUploadMeta): Pusher<Lesson> {
   };
 }
 
-export function pushLessonStrings(
-  lessonId: number,
-  docStrings: DocString[]
-): Pusher<Lesson> {
+export function pushLessonStrings(lessonId: number, docStrings: DocString[]): Pusher<Lesson> {
   return async (post, dispatch) => {
-    const data = await post(
-      "/api/admin/lessons/:lessonId/strings",
-      { lessonId },
-      docStrings
-    );
+    const data = await post("/api/admin/lessons/:lessonId/strings", { lessonId }, docStrings);
     if (data) {
       dispatch(lessonSlice.actions.add([data.lesson]));
       dispatch(tStringSlice.actions.add(data.tStrings));

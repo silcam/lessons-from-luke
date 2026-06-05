@@ -2,7 +2,7 @@ import lessonSlice, {
   loadLessons,
   loadLesson,
   pushDocument,
-  pushLessonStrings
+  pushLessonStrings,
 } from "./lessonSlice";
 import { BaseLesson, Lesson } from "../../../core/models/Lesson";
 import { TString } from "../../../core/models/TString";
@@ -18,7 +18,7 @@ function makeBaseLesson(overrides: Partial<BaseLesson> = {}): BaseLesson {
     series: 1,
     lesson: 1,
     version: 1,
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -26,7 +26,7 @@ function makeLesson(overrides: Partial<Lesson> = {}): Lesson {
   return {
     ...makeBaseLesson(overrides),
     lessonStrings: [],
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -37,10 +37,7 @@ describe("lessonSlice reducers", () => {
     it("adds a lesson to empty state", () => {
       const lesson = makeBaseLesson({ lessonId: 1 });
 
-      const state = lessonSlice.reducer(
-        initialState,
-        lessonSlice.actions.add([lesson])
-      );
+      const state = lessonSlice.reducer(initialState, lessonSlice.actions.add([lesson]));
 
       expect(state).toHaveLength(1);
       expect(state[0]).toEqual(lesson);
@@ -48,10 +45,7 @@ describe("lessonSlice reducers", () => {
 
     it("merges lessons without duplicating by lessonId", () => {
       const lesson1 = makeBaseLesson({ lessonId: 1, series: 1, lesson: 1 });
-      const stateWithLesson = lessonSlice.reducer(
-        initialState,
-        lessonSlice.actions.add([lesson1])
-      );
+      const stateWithLesson = lessonSlice.reducer(initialState, lessonSlice.actions.add([lesson1]));
 
       const updatedLesson1 = makeBaseLesson({ lessonId: 1, series: 1, lesson: 1, version: 2 });
       const lesson2 = makeBaseLesson({ lessonId: 2, series: 1, lesson: 2 });
@@ -62,7 +56,7 @@ describe("lessonSlice reducers", () => {
       );
 
       expect(state).toHaveLength(2);
-      expect(state.find(l => l.lessonId === 1)!.version).toBe(2);
+      expect(state.find((l) => l.lessonId === 1)!.version).toBe(2);
     });
 
     it("sorts lessons by lessonCompare (book, series, lesson)", () => {
@@ -75,20 +69,17 @@ describe("lessonSlice reducers", () => {
         lessonSlice.actions.add([acts, luke12, luke11])
       );
 
-      expect(state.map(l => l.lessonId)).toEqual([1, 2, 3]);
+      expect(state.map((l) => l.lessonId)).toEqual([1, 2, 3]);
     });
 
     it("adds multiple lessons at once", () => {
       const lessons = [
         makeBaseLesson({ lessonId: 1, series: 1, lesson: 1 }),
         makeBaseLesson({ lessonId: 2, series: 1, lesson: 2 }),
-        makeBaseLesson({ lessonId: 3, series: 1, lesson: 3 })
+        makeBaseLesson({ lessonId: 3, series: 1, lesson: 3 }),
       ];
 
-      const state = lessonSlice.reducer(
-        initialState,
-        lessonSlice.actions.add(lessons)
-      );
+      const state = lessonSlice.reducer(initialState, lessonSlice.actions.add(lessons));
 
       expect(state).toHaveLength(3);
     });
@@ -142,7 +133,7 @@ describe("lessonSlice thunks", () => {
 });
 
 jest.mock("../../../core/api/WebAPIClient", () => ({
-  postFile: jest.fn()
+  postFile: jest.fn(),
 }));
 
 function makeTString(overrides: Partial<TString> = {}): TString {
@@ -151,7 +142,7 @@ function makeTString(overrides: Partial<TString> = {}): TString {
     languageId: 1,
     text: "Hello",
     history: [],
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -161,7 +152,7 @@ function makeDocString(overrides: Partial<DocString> = {}): DocString {
     xpath: "/root/p[1]",
     motherTongue: false,
     text: "Hello",
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -183,12 +174,7 @@ describe("pushDocument thunk", () => {
 
     const result = await pushDocument(file, meta)(jest.fn(), dispatch);
 
-    expect(mockPostFile).toHaveBeenCalledWith(
-      "/api/admin/documents",
-      "document",
-      file,
-      meta
-    );
+    expect(mockPostFile).toHaveBeenCalledWith("/api/admin/documents", "document", file, meta);
     expect(dispatch).toHaveBeenCalledWith(lessonSlice.actions.add([lesson]));
     expect(dispatch).toHaveBeenCalledWith(tStringSlice.actions.add(tStrings));
     expect(result).toEqual(lesson);
@@ -210,7 +196,7 @@ describe("pushDocument thunk", () => {
       docStringSlice.actions.add({
         languageId: 2,
         lessonId: 5,
-        docStrings
+        docStrings,
       })
     );
   });

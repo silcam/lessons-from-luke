@@ -3,14 +3,14 @@
 jest.mock("electron", () => ({
   app: {
     getPath: jest.fn(() => "/tmp/fake-data"),
-    isPackaged: false
-  }
+    isPackaged: false,
+  },
 }));
 
 // Mock webGet and webPost so no real HTTP requests are made
 jest.mock("../core/api/WebAPIClient", () => ({
   webGet: jest.fn(),
-  webPost: jest.fn()
+  webPost: jest.fn(),
 }));
 
 import WebAPIClientForDesktop from "./WebAPIClientForDesktop";
@@ -22,7 +22,7 @@ const mockWebPost = webPost as jest.Mock;
 function makeLocalStorage() {
   return {
     logDataUsed: jest.fn(),
-    writeLogEntry: jest.fn()
+    writeLogEntry: jest.fn(),
   } as any;
 }
 
@@ -145,7 +145,10 @@ describe("WebAPIClientForDesktop", () => {
       const client = new WebAPIClientForDesktop(localStorage);
       mockWebGet.mockRejectedValue({ type: "HTTP", status: 404 });
 
-      await expect(client.get("/api/languages", {})).rejects.toMatchObject({ type: "HTTP", status: 404 });
+      await expect(client.get("/api/languages", {})).rejects.toMatchObject({
+        type: "HTTP",
+        status: 404,
+      });
       expect(client.isConnected()).toBe(true);
     });
 
@@ -154,10 +157,12 @@ describe("WebAPIClientForDesktop", () => {
       const client = new WebAPIClientForDesktop(localStorage);
 
       // Simulate webGet calling the log callback with RESPONSE SIZE message
-      mockWebGet.mockImplementation(async (_route: any, _params: any, _baseUrl: any, log: (msg: string) => void) => {
-        log("RESPONSE SIZE 1024");
-        return {};
-      });
+      mockWebGet.mockImplementation(
+        async (_route: any, _params: any, _baseUrl: any, log: (msg: string) => void) => {
+          log("RESPONSE SIZE 1024");
+          return {};
+        }
+      );
 
       await client.get("/api/languages", {});
       expect(localStorage.logDataUsed).toHaveBeenCalledWith(1024);
@@ -167,10 +172,12 @@ describe("WebAPIClientForDesktop", () => {
       const localStorage = makeLocalStorage();
       const client = new WebAPIClientForDesktop(localStorage);
 
-      mockWebGet.mockImplementation(async (_route: any, _params: any, _baseUrl: any, log: (msg: string) => void) => {
-        log("GET /api/languages");
-        return {};
-      });
+      mockWebGet.mockImplementation(
+        async (_route: any, _params: any, _baseUrl: any, log: (msg: string) => void) => {
+          log("GET /api/languages");
+          return {};
+        }
+      );
 
       await client.get("/api/languages", {});
       expect(localStorage.writeLogEntry).toHaveBeenCalledWith("Network", "GET /api/languages");
@@ -180,10 +187,12 @@ describe("WebAPIClientForDesktop", () => {
       const localStorage = makeLocalStorage();
       const client = new WebAPIClientForDesktop(localStorage);
 
-      mockWebGet.mockImplementation(async (_route: any, _params: any, _baseUrl: any, log: (msg: string) => void) => {
-        log("RESPONSE SIZE 0");
-        return {};
-      });
+      mockWebGet.mockImplementation(
+        async (_route: any, _params: any, _baseUrl: any, log: (msg: string) => void) => {
+          log("RESPONSE SIZE 0");
+          return {};
+        }
+      );
 
       await client.get("/api/languages", {});
       expect(localStorage.logDataUsed).not.toHaveBeenCalled();
@@ -247,7 +256,12 @@ describe("WebAPIClientForDesktop", () => {
     test("does not overlap callback invocations (watchLock)", async () => {
       const client = new WebAPIClientForDesktop(makeLocalStorage());
       let resolve: () => void;
-      const slowCb = jest.fn().mockImplementation(() => new Promise<void>(r => { resolve = r; }));
+      const slowCb = jest.fn().mockImplementation(
+        () =>
+          new Promise<void>((r) => {
+            resolve = r;
+          })
+      );
 
       client.watch(slowCb);
 

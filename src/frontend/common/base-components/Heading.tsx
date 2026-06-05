@@ -9,7 +9,7 @@ interface HProps {
 }
 
 const StyledHeading = styled.h1<HProps>`
-  font-size: ${props => (6 - props.level) * 0.5}em;
+  font-size: ${(props) => (6 - props.level) * 0.5}em;
   margin: 0.6em 0;
 `;
 

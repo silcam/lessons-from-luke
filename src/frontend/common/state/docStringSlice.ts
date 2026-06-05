@@ -22,8 +22,8 @@ const docStringSlice = createSlice({
       const { languageId, lessonId, docStrings } = action.payload;
       if (!state[languageId]) state[languageId] = {};
       state[languageId][lessonId] = docStrings;
-    }
-  }
+    },
+  },
 });
 
 export default docStringSlice;

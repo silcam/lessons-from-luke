@@ -17,8 +17,7 @@ const fr: I18nStrings = {
   DoneWorking: "J'ai terminé mon travail sur ce projet.",
   Finish: "Terminer",
   NoConnection: "Aucune connexion au serveur.",
-  No_connection_check:
-    "Aucune connexion au serveur. Veuillez vérifier votre connexion internet.",
+  No_connection_check: "Aucune connexion au serveur. Veuillez vérifier votre connexion internet.",
   UnknownError: "Erreur inattendu",
   writeLockInvalid:
     "Le projet de traduction n'est plus verrouillé pour cet ordinateur. Veuillez contacter l'administrateur si vous voulez continuer la traduction.",
@@ -49,7 +48,7 @@ const fr: I18nStrings = {
   Resync_explanation:
     "Vous voulez réinitialiser ce projet et télécharger toutes les données à nouveau ?",
   Yes_resync: "Oui, réinitialiser",
-  Cancel: "Annuler"
+  Cancel: "Annuler",
 };
 
 export default fr;

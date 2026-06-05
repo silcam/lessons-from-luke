@@ -7,18 +7,21 @@
 ## Technology Stack
 
 ### Runtime & Build
+
 - **Node.js**: Primary runtime environment
 - **TypeScript**: Used throughout the codebase with strict mode enabled
 - **Webpack**: Module bundling for both web and desktop targets
 - **Jest**: Testing framework
 
 ### Backend
+
 - **Express.js**: HTTP server framework
 - **PostgreSQL**: Primary database (via `postgres` library)
 - **libxmljs2**: XML parsing for ODT document processing
 - **cookie-session**: Session management
 
 ### Frontend
+
 - **React 16**: UI library
 - **Redux Toolkit**: State management
 - **React Router DOM**: Client-side routing
@@ -26,6 +29,7 @@
 - **Axios**: HTTP client
 
 ### Desktop
+
 - **Electron**: Desktop application framework
 - **electron-builder**: Application packaging
 
@@ -85,7 +89,9 @@ The core layer contains platform-agnostic business logic shared across all envir
 ### Domain Models (`src/core/models/`)
 
 #### TString (Translated String)
+
 The fundamental unit of translated content. Each string has:
+
 - `masterId`: Unique identifier for the master string concept
 - `languageId`: Target language identifier
 - `text`: The translated text content
@@ -106,7 +112,9 @@ interface TString {
 ```
 
 #### Language
+
 Represents a target translation language:
+
 - `languageId`: Unique identifier
 - `name`: Display name
 - `code`: Access code for the desktop app
@@ -117,7 +125,9 @@ Represents a target translation language:
 The `motherTongue` flag is significant: mother tongue languages require only a subset of strings to be translated (those marked with `motherTongue: true` in LessonString).
 
 #### Lesson
+
 Represents a curriculum lesson organized hierarchically:
+
 - `book`: "Luke" or "Acts"
 - `series`: Series/quarter number
 - `lesson`: Lesson number within series (99 = Table of Contents)
@@ -125,7 +135,9 @@ Represents a curriculum lesson organized hierarchically:
 - `lessonStrings`: Array of strings in the lesson
 
 #### LessonString
+
 Links master strings to specific lesson documents:
+
 - `masterId`: Reference to the TString master
 - `lessonId`: Parent lesson
 - `type`: "content" | "styles" | "meta"
@@ -133,7 +145,9 @@ Links master strings to specific lesson documents:
 - `motherTongue`: Whether this string needs translation for mother tongue languages
 
 #### DocString
+
 Intermediate representation for document operations:
+
 ```typescript
 interface DocString {
   type: LessonStringType;
@@ -144,7 +158,9 @@ interface DocString {
 ```
 
 #### SyncState
+
 Manages synchronization state for the desktop app:
+
 - `language`: Currently selected language
 - `locale`: UI locale (en/fr)
 - `downSync`: Package describing what needs to be downloaded
@@ -154,6 +170,7 @@ Manages synchronization state for the desktop app:
 ### Interfaces (`src/core/interfaces/`)
 
 #### Persistence Interface
+
 Defines the contract for data storage operations, implemented by both `PGStorage` (server) and `LocalStorage` (desktop):
 
 ```typescript
@@ -172,6 +189,7 @@ interface Persistence {
 ```
 
 #### API Interface
+
 Type-safe API route definitions using TypeScript mapped types:
 
 ```typescript
@@ -179,7 +197,7 @@ interface APIGet {
   "/api/languages": [{}, PublicLanguage[]];
   "/api/languages/:languageId/lessons/:lessonId/tStrings": [
     { lessonId: number; languageId: number },
-    TString[]
+    TString[],
   ];
   // ... more routes
 }
@@ -188,6 +206,7 @@ interface APIGet {
 ### Internationalization (`src/core/i18n/`)
 
 Simple key-based i18n system supporting English and French:
+
 ```typescript
 type Locale = "en" | "fr";
 type TFunc = (key: I18nKey, subs?: { [key: string]: string }) => string;
@@ -240,14 +259,15 @@ Controllers follow a consistent pattern, receiving the Express app and storage i
 
 ```typescript
 function languagesController(app: Express, storage: Persistence) {
-  addGetHandler(app, "/api/languages", async req => {
-    return (await storage.languages()).map(lang => unset(lang, "code"));
+  addGetHandler(app, "/api/languages", async (req) => {
+    return (await storage.languages()).map((lang) => unset(lang, "code"));
   });
   // ... more handlers
 }
 ```
 
 #### Key Controllers:
+
 - **languagesController**: CRUD for languages, USFM import
 - **lessonsController**: Lesson management, document upload
 - **tStringsController**: Translation string operations
@@ -258,7 +278,9 @@ function languagesController(app: Express, storage: Persistence) {
 ### Storage (`src/server/storage/`)
 
 #### PGStorage
+
 PostgreSQL implementation of the Persistence interface:
+
 - Uses the `postgres` library with tagged template queries
 - Handles progress calculation across languages
 - Supports incremental sync via timestamps
@@ -313,13 +335,17 @@ CREATE TABLE tStrings (
 ### XML Processing (`src/server/xml/`)
 
 #### parse.ts
+
 Extracts translatable strings from ODT content.xml:
+
 - Uses XPath to find paragraphs with specific styles
 - Identifies mother tongue strings via style patterns (e.g., "Langue_20_Maternelle")
 - Returns DocString arrays with xpath locations
 
 #### mergeXml.ts
+
 Merges translations back into ODT documents:
+
 - Unzips ODT (which is a ZIP of XML files)
 - Updates content.xml, styles.xml, and meta.xml
 - Re-zips into valid ODT
@@ -327,12 +353,14 @@ Merges translations back into ODT documents:
 ### USFM Processing (`src/server/usfm/`)
 
 Handles USFM (Unified Standard Format Markers) scripture format:
+
 - **importUsfm.ts**: Imports scripture translations
 - **translateFromUsfm.ts**: Matches USFM verses to existing English strings
 
 ### Actions (`src/server/actions/`)
 
 Business logic operations:
+
 - **uploadDocument.ts**: Process ODT file uploads
 - **makeLessonFile.ts**: Generate translated ODT documents
 - **webifyLesson.ts**: Generate HTML previews
@@ -348,6 +376,7 @@ React-based UI with Redux Toolkit for state management.
 ### Application Entry Points
 
 #### webApp.tsx (Web)
+
 ```typescript
 function WebApp() {
   return (
@@ -365,6 +394,7 @@ function WebApp() {
 ```
 
 #### desktopApp.tsx (Desktop)
+
 ```typescript
 <Provider store={store}>
   <PlatformContext.Provider value="desktop">
@@ -380,6 +410,7 @@ function WebApp() {
 The `PlatformContext` distinguishes between "web" and "desktop" modes, allowing shared components to conditionally render platform-specific UI.
 
 The `RequestContext` provides platform-appropriate API clients:
+
 - Web: Uses Axios HTTP client
 - Desktop: Uses IPC for communication with the Electron main process
 
@@ -399,13 +430,14 @@ const reducer = combineReducers({
   docStrings: docStringSlice.reducer,
   network: networkSlice.reducer,
   docPreview: docPreviewSlice.reducer,
-  syncState: syncStateSlice.reducer
+  syncState: syncStateSlice.reducer,
 });
 ```
 
 ### Key Components
 
 #### Translation UI (`src/frontend/common/translate/`)
+
 - **TranslateHome**: Main translation landing page
 - **TranslateLesson**: Translation interface for a specific lesson
 - **TranslateWithPreview**: Side-by-side translation with document preview
@@ -414,12 +446,14 @@ const reducer = combineReducers({
 - **TStringHistoryView**: Shows translation history
 
 #### Web-Specific (`src/frontend/web/`)
+
 - **MainRouter**: React Router configuration
 - **LanguageView**: Language detail and progress
 - **LessonPage**: Lesson detail with strings
 - **UploadLessonForm**: Document upload interface
 
 #### Desktop-Specific (`src/frontend/desktopFrontend/`)
+
 - **MainPage**: Desktop main interface
 - **SplashScreen**: Loading screen
 - **DownSyncPage**: Sync progress display
@@ -428,6 +462,7 @@ const reducer = combineReducers({
 ### API Hooks
 
 Custom hooks for data loading:
+
 - **useLoad**: Generic data loading with loading state
 - **useLessonTStrings**: Load lesson with translations
 - **useLanguageLessons**: Load lessons for a language
@@ -441,7 +476,9 @@ Electron application for offline-first translation.
 ### Main Process
 
 #### DesktopApp.ts
+
 Main Electron application class:
+
 - Manages BrowserWindow lifecycle
 - Initializes LocalStorage and WebAPIClient
 - Sets up IPC communication
@@ -469,6 +506,7 @@ class DesktopApp {
 ### LocalStorage (`src/desktop/LocalStorage.ts`)
 
 File-based storage implementing local persistence:
+
 - Stores data as JSON files in Electron's userData directory
 - Memory store (`memoryStore.json`): languages, lessons, sync state
 - Per-lesson files: `lessonStrings_${id}.json`
@@ -485,6 +523,7 @@ interface MemoryStore {
 ```
 
 Features:
+
 - Atomic writes (write to temp file, then rename)
 - Automatic progress recalculation
 - Data usage logging
@@ -517,6 +556,7 @@ async function downSync(app: DesktopApp) {
 ### IPC Communication
 
 Desktop frontend communicates with main process via IPC:
+
 - **DesktopAPIServer**: Handles IPC requests in main process
 - **desktopAPIClient**: Wraps IPC calls in renderer process
 
@@ -540,25 +580,33 @@ ipcMain.handle(GET, async (event, { route, params }) => {
 ## Key Patterns
 
 ### Storage Abstraction
+
 The `Persistence` interface allows the same business logic to work with both PostgreSQL (server) and file-based (desktop) storage.
 
 ### Platform Context
+
 React Context (`PlatformContext`) enables shared components to adapt behavior based on platform.
 
 ### Request Context
+
 React Context (`RequestContext`) provides platform-appropriate API clients, allowing the same components to work in both web and desktop environments.
 
 ### Translation History
+
 Every TString maintains a history array, enabling users to see and potentially revert to previous translations.
 
 ### Mother Tongue Support
+
 The system distinguishes between full translations and "mother tongue" translations, which only require a subset of strings to be translated.
 
 ### Incremental Sync
+
 The desktop app uses timestamp-based incremental sync to minimize data transfer and support offline work.
 
 ### ODT Processing
+
 Documents are processed by:
+
 1. Unzipping ODT files (which are ZIP archives)
 2. Parsing XML to extract translatable strings with XPath locations
 3. Merging translations back using the same XPath locations
@@ -569,13 +617,16 @@ Documents are processed by:
 ## Testing
 
 ### Test Infrastructure
+
 - Jest as the test framework
 - `PGTestStorage`: Test database wrapper with fixture loading
 - Cypress for E2E tests
 - Spectron for Electron app testing
 
 ### Test Files
+
 Test files are co-located with source files (`*.test.ts`):
+
 - `src/server/storage/storage.test.ts`
 - `src/server/xml/parse.test.ts`
 - `src/server/controllers/*.test.ts`
@@ -586,12 +637,14 @@ Test files are co-located with source files (`*.test.ts`):
 ## Build & Deployment
 
 ### Development
+
 ```bash
 yarn dev-web      # Web development server
 yarn dev-desktop  # Electron development (requires dev-web)
 ```
 
 ### Production
+
 ```bash
 yarn build-server   # Build web production bundle
 yarn build-desktop  # Build Electron app
@@ -599,6 +652,7 @@ yarn deploy         # Capistrano deploy
 ```
 
 ### Docker
+
 Docker configuration available for containerized development/deployment.
 
 ---
@@ -616,6 +670,7 @@ Docker configuration available for containerized development/deployment.
 ## Data Flow Examples
 
 ### Translation Save (Web)
+
 1. User edits text in `TStringInput` component
 2. Component dispatches Redux action with debounce
 3. `tStringSlice` updates store and calls API
@@ -625,6 +680,7 @@ Docker configuration available for containerized development/deployment.
 7. Progress recalculated for all languages
 
 ### Translation Save (Desktop)
+
 1. User edits text in `TStringInput` component
 2. Component dispatches Redux action
 3. Action calls `ipcPost` instead of HTTP
@@ -634,6 +690,7 @@ Docker configuration available for containerized development/deployment.
 7. Next sync uploads changes to server
 
 ### Document Upload
+
 1. Admin uploads ODT via `UploadLessonForm`
 2. `documentsController` receives multipart form data
 3. ODT unzipped, XML parsed to extract DocStrings
@@ -647,11 +704,14 @@ Docker configuration available for containerized development/deployment.
 ## Known Considerations
 
 ### Node Version
+
 The project requires Node.js 12 for compatibility with `libxmljs2` native module compilation. Development on Apple Silicon requires running in x86_64 emulation mode.
 
 ### Special Language IDs
+
 - `ENGLISH_ID = 1`: Master/source language
 - `FRENCH_ID = 2`: Primary translation language
 
 ### TOC Lesson
+
 Lesson number 99 (`TOC_LESSON`) represents Table of Contents documents.

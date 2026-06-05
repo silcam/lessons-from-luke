@@ -24,7 +24,7 @@ export default function mergeXml(
     const sortedDocStrings = sortDocStrings(translations);
     addSpacesForStylesStrings(sortedDocStrings);
     const xmlTypes: (keyof SortedDocStrings)[] = ["content", "meta", "styles"];
-    xmlTypes.forEach(xmlType => {
+    xmlTypes.forEach((xmlType) => {
       if (sortedDocStrings[xmlType].length > 0) {
         const xmlPath = `${extractDirPath}/${xmlType}.xml`;
         mergeTranslations(xmlPath, sortedDocStrings[xmlType], opts);
@@ -52,11 +52,7 @@ export function sortDocStrings(docStrings: DocString[]): SortedDocStrings {
   );
 }
 
-function mergeTranslations(
-  contentXmlFilepath: string,
-  translations: DocString[],
-  opts: Opts
-) {
+function mergeTranslations(contentXmlFilepath: string, translations: DocString[], opts: Opts) {
   const xmlDoc = getXmlDoc(contentXmlFilepath);
   const namespaces = extractNamespaces(xmlDoc);
   for (let i = 0; i < translations.length; ++i) {
@@ -70,8 +66,8 @@ function mergeTranslations(
   if (opts.clearEmptyParagraphs) {
     translations
       .reverse() // Remove elements starting from the bottom to not mess up xpath addresses that depend on numbering paragraphs
-      .filter(t => t.text == "")
-      .forEach(translation => {
+      .filter((t) => t.text == "")
+      .forEach((translation) => {
         const element = xmlDoc.get<Element>(translation.xpath, namespaces);
         if (element) {
           element.text("");
@@ -111,9 +107,9 @@ export function extractNamespaces(xmlDoc: Document) {
 }
 
 export function addSpacesForStylesStrings(sortedTStrings: SortedDocStrings) {
-  sortedTStrings.styles = sortedTStrings.styles.map(str => ({
+  sortedTStrings.styles = sortedTStrings.styles.map((str) => ({
     ...str,
-    text: str.text + " "
+    text: str.text + " ",
   }));
 }
 

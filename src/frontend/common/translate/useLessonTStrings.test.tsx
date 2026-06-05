@@ -23,13 +23,13 @@ import { TString } from "../../../core/models/TString";
 jest.mock("../state/networkSlice", () => ({
   __esModule: true,
   default: {
-    reducer: (state = { connected: true }) => state
+    reducer: (state = { connected: true }) => state,
   },
   useNetworkConnectionRestored: () => ({
     onConnectionRestored: jest.fn(),
-    clearHandlers: jest.fn()
+    clearHandlers: jest.fn(),
   }),
-  networkConnectionLostAction: jest.fn(() => ({ type: "NetworkConnectionLost" }))
+  networkConnectionLostAction: jest.fn(() => ({ type: "NetworkConnectionLost" })),
 }));
 
 const createTestStore = () =>
@@ -45,18 +45,20 @@ const createTestStore = () =>
       docStrings: docStringSlice.reducer,
       network: (state = { connected: true }) => state,
       docPreview: docPreviewSlice.reducer,
-      syncState: syncStateSlice.reducer
-    })
+      syncState: syncStateSlice.reducer,
+    }),
   });
 
-const createWrapper = (store: ReturnType<typeof createTestStore>, platform: "web" | "desktop" = "web", mockPost?: jest.Mock) => {
-  const postFn = mockPost || jest.fn() as any;
+const createWrapper = (
+  store: ReturnType<typeof createTestStore>,
+  platform: "web" | "desktop" = "web",
+  mockPost?: jest.Mock
+) => {
+  const postFn = mockPost || (jest.fn() as any);
   const Wrapper: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
     <Provider store={store}>
       <PlatformContext.Provider value={platform}>
-        <RequestContext.Provider
-          value={{ get: jest.fn() as any, post: postFn }}
-        >
+        <RequestContext.Provider value={{ get: jest.fn() as any, post: postFn }}>
           {children}
         </RequestContext.Provider>
       </PlatformContext.Provider>
@@ -79,7 +81,7 @@ const mockLesson: Lesson = {
       lessonVersion: 1,
       type: "content",
       xpath: "/body/p[1]",
-      motherTongue: false
+      motherTongue: false,
     },
     {
       lessonStringId: 11,
@@ -88,9 +90,9 @@ const mockLesson: Lesson = {
       lessonVersion: 1,
       type: "content",
       xpath: "/body/p[2]",
-      motherTongue: false
-    }
-  ]
+      motherTongue: false,
+    },
+  ],
 };
 
 const ENGLISH_ID = 1;
@@ -99,7 +101,7 @@ const FRENCH_ID = 2;
 const mockTStrings: TString[] = [
   { masterId: 100, languageId: ENGLISH_ID, text: "Hello", history: [] },
   { masterId: 101, languageId: ENGLISH_ID, text: "World", history: [] },
-  { masterId: 100, languageId: FRENCH_ID, text: "Bonjour", history: [] }
+  { masterId: 100, languageId: FRENCH_ID, text: "Bonjour", history: [] },
 ];
 
 const mockLanguage: Language = {
@@ -108,7 +110,7 @@ const mockLanguage: Language = {
   code: "fr",
   motherTongue: false,
   defaultSrcLang: ENGLISH_ID,
-  progress: []
+  progress: [],
 };
 
 describe("useLessonTStrings", () => {
@@ -116,10 +118,9 @@ describe("useLessonTStrings", () => {
     const store = createTestStore();
     const Wrapper = createWrapper(store);
 
-    const { result } = renderHook(
-      () => useLessonTStrings(999, [ENGLISH_ID, FRENCH_ID]),
-      { wrapper: Wrapper }
-    );
+    const { result } = renderHook(() => useLessonTStrings(999, [ENGLISH_ID, FRENCH_ID]), {
+      wrapper: Wrapper,
+    });
 
     expect(result.current.lesson).toBeUndefined();
     expect(result.current.lessonTStrings).toEqual([]);
@@ -132,10 +133,9 @@ describe("useLessonTStrings", () => {
 
     const Wrapper = createWrapper(store);
 
-    const { result } = renderHook(
-      () => useLessonTStrings(1, [ENGLISH_ID, FRENCH_ID]),
-      { wrapper: Wrapper }
-    );
+    const { result } = renderHook(() => useLessonTStrings(1, [ENGLISH_ID, FRENCH_ID]), {
+      wrapper: Wrapper,
+    });
 
     expect(result.current.lesson).toBeDefined();
     expect(result.current.lessonTStrings.length).toBe(2);
@@ -148,10 +148,9 @@ describe("useLessonTStrings", () => {
 
     const Wrapper = createWrapper(store);
 
-    const { result } = renderHook(
-      () => useLessonTStrings(1, [ENGLISH_ID, FRENCH_ID]),
-      { wrapper: Wrapper }
-    );
+    const { result } = renderHook(() => useLessonTStrings(1, [ENGLISH_ID, FRENCH_ID]), {
+      wrapper: Wrapper,
+    });
 
     const ltStrings = result.current.lessonTStrings;
     expect(ltStrings[0].tStrs[0]?.text).toBe("Hello");
@@ -172,9 +171,9 @@ describe("useLessonTStrings", () => {
           lessonVersion: 1,
           type: "meta",
           xpath: "/meta",
-          motherTongue: false
-        }
-      ]
+          motherTongue: false,
+        },
+      ],
     };
 
     const store = createTestStore();
@@ -184,8 +183,7 @@ describe("useLessonTStrings", () => {
     const Wrapper = createWrapper(store);
 
     const { result } = renderHook(
-      () =>
-        useLessonTStrings(1, [ENGLISH_ID, FRENCH_ID], { contentOnly: true }),
+      () => useLessonTStrings(1, [ENGLISH_ID, FRENCH_ID], { contentOnly: true }),
       { wrapper: Wrapper }
     );
 
@@ -207,7 +205,7 @@ describe("useLessonTStrings", () => {
           lessonVersion: 1,
           type: "content",
           xpath: "/body/p[1]",
-          motherTongue: true
+          motherTongue: true,
         },
         {
           lessonStringId: 11,
@@ -216,13 +214,13 @@ describe("useLessonTStrings", () => {
           lessonVersion: 1,
           type: "content",
           xpath: "/body/p[2]",
-          motherTongue: false
-        }
-      ]
+          motherTongue: false,
+        },
+      ],
     };
     const motherTongueLanguage: Language = {
       ...mockLanguage,
-      motherTongue: true
+      motherTongue: true,
     };
 
     const store = createTestStore();
@@ -236,7 +234,7 @@ describe("useLessonTStrings", () => {
     renderHook(
       () =>
         useLessonTStrings(1, [ENGLISH_ID, FRENCH_ID], {
-          updateProgress: true
+          updateProgress: true,
         }),
       { wrapper: Wrapper }
     );
@@ -264,7 +262,7 @@ describe("useLessonTStrings", () => {
     renderHook(
       () =>
         useLessonTStrings(1, [ENGLISH_ID, FRENCH_ID], {
-          updateProgress: true
+          updateProgress: true,
         }),
       { wrapper: Wrapper }
     );
@@ -289,7 +287,7 @@ describe("useLessonTStrings", () => {
     renderHook(
       () =>
         useLessonTStrings(1, [ENGLISH_ID, FRENCH_ID], {
-          updateProgress: true
+          updateProgress: true,
         }),
       { wrapper: Wrapper }
     );

@@ -28,7 +28,7 @@ const Bar = styled.div`
 `;
 
 export default function AppLoadingBar() {
-  const appLoading = useAppSelector(state => state.loading);
+  const appLoading = useAppSelector((state) => state.loading);
 
   return <BarContainer>{appLoading > 0 && <Bar />}</BarContainer>;
 }

@@ -7,9 +7,7 @@ export function dataUsageReport(usage: DataUsage): string {
   const avg = total / Object.keys(usage).length;
 
   const lastTenDays = Object.keys(usage).sort().reverse().slice(0, 10);
-  const lastTenDaysLog = lastTenDays.map(
-    date => `${date}  ${prettyNums(usage[date])}`
-  );
+  const lastTenDaysLog = lastTenDays.map((date) => `${date}  ${prettyNums(usage[date])}`);
 
   return `Total: ${prettyNums(total)}\nDaily Average: ${prettyNums(
     avg

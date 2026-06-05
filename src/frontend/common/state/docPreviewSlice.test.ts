@@ -61,10 +61,7 @@ describe("loadDocPreview thunk", () => {
 
     await loadDocPreview(42)(get)(dispatch);
 
-    expect(get).toHaveBeenCalledWith(
-      "/api/lessons/:lessonId/webified",
-      { lessonId: 42 }
-    );
+    expect(get).toHaveBeenCalledWith("/api/lessons/:lessonId/webified", { lessonId: 42 });
     expect(dispatch).toHaveBeenCalledWith(
       docPreviewSlice.actions.add({ 42: "<html>preview</html>" })
     );

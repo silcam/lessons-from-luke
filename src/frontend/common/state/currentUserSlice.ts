@@ -25,10 +25,10 @@ const currentUserSlice = createSlice({
       state.user = action.payload;
       state.loaded = true;
     },
-    logout: state => {
+    logout: (state) => {
       state.user = null;
-    }
-  }
+    },
+  },
 });
 
 export default currentUserSlice;

@@ -91,7 +91,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
       - name: Install system dependencies
         run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
       - name: Create test database
@@ -144,21 +144,21 @@ jobs:
     runs-on: macos-latest
     needs: [test, e2e]
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
-      with:
-        node-version-file: '.nvmrc'
-    - name: Install dependencies
-      run: yarn install --immutable
-    - name: Build binary
-      run: yarn build-desktop
-    - name: Look at what we've got
-      run: ls -l ./dist-desktop
-    - name: Look at what we've got num2
-      run: ls -l ./dist-desktop/mac
-    - uses: actions/upload-artifact@v4
-      with:
-        name: platform-build
-        path: |
-          dist-desktop/Lessons*Luke*.dmg
-          dist-desktop/Lessons*Luke*.exe
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+      - name: Install dependencies
+        run: yarn install --immutable
+      - name: Build binary
+        run: yarn build-desktop
+      - name: Look at what we've got
+        run: ls -l ./dist-desktop
+      - name: Look at what we've got num2
+        run: ls -l ./dist-desktop/mac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: platform-build
+          path: |
+            dist-desktop/Lessons*Luke*.dmg
+            dist-desktop/Lessons*Luke*.exe

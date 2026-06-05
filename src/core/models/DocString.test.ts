@@ -1,11 +1,6 @@
 /// <reference types="jest" />
 
-import {
-  makeDocStrings,
-  singleLanguageize,
-  makeWebifyDocStrings,
-  DocString
-} from "./DocString";
+import { makeDocStrings, singleLanguageize, makeWebifyDocStrings, DocString } from "./DocString";
 import { LessonString } from "./LessonString";
 import { TString } from "./TString";
 
@@ -17,7 +12,7 @@ const makeLessonString = (overrides = {}): LessonString => ({
   type: "content",
   xpath: "/root/text()",
   motherTongue: false,
-  ...overrides
+  ...overrides,
 });
 
 const makeTString = (overrides = {}): TString => ({
@@ -25,7 +20,7 @@ const makeTString = (overrides = {}): TString => ({
   languageId: 1,
   text: "Hello",
   history: [],
-  ...overrides
+  ...overrides,
 });
 
 describe("makeDocStrings", () => {
@@ -34,7 +29,7 @@ describe("makeDocStrings", () => {
     const tStr = makeTString({ masterId: 5, text: "Bonjour" });
     const result = makeDocStrings([lStr], [], [tStr]);
     expect(result).toEqual([
-      { type: "content", xpath: "/root/text()", motherTongue: false, text: "Bonjour" }
+      { type: "content", xpath: "/root/text()", motherTongue: false, text: "Bonjour" },
     ]);
   });
 
@@ -43,7 +38,7 @@ describe("makeDocStrings", () => {
     const mtStr = makeTString({ masterId: 3, text: "MT Text" });
     const result = makeDocStrings([lStr], [mtStr], []);
     expect(result).toEqual([
-      { type: "content", xpath: "/root/text()", motherTongue: true, text: "MT Text" }
+      { type: "content", xpath: "/root/text()", motherTongue: true, text: "MT Text" },
     ]);
   });
 
@@ -71,7 +66,7 @@ describe("singleLanguageize", () => {
       type: "content",
       xpath: "/root",
       motherTongue: true,
-      text: "MT text"
+      text: "MT text",
     };
     const result = singleLanguageize([lStr], [docStr]);
     expect(result[0].text).toBe("MT text");
@@ -81,7 +76,12 @@ describe("singleLanguageize", () => {
     const mtLStr = makeLessonString({ lessonStringId: 1, masterId: 5, motherTongue: true });
     const majLStr = makeLessonString({ lessonStringId: 2, masterId: 5, motherTongue: false });
     const mtDoc: DocString = { type: "content", xpath: "/a", motherTongue: true, text: "MT" };
-    const majDoc: DocString = { type: "content", xpath: "/b", motherTongue: false, text: "English" };
+    const majDoc: DocString = {
+      type: "content",
+      xpath: "/b",
+      motherTongue: false,
+      text: "English",
+    };
 
     const result = singleLanguageize([mtLStr, majLStr], [mtDoc, majDoc]);
     expect(result[0].text).toBe("MT"); // MT string unchanged
@@ -90,7 +90,12 @@ describe("singleLanguageize", () => {
 
   test("does not suppress non-motherTongue string when its masterId is not in queue", () => {
     const lStr = makeLessonString({ masterId: 7, motherTongue: false });
-    const docStr: DocString = { type: "content", xpath: "/c", motherTongue: false, text: "Keep me" };
+    const docStr: DocString = {
+      type: "content",
+      xpath: "/c",
+      motherTongue: false,
+      text: "Keep me",
+    };
     const result = singleLanguageize([lStr], [docStr]);
     expect(result[0].text).toBe("Keep me");
   });
@@ -122,8 +127,8 @@ describe("makeWebifyDocStrings", () => {
         type: "styles",
         xpath: "/root/text()",
         motherTongue: true,
-        text: "##42##"
-      }
+        text: "##42##",
+      },
     ]);
   });
 
@@ -134,7 +139,7 @@ describe("makeWebifyDocStrings", () => {
   test("maps multiple lessonStrings correctly", () => {
     const lStrs = [
       makeLessonString({ lessonStringId: 1 }),
-      makeLessonString({ lessonStringId: 2 })
+      makeLessonString({ lessonStringId: 2 }),
     ];
     const result = makeWebifyDocStrings(lStrs);
     expect(result[0].text).toBe("##1##");

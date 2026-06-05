@@ -23,15 +23,12 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
     (PRODUCTION
       ? new PGStorage()
       : process.env.NODE_ENV === "test"
-      ? new PGTestStorage()
-      : new PGDevStorage());
+        ? new PGTestStorage()
+        : new PGDevStorage());
 
   if (!opts.storage && !PRODUCTION && !opts.silent) {
-    const cls =
-      process.env.NODE_ENV === "test" ? "PGTestStorage" : "PGDevStorage";
-    console.log(
-      `[serverApp] NODE_ENV=${process.env.NODE_ENV} storage=${cls}`
-    );
+    const cls = process.env.NODE_ENV === "test" ? "PGTestStorage" : "PGDevStorage";
+    console.log(`[serverApp] NODE_ENV=${process.env.NODE_ENV} storage=${cls}`);
   }
 
   // Casts needed: @types/connect's NextHandleFunction is incompatible with @types/node@20 ServerResponse types

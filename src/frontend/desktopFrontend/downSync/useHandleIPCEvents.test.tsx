@@ -7,10 +7,7 @@ import syncStateSlice from "../../common/state/syncStateSlice";
 import bannerSlice from "../../common/banners/bannerSlice";
 import languageSlice from "../../common/state/languageSlice";
 import loadingSlice from "../../common/api/loadingSlice";
-import {
-  ON_SYNC_STATE_CHANGE,
-  ON_ERROR
-} from "../../../core/api/IpcChannels";
+import { ON_SYNC_STATE_CHANGE, ON_ERROR } from "../../../core/api/IpcChannels";
 
 // Mocks for window.electronAPI.on — each call returns a unique unsubscribe fn
 const mockUnsubSync = jest.fn();
@@ -20,16 +17,14 @@ const mockOn = jest.fn();
 beforeAll(() => {
   Object.defineProperty(window, "electronAPI", {
     value: { invoke: jest.fn(), on: mockOn },
-    writable: true
+    writable: true,
   });
 });
 
 beforeEach(() => {
   jest.clearAllMocks();
   // Return distinct unsubscribe functions based on call order
-  mockOn
-    .mockReturnValueOnce(mockUnsubSync)
-    .mockReturnValueOnce(mockUnsubError);
+  mockOn.mockReturnValueOnce(mockUnsubSync).mockReturnValueOnce(mockUnsubError);
 });
 
 // Build a minimal store with only the slices that useHandleIPCEvents dispatches to
@@ -39,8 +34,8 @@ function createTestStore() {
       syncState: syncStateSlice.reducer,
       banners: bannerSlice.reducer,
       languages: languageSlice.reducer,
-      loading: loadingSlice.reducer
-    })
+      loading: loadingSlice.reducer,
+    }),
   });
 }
 
@@ -63,10 +58,7 @@ describe("useHandleIPCEvents", () => {
     const store = createTestStore();
     renderHarnessWithStore(store);
 
-    expect(mockOn).toHaveBeenCalledWith(
-      ON_SYNC_STATE_CHANGE,
-      expect.any(Function)
-    );
+    expect(mockOn).toHaveBeenCalledWith(ON_SYNC_STATE_CHANGE, expect.any(Function));
     expect(mockOn).toHaveBeenCalledWith(ON_ERROR, expect.any(Function));
   });
 
@@ -115,7 +107,7 @@ describe("useHandleIPCEvents", () => {
       code: "en",
       motherTongue: false,
       progress: [],
-      defaultSrcLang: 1
+      defaultSrcLang: 1,
     };
 
     act(() => {
@@ -130,9 +122,7 @@ describe("useHandleIPCEvents", () => {
     const store = createTestStore();
     renderHarnessWithStore(store);
 
-    const errorCall = mockOn.mock.calls.find(
-      ([channel]: [string]) => channel === ON_ERROR
-    );
+    const errorCall = mockOn.mock.calls.find(([channel]: [string]) => channel === ON_ERROR);
     expect(errorCall).toBeDefined();
     const errorListener = errorCall![1];
 

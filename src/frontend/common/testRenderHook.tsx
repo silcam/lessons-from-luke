@@ -33,9 +33,7 @@ export function renderHook<TResult>(
       ? React.createElement(wrapper, null, React.createElement(TestComponent))
       : React.createElement(TestComponent);
 
-  const { rerender: baseRerender, unmount } = render(
-    buildElement(options?.wrapper)
-  );
+  const { rerender: baseRerender, unmount } = render(buildElement(options?.wrapper));
 
   return {
     result: resultContainer,
@@ -44,6 +42,6 @@ export function renderHook<TResult>(
         baseRerender(buildElement(newOptions?.wrapper ?? options?.wrapper));
       });
     },
-    unmount
+    unmount,
   };
 }

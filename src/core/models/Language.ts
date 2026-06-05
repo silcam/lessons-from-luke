@@ -26,7 +26,7 @@ export function isLanguage(language: any): language is Language {
   const fields: Fields<Language> = [
     ["name", "string"],
     ["code", "string"],
-    ["languageId", "number"]
+    ["languageId", "number"],
   ];
   return validateFields(language, fields);
 }
@@ -34,7 +34,7 @@ export function isLanguage(language: any): language is Language {
 export function isNewLanguage(language: any): language is NewLanguage {
   const fields: Fields<Language> = [
     ["name", "string"],
-    ["defaultSrcLang", "number"]
+    ["defaultSrcLang", "number"],
   ];
   return validateFields(language, fields);
 }
@@ -43,10 +43,7 @@ export function languageCompare(a: PublicLanguage, b: PublicLanguage) {
   return a.name.localeCompare(b.name);
 }
 
-export function isWithCode<T>(
-  item: any,
-  isT: (t: any) => t is T
-): item is WithCode<T> {
+export function isWithCode<T>(item: any, isT: (t: any) => t is T): item is WithCode<T> {
   return validateFields(item, [["code", "string"]]) && isT(item);
 }
 
@@ -55,15 +52,12 @@ export interface LessonProgress {
   progress: number;
 }
 
-export function lessonProgress(
-  progress: LessonProgress[],
-  lessonId: number
-): number {
+export function lessonProgress(progress: LessonProgress[], lessonId: number): number {
   return findBy(progress, "lessonId", lessonId)?.progress || 0;
 }
 
 export function totalProgress(progress: LessonProgress[]) {
-  return Math.round(average(progress.map(p => p.progress)));
+  return Math.round(average(progress.map((p) => p.progress)));
 }
 
 export function calcLessonProgress(
@@ -73,17 +67,13 @@ export function calcLessonProgress(
 ): LessonProgress {
   if (lessonStrings.length == 0) return { lessonId: 0, progress: 0 };
 
-  lessonStrings = motherTongue
-    ? lessonStrings.filter(lStr => lStr.motherTongue)
-    : lessonStrings;
+  lessonStrings = motherTongue ? lessonStrings.filter((lStr) => lStr.motherTongue) : lessonStrings;
   return {
     lessonId: lessonStrings[0].lessonId,
     progress: percent(
-      lessonStrings.filter(
-        lStr => findBy(tStrings, "masterId", lStr.masterId)?.text
-      ).length,
+      lessonStrings.filter((lStr) => findBy(tStrings, "masterId", lStr.masterId)?.text).length,
       lessonStrings.length
-    )
+    ),
   };
 }
 

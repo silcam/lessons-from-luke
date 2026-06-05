@@ -8,7 +8,7 @@ function makeTString(overrides: Partial<TString> = {}): TString {
     languageId: 1,
     text: "Hello",
     history: [],
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -20,7 +20,7 @@ function makeLanguage(overrides: Partial<Language> = {}): Language {
     motherTongue: false,
     progress: [],
     defaultSrcLang: 1,
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -31,10 +31,7 @@ describe("tStringSlice reducers", () => {
     it("adds tStrings to empty state", () => {
       const tStr = makeTString({ masterId: 1, languageId: 1 });
 
-      const state = tStringSlice.reducer(
-        initialState,
-        tStringSlice.actions.add([tStr])
-      );
+      const state = tStringSlice.reducer(initialState, tStringSlice.actions.add([tStr]));
 
       expect(state).toHaveLength(1);
       expect(state[0]).toEqual(tStr);
@@ -42,17 +39,11 @@ describe("tStringSlice reducers", () => {
 
     it("merges without duplicating by masterId+languageId+lessonStringId", () => {
       const tStr = makeTString({ masterId: 1, languageId: 1, text: "Hello" });
-      const stateWithString = tStringSlice.reducer(
-        initialState,
-        tStringSlice.actions.add([tStr])
-      );
+      const stateWithString = tStringSlice.reducer(initialState, tStringSlice.actions.add([tStr]));
 
       const updated = makeTString({ masterId: 1, languageId: 1, text: "Updated" });
 
-      const state = tStringSlice.reducer(
-        stateWithString,
-        tStringSlice.actions.add([updated])
-      );
+      const state = tStringSlice.reducer(stateWithString, tStringSlice.actions.add([updated]));
 
       expect(state).toHaveLength(1);
       expect(state[0].text).toBe("Updated");
@@ -62,13 +53,10 @@ describe("tStringSlice reducers", () => {
       const strings = [
         makeTString({ masterId: 1, languageId: 1 }),
         makeTString({ masterId: 2, languageId: 1 }),
-        makeTString({ masterId: 1, languageId: 2 })
+        makeTString({ masterId: 1, languageId: 2 }),
       ];
 
-      const state = tStringSlice.reducer(
-        initialState,
-        tStringSlice.actions.add(strings)
-      );
+      const state = tStringSlice.reducer(initialState, tStringSlice.actions.add(strings));
 
       expect(state).toHaveLength(3);
     });
@@ -77,10 +65,7 @@ describe("tStringSlice reducers", () => {
       const str1 = makeTString({ masterId: 1, languageId: 1, lessonStringId: 10 });
       const str2 = makeTString({ masterId: 1, languageId: 1, lessonStringId: 20 });
 
-      const state = tStringSlice.reducer(
-        initialState,
-        tStringSlice.actions.add([str1, str2])
-      );
+      const state = tStringSlice.reducer(initialState, tStringSlice.actions.add([str1, str2]));
 
       expect(state).toHaveLength(2);
     });
@@ -96,10 +81,7 @@ describe("tStringSlice thunks", () => {
 
       await loadTStrings(5)(get)(dispatch);
 
-      expect(get).toHaveBeenCalledWith(
-        "/api/languages/:languageId/tStrings",
-        { languageId: 5 }
-      );
+      expect(get).toHaveBeenCalledWith("/api/languages/:languageId/tStrings", { languageId: 5 });
       expect(dispatch).toHaveBeenCalledWith(tStringSlice.actions.add(strings));
     });
 
@@ -110,10 +92,10 @@ describe("tStringSlice thunks", () => {
 
       await loadTStrings(5, 10)(get)(dispatch);
 
-      expect(get).toHaveBeenCalledWith(
-        "/api/languages/:languageId/lessons/:lessonId/tStrings",
-        { languageId: 5, lessonId: 10 }
-      );
+      expect(get).toHaveBeenCalledWith("/api/languages/:languageId/lessons/:lessonId/tStrings", {
+        languageId: 5,
+        lessonId: 10,
+      });
       expect(dispatch).toHaveBeenCalledWith(tStringSlice.actions.add(strings));
     });
 
@@ -137,11 +119,7 @@ describe("tStringSlice thunks", () => {
 
       const result = await pushTStrings(tStrings, lang)(post, dispatch);
 
-      expect(post).toHaveBeenCalledWith(
-        "/api/tStrings",
-        {},
-        { tStrings, code: "en" }
-      );
+      expect(post).toHaveBeenCalledWith("/api/tStrings", {}, { tStrings, code: "en" });
       expect(dispatch).toHaveBeenCalledWith(tStringSlice.actions.add(saved));
       expect(result).toEqual(saved);
     });

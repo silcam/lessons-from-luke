@@ -3,17 +3,23 @@ jest.mock("../state/networkSlice", () => ({
   __esModule: true,
   default: {
     reducer: (state = { connected: true }) => state,
-    actions: {}
+    actions: {},
   },
   useNetworkConnectionRestored: () => ({
     onConnectionRestored: jest.fn(),
-    clearHandlers: jest.fn()
+    clearHandlers: jest.fn(),
   }),
-  networkConnectionLostAction: jest.fn()
+  networkConnectionLostAction: jest.fn(),
 }));
 
 import React from "react";
-import { renderWithProviders, sampleLanguage, sampleTString, sampleLessonString, defaultSyncState } from "../testHelpers";
+import {
+  renderWithProviders,
+  sampleLanguage,
+  sampleTString,
+  sampleLessonString,
+  defaultSyncState,
+} from "../testHelpers";
 import TranslateRow from "./TranslateRow";
 import { LessonTString } from "./useLessonTStrings";
 
@@ -22,7 +28,7 @@ describe("TranslateRow", () => {
     const srcStr = { ...sampleTString, languageId: 1, text: "English source text" };
     const lessonTString: LessonTString = {
       lStr: sampleLessonString,
-      tStrs: [srcStr]
+      tStrs: [srcStr],
     };
 
     const { getByText } = renderWithProviders(
@@ -42,7 +48,7 @@ describe("TranslateRow", () => {
     const srcStr = { ...sampleTString, languageId: 1, text: "Source text" };
     const lessonTString: LessonTString = {
       lStr: { ...sampleLessonString, motherTongue: true },
-      tStrs: [srcStr]
+      tStrs: [srcStr],
     };
 
     const { container } = renderWithProviders(
@@ -62,7 +68,7 @@ describe("TranslateRow", () => {
     const srcStr = { ...sampleTString, languageId: 1, text: "Source text" };
     const lessonTString: LessonTString = {
       lStr: { ...sampleLessonString, motherTongue: false },
-      tStrs: [srcStr]
+      tStrs: [srcStr],
     };
 
     const { container } = renderWithProviders(

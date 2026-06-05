@@ -8,13 +8,13 @@ module.exports = {
   plugins: [
     new HtmlWebpackPlugin({
       title: "Lessons from Luke",
-      filename: "desktop.html"
-    })
+      filename: "desktop.html",
+    }),
   ],
   target: "web",
   output: {
     filename: "desktop.bundle.js",
     path: path.resolve(__dirname, "..", "dist", "frontend"),
-    publicPath: "/"
-  }
+    publicPath: "/",
+  },
 };

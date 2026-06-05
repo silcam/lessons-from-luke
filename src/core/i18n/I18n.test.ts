@@ -1,11 +1,6 @@
 /// <reference types="jest" />
 
-import {
-  availableLocales,
-  tForLocale,
-  localeByLanguageId,
-  longName
-} from "./I18n";
+import { availableLocales, tForLocale, localeByLanguageId, longName } from "./I18n";
 import { FRENCH_ID, ENGLISH_ID } from "../models/Language";
 
 describe("availableLocales", () => {

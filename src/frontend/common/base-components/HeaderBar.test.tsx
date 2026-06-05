@@ -3,13 +3,13 @@ jest.mock("../state/networkSlice", () => ({
   __esModule: true,
   default: {
     reducer: (state = { connected: true }) => state,
-    actions: {}
+    actions: {},
   },
   useNetworkConnectionRestored: () => ({
     onConnectionRestored: jest.fn(),
-    clearHandlers: jest.fn()
+    clearHandlers: jest.fn(),
   }),
-  networkConnectionLostAction: jest.fn()
+  networkConnectionLostAction: jest.fn(),
 }));
 
 import React from "react";
@@ -28,16 +28,12 @@ function renderHeaderBar(
 ) {
   const store = buildStore({
     syncState,
-    currentUser: { user: null, locale: "en", loaded: false }
+    currentUser: { user: null, locale: "en", loaded: false },
   });
   return render(
     <Provider store={store}>
-      <RequestContext.Provider
-        value={{ get: jest.fn() as any, post: jest.fn() as any }}
-      >
-        <MemoryRouter
-          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-        >
+      <RequestContext.Provider value={{ get: jest.fn() as any, post: jest.fn() as any }}>
+        <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <PlatformContext.Provider value={platform}>
             <StdHeaderBar {...props} />
           </PlatformContext.Provider>
@@ -54,28 +50,23 @@ describe("StdHeaderBar", () => {
   });
 
   it("renders with logoNoLink=true (line 49: branch where no link wraps logo)", () => {
-    const { getByText } = renderHeaderBar(
-      { title: "Test App", logoNoLink: true },
-      "web"
-    );
+    const { getByText } = renderHeaderBar({ title: "Test App", logoNoLink: true }, "web");
     expect(getByText("Test App")).toBeTruthy();
   });
 
   it("renders in desktop mode with OfflineIndicator (lines 59-60, 79-89)", () => {
-    const { getByText } = renderHeaderBar(
-      { title: "Desktop App" },
-      "desktop",
-      { ...defaultSyncState, connected: true }
-    );
+    const { getByText } = renderHeaderBar({ title: "Desktop App" }, "desktop", {
+      ...defaultSyncState,
+      connected: true,
+    });
     expect(getByText("Desktop App")).toBeTruthy();
   });
 
   it("renders OfflineIndicator in offline state (line 86-87: Online/Offline branch)", () => {
-    const { getByText } = renderHeaderBar(
-      { title: "Offline App" },
-      "desktop",
-      { ...defaultSyncState, connected: false }
-    );
+    const { getByText } = renderHeaderBar({ title: "Offline App" }, "desktop", {
+      ...defaultSyncState,
+      connected: false,
+    });
     expect(getByText("Offline App")).toBeTruthy();
   });
 
@@ -83,7 +74,7 @@ describe("StdHeaderBar", () => {
     const { getByText } = renderHeaderBar(
       {
         title: "App",
-        renderRight: () => <span>Right Content</span>
+        renderRight: () => <span>Right Content</span>,
       },
       "web"
     );
@@ -94,7 +85,7 @@ describe("StdHeaderBar", () => {
     const { getByText } = renderHeaderBar(
       {
         title: "App",
-        renderRight: () => null
+        renderRight: () => null,
       },
       "web"
     );

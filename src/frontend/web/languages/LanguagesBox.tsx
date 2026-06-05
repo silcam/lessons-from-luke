@@ -13,14 +13,12 @@ import LanguageView from "./LanguageView";
 
 export default function LanguagesBox() {
   const t = useTranslation();
-  const languages = useAppSelector(state => state.languages.adminLanguages);
+  const languages = useAppSelector((state) => state.languages.adminLanguages);
 
   useLoad(loadLanguages(true));
 
   const [folded, setFolded] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState<Language | null>(
-    null
-  );
+  const [selectedLanguage, setSelectedLanguage] = useState<Language | null>(null);
   const [showAddForm, _setShowAddForm] = useState(false);
   const setShowAddForm = (doShow: boolean) => {
     _setShowAddForm(doShow);
@@ -32,7 +30,7 @@ export default function LanguagesBox() {
       folded={folded}
       setFolded={setFolded}
       title={t("Languages")}
-      render={folded => (
+      render={(folded) => (
         <Div>
           {folded ? (
             <div>
@@ -41,26 +39,16 @@ export default function LanguagesBox() {
           ) : showAddForm ? (
             <AddLanguageForm done={() => setShowAddForm(false)} />
           ) : selectedLanguage ? (
-            <LanguageView
-              language={selectedLanguage}
-              done={() => setSelectedLanguage(null)}
-            />
+            <LanguageView language={selectedLanguage} done={() => setSelectedLanguage(null)} />
           ) : (
             <React.Fragment>
-              <Button
-                onClick={() => setShowAddForm(true)}
-                text={t("Add_language")}
-              />
+              <Button onClick={() => setShowAddForm(true)} text={t("Add_language")} />
               <List
                 items={languages}
                 noBorders
-                renderItem={lang => (
+                renderItem={(lang) => (
                   <div>
-                    <Button
-                      link
-                      text={lang.name}
-                      onClick={() => setSelectedLanguage(lang)}
-                    />
+                    <Button link text={lang.name} onClick={() => setSelectedLanguage(lang)} />
                     {` ${totalProgress(lang.progress)}%`}
                   </div>
                 )}

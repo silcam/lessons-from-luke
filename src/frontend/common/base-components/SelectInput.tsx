@@ -14,7 +14,7 @@ export default function SelectInput(props: IProps) {
       value={props.value}
       onChange={(e: React.ChangeEvent<HTMLSelectElement>) => props.setValue(e.target.value)}
     >
-      {props.options.map(option => (
+      {props.options.map((option) => (
         <option key={option[0]} value={option[0]}>
           {option[1]}
         </option>
@@ -24,11 +24,13 @@ export default function SelectInput(props: IProps) {
 }
 
 export function optionsDisplayIsKey(options: readonly string[]): Options {
-  return options.map(opt => [opt, opt]);
+  return options.map((opt) => [opt, opt]);
 }
 
 // export function optionsTranslated(options: TKey)
 
-const StyledSelect = styled.select<React.SelectHTMLAttributes<HTMLSelectElement> & { children?: React.ReactNode }>`
+const StyledSelect = styled.select<
+  React.SelectHTMLAttributes<HTMLSelectElement> & { children?: React.ReactNode }
+>`
   font-size: 1em;
 `;

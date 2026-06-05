@@ -3,7 +3,7 @@ import {
   MaybePublicLanguage,
   Language,
   languageCompare,
-  NewLanguage
+  NewLanguage,
 } from "../../../core/models/Language";
 import { GetRequest } from "../api/RequestContext";
 import { AppDispatch } from "./appState";
@@ -72,11 +72,11 @@ const languageSlice = createSlice({
         return;
       }
       state.translating.progress = state.translating.progress.filter(
-        pr => pr.lessonId != lessonId
+        (pr) => pr.lessonId != lessonId
       );
       state.translating.progress.push({ lessonId, progress });
-    }
-  }
+    },
+  },
 });
 
 export default languageSlice;
@@ -85,8 +85,7 @@ export function loadLanguages(admin: boolean) {
   return (get: GetRequest) => async (dispatch: AppDispatch) => {
     if (admin) {
       const languages = await get("/api/admin/languages", {});
-      if (languages)
-        dispatch(languageSlice.actions.setAdminLanguages(languages));
+      if (languages) dispatch(languageSlice.actions.setAdminLanguages(languages));
     } else {
       const languages = await get("/api/languages", {});
       if (languages) dispatch(languageSlice.actions.setLanguages(languages));
@@ -100,9 +99,7 @@ export function loadTranslatingLanguage(code: string) {
     if (language) {
       dispatch(languageSlice.actions.setTranslating(language));
       dispatch(
-        currentUserSlice.actions.setLocaleIfNoUser(
-          localeByLanguageId(language.defaultSrcLang)
-        )
+        currentUserSlice.actions.setLocaleIfNoUser(localeByLanguageId(language.defaultSrcLang))
       );
     }
   };
@@ -123,22 +120,14 @@ export function pushLanguageUpdate(language: Language): Pusher<Language> {
       { languageId: language.languageId },
       { motherTongue: language.motherTongue, defaultSrcLang: language.defaultSrcLang }
     );
-    if (updatedLanguage)
-      dispatch(languageSlice.actions.addLanguage(updatedLanguage));
+    if (updatedLanguage) dispatch(languageSlice.actions.addLanguage(updatedLanguage));
     return updatedLanguage;
   };
 }
 
-export function pushUsfm(
-  languageId: number,
-  usfm: string
-): Pusher<{ errors: string[] }> {
+export function pushUsfm(languageId: number, usfm: string): Pusher<{ errors: string[] }> {
   return async (post, dispatch) => {
-    const data = await post(
-      "/api/admin/languages/:languageId/usfm",
-      { languageId },
-      { usfm }
-    );
+    const data = await post("/api/admin/languages/:languageId/usfm", { languageId }, { usfm });
     if (data) {
       dispatch(languageSlice.actions.addLanguage(data.language));
       dispatch(languageSlice.actions.setUsfmImportResult(data));

@@ -15,7 +15,8 @@ interface Translation {
 }
 
 // The + for the space after the book name is a temporary measure since the English strings got polluted with extra spaces there
-export const VerseStringPattern = /^(Luke|Luc|Acts|Actes) +(\d{1,3})(\.|:|, )(\d{1,3})(-(\d{1,3}))?\s/;
+export const VerseStringPattern =
+  /^(Luke|Luc|Acts|Actes) +(\d{1,3})(\.|:|, )(\d{1,3})(-(\d{1,3}))?\s/;
 
 export default function translateFromUsfm(
   engStrings: TString[],
@@ -24,34 +25,29 @@ export default function translateFromUsfm(
   const usfmBook = usfmParseBook(usfm);
   const mtBookName = usfmParseLocalBookName(usfm);
   const errors: string[] = [];
-  const translations = engStrings.reduce(
-    (translations: Translation[], engString) => {
-      try {
-        const ref = verseRefFromTString(engString);
-        if (!ref || ref.book !== usfmBook || refOnlyString(engString, ref))
-          return translations;
+  const translations = engStrings.reduce((translations: Translation[], engString) => {
+    try {
+      const ref = verseRefFromTString(engString);
+      if (!ref || ref.book !== usfmBook || refOnlyString(engString, ref)) return translations;
 
-        const passageUsfm = usfmVersesText(usfm, ref);
-        const passageText = stripUsfm(passageUsfm);
-        const passageTextWithRef =
-          localRef(ref, mtBookName) + " " + passageText;
+      const passageUsfm = usfmVersesText(usfm, ref);
+      const passageText = stripUsfm(passageUsfm);
+      const passageTextWithRef = localRef(ref, mtBookName) + " " + passageText;
 
-        return translations.concat({
-          sourceTString: engString,
-          text: passageTextWithRef
-        });
-      } catch (err) {
-        errors.push(
-          `The following error occurred while processing « ${engString.text} » : ${err.message}`
-        );
-        return translations;
-      }
-    },
-    []
-  );
+      return translations.concat({
+        sourceTString: engString,
+        text: passageTextWithRef,
+      });
+    } catch (err) {
+      errors.push(
+        `The following error occurred while processing « ${engString.text} » : ${err.message}`
+      );
+      return translations;
+    }
+  }, []);
   return {
     translations,
-    errors
+    errors,
   };
 }
 
@@ -87,7 +83,7 @@ function verseRefFromTString(tString: TString): VerseRef | null {
     book: bookName,
     chapter: parseInt(match[2]),
     startVerse,
-    endVerse: match[6] ? parseInt(match[6]) : startVerse
+    endVerse: match[6] ? parseInt(match[6]) : startVerse,
   };
 }
 
@@ -98,24 +94,15 @@ function refOnlyString(tString: TString, ref: VerseRef) {
 
 function usfmVersesText(usfm: string, ref: VerseRef): string {
   const chapterUsfm = usfmChapterText(usfm, ref.chapter);
-  const verseStartIndex = indexOfMarker(
-    chapterUsfm,
-    `v ${ref.startVerse}(-\\d+)?`
-  );
+  const verseStartIndex = indexOfMarker(chapterUsfm, `v ${ref.startVerse}(-\\d+)?`);
   if (verseStartIndex === null)
     throw parseError(`Could not find ${ref.chapter}:${ref.startVerse}.`);
 
   // First check for a marker for the endVerse
-  let verseEndIndex = indexOfMarker(
-    chapterUsfm,
-    `v ${ref.endVerse}`,
-    verseStartIndex
-  );
+  let verseEndIndex = indexOfMarker(chapterUsfm, `v ${ref.endVerse}`, verseStartIndex);
   // It may be in a \v x-y pattern
-  if (verseEndIndex === null)
-    verseEndIndex = indexOfMarker(chapterUsfm, `v \\d+-${ref.endVerse}`);
-  if (verseEndIndex === null)
-    throw parseError(`Could not find ${ref.chapter}:${ref.endVerse}.`);
+  if (verseEndIndex === null) verseEndIndex = indexOfMarker(chapterUsfm, `v \\d+-${ref.endVerse}`);
+  if (verseEndIndex === null) throw parseError(`Could not find ${ref.chapter}:${ref.endVerse}.`);
 
   // Now find any \v after the end verse marker
   const endPassageIndex = indexOfMarker(chapterUsfm, "v", verseEndIndex + 2);
@@ -131,12 +118,7 @@ function usfmChapterText(usfm: string, chapter: number) {
   return text;
 }
 
-function usfmSubsection(
-  usfm: string,
-  mrkr: string,
-  start: number,
-  end: number
-) {
+function usfmSubsection(usfm: string, mrkr: string, start: number, end: number) {
   const startIndex = indexOfMarker(usfm, `${mrkr} ${start}`);
   if (startIndex === null) return null;
   let endIndex = indexOfMarker(usfm, `${mrkr} ${end + 1}`);
@@ -153,11 +135,11 @@ const USFM_REPLACE_PATTERNS: Array<[RegExp, string] | [RegExp]> = [
   [/\\(rem|h|mt|ms|mr|s|r|d|cl|cp|cd|lit).*/g], // Markers that go with the rest of the line
   [/\\(sts|v|c) \S+\s/g], // Markers followed by one word
   [/\\[\w*+-]+/g], // Other markers
-  [/(~|\/\/)/g] // Whitespace markers
+  [/(~|\/\/)/g], // Whitespace markers
 ];
 function stripUsfm(usfm: string) {
   let text = usfm;
-  USFM_REPLACE_PATTERNS.forEach(replacePattern => {
+  USFM_REPLACE_PATTERNS.forEach((replacePattern) => {
     text = text.replace(replacePattern[0], replacePattern[1] || "");
   });
   text = text.replace(/\s+/g, " "); // Replace all whitespace sections with a single space

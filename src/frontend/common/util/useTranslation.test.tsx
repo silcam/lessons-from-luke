@@ -13,41 +13,39 @@ import { initalStoredSyncState } from "../../../core/models/SyncState";
 jest.mock("../state/networkSlice", () => ({
   __esModule: true,
   default: {
-    reducer: (state = { connected: true }) => state
+    reducer: (state = { connected: true }) => state,
   },
   useNetworkConnectionRestored: () => ({
     onConnectionRestored: jest.fn(),
-    clearHandlers: jest.fn()
+    clearHandlers: jest.fn(),
   }),
-  networkConnectionLostAction: jest.fn(() => ({ type: "NetworkConnectionLost" }))
+  networkConnectionLostAction: jest.fn(() => ({ type: "NetworkConnectionLost" })),
 }));
 
 const baseSyncState = {
   ...initalStoredSyncState(),
   connected: false,
-  loaded: false
+  loaded: false,
 };
 
 const createTestStore = (preloadedState?: any) =>
   configureStore({
     reducer: combineReducers({
       currentUser: currentUserSlice.reducer,
-      syncState: syncStateSlice.reducer
+      syncState: syncStateSlice.reducer,
     }),
-    preloadedState
+    preloadedState,
   });
 
 describe("useTranslation", () => {
   it("returns a translation function for the current user locale (web)", () => {
     const store = createTestStore({
-      currentUser: { user: null, locale: "en", loaded: false }
+      currentUser: { user: null, locale: "en", loaded: false },
     });
 
     const Wrapper: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
       <Provider store={store}>
-        <PlatformContext.Provider value="web">
-          {children}
-        </PlatformContext.Provider>
+        <PlatformContext.Provider value="web">{children}</PlatformContext.Provider>
       </Provider>
     );
 
@@ -62,15 +60,13 @@ describe("useTranslation", () => {
     const store = createTestStore({
       syncState: {
         ...baseSyncState,
-        locale: "fr"
-      }
+        locale: "fr",
+      },
     });
 
     const Wrapper: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
       <Provider store={store}>
-        <PlatformContext.Provider value="desktop">
-          {children}
-        </PlatformContext.Provider>
+        <PlatformContext.Provider value="desktop">{children}</PlatformContext.Provider>
       </Provider>
     );
 
@@ -84,15 +80,13 @@ describe("useTranslation", () => {
     const store = createTestStore({
       syncState: {
         ...baseSyncState,
-        locale: undefined
-      }
+        locale: undefined,
+      },
     });
 
     const Wrapper: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
       <Provider store={store}>
-        <PlatformContext.Provider value="desktop">
-          {children}
-        </PlatformContext.Provider>
+        <PlatformContext.Provider value="desktop">{children}</PlatformContext.Provider>
       </Provider>
     );
 
@@ -104,14 +98,12 @@ describe("useTranslation", () => {
 
   it("uses currentUser locale when on web platform", () => {
     const store = createTestStore({
-      currentUser: { user: null, locale: "fr", loaded: false }
+      currentUser: { user: null, locale: "fr", loaded: false },
     });
 
     const Wrapper: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
       <Provider store={store}>
-        <PlatformContext.Provider value="web">
-          {children}
-        </PlatformContext.Provider>
+        <PlatformContext.Provider value="web">{children}</PlatformContext.Provider>
       </Provider>
     );
 

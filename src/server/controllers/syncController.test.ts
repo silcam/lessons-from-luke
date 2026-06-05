@@ -16,7 +16,7 @@ test("Get Sync Empty", async () => {
     languages: false,
     baseLessons: false,
     lessons: [],
-    tStrings: {}
+    tStrings: {},
   });
 });
 
@@ -30,19 +30,17 @@ test("Get Sync Empty With Langs", async () => {
     languages: false,
     baseLessons: false,
     lessons: [],
-    tStrings: { 2: [], 3: [] }
+    tStrings: { 2: [], 3: [] },
   });
 });
 
 test("Get Sync Full", async () => {
   const agent = plainAgent();
-  const response = await agent.get(
-    "/api/sync/594232387331/languages/3-594232387331"
-  );
+  const response = await agent.get("/api/sync/594232387331/languages/3-594232387331");
   expect(response.status).toBe(200);
   expect(response.body).toMatchObject({
     languages: true,
-    baseLessons: true
+    baseLessons: true,
   });
   expect(response.body.lessons).toContain(11);
   expect(response.body.tStrings[3]).toContain(1);

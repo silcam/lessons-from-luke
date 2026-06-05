@@ -4,8 +4,8 @@
  * Discriminated union: 'allow' has no message, 'block' includes a message.
  */
 export type GuardResult =
-  | { action: 'allow'; message?: undefined }
-  | { action: 'block'; message: string };
+  | { action: "allow"; message?: undefined }
+  | { action: "block"; message: string };
 
 /**
  * A named pattern defining a blocked command.
@@ -29,8 +29,8 @@ export interface GuardRule {
 /** Rules checked against the raw command (before quote stripping). */
 export const PRE_STRIP_RULES: readonly GuardRule[] = [
   {
-    name: 'hook-bypass',
-    category: 'hook-bypass',
+    name: "hook-bypass",
+    category: "hook-bypass",
     pattern: /git\s+.*(--no-verify|--no-gpg-sign)/,
     message: `BLOCKED: Hook bypass flags detected.
 
@@ -45,8 +45,8 @@ Fix the root problem rather than bypassing the safety mechanism.
 Only use these flags when explicitly requested by the user.`,
   },
   {
-    name: 'force-push',
-    category: 'destructive-git',
+    name: "force-push",
+    category: "destructive-git",
     pattern: /git\s+push.*(--force([^-]|$)|-f(\s|$)|--force-with-lease)/,
     message: `BLOCKED: Force push detected.
 
@@ -62,8 +62,8 @@ Instead:
 /** Rules checked against the quote-stripped command. */
 export const POST_STRIP_RULES: readonly GuardRule[] = [
   {
-    name: 'reset-hard',
-    category: 'destructive-git',
+    name: "reset-hard",
+    category: "destructive-git",
     pattern: /git\s+reset\s+--hard/,
     message: `BLOCKED: git reset --hard detected.
 
@@ -75,8 +75,8 @@ Instead:
 - Use \`git checkout -- <file>\` to discard changes in a specific file`,
   },
   {
-    name: 'checkout-dot',
-    category: 'destructive-git',
+    name: "checkout-dot",
+    category: "destructive-git",
     pattern: /git\s+checkout\s+(--\s+)?\.(\s|$)/,
     message: `BLOCKED: git checkout . detected (discard all changes).
 
@@ -88,8 +88,8 @@ Instead:
 - Use \`git diff\` to review changes before discarding`,
   },
   {
-    name: 'checkout-treeish-dot',
-    category: 'destructive-git',
+    name: "checkout-treeish-dot",
+    category: "destructive-git",
     pattern: /git\s+checkout\s+.*--\s+\.(\s|$)/,
     message: `BLOCKED: git checkout <tree-ish> -- . detected (overwrite all files).
 
@@ -101,8 +101,8 @@ Instead:
 - Use \`git stash\` to save current changes before restoring`,
   },
   {
-    name: 'restore-dot',
-    category: 'destructive-git',
+    name: "restore-dot",
+    category: "destructive-git",
     pattern: /git\s+restore\s+\.(\s|$)/,
     safePatterns: [/git\s+restore\s+--staged/, /git\s+restore\s+-S/],
     message: `BLOCKED: git restore . detected (discard all changes).
@@ -115,8 +115,8 @@ Instead:
 - Use \`git stash\` to save changes temporarily`,
   },
   {
-    name: 'clean-force',
-    category: 'destructive-git',
+    name: "clean-force",
+    category: "destructive-git",
     pattern: /git\s+clean\s+.*-[a-zA-Z]*f/,
     safePatterns: [/git\s+clean\s+.*-[a-zA-Z]*n/, /git\s+clean\s+.*--dry-run/],
     message: `BLOCKED: git clean -f detected (delete untracked files).
@@ -129,8 +129,8 @@ Instead:
 - Manually remove specific files you no longer need`,
   },
   {
-    name: 'legacy-bd',
-    category: 'platform-ops',
+    name: "legacy-bd",
+    category: "platform-ops",
     pattern: /(?:^|&&|\|\||[;(|])\s*(?:npx\s+)?bd(?:\s|$)/mu,
     message: `BLOCKED: \`bd\` (legacy beads) is not permitted. Use \`br\` (beads_rust) instead.
 
@@ -144,8 +144,8 @@ With:
   br <subcommand>`,
   },
   {
-    name: 'br-init-force',
-    category: 'platform-ops',
+    name: "br-init-force",
+    category: "platform-ops",
     pattern: /\bbr\s+init\b.*(-f\b|--force\b)/u,
     message: `BLOCKED: br init --force is not permitted.
 
@@ -157,8 +157,8 @@ Instead:
 - Have the user run this manually if a force-reset is genuinely needed`,
   },
   {
-    name: 'commit-amend',
-    category: 'destructive-git',
+    name: "commit-amend",
+    category: "destructive-git",
     pattern: /git\s+commit\s+.*--amend/,
     message: `BLOCKED: git commit --amend detected (amending commits is prohibited).
 
@@ -171,8 +171,8 @@ Instead:
 - Have the user run interactive rebase manually if reorganizing history is needed`,
   },
   {
-    name: 'merge-squash',
-    category: 'destructive-git',
+    name: "merge-squash",
+    category: "destructive-git",
     pattern: /git\s+merge\s+.*--squash/,
     message: `BLOCKED: git merge --squash detected (squash-merging is prohibited).
 
@@ -185,8 +185,8 @@ Instead:
 - Have the user perform interactive rebase manually if needed`,
   },
   {
-    name: 'stash-drop',
-    category: 'destructive-git',
+    name: "stash-drop",
+    category: "destructive-git",
     pattern: /git\s+stash\s+drop(?:\s|$)/,
     message: `BLOCKED: git stash drop detected.
 
@@ -198,8 +198,8 @@ Instead:
 - Use \`git stash pop\` to apply and remove only after confirming the stash contents`,
   },
   {
-    name: 'stash-clear',
-    category: 'destructive-git',
+    name: "stash-clear",
+    category: "destructive-git",
     pattern: /git\s+stash\s+clear(?:\s|$)/,
     message: `BLOCKED: git stash clear detected.
 
@@ -211,8 +211,8 @@ Instead:
 - Use \`git stash apply\` to recover work from a stash before removing it`,
   },
   {
-    name: 'branch-force-delete',
-    category: 'destructive-git',
+    name: "branch-force-delete",
+    category: "destructive-git",
     pattern: /git\s+branch\s+-D(?:\s|$)/,
     message: `BLOCKED: git branch -D detected (force-delete unmerged branch).
 
@@ -224,8 +224,8 @@ Instead:
 - Use \`git merge <branch>\` to merge changes before deleting`,
   },
   {
-    name: 'catastrophic-rm',
-    category: 'catastrophic-file-deletion',
+    name: "catastrophic-rm",
+    category: "catastrophic-file-deletion",
     pattern:
       /rm\s+(?:-[a-zA-Z]*(?:rf|fr)[a-zA-Z]*|-[a-zA-Z]*r\s+-[a-zA-Z]*f|-[a-zA-Z]*f\s+-[a-zA-Z]*r|--recursive\s+--force|--force\s+--recursive)\s+(?:\$\{HOME\}|\$HOME|\.\.\/|\.\/|~\/|\/|~|\.|\*)(?:\s|$)/,
     message: `BLOCKED: Catastrophic rm detected — targets system-critical path.
@@ -242,8 +242,8 @@ Instead:
 /** Rules checked against the raw command for platform-specific operations. */
 export const PLATFORM_RULES: readonly GuardRule[] = [
   {
-    name: 'gh-repo-delete',
-    category: 'platform-ops',
+    name: "gh-repo-delete",
+    category: "platform-ops",
     pattern: /gh\s+repo\s+delete/,
     message: `BLOCKED: gh repo delete detected.
 
@@ -255,8 +255,8 @@ Instead:
 - Confirm with the user before taking any repository-level destructive action`,
   },
   {
-    name: 'wrangler-delete',
-    category: 'platform-ops',
+    name: "wrangler-delete",
+    category: "platform-ops",
     pattern: /wrangler\s+delete/,
     message: `BLOCKED: wrangler delete detected.
 
@@ -268,8 +268,8 @@ Instead:
 - Confirm with the user before taking any worker-level destructive action`,
   },
   {
-    name: 'd1-drop',
-    category: 'platform-ops',
+    name: "d1-drop",
+    category: "platform-ops",
     pattern: /wrangler\s+d1\s+execute\b.*\bDROP\b/i,
     message: `BLOCKED: Destructive D1 SQL detected (DROP).
 
@@ -281,8 +281,8 @@ Instead:
 - Confirm with the user before executing destructive SQL`,
   },
   {
-    name: 'd1-truncate',
-    category: 'platform-ops',
+    name: "d1-truncate",
+    category: "platform-ops",
     pattern: /wrangler\s+d1\s+execute\b.*\bTRUNCATE\b/i,
     message: `BLOCKED: Destructive D1 SQL detected (TRUNCATE).
 
@@ -294,8 +294,8 @@ Instead:
 - Confirm with the user before executing destructive SQL`,
   },
   {
-    name: 'd1-delete-no-where',
-    category: 'platform-ops',
+    name: "d1-delete-no-where",
+    category: "platform-ops",
     pattern: /wrangler\s+d1\s+execute\b.*\bDELETE\s+FROM\b/i,
     safePatterns: [/wrangler\s+d1\s+execute\b.*\bDELETE\s+FROM\b[^"]*\bWHERE\b/i],
     message: `BLOCKED: Destructive D1 SQL detected (DELETE FROM without WHERE).
@@ -308,8 +308,8 @@ Instead:
 - Confirm with the user before executing destructive SQL`,
   },
   {
-    name: 'd1-execute-file',
-    category: 'platform-ops',
+    name: "d1-execute-file",
+    category: "platform-ops",
     pattern: /wrangler\s+d1\s+execute\b.*--file/,
     message: `BLOCKED: wrangler d1 execute --file detected.
 
@@ -335,16 +335,16 @@ Instead:
  */
 export function normalizeCommand(command: string): string {
   // S9: collapse line continuations first
-  let result = command.replace(/\\\n\s*/g, ' ');
+  let result = command.replace(/\\\n\s*/g, " ");
   // Strip leading backslash (separate from continuations)
-  result = result.replace(/^\\/, '');
+  result = result.replace(/^\\/, "");
   // Fix 1: iterative loop for chained/doubled wrappers
   let prev: string;
   do {
     prev = result;
     result = result
-      .replace(/^(sudo|command|nohup|exec|time|nice)\s+/, '')
-      .replace(/^env\s+(\w+=\S+\s+)*/, '');
+      .replace(/^(sudo|command|nohup|exec|time|nice)\s+/, "")
+      .replace(/^env\s+(\w+=\S+\s+)*/, "");
   } while (result !== prev);
   return result;
 }
@@ -360,7 +360,7 @@ export function normalizeCommand(command: string): string {
  */
 export function stripQuotedContent(command: string): string {
   return command
-    .replace(/<<-?'?(\w+)'?\n[\s\S]*?\n\s*\1/gu, '') // heredocs
+    .replace(/<<-?'?(\w+)'?\n[\s\S]*?\n\s*\1/gu, "") // heredocs
     .replace(/"(?:[^"\\]|\\.)*"/gu, '""')
     .replace(/'[^']*'/gu, "''"); // single-quoted strings
 }
@@ -395,7 +395,7 @@ const EVAL_WRAPPER_RE = /^eval\s+/;
  * @returns The extracted payload string, or null if extraction fails.
  */
 function extractShellPayload(command: string, prefix: RegExp): string | null {
-  const stripped = command.replace(prefix, '');
+  const stripped = command.replace(prefix, "");
   if (stripped.length === 0) {
     return null;
   }
@@ -404,7 +404,7 @@ function extractShellPayload(command: string, prefix: RegExp): string | null {
     // Double-quoted: scan forward for first unescaped closing quote
     let i = 1;
     while (i < stripped.length) {
-      if (stripped[i] === '\\' && i + 1 < stripped.length) {
+      if (stripped[i] === "\\" && i + 1 < stripped.length) {
         i += 2; // skip escaped character
         continue;
       }
@@ -447,8 +447,8 @@ const MAX_SHELL_DEPTH = 1;
 function evaluateCommandInner(command: string, depth: number): GuardResult {
   const normalized = normalizeCommand(command);
 
-  if (normalized.trim() === '') {
-    return { action: 'allow' };
+  if (normalized.trim() === "") {
+    return { action: "allow" };
   }
 
   for (const rule of PRE_STRIP_RULES) {
@@ -456,7 +456,7 @@ function evaluateCommandInner(command: string, depth: number): GuardResult {
       continue;
     }
     if (rule.pattern.test(normalized)) {
-      return { action: 'block', message: rule.message };
+      return { action: "block", message: rule.message };
     }
   }
 
@@ -465,7 +465,7 @@ function evaluateCommandInner(command: string, depth: number): GuardResult {
       continue;
     }
     if (rule.pattern.test(normalized)) {
-      return { action: 'block', message: rule.message };
+      return { action: "block", message: rule.message };
     }
   }
 
@@ -479,7 +479,7 @@ function evaluateCommandInner(command: string, depth: number): GuardResult {
     }
     if (payload !== null) {
       const innerResult = evaluateCommandInner(payload, depth - 1);
-      if (innerResult.action === 'block') {
+      if (innerResult.action === "block") {
         return innerResult;
       }
     }
@@ -494,12 +494,12 @@ function evaluateCommandInner(command: string, depth: number): GuardResult {
         continue;
       }
       if (rule.pattern.test(sub)) {
-        return { action: 'block', message: rule.message };
+        return { action: "block", message: rule.message };
       }
     }
   }
 
-  return { action: 'allow' };
+  return { action: "allow" };
 }
 
 /**

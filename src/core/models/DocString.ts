@@ -14,16 +14,13 @@ export function makeDocStrings(
   mtTStrings: TString[],
   otherTStrings: TString[]
 ): DocString[] {
-  return lessonStrings.map(lsnStr => ({
+  return lessonStrings.map((lsnStr) => ({
     type: lsnStr.type,
     xpath: lsnStr.xpath,
     motherTongue: lsnStr.motherTongue,
     text:
-      findBy(
-        lsnStr.motherTongue ? mtTStrings : otherTStrings,
-        "masterId",
-        lsnStr.masterId
-      )?.text || ""
+      findBy(lsnStr.motherTongue ? mtTStrings : otherTStrings, "masterId", lsnStr.masterId)?.text ||
+      "",
   }));
 }
 
@@ -35,10 +32,7 @@ export function makeDocStrings(
 // other ids before it in the queue (Some may not have matches due to inconsistency in the doc; this
 // approach keeps them from matching further down than they should)
 // Matched majority language strings have their text replaced with "" in the docstrings
-export function singleLanguageize(
-  lessonStrings: LessonString[],
-  docStrings: DocString[]
-) {
+export function singleLanguageize(lessonStrings: LessonString[], docStrings: DocString[]) {
   const idSuppressQueue: number[] = [];
   return docStrings.map((docString, i) => {
     const lessonString = lessonStrings[i];
@@ -48,10 +42,7 @@ export function singleLanguageize(
     }
 
     if (idSuppressQueue.includes(lessonString.masterId)) {
-      idSuppressQueue.splice(
-        0,
-        idSuppressQueue.indexOf(lessonString.masterId) + 1
-      );
+      idSuppressQueue.splice(0, idSuppressQueue.indexOf(lessonString.masterId) + 1);
       return { ...docString, text: "" };
     }
 
@@ -59,13 +50,11 @@ export function singleLanguageize(
   });
 }
 
-export function makeWebifyDocStrings(
-  lessonStrings: LessonString[]
-): DocString[] {
-  return lessonStrings.map(lsnStr => ({
+export function makeWebifyDocStrings(lessonStrings: LessonString[]): DocString[] {
+  return lessonStrings.map((lsnStr) => ({
     type: lsnStr.type,
     xpath: lsnStr.xpath,
     motherTongue: lsnStr.motherTongue,
-    text: `##${lsnStr.lessonStringId}##`
+    text: `##${lsnStr.lessonStringId}##`,
   }));
 }

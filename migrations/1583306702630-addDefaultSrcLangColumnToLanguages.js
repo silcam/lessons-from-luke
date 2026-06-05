@@ -4,7 +4,7 @@ const { makeDbConnect } = require("./_helpers");
 const dbConnect = makeDbConnect();
 
 module.exports.up = async () => {
-  await dbConnect(async sql => {
+  await dbConnect(async (sql) => {
     console.log("Adding column...");
     await sql`
       ALTER TABLE languages
@@ -14,6 +14,6 @@ module.exports.up = async () => {
   });
 };
 
-module.exports.down = function(next) {
+module.exports.down = function (next) {
   next();
 };

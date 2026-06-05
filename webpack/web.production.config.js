@@ -7,6 +7,6 @@ module.exports = {
   output: {
     filename: "web.[contenthash].bundle.js",
     path: path.resolve(__dirname, "..", "dist", "frontend"),
-    publicPath: "/"
-  }
+    publicPath: "/",
+  },
 };

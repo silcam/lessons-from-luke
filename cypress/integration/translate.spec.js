@@ -29,20 +29,16 @@ describe("Translate", () => {
 
   it("Translates stuff", () => {
     cy.visitTranslatePage("GHI");
-    const ctrlsDiv = () =>
-      cy.contains("label", "Source Language").closest("div");
+    const ctrlsDiv = () => cy.contains("label", "Source Language").closest("div");
     cy.contains("button", ">>>").click();
     cy.contains("button", ">>").click();
 
     ctrlsDiv().contains(
       "Talk to God every day this week, and be ready to share all the different places and ways you talked to God."
     );
-    cy.get("textarea").type(
-      "Langwanaha Njambbɛ buwa kaha buwa bó sɔndɛ tɛh eni...",
-      {
-        delay: 0
-      }
-    );
+    cy.get("textarea").type("Langwanaha Njambbɛ buwa kaha buwa bó sɔndɛ tɛh eni...", {
+      delay: 0,
+    });
     cy.contains("Unsaved Changes").should("exist");
 
     cy.intercept("POST", "/api/tStrings").as("saveTStrings");
@@ -51,8 +47,6 @@ describe("Translate", () => {
     cy.contains("Changes Saved").should("exist");
 
     cy.visitTranslatePage("GHI");
-    cy.contains("Langwanaha Njambbɛ buwa kaha buwa bó sɔndɛ tɛh eni.").should(
-      "exist"
-    );
+    cy.contains("Langwanaha Njambbɛ buwa kaha buwa bó sɔndɛ tɛh eni.").should("exist");
   });
 });

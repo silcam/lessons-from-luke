@@ -3,7 +3,7 @@ import { LessonString } from "./LessonString";
 import { zeroPad } from "../util/numberUtils";
 
 export const AllBooks = <const>["Luke", "Acts"];
-export type Book = typeof AllBooks[number];
+export type Book = (typeof AllBooks)[number];
 
 export const TOC_LESSON = 99;
 
@@ -20,10 +20,7 @@ export interface Lesson extends BaseLesson {
 }
 export type DraftLesson = Omit<BaseLesson, "lessonId" | "version">;
 
-export function lessonName(
-  lesson: BaseLesson | undefined | null,
-  t: TFunc = (s: string) => s
-) {
+export function lessonName(lesson: BaseLesson | undefined | null, t: TFunc = (s: string) => s) {
   if (!lesson) return "";
   return isTOCLesson(lesson)
     ? `${t(lesson.book)} ${lesson.series}-TOC`

@@ -5,7 +5,6 @@ import { TString } from "../../core/models/TString";
 import { SuperTest } from "supertest";
 import supertest = require("supertest");
 
-
 test("Get TStrings", async () => {
   expect.assertions(3);
   const agent = plainAgent();
@@ -19,7 +18,7 @@ test("Get TStrings", async () => {
     source: "Le livre de Luc et la naissance de Jean Baptiste",
     history: [],
     masterId: 1,
-    lessonStringId: null
+    lessonStringId: null,
   });
 });
 
@@ -36,7 +35,7 @@ test("Get TStrings by Lesson", async () => {
     source: "Le livre de Luc et la naissance de Jean Baptiste",
     history: [],
     masterId: 1,
-    lessonStringId: null
+    lessonStringId: null,
   });
 });
 
@@ -63,7 +62,7 @@ test("Get TStrings by master ids", async () => {
     source: "Le livre de Luc et la naissance de Jean Baptiste",
     sourceLanguageId: 2,
     history: [],
-    lessonStringId: null
+    lessonStringId: null,
   });
 });
 
@@ -85,10 +84,10 @@ test("Save TString - Invalid Code", async () => {
         text: "weivrevO nosseL",
         source: "ommaire de la leçon",
         sourceLanguageId: 2,
-        history: []
-      }
+        history: [],
+      },
     ],
-    code: "WRONG"
+    code: "WRONG",
   });
   expect(response.status).toBe(401);
 });
@@ -100,14 +99,12 @@ test("Save TString - new string", async () => {
     text: "weivrevO nosseL",
     source: "ommaire de la leçon",
     sourceLanguageId: 2,
-    history: []
+    history: [],
   };
   expect.assertions(4);
   const agent = plainAgent();
   expect(await batangaTStringCount(agent)).toBe(3);
-  const response = await agent
-    .post("/api/tStrings")
-    .send({ tStrings: [tString], code: "GHI" });
+  const response = await agent.post("/api/tStrings").send({ tStrings: [tString], code: "GHI" });
   expect(response.status).toBe(200);
   expect(response.body[0]).toEqual(tString);
   expect(await batangaTStringCount(agent)).toBe(4);
@@ -121,19 +118,17 @@ test("Save TString - updated string", async () => {
       text: "sreyarp ruo sraeh doG",
       source: "God hears our prayers.",
       sourceLanguageId: 1,
-      history: []
-    }
+      history: [],
+    },
   ];
   expect.assertions(4);
   const agent = plainAgent();
   expect(await batangaTStringCount(agent)).toBe(3);
-  const response = await agent
-    .post("/api/tStrings")
-    .send({ tStrings, code: "GHI" });
+  const response = await agent.post("/api/tStrings").send({ tStrings, code: "GHI" });
   expect(response.status).toBe(200);
   expect(response.body[0]).toEqual({
     ...tStrings[0],
-    history: ["Njambɛ abowandi mahaleya mahu."]
+    history: ["Njambɛ abowandi mahaleya mahu."],
   });
   expect(await batangaTStringCount(agent)).toBe(3);
 });
@@ -144,19 +139,17 @@ test("Save TString - blank text", async () => {
       masterId: 3,
       languageId: 3,
       text: "",
-      history: []
-    }
+      history: [],
+    },
   ];
   expect.assertions(4);
   const agent = plainAgent();
   expect(await batangaTStringCount(agent)).toBe(3);
-  const response = await agent
-    .post("/api/tStrings")
-    .send({ tStrings, code: "GHI" });
+  const response = await agent.post("/api/tStrings").send({ tStrings, code: "GHI" });
   expect(response.status).toBe(200);
   expect(response.body[0]).toEqual({
     ...tStrings[0],
-    history: ["Njambɛ abowandi mahaleya mahu."]
+    history: ["Njambɛ abowandi mahaleya mahu."],
   });
   expect(await batangaTStringCount(agent)).toBe(3);
 });
@@ -177,7 +170,7 @@ test("Save TString - invalid tString object returns 422", async () => {
   const agent = plainAgent();
   const response = await agent.post("/api/tStrings").send({
     code: "GHI",
-    tStrings: [{ masterId: "not-a-number", text: 42 }]
+    tStrings: [{ masterId: "not-a-number", text: 42 }],
   });
   expect(response.status).toBe(422);
 });
@@ -186,15 +179,12 @@ test("Save TString - empty tStrings array returns 422", async () => {
   const agent = plainAgent();
   const response = await agent.post("/api/tStrings").send({
     code: "GHI",
-    tStrings: []
+    tStrings: [],
   });
   expect(response.status).toBe(422);
 });
 
-
-async function batangaTStringCount(
-  agent: SuperTest<supertest.Test>
-): Promise<number> {
+async function batangaTStringCount(agent: SuperTest<supertest.Test>): Promise<number> {
   const response = await agent.get("/api/languages/3/lessons/11/tStrings");
   return response.body.length;
 }

@@ -19,7 +19,7 @@
  * stays blocked by the guard hooks.
  */
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync } from "node:child_process";
 
 /**
  * Name of the environment variable consumed by the lint-staged vitest wrapper
@@ -29,10 +29,10 @@ import { execFileSync } from 'node:child_process';
  * Intentionally undocumented in agent-facing files: the worker is told only to
  * run this script, never to set the variable itself.
  */
-export const RED_COMMIT_ENV = 'RALPH_RED_COMMIT';
+export const RED_COMMIT_ENV = "RALPH_RED_COMMIT";
 
 /** Opaque sentinel value the wrapper checks for. Must match the value in the wrapper script. */
-export const RED_COMMIT_SENTINEL = 'ralph-red-commit-9f2c';
+export const RED_COMMIT_SENTINEL = "ralph-red-commit-9f2c";
 
 /** Maximum commitlint header length (`header-max-length` in commitlint.config.js). */
 export const HEADER_MAX_LENGTH = 100;
@@ -111,8 +111,8 @@ export function stagedTestFiles(staged: string[]): string[] {
  * @returns A conventional-commit header `test: red — <behavior> [skip ci]`.
  */
 export function buildSubject(title: string): string {
-  const stripped = title.replace(/^\s*red:\s*/i, '').trim();
-  const behavior = stripped.length > 0 ? stripped : 'write failing test';
+  const stripped = title.replace(/^\s*red:\s*/i, "").trim();
+  const behavior = stripped.length > 0 ? stripped : "write failing test";
   return `test: red — ${behavior} [skip ci]`;
 }
 
@@ -142,10 +142,10 @@ export function buildCommitMessage(title: string, id: string): string {
 export function run(argv: readonly string[], io: CommitRedIo): number {
   // 1. Require the task ID.
   const id = argv[0];
-  if (id === undefined || id.trim() === '') {
+  if (id === undefined || id.trim() === "") {
     io.error(
-      'commit-red: missing required task ID.\n' +
-        'Usage: npx tsx .claude/skills/ralph/commit-red.ts <task-id>'
+      "commit-red: missing required task ID.\n" +
+        "Usage: npx tsx .claude/skills/ralph/commit-red.ts <task-id>"
     );
     return 1;
   }
@@ -184,8 +184,8 @@ export function run(argv: readonly string[], io: CommitRedIo): number {
   const specs = stagedTestFiles(io.stagedFiles());
   if (specs.length === 0) {
     io.error(
-      'commit-red: no staged test file (*.spec.ts / *.test.ts). ' +
-        'Stage the failing test (git add) before committing a RED task.'
+      "commit-red: no staged test file (*.spec.ts / *.test.ts). " +
+        "Stage the failing test (git add) before committing a RED task."
     );
     return 1;
   }
@@ -194,7 +194,7 @@ export function run(argv: readonly string[], io: CommitRedIo): number {
   const passed = io.runVitest(specs);
   if (passed) {
     io.error(
-      'commit-red: a RED commit must contain a failing test; these pass — did you mean a GREEN task?'
+      "commit-red: a RED commit must contain a failing test; these pass — did you mean a GREEN task?"
     );
     return 1;
   }
@@ -224,7 +224,7 @@ function makeRealIo(): CommitRedIo {
     showTask(id: string): BeadsTask | null {
       let raw: string;
       try {
-        raw = execFileSync('br', ['show', id, '--json'], { encoding: 'utf8' });
+        raw = execFileSync("br", ["show", id, "--json"], { encoding: "utf8" });
       } catch {
         return null;
       }
@@ -235,24 +235,24 @@ function makeRealIo(): CommitRedIo {
         return null;
       }
       const record = Array.isArray(parsed) ? parsed[0] : parsed;
-      if (record === undefined || record === null || typeof record !== 'object') {
+      if (record === undefined || record === null || typeof record !== "object") {
         return null;
       }
       const obj = record as Record<string, unknown>;
-      const title = typeof obj['title'] === 'string' ? obj['title'] : '';
-      const description = typeof obj['description'] === 'string' ? obj['description'] : '';
+      const title = typeof obj["title"] === "string" ? obj["title"] : "";
+      const description = typeof obj["description"] === "string" ? obj["description"] : "";
       return { title, description };
     },
     stagedFiles(): string[] {
-      const out = execFileSync('git', ['diff', '--cached', '--name-only'], { encoding: 'utf8' });
+      const out = execFileSync("git", ["diff", "--cached", "--name-only"], { encoding: "utf8" });
       return out
-        .split('\n')
+        .split("\n")
         .map((line) => line.trim())
         .filter((line) => line.length > 0);
     },
     runVitest(specFiles: string[]): boolean {
       try {
-        execFileSync('npx', ['vitest', 'run', ...specFiles], { stdio: 'inherit' });
+        execFileSync("npx", ["vitest", "run", ...specFiles], { stdio: "inherit" });
         return true;
       } catch {
         return false;
@@ -260,16 +260,16 @@ function makeRealIo(): CommitRedIo {
     },
     commit(message: string): void {
       // No --no-verify: the full hook runs; the sentinel only skips vitest.
-      execFileSync('git', ['commit', '-m', message], {
-        stdio: 'inherit',
+      execFileSync("git", ["commit", "-m", message], {
+        stdio: "inherit",
         env: { ...process.env, [RED_COMMIT_ENV]: RED_COMMIT_SENTINEL },
       });
     },
     error(message: string): void {
-      process.stderr.write(message + '\n');
+      process.stderr.write(message + "\n");
     },
     log(message: string): void {
-      process.stdout.write(message + '\n');
+      process.stdout.write(message + "\n");
     },
   };
 }
@@ -282,6 +282,6 @@ function main(): void {
 }
 
 // Run main only when executed directly (not when imported by the test suite).
-if (process.argv[1]?.endsWith('commit-red.ts') === true) {
+if (process.argv[1]?.endsWith("commit-red.ts") === true) {
   main();
 }

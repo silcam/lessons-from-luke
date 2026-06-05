@@ -7,7 +7,7 @@ import {
   assetsPath,
   tmpDirPath,
   copyRecursive,
-  setupDesktopStorage
+  setupDesktopStorage,
 } from "./fsUtils";
 import fs from "fs";
 import path from "path";

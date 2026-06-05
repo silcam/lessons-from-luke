@@ -17,7 +17,7 @@ export default function PublicHome() {
   const [loginFailed, setLoginFailed] = useState(false);
   const push = usePush();
   const logIn = () =>
-    push(pushLogin({ username, password }), appError => {
+    push(pushLogin({ username, password }), (appError) => {
       if (appError.type == "HTTP" && appError.status == 422) {
         setLoginFailed(true);
         return true;
@@ -33,7 +33,7 @@ export default function PublicHome() {
         <PDiv>
           <TextInput
             value={username}
-            setValue={v => {
+            setValue={(v) => {
               setUsername(v);
               setLoginFailed(false);
             }}
@@ -44,7 +44,7 @@ export default function PublicHome() {
         <PDiv>
           <TextInput
             value={password}
-            setValue={v => {
+            setValue={(v) => {
               setPassword(v);
               setLoginFailed(false);
             }}

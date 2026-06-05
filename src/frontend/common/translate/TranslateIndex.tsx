@@ -10,7 +10,7 @@ interface IProps {
 }
 
 export default function TranslateIndex(props: IProps) {
-  const lessons = useAppSelector(state => state.lessons);
+  const lessons = useAppSelector((state) => state.lessons);
 
   return (
     <div>
@@ -18,11 +18,9 @@ export default function TranslateIndex(props: IProps) {
         <Heading level={2} text={props.language.name} />
       </HeaderBar>
       <ul>
-        {lessons.map(lesson => (
+        {lessons.map((lesson) => (
           <li key={lesson.lessonId}>
-            <Link
-              to={`/translate/${props.language.code}/lesson/${lesson.lessonId}`}
-            >
+            <Link to={`/translate/${props.language.code}/lesson/${lesson.lessonId}`}>
               {`${lesson.book} ${lesson.series}-${lesson.lesson}`}
             </Link>
           </li>

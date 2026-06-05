@@ -1,31 +1,17 @@
 import update from "immutability-helper";
 
-export function findBy<T, K extends keyof T>(
-  list: T[],
-  key: K,
-  value: T[K]
-): T | undefined {
-  return list.find(item => item[key] === value);
+export function findBy<T, K extends keyof T>(list: T[], key: K, value: T[K]): T | undefined {
+  return list.find((item) => item[key] === value);
 }
 
-export function findIndexBy<T, K extends keyof T>(
-  list: T[],
-  key: K,
-  value: T[K]
-): number {
-  return list.findIndex(item => item[key] === value);
+export function findIndexBy<T, K extends keyof T>(list: T[], key: K, value: T[K]): number {
+  return list.findIndex((item) => item[key] === value);
 }
 
-export function findByStrict<T, K extends keyof T>(
-  list: T[],
-  key: K,
-  value: T[K]
-): T {
+export function findByStrict<T, K extends keyof T>(list: T[], key: K, value: T[K]): T {
   const found = findBy(list, key, value);
   if (!found)
-    throw new Error(
-      `findByStrict did not find item with key ${String(key)} value ${value}.`
-    );
+    throw new Error(`findByStrict did not find item with key ${String(key)} value ${value}.`);
   return found;
 }
 
@@ -51,10 +37,8 @@ export function modelListMerge<T>(
   if (bList.length == 0) return aList as T[];
 
   const mergedList = bList.reduce((list, item) => {
-    const index = list.findIndex(existing => same(item, existing));
-    return index < 0
-      ? [...list, item]
-      : update(list, { [index]: { $set: item } });
+    const index = list.findIndex((existing) => same(item, existing));
+    return index < 0 ? [...list, item] : update(list, { [index]: { $set: item } });
   }, aList) as T[];
 
   if (sort) mergedList.sort(sort);
@@ -62,10 +46,7 @@ export function modelListMerge<T>(
   return mergedList;
 }
 
-export function discriminate<T>(
-  list: T[],
-  discriminator: (item: T) => boolean
-): [T[], T[]] {
+export function discriminate<T>(list: T[], discriminator: (item: T) => boolean): [T[], T[]] {
   return list.reduce(
     (twoLists: [T[], T[]], item) => {
       if (discriminator(item)) twoLists[0].push(item);
@@ -76,21 +57,16 @@ export function discriminate<T>(
   );
 }
 
-export function uniq<T>(
-  list: T[],
-  compare: (a: T, b: T) => boolean = (a, b) => a == b
-): T[] {
+export function uniq<T>(list: T[], compare: (a: T, b: T) => boolean = (a, b) => a == b): T[] {
   return list.reduce(
     (final: T[], item) =>
-      final.some(compItem => compare(item, compItem))
-        ? final
-        : [...final, item],
+      final.some((compItem) => compare(item, compItem)) ? final : [...final, item],
     []
   );
 }
 
 export function all<T>(list: T[], test: (item: T) => boolean): boolean {
-  return !list.some(item => !test(item));
+  return !list.some((item) => !test(item));
 }
 
 export function count<T>(list: T[], cb: (item: T) => boolean) {
@@ -99,18 +75,12 @@ export function count<T>(list: T[], cb: (item: T) => boolean) {
   }, 0);
 }
 
-export function insertSorted<T>(
-  list: T[],
-  item: T,
-  aBeforeB: (a: T, b: T) => boolean
-): T[] {
+export function insertSorted<T>(list: T[], item: T, aBeforeB: (a: T, b: T) => boolean): T[] {
   if (list.length == 0) return [item];
 
   const testIndex = Math.floor(list.length / 2);
   if (aBeforeB(item, list[testIndex])) {
-    return insertSorted(list.slice(0, testIndex), item, aBeforeB).concat(
-      list.slice(testIndex)
-    );
+    return insertSorted(list.slice(0, testIndex), item, aBeforeB).concat(list.slice(testIndex));
   } else {
     return list
       .slice(0, testIndex + 1)

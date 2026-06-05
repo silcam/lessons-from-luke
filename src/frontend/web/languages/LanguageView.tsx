@@ -19,7 +19,6 @@ import Label from "../../common/base-components/Label";
 import { pushLanguageUpdate } from "../../common/state/languageSlice";
 import { usePush } from "../../common/api/useLoad";
 
-
 interface IProps {
   language: Language;
   done: () => void;
@@ -29,21 +28,21 @@ export default function LanguageView(props: IProps) {
   const t = useTranslation();
   const push = usePush();
 
-  const lessons = useAppSelector(state => state.lessons);
+  const lessons = useAppSelector((state) => state.lessons);
   const [uploadUsfmForm, setUploadUsfmForm] = useState(false);
   const [uploadDocForm, setUploadDocForm] = useState(false);
 
   const [activeLang, setActiveLang] = useState(props.language);
 
-  const languages = useAppSelector(state => state.languages);
+  const languages = useAppSelector((state) => state.languages);
 
   const handleSrcLangChange = async (v: number) => {
-    setActiveLang({...activeLang, defaultSrcLang: v});
+    setActiveLang({ ...activeLang, defaultSrcLang: v });
     await push(pushLanguageUpdate({ ...activeLang, defaultSrcLang: v }));
   };
 
   const handleMTChange = async (mt: boolean) => {
-    setActiveLang({...activeLang, motherTongue: mt});
+    setActiveLang({ ...activeLang, motherTongue: mt });
     await push(pushLanguageUpdate({ ...activeLang, motherTongue: mt }));
   };
 
@@ -53,10 +52,7 @@ export default function LanguageView(props: IProps) {
       <Heading text={props.language.name} level={3} />
 
       {uploadUsfmForm ? (
-        <UploadUsfmForm
-          language={props.language}
-          done={() => setUploadUsfmForm(false)}
-        />
+        <UploadUsfmForm language={props.language} done={() => setUploadUsfmForm(false)} />
       ) : uploadDocForm ? (
         <UploadDocForTranslationForm
           languageId={props.language.languageId}
@@ -71,7 +67,7 @@ export default function LanguageView(props: IProps) {
                 : [
                     [t("Translate"), `/translate/${props.language.code}`],
                     [t("Upload_usfm"), () => setUploadUsfmForm(true)],
-                    [t("Upload_document"), () => setUploadDocForm(true)]
+                    [t("Upload_document"), () => setUploadDocForm(true)],
                   ]
             }
           />
@@ -79,17 +75,16 @@ export default function LanguageView(props: IProps) {
             <Label text={t("Source_language")}>
               <SelectInput
                 value={`${activeLang.defaultSrcLang}`}
-                setValue={v => handleSrcLangChange(parseInt(v))}
-                options={languages.adminLanguages.map(lng => [`${lng.languageId}`, lng.name])}
+                setValue={(v) => handleSrcLangChange(parseInt(v))}
+                options={languages.adminLanguages.map((lng) => [`${lng.languageId}`, lng.name])}
               />
             </Label>
-
           </Div>
           <Div padVert>
-            <ToggleMotherTongue save={handleMTChange} language={{...activeLang}} />
+            <ToggleMotherTongue save={handleMTChange} language={{ ...activeLang }} />
           </Div>
           <Table>
-            {lessons.map(lesson => {
+            {lessons.map((lesson) => {
               const progress = findBy(
                 props.language.progress,
                 "lessonId",

@@ -4,16 +4,12 @@ import TextInput from "./TextInput";
 
 describe("TextInput", () => {
   it("renders an input element", () => {
-    const { container } = render(
-      <TextInput value="hello" setValue={jest.fn()} />
-    );
+    const { container } = render(<TextInput value="hello" setValue={jest.fn()} />);
     expect(container.querySelector("input")).toBeTruthy();
   });
 
   it("displays the provided value", () => {
-    const { container } = render(
-      <TextInput value="initial" setValue={jest.fn()} />
-    );
+    const { container } = render(<TextInput value="initial" setValue={jest.fn()} />);
     const input = container.querySelector("input") as HTMLInputElement;
     expect(input.value).toBe("initial");
   });
@@ -27,34 +23,26 @@ describe("TextInput", () => {
   });
 
   it("renders as type='text' by default", () => {
-    const { container } = render(
-      <TextInput value="" setValue={jest.fn()} />
-    );
+    const { container } = render(<TextInput value="" setValue={jest.fn()} />);
     const input = container.querySelector("input") as HTMLInputElement;
     expect(input.type).toBe("text");
   });
 
   it("renders as type='password' when password prop is true", () => {
-    const { container } = render(
-      <TextInput value="" setValue={jest.fn()} password />
-    );
+    const { container } = render(<TextInput value="" setValue={jest.fn()} password />);
     const input = container.querySelector("input") as HTMLInputElement;
     expect(input.type).toBe("password");
   });
 
   it("renders as type='text' when password prop is false", () => {
-    const { container } = render(
-      <TextInput value="" setValue={jest.fn()} password={false} />
-    );
+    const { container } = render(<TextInput value="" setValue={jest.fn()} password={false} />);
     const input = container.querySelector("input") as HTMLInputElement;
     expect(input.type).toBe("text");
   });
 
   it("calls onBlur when blurred", () => {
     const onBlur = jest.fn();
-    const { container } = render(
-      <TextInput value="" setValue={jest.fn()} onBlur={onBlur} />
-    );
+    const { container } = render(<TextInput value="" setValue={jest.fn()} onBlur={onBlur} />);
     const input = container.querySelector("input") as HTMLInputElement;
     fireEvent.blur(input);
     expect(onBlur).toHaveBeenCalledTimes(1);
@@ -69,17 +57,13 @@ describe("TextInput", () => {
   });
 
   it("renders with minWidth prop set (line 27: minWidth branch)", () => {
-    const { container } = render(
-      <TextInput value="" setValue={jest.fn()} minWidth={10} />
-    );
+    const { container } = render(<TextInput value="" setValue={jest.fn()} minWidth={10} />);
     const input = container.querySelector("input") as HTMLInputElement;
     expect(input).toBeTruthy();
   });
 
   it("renders with bigger prop (line 22-23: bigger branch)", () => {
-    const { container } = render(
-      <TextInput value="" setValue={jest.fn()} bigger />
-    );
+    const { container } = render(<TextInput value="" setValue={jest.fn()} bigger />);
     const input = container.querySelector("input") as HTMLInputElement;
     expect(input).toBeTruthy();
   });

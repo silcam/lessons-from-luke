@@ -3,7 +3,7 @@ import {
   ContinuousSyncPackage,
   T_STRING_BATCH_SIZE,
   downSyncProgress,
-  updateLanguageTimestamps
+  updateLanguageTimestamps,
 } from "../../core/models/SyncState";
 import { encodeLanguageTimestamps } from "../../core/interfaces/Api";
 import { uniq } from "../../core/util/arrayUtils";
@@ -24,7 +24,7 @@ export async function downSync(app: DesktopApp) {
       langSyncPromise,
       baseLessonSyncPromise,
       lessonSyncPromise,
-      tStringSyncPromise
+      tStringSyncPromise,
     ]);
   } catch (err) {
     catchSyncError(err);
@@ -39,26 +39,24 @@ export async function downSyncTStrings(app: DesktopApp) {
     const newDownSync = await throwsNoConnection(() =>
       app.webClient.get("/api/sync/:timestamp/languages/:languageTimestamps?", {
         timestamp: syncState.downSync.timestamp,
-        languageTimestamps: encodeLanguageTimestamps(syncState.syncLanguages)
+        languageTimestamps: encodeLanguageTimestamps(syncState.syncLanguages),
       })
     );
     const newDownSyncTstrings = Object.keys(newDownSync.tStrings).reduce(
       (accum: { [id: number]: number[] }, key) => {
         const langId = parseInt(key);
-        accum[langId] = (accum[langId] || []).concat(
-          newDownSync.tStrings[langId]
-        );
+        accum[langId] = (accum[langId] || []).concat(newDownSync.tStrings[langId]);
         return accum;
       },
       syncState.downSync.tStrings
     );
     updateDownSync(app, syncState.downSync.timestamp, {
-      tStrings: newDownSyncTstrings
+      tStrings: newDownSyncTstrings,
     });
     app.localStorage.setSyncState(
       updateLanguageTimestamps(
         app.localStorage.getSyncState(),
-        syncState.syncLanguages.map(lt => lt.languageId),
+        syncState.syncLanguages.map((lt) => lt.languageId),
         newDownSync.timestamp
       ),
       app
@@ -77,7 +75,7 @@ async function getDownSync(app: DesktopApp) {
     const newDownSync = await throwsNoConnection(() =>
       app.webClient.get("/api/sync/:timestamp/languages/:languageTimestamps?", {
         timestamp: downSync.timestamp,
-        languageTimestamps: encodeLanguageTimestamps(syncState.syncLanguages)
+        languageTimestamps: encodeLanguageTimestamps(syncState.syncLanguages),
       })
     );
     newDownSync.progress = downSyncProgress(
@@ -89,7 +87,7 @@ async function getDownSync(app: DesktopApp) {
     app.localStorage.setSyncState(
       updateLanguageTimestamps(
         app.localStorage.getSyncState(),
-        syncState.syncLanguages.map(lt => lt.languageId),
+        syncState.syncLanguages.map((lt) => lt.languageId),
         newDownSync.timestamp
       ),
       app
@@ -100,9 +98,7 @@ async function getDownSync(app: DesktopApp) {
 async function syncLanguages(app: DesktopApp) {
   const downSync = app.localStorage.getSyncState().downSync;
   if (downSync.languages) {
-    const languages = await throwsNoConnection(() =>
-      app.webClient.get("/api/languages", {})
-    );
+    const languages = await throwsNoConnection(() => app.webClient.get("/api/languages", {}));
     app.localStorage.setLanguages(languages);
     updateDownSync(app, downSync.timestamp, { languages: false });
   }
@@ -111,9 +107,7 @@ async function syncLanguages(app: DesktopApp) {
 async function syncBaseLessons(app: DesktopApp) {
   const downSync = app.localStorage.getSyncState().downSync;
   if (downSync.baseLessons) {
-    const lessons = await throwsNoConnection(() =>
-      app.webClient.get("/api/lessons", {})
-    );
+    const lessons = await throwsNoConnection(() => app.webClient.get("/api/lessons", {}));
     app.localStorage.setLessons(lessons);
     updateDownSync(app, downSync.timestamp, { baseLessons: false });
   }
@@ -131,9 +125,7 @@ async function syncLessons(app: DesktopApp) {
     app.localStorage.setLessonStrings(lesson.lessonId, lesson.lessonStrings);
     app.localStorage.removeDocPreview(id);
     updateDownSync(app, downSync.timestamp, {
-      lessons: app.localStorage
-        .getSyncState()
-        .downSync.lessons.filter(_id => _id != id)
+      lessons: app.localStorage.getSyncState().downSync.lessons.filter((_id) => _id != id),
     });
 
     await fetchDocPreview(app, id);
@@ -153,11 +145,8 @@ async function syncTStrings(app: DesktopApp) {
         app.webClient.get("/api/languages/:languageId/tStrings/:ids", {
           languageId,
           ids: masterIds
-            .slice(
-              T_STRING_BATCH_SIZE * batch,
-              T_STRING_BATCH_SIZE * (batch + 1)
-            )
-            .join(",")
+            .slice(T_STRING_BATCH_SIZE * batch, T_STRING_BATCH_SIZE * (batch + 1))
+            .join(","),
         })
       );
       app.localStorage.setTStrings(languageId, tStrings);
@@ -166,8 +155,8 @@ async function syncTStrings(app: DesktopApp) {
     updateDownSync(app, downSync.timestamp, {
       tStrings: {
         ...app.localStorage.getSyncState().downSync.tStrings,
-        [languageId]: []
-      }
+        [languageId]: [],
+      },
     });
   }
   await fetchMissingSrcStrings(app);
@@ -184,10 +173,10 @@ async function fetchMissingSrcStrings(app: DesktopApp) {
   const lessons = app.localStorage.getLessons();
   const srcStrings = app.localStorage.getAllTStrings(language.defaultSrcLang);
   const missingIds: number[] = [];
-  lessons.forEach(lesson => {
+  lessons.forEach((lesson) => {
     const lessonStrings = app.localStorage.getLessonStrings(lesson.lessonId);
-    lessonStrings.forEach(lStr => {
-      if (!srcStrings.find(tStr => tStr.masterId == lStr.masterId))
+    lessonStrings.forEach((lStr) => {
+      if (!srcStrings.find((tStr) => tStr.masterId == lStr.masterId))
         missingIds.push(lStr.masterId);
     });
   });
@@ -196,7 +185,7 @@ async function fetchMissingSrcStrings(app: DesktopApp) {
   const tStrings = await throwsNoConnection(() =>
     app.webClient.get("/api/languages/:languageId/tStrings/:ids", {
       languageId: language.defaultSrcLang,
-      ids: uniq(missingIds).join(",")
+      ids: uniq(missingIds).join(","),
     })
   );
   app.localStorage.setTStrings(language.defaultSrcLang, tStrings);
@@ -246,7 +235,7 @@ function updateDownSync(
   );
   app.localStorage.setSyncState(
     {
-      downSync: newDownSync
+      downSync: newDownSync,
     },
     app
   );

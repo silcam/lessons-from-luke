@@ -1,9 +1,11 @@
 dist
 dist-desktop
+.desktop-build-stage
 node_modules
 coverage
 strings
 docs
 log
 art
+src/desktop/localFixtures
 **/*.odt

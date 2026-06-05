@@ -28,7 +28,7 @@ async function reparseLesson(lesson: BaseLesson, storage: Persistence) {
   const oldDocFilepath = docStorage.docFilepath(lesson);
   const newDocFilepath = docStorage.docFilepath({
     ...lesson,
-    version: newVersion
+    version: newVersion,
   });
   fs.copyFileSync(oldDocFilepath, newDocFilepath);
   const docStrings = parseDocStrings(newDocFilepath);

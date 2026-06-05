@@ -5,7 +5,7 @@ import PlatformContext from "../PlatformContext";
 
 export default function useTranslation() {
   const desktop = useContext(PlatformContext) == "desktop";
-  const locale = useAppSelector(state =>
+  const locale = useAppSelector((state) =>
     desktop ? state.syncState.locale || "en" : state.currentUser.locale
   );
   return tForLocale(locale);

@@ -32,45 +32,40 @@ export interface LessonDiff {
 export function divideTSubs(tSubs: TSub[]): [TSubLite[], TString[]] {
   const tStrings: TString[] = [];
   const idify = (sp: SubPiece) => (sp ? sp.masterId : null);
-  const tSubsLite = tSubs.map(tSub => {
+  const tSubsLite = tSubs.map((tSub) => {
     // The map has a side-effect of pushing to tStrings. So sue me.
     tStrings.push(
       ...(tSub.engFrom
         .concat(tSub.engTo)
         .concat(tSub.from)
         .concat(tSub.to)
-        .filter(sp => sp) as TString[])
+        .filter((sp) => sp) as TString[])
     );
     return {
       languageId: tSub.languageId,
       from: tSub.engFrom.map(idify),
-      to: tSub.engTo.map(idify)
+      to: tSub.engTo.map(idify),
     };
   });
   return [tSubsLite, tStrings];
 }
 
-export function combineTSubs(
-  tSubsLite: TSubLite[],
-  tStrings: TString[]
-): TSub[] {
+export function combineTSubs(tSubsLite: TSubLite[], tStrings: TString[]): TSub[] {
   const inflate = (languageId: number, ids: (number | null)[]) =>
-    ids.map(id =>
+    ids.map((id) =>
       id
-        ? tStrings.find(
-            tStr => tStr.languageId == languageId && tStr.masterId == id
-          ) || null
+        ? tStrings.find((tStr) => tStr.languageId == languageId && tStr.masterId == id) || null
         : null
     );
 
   return tSubsLite.map(
-    tSubLite =>
+    (tSubLite) =>
       tSubLite && {
         languageId: tSubLite.languageId,
         engFrom: inflate(ENGLISH_ID, tSubLite.from),
         engTo: inflate(ENGLISH_ID, tSubLite.to),
         from: inflate(tSubLite.languageId, tSubLite.from),
-        to: inflate(tSubLite.languageId, tSubLite.to)
+        to: inflate(tSubLite.languageId, tSubLite.to),
       }
   );
 }

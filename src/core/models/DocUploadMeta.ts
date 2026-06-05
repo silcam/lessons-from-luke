@@ -13,7 +13,7 @@ export function defaultEnglishUploadMeta(): EnglishUploadMeta {
     languageId: ENGLISH_ID,
     book: "Luke",
     series: 1,
-    lesson: 1
+    lesson: 1,
   };
 }
 
@@ -22,9 +22,7 @@ export interface OtherUploadMeta {
   lessonId: number;
 }
 
-export function isEnglishUpload(
-  meta: DocUploadMeta
-): meta is EnglishUploadMeta {
+export function isEnglishUpload(meta: DocUploadMeta): meta is EnglishUploadMeta {
   return meta.languageId === ENGLISH_ID;
 }
 

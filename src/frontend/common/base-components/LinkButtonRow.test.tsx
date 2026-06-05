@@ -5,9 +5,7 @@ import LinkButtonRow from "./LinkButtonRow";
 
 function renderWithRouter(ui: React.ReactElement) {
   return render(
-    <MemoryRouter
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       {ui}
     </MemoryRouter>
   );
@@ -16,17 +14,13 @@ function renderWithRouter(ui: React.ReactElement) {
 describe("LinkButtonRow", () => {
   it("renders button items (function href)", () => {
     const onClick = jest.fn();
-    const { getByText } = renderWithRouter(
-      <LinkButtonRow buttons={[["Click me", onClick]]} />
-    );
+    const { getByText } = renderWithRouter(<LinkButtonRow buttons={[["Click me", onClick]]} />);
     expect(getByText("Click me")).toBeTruthy();
   });
 
   it("fires onClick when a button item is clicked", () => {
     const onClick = jest.fn();
-    const { getByText } = renderWithRouter(
-      <LinkButtonRow buttons={[["Click me", onClick]]} />
-    );
+    const { getByText } = renderWithRouter(<LinkButtonRow buttons={[["Click me", onClick]]} />);
     fireEvent.click(getByText("Click me"));
     expect(onClick).toHaveBeenCalledTimes(1);
   });
@@ -54,7 +48,7 @@ describe("LinkButtonRow", () => {
       <LinkButtonRow
         buttons={[
           ["Link item", "/path"],
-          ["Button item", onClick]
+          ["Button item", onClick],
         ]}
       />
     );
@@ -67,7 +61,7 @@ describe("LinkButtonRow", () => {
       <LinkButtonRow
         buttons={[
           ["First", "/path1"],
-          ["Second", "/path2"]
+          ["Second", "/path2"],
         ]}
       />
     );

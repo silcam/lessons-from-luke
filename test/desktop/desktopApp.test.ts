@@ -18,7 +18,7 @@ beforeAll(async () => {
 test("Downsync", async () => {
   const app = await electron.launch({
     args: [path.join(__dirname, "../../dist/desktop/main-test.js")],
-    env: { ...process.env, FIXTURES: "fresh-install" }
+    env: { ...process.env, FIXTURES: "fresh-install" },
   });
   const window = await app.firstWindow();
 
@@ -30,9 +30,7 @@ test("Downsync", async () => {
 
   await window.locator('button:text("Start Translating")').waitFor();
   await window.click('button:text("Start Translating")');
-  await window
-    .locator('p:text("The Book of Luke and the Birth of John the Baptizer")')
-    .waitFor();
+  await window.locator('p:text("The Book of Luke and the Birth of John the Baptizer")').waitFor();
 
   await app.close();
 }, 15000);
@@ -40,7 +38,7 @@ test("Downsync", async () => {
 test("Login guard: translation UI is inaccessible before entering a project code", async () => {
   const app = await electron.launch({
     args: [path.join(__dirname, "../../dist/desktop/main-test.js")],
-    env: { ...process.env, FIXTURES: "fresh-install" }
+    env: { ...process.env, FIXTURES: "fresh-install" },
   });
   const window = await app.firstWindow();
 
@@ -60,7 +58,7 @@ test("Login guard: translation UI is inaccessible before entering a project code
 test("Translation workflow: type and save a translation string", async () => {
   const app = await electron.launch({
     args: [path.join(__dirname, "../../dist/desktop/main-test.js")],
-    env: { ...process.env, FIXTURES: "fresh-install" }
+    env: { ...process.env, FIXTURES: "fresh-install" },
   });
   const window = await app.firstWindow();
 
@@ -73,9 +71,7 @@ test("Translation workflow: type and save a translation string", async () => {
   await window.click('button:text("Start Translating")');
 
   // Wait for the translation UI to load (a lesson string becomes visible)
-  await window
-    .locator('p:text("The Book of Luke and the Birth of John the Baptizer")')
-    .waitFor();
+  await window.locator('p:text("The Book of Luke and the Birth of John the Baptizer")').waitFor();
 
   // Find the first translation textarea (placeholder = language name "Batanga")
   const textarea = window.locator('textarea[placeholder="Batanga"]').first();
@@ -88,9 +84,7 @@ test("Translation workflow: type and save a translation string", async () => {
   await textarea.press("Tab");
 
   // Header should reflect saved or uploading state
-  await window
-    .locator('h1:text("Changes Saved"), h1:text("Uploading")')
-    .waitFor({ timeout: 5000 });
+  await window.locator('h1:text("Changes Saved"), h1:text("Uploading")').waitFor({ timeout: 5000 });
 
   await app.close();
 }, 20000);

@@ -36,7 +36,7 @@ export function sourceLessonIdFromString(str: string): SourceLessonId {
   return {
     language: pieces[0],
     lesson: pieces[1],
-    version: parseInt(pieces[2])
+    version: parseInt(pieces[2]),
   };
 }
 
@@ -58,30 +58,22 @@ export function newSourceDoc(source: Source, lesson: string) {
   const version = sourceLesson.versions.length + 1;
   source = update(source, {
     lessons: {
-      [lessonIndex]: { versions: { $push: [{ version, projects: [] }] } }
-    }
+      [lessonIndex]: { versions: { $push: [{ version, projects: [] }] } },
+    },
   });
   sourceLesson.versions.push({ version, projects: [] });
   return source;
 }
 
-export function deleteLessonVersion(
-  source: Source,
-  lessonId: SourceLessonId
-): Source {
+export function deleteLessonVersion(source: Source, lessonId: SourceLessonId): Source {
   const lessonIndex = findIndexBy(source.lessons, "lesson", lessonId.lesson);
-  if (
-    source.lessons[lessonIndex].versions[lessonId.version - 1].projects.length >
-    0
-  )
-    throw new Error(
-      "Can't delete a source lesson version which still has projects!"
-    );
+  if (source.lessons[lessonIndex].versions[lessonId.version - 1].projects.length > 0)
+    throw new Error("Can't delete a source lesson version which still has projects!");
   return update(source, {
     lessons: {
       [lessonIndex]: {
-        versions: { [lessonId.version - 1]: { deleted: { $set: true } } }
-      }
-    }
+        versions: { [lessonId.version - 1]: { deleted: { $set: true } } },
+      },
+    },
   });
 }

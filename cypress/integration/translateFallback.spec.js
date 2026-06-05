@@ -21,7 +21,7 @@ describe("Translate Fallback", () => {
       .parent()
       .find("textarea")
       .type("Naha dambo dihihitiwɛ boholo ó pɛlɛ ya Njambɛ.", {
-        delay: 0
+        delay: 0,
       });
     cy.contains("Unsaved Changes").should("exist");
 
@@ -31,11 +31,11 @@ describe("Translate Fallback", () => {
     cy.contains("Changes Saved").should("exist");
 
     cy.visitTranslatePage("GHI");
-    cy.intercept("GET", /\/api\/languages\/\d+\/lessons\/\d+\/tStrings/).as("lesson2TStringsReload");
+    cy.intercept("GET", /\/api\/languages\/\d+\/lessons\/\d+\/tStrings/).as(
+      "lesson2TStringsReload"
+    );
     cy.contains("Luke 1-2").click();
     cy.wait("@lesson2TStringsReload");
-    cy.contains("Naha dambo dihihitiwɛ boholo ó pɛlɛ ya Njambɛ.").should(
-      "exist"
-    );
+    cy.contains("Naha dambo dihihitiwɛ boholo ó pɛlɛ ya Njambɛ.").should("exist");
   });
 });

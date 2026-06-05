@@ -10,7 +10,4 @@ export interface LessonString {
   motherTongue: boolean;
 }
 
-export type DraftLessonString = Omit<
-  LessonString,
-  "lessonStringId" | "lessonVersion"
->;
+export type DraftLessonString = Omit<LessonString, "lessonStringId" | "lessonVersion">;

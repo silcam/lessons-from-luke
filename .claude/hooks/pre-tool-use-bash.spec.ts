@@ -1,19 +1,19 @@
-import { execFile } from 'child_process';
+import { execFile } from "child_process";
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from "vitest";
 
-describe('pre-tool-use-bash entry point', () => {
-  it('exits promptly when stdin closes (timer must be unreffed)', async () => {
+describe("pre-tool-use-bash entry point", () => {
+  it("exits promptly when stdin closes (timer must be unreffed)", async () => {
     const MAX_EXIT_MS = 5000;
     const start = Date.now();
 
     const exitCode = await new Promise<number | null>((resolve, reject) => {
       const child = execFile(
-        'npx',
-        ['tsx', '.claude/hooks/pre-tool-use-bash.ts'],
+        "npx",
+        ["tsx", ".claude/hooks/pre-tool-use-bash.ts"],
         { timeout: MAX_EXIT_MS + 1000 },
         (error) => {
-          if (error !== null && 'killed' in error && error.killed === true) {
+          if (error !== null && "killed" in error && error.killed === true) {
             reject(
               new Error(`Process did not exit within ${MAX_EXIT_MS}ms — timer likely not unreffed`)
             );
@@ -23,7 +23,7 @@ describe('pre-tool-use-bash entry point', () => {
         }
       );
       // Send valid JSON then close stdin immediately
-      child.stdin?.end(JSON.stringify({ tool_input: { command: 'echo hello' } }) + '\n');
+      child.stdin?.end(JSON.stringify({ tool_input: { command: "echo hello" } }) + "\n");
     });
 
     const elapsed = Date.now() - start;

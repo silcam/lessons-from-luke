@@ -7,21 +7,18 @@ const tSubSlice = createSlice({
   name: "tSubs",
   initialState: {} as { [lessonId: number]: TSubLite[] },
   reducers: {
-    set: (
-      state,
-      action: PayloadAction<{ lessonId: number; tSubsLite: TSubLite[] }>
-    ) => {
+    set: (state, action: PayloadAction<{ lessonId: number; tSubsLite: TSubLite[] }>) => {
       state[action.payload.lessonId] = action.payload.tSubsLite;
-    }
-  }
+    },
+  },
 });
 
 export default tSubSlice;
 
 export function loadTSubs(lessonId: number): Loader<void> {
-  return get => async dispatch => {
+  return (get) => async (dispatch) => {
     const tSubs = await get("/api/admin/lessons/:lessonId/lessonUpdateIssues", {
-      lessonId
+      lessonId,
     });
     if (tSubs) {
       const [tSubsLite, tStrings] = divideTSubs(tSubs);

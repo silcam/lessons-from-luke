@@ -22,9 +22,7 @@ describe("Checkbox", () => {
 
   it("calls setValue when checkbox is clicked", () => {
     const setValue = jest.fn();
-    const { container } = render(
-      <Checkbox label="Accept" value={false} setValue={setValue} />
-    );
+    const { container } = render(<Checkbox label="Accept" value={false} setValue={setValue} />);
     const checkbox = container.querySelector("input[type=checkbox]") as HTMLInputElement;
     // fireEvent.click triggers the onChange handler in React
     fireEvent.click(checkbox);

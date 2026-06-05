@@ -19,7 +19,7 @@ interface IProps {
 export default function AddLanguageForm(props: IProps) {
   const t = useTranslation();
   const push = usePush();
-  const languages = useAppSelector(state => state.languages.adminLanguages);
+  const languages = useAppSelector((state) => state.languages.adminLanguages);
 
   const [name, setName] = useState("");
   const [defaultSrcLang, setDefaultSrcLang] = useState(ENGLISH_ID);
@@ -27,7 +27,7 @@ export default function AddLanguageForm(props: IProps) {
   const formValid = name.length > 0;
 
   const save = async () => {
-    const language = await push(pushLanguage({ name, defaultSrcLang }), err => {
+    const language = await push(pushLanguage({ name, defaultSrcLang }), (err) => {
       if (err.type === "HTTP" && err.status === 409) {
         setNameError("A language with that name already exists.");
         return true;
@@ -43,15 +43,18 @@ export default function AddLanguageForm(props: IProps) {
       <Label text={t("Source_language")}>
         <SelectInput
           value={`${defaultSrcLang}`}
-          setValue={v => setDefaultSrcLang(parseInt(v))}
-          options={languages.map(lng => [`${lng.languageId}`, lng.name])}
+          setValue={(v) => setDefaultSrcLang(parseInt(v))}
+          options={languages.map((lng) => [`${lng.languageId}`, lng.name])}
         />
       </Label>
       <Div padVert>
         <TextInput
           placeholder={t("Language_name")}
           value={name}
-          setValue={v => { setName(v); setNameError(""); }}
+          setValue={(v) => {
+            setName(v);
+            setNameError("");
+          }}
         />
         {nameError && <Alert danger>{nameError}</Alert>}
       </Div>
