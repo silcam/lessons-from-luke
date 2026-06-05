@@ -11,5 +11,7 @@ export function useClearBannersOnNavigation() {
   const location = useLocation();
   useEffect(() => {
     dispatch(bannerSlice.actions.reset());
+    // dispatch is stable across renders (Redux guarantee)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
 }
