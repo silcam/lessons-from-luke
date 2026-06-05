@@ -9,7 +9,7 @@ import {
   totalProgress,
   calcLessonProgress,
   sqlizeLang,
-  Language
+  Language,
 } from "./Language";
 import { LessonString } from "./LessonString";
 import { TString } from "./TString";
@@ -21,7 +21,7 @@ const makeLanguage = (overrides = {}): Language => ({
   motherTongue: false,
   progress: [],
   defaultSrcLang: 1,
-  ...overrides
+  ...overrides,
 });
 
 describe("isLanguage", () => {
@@ -34,15 +34,11 @@ describe("isLanguage", () => {
   });
 
   test("returns false when code is wrong type", () => {
-    expect(isLanguage({ languageId: 1, name: "English", code: 42 })).toBe(
-      false
-    );
+    expect(isLanguage({ languageId: 1, name: "English", code: 42 })).toBe(false);
   });
 
   test("returns false when languageId is wrong type", () => {
-    expect(isLanguage({ languageId: "1", name: "English", code: "en" })).toBe(
-      false
-    );
+    expect(isLanguage({ languageId: "1", name: "English", code: "en" })).toBe(false);
   });
 });
 
@@ -79,10 +75,7 @@ describe("isWithCode", () => {
 
 describe("languageCompare", () => {
   test("sorts alphabetically by name", () => {
-    const langs = [
-      makeLanguage({ name: "Zulu" }),
-      makeLanguage({ name: "Arabic" })
-    ];
+    const langs = [makeLanguage({ name: "Zulu" }), makeLanguage({ name: "Arabic" })];
     langs.sort(languageCompare);
     expect(langs[0].name).toBe("Arabic");
     expect(langs[1].name).toBe("Zulu");
@@ -115,7 +108,7 @@ describe("totalProgress", () => {
   test("returns average of progress values rounded", () => {
     const progress = [
       { lessonId: 1, progress: 50 },
-      { lessonId: 2, progress: 100 }
+      { lessonId: 2, progress: 100 },
     ];
     expect(totalProgress(progress)).toBe(75);
   });
@@ -134,7 +127,7 @@ describe("calcLessonProgress", () => {
     type: "content",
     xpath: "/root",
     motherTongue: false,
-    ...overrides
+    ...overrides,
   });
 
   const makeTString = (overrides = {}): TString => ({
@@ -142,13 +135,13 @@ describe("calcLessonProgress", () => {
     languageId: 1,
     text: "Hello",
     history: [],
-    ...overrides
+    ...overrides,
   });
 
   test("returns empty progress when no lessonStrings", () => {
     expect(calcLessonProgress(false, [], [])).toEqual({
       lessonId: 0,
-      progress: 0
+      progress: 0,
     });
   });
 
@@ -171,7 +164,7 @@ describe("calcLessonProgress", () => {
     const lStr2 = makeLessonString({
       lessonStringId: 2,
       masterId: 2,
-      motherTongue: false
+      motherTongue: false,
     });
     const tStr1 = makeTString({ masterId: 1 });
     // Only masterId 1 is translated, so 50% progress
@@ -184,7 +177,7 @@ describe("calcLessonProgress", () => {
     const lStrNotMT = makeLessonString({
       lessonStringId: 2,
       masterId: 2,
-      motherTongue: false
+      motherTongue: false,
     });
     const tStr = makeTString({ masterId: 1 });
     // Only the MT string is considered, and it is translated → 100%

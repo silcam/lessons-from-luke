@@ -1,17 +1,8 @@
-import {
-  GetRoute,
-  PostRoute,
-  APIPost,
-  APIGet
-} from "../../core/interfaces/Api";
+import { GetRoute, PostRoute, APIPost, APIGet } from "../../core/interfaces/Api";
 import { Express, Request, Response } from "express";
 
-export type GetRequestHandler<T extends GetRoute> = (
-  req: Request
-) => Promise<APIGet[T][1]>;
-export type PostRequestHandler<T extends PostRoute> = (
-  req: Request
-) => Promise<APIPost[T][2]>;
+export type GetRequestHandler<T extends GetRoute> = (req: Request) => Promise<APIGet[T][1]>;
+export type PostRequestHandler<T extends PostRoute> = (req: Request) => Promise<APIPost[T][2]>;
 
 export function addGetHandler<T extends GetRoute>(
   app: Express,
@@ -45,9 +36,7 @@ export async function handleErrors(res: Response, cb: () => Promise<void>) {
   } catch (err) {
     const rawStatus = err.status;
     const status =
-      Number.isInteger(rawStatus) && rawStatus >= 100 && rawStatus <= 599
-        ? rawStatus
-        : 500;
+      Number.isInteger(rawStatus) && rawStatus >= 100 && rawStatus <= 599 ? rawStatus : 500;
     res.status(status).send();
     if (status == 500) console.error(err);
   }

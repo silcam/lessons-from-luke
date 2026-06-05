@@ -1,13 +1,6 @@
 /// <reference types="jest" />
 
-import {
-  equal,
-  isTString,
-  newTString,
-  newTStringFromSrc,
-  sqlizeTString,
-  TString
-} from "./TString";
+import { equal, isTString, newTString, newTStringFromSrc, sqlizeTString, TString } from "./TString";
 import { LessonString } from "./LessonString";
 import { Language } from "./Language";
 
@@ -16,7 +9,7 @@ const makeTString = (overrides = {}): TString => ({
   languageId: 2,
   text: "Hello",
   history: [],
-  ...overrides
+  ...overrides,
 });
 
 const makeLessonString = (): LessonString => ({
@@ -26,7 +19,7 @@ const makeLessonString = (): LessonString => ({
   lessonVersion: 1,
   type: "content",
   xpath: "/root",
-  motherTongue: false
+  motherTongue: false,
 });
 
 const makeLanguage = (): Language => ({
@@ -35,7 +28,7 @@ const makeLanguage = (): Language => ({
   code: "fr",
   motherTongue: false,
   progress: [],
-  defaultSrcLang: 1
+  defaultSrcLang: 1,
 });
 
 describe("equal", () => {
@@ -89,7 +82,7 @@ describe("newTString", () => {
       masterId: 5,
       languageId: 3,
       text: "Bonjour",
-      history: []
+      history: [],
     });
   });
 
@@ -116,7 +109,7 @@ describe("newTStringFromSrc", () => {
       text: "Translation",
       history: [],
       source: "Source",
-      sourceLanguageId: 1
+      sourceLanguageId: 1,
     });
   });
 

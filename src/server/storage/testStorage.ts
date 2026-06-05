@@ -19,7 +19,7 @@ const testStorage: TestPersistence = {
     return testDb.languages;
   },
 
-  language: async params => {
+  language: async (params) => {
     return (
       ("code" in params
         ? findBy(testDb.languages, "code", params.code)
@@ -27,16 +27,16 @@ const testStorage: TestPersistence = {
     );
   },
 
-  createLanguage: async newLanguage => {
+  createLanguage: async (newLanguage) => {
     const languageId = last(testDb.languages).languageId + 1;
     let code = encode();
-    while (testDb.languages.find(lng => lng.code == code)) code = encode();
+    while (testDb.languages.find((lng) => lng.code == code)) code = encode();
     const lang: Language = {
       ...newLanguage,
       languageId,
       code,
       motherTongue: true,
-      progress: []
+      progress: [],
     };
     testDb.languages.push(lang);
     return lang;
@@ -52,24 +52,24 @@ const testStorage: TestPersistence = {
   invalidCode: async (code, languageIds) => {
     const language = findBy(testDb.languages, "code", code);
     if (!language) return true;
-    return !languageIds.every(id => id == language.languageId);
+    return !languageIds.every((id) => id == language.languageId);
   },
 
   lessons: async () => {
     return testDb.lessons;
   },
 
-  lesson: async id => {
+  lesson: async (id) => {
     const lesson = findBy(testDb.lessons, "lessonId", id);
     if (!lesson) return null;
 
     return {
       ...lesson,
-      lessonStrings: testDb.lessonStrings.filter(ls => ls.lessonId == id)
+      lessonStrings: testDb.lessonStrings.filter((ls) => ls.lessonId == id),
     };
   },
 
-  createLesson: async lesson => {
+  createLesson: async (lesson) => {
     const lessonId = last(testDb.lessons).lessonId + 1;
     const newLesson = { ...lesson, lessonId, version: 0 };
     testDb.lessons.push(newLesson);
@@ -83,11 +83,11 @@ const testStorage: TestPersistence = {
       lesson.version = version;
 
       let nextLessonStringId = last(testDb.lessonStrings).lessonStringId + 1;
-      const newLessonStrings = draftLessonStrings.map(str => {
+      const newLessonStrings = draftLessonStrings.map((str) => {
         const lessonStr = {
           ...str,
           lessonStringId: nextLessonStringId,
-          lessonVersion: lesson.version
+          lessonVersion: lesson.version,
         };
         nextLessonStringId += 1;
         return lessonStr;
@@ -95,49 +95,43 @@ const testStorage: TestPersistence = {
 
       const [lessonStringsToRemve, lessonStringsToKeep] = discriminate(
         testDb.lessonStrings,
-        lStr => lStr.lessonId == id
+        (lStr) => lStr.lessonId == id
       );
-      testDb.oldLessonStrings = testDb.oldLessonStrings.concat(
-        lessonStringsToRemve
-      );
+      testDb.oldLessonStrings = testDb.oldLessonStrings.concat(lessonStringsToRemve);
       testDb.lessonStrings = lessonStringsToKeep.concat(newLessonStrings);
 
       return { ...lesson, lessonStrings: newLessonStrings };
     }),
 
-  oldLessonStrings: async (lessonId, version?) => {
+  oldLessonStrings: async (_lessonId, _version?) => {
     // Placeholder
     return [];
   },
 
-  tStrings: async params => {
-    const langTStrings = testDb.tStrings.filter(
-      ts => ts.languageId == params.languageId
-    );
+  tStrings: async (params) => {
+    const langTStrings = testDb.tStrings.filter((ts) => ts.languageId == params.languageId);
     if (!params.lessonId) return langTStrings;
     const masterIds = testDb.lessonStrings
-      .filter(ls => ls.lessonId == params.lessonId)
-      .map(ls => ls.masterId);
-    return langTStrings.filter(ts => masterIds.includes(ts.masterId));
+      .filter((ls) => ls.lessonId == params.lessonId)
+      .map((ls) => ls.masterId);
+    return langTStrings.filter((ts) => masterIds.includes(ts.masterId));
   },
 
   englishScriptureTStrings: async () => {
     return testDb.tStrings.filter(
-      tStr =>
-        tStr.languageId == ENGLISH_ID && VerseStringPattern.test(tStr.text)
+      (tStr) => tStr.languageId == ENGLISH_ID && VerseStringPattern.test(tStr.text)
     );
   },
 
   saveTStrings: async (tStrings, opts = {}) => {
-    const newTStrings = tStrings.map(tString => {
+    const newTStrings = tStrings.map((tString) => {
       if (tString.text.length == 0) {
-        testDb.tStrings = testDb.tStrings.filter(t => !equal(t, tString));
+        testDb.tStrings = testDb.tStrings.filter((t) => !equal(t, tString));
         return null;
       }
-      const existing = testDb.tStrings.find(t => equal(t, tString));
+      const existing = testDb.tStrings.find((t) => equal(t, tString));
       if (existing) {
-        if (existing.text !== tString.text)
-          tString.history = [...existing.history, existing.text];
+        if (existing.text !== tString.text) tString.history = [...existing.history, existing.text];
         Object.assign(existing, tString);
         return existing;
       } else {
@@ -147,15 +141,15 @@ const testStorage: TestPersistence = {
     });
     if (opts.awaitProgress) await updateProgress();
     else updateProgress();
-    return newTStrings.filter(tStr => tStr) as TString[];
+    return newTStrings.filter((tStr) => tStr) as TString[];
   },
 
-  addOrFindMasterStrings: async texts =>
+  addOrFindMasterStrings: async (texts) =>
     withProgressUpdate(async () => {
       // This `map` has a side effect - just to prove that we're not functional purists ;)
-      return texts.map(text => {
+      return texts.map((text) => {
         const existing = testDb.tStrings.find(
-          tStr => tStr.languageId == ENGLISH_ID && tStr.text == text
+          (tStr) => tStr.languageId == ENGLISH_ID && tStr.text == text
         );
         if (existing) return existing;
 
@@ -163,7 +157,7 @@ const testStorage: TestPersistence = {
           masterId: last(testDb.tStrings).masterId + 1,
           languageId: ENGLISH_ID,
           text,
-          history: []
+          history: [],
         };
         testDb.tStrings.push(newTStr);
         return newTStr;
@@ -180,18 +174,18 @@ const testStorage: TestPersistence = {
     fs.writeFileSync(filepath, JSON.stringify(testDb));
   },
 
-  sync: async (timestamp: number, ids: LanguageTimestamp[]) => {
+  sync: async (_timestamp: number, _ids: LanguageTimestamp[]) => {
     // Stubbed response for compiler
     return {
       languages: false,
       baseLessons: false,
       lessons: [],
       tStrings: {},
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
   },
 
-  close: async () => {}
+  close: async () => {},
 };
 
 async function withProgressUpdate<T>(cb: () => Promise<T>) {
@@ -201,43 +195,32 @@ async function withProgressUpdate<T>(cb: () => Promise<T>) {
 }
 
 async function updateProgress() {
-  testDb.languages.forEach(language => {
+  testDb.languages.forEach((language) => {
     const newProgress: LessonProgress[] = [];
-    const tStrings = testDb.tStrings.filter(
-      tStr => tStr.languageId == language.languageId
-    );
-    testDb.lessons.forEach(lesson => {
+    const tStrings = testDb.tStrings.filter((tStr) => tStr.languageId == language.languageId);
+    testDb.lessons.forEach((lesson) => {
       const lessonStrings = testDb.lessonStrings.filter(
-        lStr =>
-          lStr.lessonId == lesson.lessonId &&
-          (!language.motherTongue || lStr.motherTongue)
+        (lStr) => lStr.lessonId == lesson.lessonId && (!language.motherTongue || lStr.motherTongue)
       );
       const progress = percent(
-        lessonStrings.filter(lStr =>
-          tStrings.find(tStr => tStr.masterId == lStr.masterId)
-        ).length,
+        lessonStrings.filter((lStr) => tStrings.find((tStr) => tStr.masterId == lStr.masterId))
+          .length,
         lessonStrings.length
       );
       newProgress.push({
         lessonId: lesson.lessonId,
-        progress
+        progress,
       });
     });
     language.progress = newProgress;
   });
 }
 
-export function join<A, B>(
-  alist: A[],
-  blist: B[],
-  match: (a: A, b: B) => boolean
-): (A & B)[] {
+export function join<A, B>(alist: A[], blist: B[], match: (a: A, b: B) => boolean): (A & B)[] {
   return alist.reduce(
     (jlist, aitem) =>
       jlist.concat(
-        blist
-          .filter(bitem => match(aitem, bitem))
-          .map(bitem => ({ ...bitem, ...aitem }))
+        blist.filter((bitem) => match(aitem, bitem)).map((bitem) => ({ ...bitem, ...aitem }))
       ),
     [] as (A & B)[]
   );
@@ -248,12 +231,15 @@ export function outerJoin<A, B>(
   blist: B[],
   match: (a: A, b: B) => boolean
 ): (A & Partial<B>)[] {
-  return alist.reduce((jlist, aitem) => {
-    const matches = blist
-      .filter(bitem => match(aitem, bitem))
-      .map(bitem => ({ ...bitem, ...aitem }));
-    return jlist.concat(matches.length > 0 ? matches : ([aitem] as (A & Partial<B>)[]));
-  }, [] as (A & Partial<B>)[]);
+  return alist.reduce(
+    (jlist, aitem) => {
+      const matches = blist
+        .filter((bitem) => match(aitem, bitem))
+        .map((bitem) => ({ ...bitem, ...aitem }));
+      return jlist.concat(matches.length > 0 ? matches : ([aitem] as (A & Partial<B>)[]));
+    },
+    [] as (A & Partial<B>)[]
+  );
 }
 
 export default testStorage;

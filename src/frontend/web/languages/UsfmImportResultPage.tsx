@@ -9,9 +9,7 @@ import { Navigate } from "react-router-dom";
 
 export default function UsfmImportResultPage() {
   const t = useTranslation();
-  const usfmImportResult = useAppSelector(
-    state => state.languages.usfmImportResult
-  );
+  const usfmImportResult = useAppSelector((state) => state.languages.usfmImportResult);
 
   if (!usfmImportResult) {
     console.log("No USFM Import Result");
@@ -26,12 +24,12 @@ export default function UsfmImportResultPage() {
         {errors.length > 0 && (
           <div>
             <Heading level={3} text={t("Errors")} />
-            <List items={errors} renderItem={error => error} />
+            <List items={errors} renderItem={(error) => error} />
           </div>
         )}
         <div>
           <Heading level={3} text={t("Imported_texts")} />
-          <List items={tStrings} renderItem={tString => tString.text} />
+          <List items={tStrings} renderItem={(tString) => tString.text} />
         </div>
       </Div>
     </StdHeaderBarPage>

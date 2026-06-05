@@ -17,7 +17,7 @@ describe("divideTSubs", () => {
       engFrom: [engFrom],
       engTo: [engTo],
       from: [null],
-      to: [null]
+      to: [null],
     };
     const [lite] = divideTSubs([tSub]);
     expect(lite[0].from).toEqual([5]);
@@ -32,7 +32,7 @@ describe("divideTSubs", () => {
       engFrom: [engFrom],
       engTo: [null],
       from: [null],
-      to: [null]
+      to: [null],
     };
     const [lite] = divideTSubs([tSub]);
     expect(lite[0].to).toEqual([null]);
@@ -47,7 +47,7 @@ describe("divideTSubs", () => {
       engFrom: [engFrom],
       engTo: [engTo],
       from: [langFrom],
-      to: [null]
+      to: [null],
     };
     const [, tStrings] = divideTSubs([tSub]);
     expect(tStrings).toContainEqual(engFrom);
@@ -117,7 +117,7 @@ describe("divideTSubs / combineTSubs roundtrip", () => {
       engFrom: [engFrom],
       engTo: [engTo],
       from: [langFrom],
-      to: [langTo]
+      to: [langTo],
     };
 
     const [lite, tStrings] = divideTSubs([tSub]);
@@ -140,7 +140,7 @@ describe("divideTSubs / combineTSubs roundtrip", () => {
       engFrom: [engFrom],
       engTo: [engTo],
       from: [langFrom],
-      to: [null]
+      to: [null],
     };
 
     const [lite, tStrings] = divideTSubs([tSub]);
@@ -156,15 +156,15 @@ describe("divideTSubs / combineTSubs roundtrip", () => {
         engFrom: [makeTStr(1, ENGLISH_ID, "A")],
         engTo: [makeTStr(2, ENGLISH_ID, "B")],
         from: [makeTStr(1, 3, "A3")],
-        to: [makeTStr(2, 3, "B3")]
+        to: [makeTStr(2, 3, "B3")],
       },
       {
         languageId: 3,
         engFrom: [makeTStr(10, ENGLISH_ID, "X")],
         engTo: [makeTStr(11, ENGLISH_ID, "Y")],
         from: [makeTStr(10, 3, "X3")],
-        to: [null]
-      }
+        to: [null],
+      },
     ];
 
     const [lite, tStrings] = divideTSubs(tSubs);

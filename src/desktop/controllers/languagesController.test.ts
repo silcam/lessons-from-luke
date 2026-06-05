@@ -3,24 +3,25 @@
 jest.mock("electron", () => ({
   app: {
     getPath: jest.fn(() => "/tmp/fake-data"),
-    isPackaged: false
+    isPackaged: false,
   },
   ipcMain: {
     on: jest.fn(),
     handle: jest.fn(),
-    removeHandler: jest.fn()
-  }
+    removeHandler: jest.fn(),
+  },
 }));
 
-const registeredHandlers: { [route: string]: Function } = {};
+type Handler = (...args: any[]) => any;
+const registeredHandlers: { [route: string]: Handler } = {};
 
 jest.mock("../DesktopAPIServer", () => ({
-  addGetHandler: jest.fn((route: string, handler: Function) => {
+  addGetHandler: jest.fn((route: string, handler: Handler) => {
     registeredHandlers[route] = handler;
   }),
-  addPostHandler: jest.fn((route: string, handler: Function) => {
+  addPostHandler: jest.fn((route: string, handler: Handler) => {
     registeredHandlers[route] = handler;
-  })
+  }),
 }));
 
 import languagesController from "./languagesController";
@@ -34,7 +35,7 @@ function makePublicLanguage(overrides: Partial<PublicLanguage> = {}): PublicLang
     motherTongue: false,
     progress: [],
     defaultSrcLang: 1,
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -46,14 +47,14 @@ function makeLanguage(overrides: Partial<Language> = {}): Language {
     motherTongue: false,
     progress: [],
     defaultSrcLang: 1,
-    ...overrides
+    ...overrides,
   };
 }
 
 function makeSyncState(overrides: Partial<StoredSyncState> = {}): StoredSyncState {
   return {
     ...initalStoredSyncState(),
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -62,7 +63,7 @@ function makeApp(syncStateOverrides: Partial<StoredSyncState> = {}) {
 
   const localStorage = {
     getSyncState: jest.fn(() => syncState),
-    getLanguages: jest.fn(() => [] as PublicLanguage[])
+    getLanguages: jest.fn(() => [] as PublicLanguage[]),
   };
 
   return { localStorage } as any;
@@ -70,7 +71,7 @@ function makeApp(syncStateOverrides: Partial<StoredSyncState> = {}) {
 
 describe("languagesController", () => {
   beforeEach(() => {
-    Object.keys(registeredHandlers).forEach(k => delete registeredHandlers[k]);
+    Object.keys(registeredHandlers).forEach((k) => delete registeredHandlers[k]);
     jest.clearAllMocks();
   });
 
@@ -81,7 +82,10 @@ describe("languagesController", () => {
       const lang3 = makePublicLanguage({ languageId: 7, name: "Spanish" });
 
       const app = makeApp({
-        syncLanguages: [{ languageId: 3, timestamp: 1 }, { languageId: 5, timestamp: 2 }]
+        syncLanguages: [
+          { languageId: 3, timestamp: 1 },
+          { languageId: 5, timestamp: 2 },
+        ],
       });
       app.localStorage.getLanguages.mockReturnValue([lang1, lang2, lang3]);
       languagesController(app);
@@ -95,9 +99,7 @@ describe("languagesController", () => {
 
     test("returns empty array when syncLanguages is empty", async () => {
       const app = makeApp({ syncLanguages: [] });
-      app.localStorage.getLanguages.mockReturnValue([
-        makePublicLanguage({ languageId: 3 })
-      ]);
+      app.localStorage.getLanguages.mockReturnValue([makePublicLanguage({ languageId: 3 })]);
       languagesController(app);
 
       const result = await registeredHandlers["/api/languages"]();
@@ -106,7 +108,7 @@ describe("languagesController", () => {
 
     test("returns empty array when no languages are stored", async () => {
       const app = makeApp({
-        syncLanguages: [{ languageId: 3, timestamp: 1 }]
+        syncLanguages: [{ languageId: 3, timestamp: 1 }],
       });
       app.localStorage.getLanguages.mockReturnValue([]);
       languagesController(app);
@@ -122,8 +124,8 @@ describe("languagesController", () => {
       const app = makeApp({
         syncLanguages: [
           { languageId: 10, timestamp: 5 },
-          { languageId: 1, timestamp: 5 }
-        ]
+          { languageId: 1, timestamp: 5 },
+        ],
       });
       app.localStorage.getLanguages.mockReturnValue([lang1, lang2]);
       languagesController(app);
@@ -166,9 +168,9 @@ describe("languagesController", () => {
       const app = makeApp({ language: null });
       languagesController(app);
 
-      await expect(
-        registeredHandlers["/api/languages/code/:code"]({ code: "" })
-      ).rejects.toEqual({ status: 404 });
+      await expect(registeredHandlers["/api/languages/code/:code"]({ code: "" })).rejects.toEqual({
+        status: 404,
+      });
     });
   });
 });

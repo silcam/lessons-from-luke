@@ -1,10 +1,6 @@
 /// <reference types="jest" />
 
-import {
-  defaultEnglishUploadMeta,
-  isEnglishUpload,
-  DocUploadMeta
-} from "./DocUploadMeta";
+import { defaultEnglishUploadMeta, isEnglishUpload, DocUploadMeta } from "./DocUploadMeta";
 import { ENGLISH_ID } from "./Language";
 
 describe("defaultEnglishUploadMeta", () => {

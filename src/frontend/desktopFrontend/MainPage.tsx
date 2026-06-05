@@ -8,7 +8,7 @@ import { useAppSelector } from "../common/state/appState";
 import useHandleIPCEvents from "./downSync/useHandleIPCEvents";
 
 export default function MainPage() {
-  const syncState = useAppSelector(state => state.syncState);
+  const syncState = useAppSelector((state) => state.syncState);
 
   useLoad(loadSyncState());
   useHandleIPCEvents();
@@ -19,10 +19,8 @@ export default function MainPage() {
 }
 
 function MainPageWithSyncStateLoaded() {
-  const syncState = useAppSelector(state => state.syncState);
-  const [doTranslate, setDoTranslate] = useState(
-    syncState.downSync.progress == 100
-  );
+  const syncState = useAppSelector((state) => state.syncState);
+  const [doTranslate, setDoTranslate] = useState(syncState.downSync.progress == 100);
 
   if (doTranslate) return <TranslateHome code={syncState.language!.code} />;
 

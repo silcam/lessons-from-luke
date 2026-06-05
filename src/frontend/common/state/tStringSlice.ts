@@ -8,38 +8,27 @@ const tStringSlice = createSlice({
   name: "tStrings",
   initialState: [] as TString[],
   reducers: {
-    add: (state, action: PayloadAction<TString[]>) =>
-      modelListMerge(state, action.payload, equal)
-  }
+    add: (state, action: PayloadAction<TString[]>) => modelListMerge(state, action.payload, equal),
+  },
 });
 
 export default tStringSlice;
 
-export function loadTStrings(
-  languageId: number,
-  lessonId?: number
-): Loader<void> {
-  return get => async dispatch => {
+export function loadTStrings(languageId: number, lessonId?: number): Loader<void> {
+  return (get) => async (dispatch) => {
     const strings = await (lessonId
       ? get("/api/languages/:languageId/lessons/:lessonId/tStrings", {
           languageId,
-          lessonId
+          lessonId,
         })
       : get("/api/languages/:languageId/tStrings", { languageId }));
     if (strings) dispatch(tStringSlice.actions.add(strings));
   };
 }
 
-export function pushTStrings(
-  tStrings: TString[],
-  language: Language
-): Pusher<TString[]> {
+export function pushTStrings(tStrings: TString[], language: Language): Pusher<TString[]> {
   return async (post, dispatch) => {
-    const savedTStrings = await post(
-      "/api/tStrings",
-      {},
-      { tStrings, code: language.code }
-    );
+    const savedTStrings = await post("/api/tStrings", {}, { tStrings, code: language.code });
     if (savedTStrings) dispatch(tStringSlice.actions.add(savedTStrings));
     return savedTStrings;
   };

@@ -13,21 +13,21 @@ import { ENGLISH_ID } from "../../../core/models/Language";
 jest.mock("./networkSlice", () => ({
   __esModule: true,
   default: {
-    reducer: (state = { connected: true }) => state
+    reducer: (state = { connected: true }) => state,
   },
   useNetworkConnectionRestored: () => ({
     onConnectionRestored: jest.fn(),
-    clearHandlers: jest.fn()
+    clearHandlers: jest.fn(),
   }),
-  networkConnectionLostAction: jest.fn(() => ({ type: "NetworkConnectionLost" }))
+  networkConnectionLostAction: jest.fn(() => ({ type: "NetworkConnectionLost" })),
 }));
 
 const createTestStore = () =>
   configureStore({
     reducer: combineReducers({
       tStrings: tStringSlice.reducer,
-      tSubs: tSubSlice.reducer
-    })
+      tSubs: tSubSlice.reducer,
+    }),
   });
 
 const createWrapper = (store: ReturnType<typeof createTestStore>) => {
@@ -43,15 +43,15 @@ const mockTStrings: TString[] = [
   { masterId: 10, languageId: ENGLISH_ID, text: "Old text", history: [] },
   { masterId: 20, languageId: ENGLISH_ID, text: "New text", history: [] },
   { masterId: 10, languageId: FRENCH_ID, text: "Vieux texte", history: [] },
-  { masterId: 20, languageId: FRENCH_ID, text: "Nouveau texte", history: [] }
+  { masterId: 20, languageId: FRENCH_ID, text: "Nouveau texte", history: [] },
 ];
 
 const mockTSubsLite: TSubLite[] = [
   {
     languageId: FRENCH_ID,
     from: [10],
-    to: [20]
-  }
+    to: [20],
+  },
 ];
 
 describe("useTSubs", () => {
@@ -67,9 +67,7 @@ describe("useTSubs", () => {
   it("returns combined TSubs when data exists for the lessonId", () => {
     const store = createTestStore();
     store.dispatch(tStringSlice.actions.add(mockTStrings));
-    store.dispatch(
-      tSubSlice.actions.set({ lessonId: 1, tSubsLite: mockTSubsLite })
-    );
+    store.dispatch(tSubSlice.actions.set({ lessonId: 1, tSubsLite: mockTSubsLite }));
 
     const Wrapper = createWrapper(store);
 
@@ -82,9 +80,7 @@ describe("useTSubs", () => {
   it("inflates engFrom and engTo from tStrings", () => {
     const store = createTestStore();
     store.dispatch(tStringSlice.actions.add(mockTStrings));
-    store.dispatch(
-      tSubSlice.actions.set({ lessonId: 1, tSubsLite: mockTSubsLite })
-    );
+    store.dispatch(tSubSlice.actions.set({ lessonId: 1, tSubsLite: mockTSubsLite }));
 
     const Wrapper = createWrapper(store);
 
@@ -100,9 +96,7 @@ describe("useTSubs", () => {
   it("returns empty array for a different lessonId with no data", () => {
     const store = createTestStore();
     store.dispatch(tStringSlice.actions.add(mockTStrings));
-    store.dispatch(
-      tSubSlice.actions.set({ lessonId: 1, tSubsLite: mockTSubsLite })
-    );
+    store.dispatch(tSubSlice.actions.set({ lessonId: 1, tSubsLite: mockTSubsLite }));
 
     const Wrapper = createWrapper(store);
 

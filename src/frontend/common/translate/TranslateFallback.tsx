@@ -23,7 +23,7 @@ interface IProps {
 
 export default function TranslateFallback(props: IProps) {
   const t = useTranslation();
-  const languages = useAppSelector(state => state.languages.languages);
+  const languages = useAppSelector((state) => state.languages.languages);
 
   const { setDirty, setClean } = useDirtyState(props.onDirtyStateChange);
 
@@ -33,11 +33,11 @@ export default function TranslateFallback(props: IProps) {
       <Label text={t("Source_language")}>
         <SelectInput
           value={`${props.srcLangId}`}
-          setValue={v => props.setSrcLangId(parseInt(v))}
-          options={languages.map(lng => [`${lng.languageId}`, lng.name])}
+          setValue={(v) => props.setSrcLangId(parseInt(v))}
+          options={languages.map((lng) => [`${lng.languageId}`, lng.name])}
         />
       </Label>
-      {props.lessonTStrings.map(ltStr => (
+      {props.lessonTStrings.map((ltStr) => (
         <PDiv key={ltStr.lStr.lessonStringId}>
           <TranslateRow
             lessonTString={ltStr}

@@ -3,7 +3,7 @@ import languageSlice, {
   loadTranslatingLanguage,
   pushLanguage,
   pushLanguageUpdate,
-  pushUsfm
+  pushUsfm,
 } from "./languageSlice";
 import { Language, MaybePublicLanguage } from "../../../core/models/Language";
 import { TString } from "../../../core/models/TString";
@@ -16,7 +16,7 @@ function makeLanguage(overrides: Partial<Language> = {}): Language {
     motherTongue: false,
     progress: [],
     defaultSrcLang: 1,
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -26,7 +26,7 @@ function makeTString(overrides: Partial<TString> = {}): TString {
     languageId: 1,
     text: "Hello",
     history: [],
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -44,13 +44,13 @@ describe("languageSlice reducers", () => {
         languageSlice.actions.setLanguages([langZ, langA, langE])
       );
 
-      expect(state.languages.map(l => l.name)).toEqual(["Arabic", "English", "Zulu"]);
+      expect(state.languages.map((l) => l.name)).toEqual(["Arabic", "English", "Zulu"]);
     });
 
     it("replaces previous languages", () => {
       const stateWithLanguages = {
         ...initialState,
-        languages: [makeLanguage({ languageId: 99, name: "Old" })] as MaybePublicLanguage[]
+        languages: [makeLanguage({ languageId: 99, name: "Old" })] as MaybePublicLanguage[],
       };
       const newLang = makeLanguage({ languageId: 1, name: "New" });
 
@@ -74,7 +74,7 @@ describe("languageSlice reducers", () => {
         languageSlice.actions.setAdminLanguages([langZ, langA])
       );
 
-      expect(state.adminLanguages.map(l => l.name)).toEqual(["Arabic", "Zulu"]);
+      expect(state.adminLanguages.map((l) => l.name)).toEqual(["Arabic", "Zulu"]);
     });
   });
 
@@ -83,7 +83,7 @@ describe("languageSlice reducers", () => {
       const existing = makeLanguage({ languageId: 2, name: "Zulu", code: "zu" });
       const stateWithLanguages = {
         ...initialState,
-        adminLanguages: [existing]
+        adminLanguages: [existing],
       };
       const newLang = makeLanguage({ languageId: 3, name: "Arabic", code: "ar" });
 
@@ -93,14 +93,14 @@ describe("languageSlice reducers", () => {
       );
 
       expect(state.adminLanguages).toHaveLength(2);
-      expect(state.adminLanguages.map(l => l.name)).toEqual(["Arabic", "Zulu"]);
+      expect(state.adminLanguages.map((l) => l.name)).toEqual(["Arabic", "Zulu"]);
     });
 
     it("replaces an existing language with matching languageId", () => {
       const existing = makeLanguage({ languageId: 1, name: "English", code: "en" });
       const stateWithLanguages = {
         ...initialState,
-        adminLanguages: [existing]
+        adminLanguages: [existing],
       };
       const updated = makeLanguage({ languageId: 1, name: "English Updated", code: "en" });
 
@@ -118,10 +118,7 @@ describe("languageSlice reducers", () => {
     it("sets the translating language", () => {
       const lang = makeLanguage({ languageId: 5, name: "Spanish", code: "es" });
 
-      const state = languageSlice.reducer(
-        initialState,
-        languageSlice.actions.setTranslating(lang)
-      );
+      const state = languageSlice.reducer(initialState, languageSlice.actions.setTranslating(lang));
 
       expect(state.translating).toEqual(lang);
     });
@@ -146,7 +143,7 @@ describe("languageSlice reducers", () => {
     it("updates progress for the translating language", () => {
       const lang = makeLanguage({
         languageId: 1,
-        progress: [{ lessonId: 1, progress: 50 }]
+        progress: [{ lessonId: 1, progress: 50 }],
       });
       const stateWithTranslating = { ...initialState, translating: lang };
 
@@ -198,9 +195,7 @@ describe("languageSlice thunks", () => {
       await loadLanguages(false)(get)(dispatch);
 
       expect(get).toHaveBeenCalledWith("/api/languages", {});
-      expect(dispatch).toHaveBeenCalledWith(
-        languageSlice.actions.setLanguages([mockLang])
-      );
+      expect(dispatch).toHaveBeenCalledWith(languageSlice.actions.setLanguages([mockLang]));
     });
 
     it("calls GET /api/admin/languages and dispatches setAdminLanguages when admin=true", async () => {
@@ -211,9 +206,7 @@ describe("languageSlice thunks", () => {
       await loadLanguages(true)(get)(dispatch);
 
       expect(get).toHaveBeenCalledWith("/api/admin/languages", {});
-      expect(dispatch).toHaveBeenCalledWith(
-        languageSlice.actions.setAdminLanguages([mockLang])
-      );
+      expect(dispatch).toHaveBeenCalledWith(languageSlice.actions.setAdminLanguages([mockLang]));
     });
 
     it("does not dispatch if GET returns null", async () => {
@@ -235,9 +228,7 @@ describe("languageSlice thunks", () => {
       await loadTranslatingLanguage("fr")(get)(dispatch);
 
       expect(get).toHaveBeenCalledWith("/api/languages/code/:code", { code: "fr" });
-      expect(dispatch).toHaveBeenCalledWith(
-        languageSlice.actions.setTranslating(mockLang)
-      );
+      expect(dispatch).toHaveBeenCalledWith(languageSlice.actions.setTranslating(mockLang));
       // Should also dispatch setLocaleIfNoUser
       expect(dispatch).toHaveBeenCalledTimes(2);
     });
@@ -262,9 +253,7 @@ describe("languageSlice thunks", () => {
       const result = await pushLanguage(newLang)(post, dispatch);
 
       expect(post).toHaveBeenCalledWith("/api/admin/languages", {}, newLang);
-      expect(dispatch).toHaveBeenCalledWith(
-        languageSlice.actions.addLanguage(returnedLang)
-      );
+      expect(dispatch).toHaveBeenCalledWith(languageSlice.actions.addLanguage(returnedLang));
       expect(result).toEqual(returnedLang);
     });
 
@@ -294,9 +283,7 @@ describe("languageSlice thunks", () => {
         { languageId: 5 },
         { motherTongue: lang.motherTongue, defaultSrcLang: lang.defaultSrcLang }
       );
-      expect(dispatch).toHaveBeenCalledWith(
-        languageSlice.actions.addLanguage(updatedLang)
-      );
+      expect(dispatch).toHaveBeenCalledWith(languageSlice.actions.addLanguage(updatedLang));
       expect(result).toEqual(updatedLang);
     });
   });
@@ -316,12 +303,8 @@ describe("languageSlice thunks", () => {
         { languageId: 3 },
         { usfm: "\\v 1 Hello" }
       );
-      expect(dispatch).toHaveBeenCalledWith(
-        languageSlice.actions.addLanguage(lang)
-      );
-      expect(dispatch).toHaveBeenCalledWith(
-        languageSlice.actions.setUsfmImportResult(usfmData)
-      );
+      expect(dispatch).toHaveBeenCalledWith(languageSlice.actions.addLanguage(lang));
+      expect(dispatch).toHaveBeenCalledWith(languageSlice.actions.setUsfmImportResult(usfmData));
       expect(result).toEqual(usfmData);
     });
 

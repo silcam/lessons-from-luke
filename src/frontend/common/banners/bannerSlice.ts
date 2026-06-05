@@ -9,16 +9,16 @@ const bannerSlice = createSlice({
     add: (_, action: PayloadAction<AppBanner>) => [action.payload],
     reset: () => [],
     removeType: (state, action: PayloadAction<AppBanner["type"]>) =>
-      state.filter(banner => banner.type !== action.payload),
+      state.filter((banner) => banner.type !== action.payload),
     remove: (state, action: PayloadAction<AppBanner>) =>
-      state.filter(banner => original(banner) !== action.payload)
+      state.filter((banner) => original(banner) !== action.payload),
   },
-  extraReducers: builder => {
+  extraReducers: (builder) => {
     builder
       .addCase("NetworkConnectionLost", () => {
         const banner: AppBanner = {
           type: "Error",
-          error: { type: "No Connection" }
+          error: { type: "No Connection" },
         };
         return [banner];
       })
@@ -26,11 +26,11 @@ const bannerSlice = createSlice({
         const banner: AppBanner = {
           type: "Success",
           message: "",
-          networkConnectionRestored: true
+          networkConnectionRestored: true,
         };
         return [banner];
       });
-  }
+  },
 });
 
 export default bannerSlice;

@@ -19,12 +19,12 @@ interface IProps extends STIProps {
 const StyledTextInput = styled.input<STIProps>`
   border: none;
   border-bottom: 1px ${Colors.lightGrey} solid;
-  font-size: ${props => (props.bigger ? "1.6em" : "1em")};
-  margin: ${props => (props.bigger ? "0.4em 0 0.8em" : "0")};
+  font-size: ${(props) => (props.bigger ? "1.6em" : "1em")};
+  margin: ${(props) => (props.bigger ? "0.4em 0 0.8em" : "0")};
   padding: 0.125em 0.25em;
   display: block;
   width: 100%;
-  min-width: ${props => (props.minWidth ? `${props.minWidth}em` : undefined)};
+  min-width: ${(props) => (props.minWidth ? `${props.minWidth}em` : undefined)};
   box-sizing: border-box;
 
   &:focus {
@@ -38,7 +38,7 @@ const StyledTextInput = styled.input<STIProps>`
 `;
 
 export default function TextInput(props: IProps) {
-  const { setValue, password, ...inputProps } = props;
+  const { setValue: _setValue, password: _password, ...inputProps } = props;
   return (
     <StyledTextInput
       type={props.password ? "password" : "text"}

@@ -10,7 +10,7 @@ describe("webGet", () => {
   test("returns response data on success", async () => {
     mockedAxios.get.mockResolvedValueOnce({
       data: [{ languageId: 1, name: "English" }],
-      headers: { "content-length": "42" }
+      headers: { "content-length": "42" },
     } as any);
 
     const result = await webGet("/api/languages", {});
@@ -21,7 +21,7 @@ describe("webGet", () => {
   test("uses baseUrl when provided", async () => {
     mockedAxios.get.mockResolvedValueOnce({
       data: [],
-      headers: { "content-length": "2" }
+      headers: { "content-length": "2" },
     } as any);
 
     await webGet("/api/languages", {}, "http://example.com");
@@ -31,7 +31,7 @@ describe("webGet", () => {
   test("interpolates route params", async () => {
     mockedAxios.get.mockResolvedValueOnce({
       data: null,
-      headers: { "content-length": "4" }
+      headers: { "content-length": "4" },
     } as any);
 
     await webGet("/api/lessons/:lessonId", { lessonId: 5 });
@@ -42,19 +42,19 @@ describe("webGet", () => {
     mockedAxios.get.mockRejectedValueOnce({ request: {}, response: null });
 
     await expect(webGet("/api/languages", {})).rejects.toMatchObject({
-      type: "No Connection"
+      type: "No Connection",
     });
   });
 
   test("throws AppError with type 'HTTP' when server returns error status", async () => {
     mockedAxios.get.mockRejectedValueOnce({
       request: {},
-      response: { status: 404 }
+      response: { status: 404 },
     });
 
     await expect(webGet("/api/languages", {})).rejects.toMatchObject({
       type: "HTTP",
-      status: 404
+      status: 404,
     });
   });
 
@@ -62,29 +62,27 @@ describe("webGet", () => {
     mockedAxios.get.mockRejectedValueOnce(new Error("network failure"));
 
     await expect(webGet("/api/languages", {})).rejects.toMatchObject({
-      type: "Unknown"
+      type: "Unknown",
     });
   });
 
   test("interpolates multiple params in one route", async () => {
     mockedAxios.get.mockResolvedValueOnce({
       data: null,
-      headers: { "content-length": "4" }
+      headers: { "content-length": "4" },
     } as any);
 
     await webGet(
       "/api/languages/:languageId/lessons/:lessonId" as any,
       { languageId: 5, lessonId: 10 } as any
     );
-    expect(mockedAxios.get).toHaveBeenCalledWith(
-      "/api/languages/5/lessons/10"
-    );
+    expect(mockedAxios.get).toHaveBeenCalledWith("/api/languages/5/lessons/10");
   });
 
   test("interpolates numeric param values", async () => {
     mockedAxios.get.mockResolvedValueOnce({
       data: null,
-      headers: { "content-length": "4" }
+      headers: { "content-length": "4" },
     } as any);
 
     await webGet("/api/lessons/:lessonId" as any, { lessonId: 42 } as any);
@@ -94,7 +92,7 @@ describe("webGet", () => {
   test("leaves route unchanged when params object is empty", async () => {
     mockedAxios.get.mockResolvedValueOnce({
       data: [],
-      headers: { "content-length": "2" }
+      headers: { "content-length": "2" },
     } as any);
 
     await webGet("/api/languages", {});
@@ -106,52 +104,45 @@ describe("webPost", () => {
   test("returns response data on success", async () => {
     mockedAxios.post.mockResolvedValueOnce({
       data: [{ masterId: 1, languageId: 2, text: "Hello", history: [] }],
-      headers: { "content-length": "50" }
+      headers: { "content-length": "50" },
     } as any);
 
-    const result = await webPost(
-      "/api/tStrings",
-      {},
-      { code: "ABC", tStrings: [] }
-    );
+    const result = await webPost("/api/tStrings", {}, { code: "ABC", tStrings: [] });
     expect(result).toHaveLength(1);
-    expect(mockedAxios.post).toHaveBeenCalledWith(
-      "/api/tStrings",
-      { code: "ABC", tStrings: [] }
-    );
+    expect(mockedAxios.post).toHaveBeenCalledWith("/api/tStrings", { code: "ABC", tStrings: [] });
   });
 
   test("throws AppError on HTTP error", async () => {
     mockedAxios.post.mockRejectedValueOnce({
       request: {},
-      response: { status: 500 }
+      response: { status: 500 },
     });
 
-    await expect(
-      webPost("/api/tStrings", {}, { code: "ABC", tStrings: [] })
-    ).rejects.toMatchObject({ type: "HTTP", status: 500 });
+    await expect(webPost("/api/tStrings", {}, { code: "ABC", tStrings: [] })).rejects.toMatchObject(
+      { type: "HTTP", status: 500 }
+    );
   });
 
   test("throws AppError with type 'No Connection' when no response received", async () => {
     mockedAxios.post.mockRejectedValueOnce({ request: {}, response: null });
 
-    await expect(
-      webPost("/api/tStrings", {}, { code: "ABC", tStrings: [] })
-    ).rejects.toMatchObject({ type: "No Connection" });
+    await expect(webPost("/api/tStrings", {}, { code: "ABC", tStrings: [] })).rejects.toMatchObject(
+      { type: "No Connection" }
+    );
   });
 
   test("throws AppError with type 'Unknown' for unexpected errors", async () => {
     mockedAxios.post.mockRejectedValueOnce(new Error("network failure"));
 
-    await expect(
-      webPost("/api/tStrings", {}, { code: "ABC", tStrings: [] })
-    ).rejects.toMatchObject({ type: "Unknown" });
+    await expect(webPost("/api/tStrings", {}, { code: "ABC", tStrings: [] })).rejects.toMatchObject(
+      { type: "Unknown" }
+    );
   });
 
   test("interpolates route params", async () => {
     mockedAxios.post.mockResolvedValueOnce({
       data: [],
-      headers: { "content-length": "2" }
+      headers: { "content-length": "2" },
     } as any);
 
     await webPost(
@@ -159,24 +150,16 @@ describe("webPost", () => {
       { languageId: 3 } as any,
       { code: "ABC", tStrings: [] } as any
     );
-    expect(mockedAxios.post).toHaveBeenCalledWith(
-      "/api/languages/3/tStrings",
-      expect.anything()
-    );
+    expect(mockedAxios.post).toHaveBeenCalledWith("/api/languages/3/tStrings", expect.anything());
   });
 
   test("uses baseUrl when provided", async () => {
     mockedAxios.post.mockResolvedValueOnce({
       data: null,
-      headers: { "content-length": "4" }
+      headers: { "content-length": "4" },
     } as any);
 
-    await webPost(
-      "/api/tStrings",
-      {},
-      { code: "ABC", tStrings: [] },
-      "http://example.com"
-    );
+    await webPost("/api/tStrings", {}, { code: "ABC", tStrings: [] }, "http://example.com");
     expect(mockedAxios.post).toHaveBeenCalledWith(
       "http://example.com/api/tStrings",
       expect.anything()
@@ -186,20 +169,12 @@ describe("webPost", () => {
   test("calls log callback with POST message", async () => {
     mockedAxios.post.mockResolvedValueOnce({
       data: null,
-      headers: { "content-length": "4" }
+      headers: { "content-length": "4" },
     } as any);
 
     const mockLog = jest.fn();
-    await webPost(
-      "/api/tStrings",
-      {},
-      { code: "ABC", tStrings: [] },
-      "",
-      mockLog
-    );
-    expect(mockLog).toHaveBeenCalledWith(
-      expect.stringContaining("POST /api/tStrings")
-    );
+    await webPost("/api/tStrings", {}, { code: "ABC", tStrings: [] }, "", mockLog);
+    expect(mockLog).toHaveBeenCalledWith(expect.stringContaining("POST /api/tStrings"));
   });
 });
 
@@ -218,12 +193,12 @@ describe("postFile", () => {
   test("posts file with form data and returns response data", async () => {
     mockedAxios.post.mockResolvedValueOnce({
       data: { uploaded: true },
-      headers: {}
+      headers: {},
     } as any);
 
     const mockFile = {} as File;
     const result = await postFile("/api/documents", "file", mockFile, {
-      lessonId: 1
+      lessonId: 1,
     });
 
     expect(result).toEqual({ uploaded: true });
@@ -239,41 +214,42 @@ describe("postFile", () => {
   test("throws AppError when upload fails", async () => {
     mockedAxios.post.mockRejectedValueOnce({
       request: {},
-      response: { status: 422 }
+      response: { status: 422 },
     });
 
-    await expect(
-      postFile("/api/documents", "file", {} as File, {})
-    ).rejects.toMatchObject({ type: "HTTP", status: 422 });
+    await expect(postFile("/api/documents", "file", {} as File, {})).rejects.toMatchObject({
+      type: "HTTP",
+      status: 422,
+    });
   });
 
   test("throws AppError with type 'No Connection' when no response received", async () => {
     mockedAxios.post.mockRejectedValueOnce({ request: {}, response: null });
 
-    await expect(
-      postFile("/api/documents", "file", {} as File, {})
-    ).rejects.toMatchObject({ type: "No Connection" });
+    await expect(postFile("/api/documents", "file", {} as File, {})).rejects.toMatchObject({
+      type: "No Connection",
+    });
   });
 
   test("throws AppError with type 'Unknown' for unexpected errors", async () => {
     mockedAxios.post.mockRejectedValueOnce(new Error("upload failure"));
 
-    await expect(
-      postFile("/api/documents", "file", {} as File, {})
-    ).rejects.toMatchObject({ type: "Unknown" });
+    await expect(postFile("/api/documents", "file", {} as File, {})).rejects.toMatchObject({
+      type: "Unknown",
+    });
   });
 
   test("calls formData.set for each key in data object", async () => {
     mockedAxios.post.mockResolvedValueOnce({
       data: { uploaded: true },
-      headers: {}
+      headers: {},
     } as any);
 
     const mockFile = {} as File;
     await postFile("/api/documents", "file", mockFile, {
       lessonId: 7,
       languageId: 2,
-      docType: "content"
+      docType: "content",
     });
 
     expect(mockSet).toHaveBeenCalledWith("lessonId", 7);

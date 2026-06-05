@@ -3,13 +3,13 @@ jest.mock("../state/networkSlice", () => ({
   __esModule: true,
   default: {
     reducer: (state = { connected: true }) => state,
-    actions: {}
+    actions: {},
   },
   useNetworkConnectionRestored: () => ({
     onConnectionRestored: jest.fn(),
-    clearHandlers: jest.fn()
+    clearHandlers: jest.fn(),
   }),
-  networkConnectionLostAction: jest.fn()
+  networkConnectionLostAction: jest.fn(),
 }));
 
 import React from "react";
@@ -25,7 +25,7 @@ describe("InterfaceLanguagePicker", () => {
   it("renders without crashing in web mode", () => {
     const { container } = renderWithProviders(<InterfaceLanguagePicker />, {
       syncState: defaultSyncState,
-      currentUser: { user: null, locale: "en", loaded: false }
+      currentUser: { user: null, locale: "en", loaded: false },
     });
     expect(container).toBeTruthy();
   });
@@ -33,7 +33,7 @@ describe("InterfaceLanguagePicker", () => {
   it("renders a select element with locale options", () => {
     const { container } = renderWithProviders(<InterfaceLanguagePicker />, {
       syncState: defaultSyncState,
-      currentUser: { user: null, locale: "en", loaded: false }
+      currentUser: { user: null, locale: "en", loaded: false },
     });
     const select = container.querySelector("select");
     expect(select).toBeTruthy();
@@ -42,7 +42,7 @@ describe("InterfaceLanguagePicker", () => {
   it("dispatches setLocale action when a new locale is selected in web mode (line 24)", async () => {
     const { container } = renderWithProviders(<InterfaceLanguagePicker />, {
       syncState: defaultSyncState,
-      currentUser: { user: null, locale: "en", loaded: false }
+      currentUser: { user: null, locale: "en", loaded: false },
     });
     const select = container.querySelector("select")!;
     // Trigger the setValue callback by changing the select value
@@ -58,15 +58,13 @@ describe("InterfaceLanguagePicker", () => {
     const mockPost = jest.fn().mockResolvedValue({ locale: "fr" });
     const store = buildStore({
       syncState: { ...defaultSyncState, locale: "en" },
-      currentUser: { user: null, locale: "en", loaded: false }
+      currentUser: { user: null, locale: "en", loaded: false },
     });
 
     const { container } = render(
       <Provider store={store}>
         <RequestContext.Provider value={{ get: jest.fn() as any, post: mockPost as any }}>
-          <MemoryRouter
-            future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-          >
+          <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <PlatformContext.Provider value="desktop">
               <InterfaceLanguagePicker />
             </PlatformContext.Provider>

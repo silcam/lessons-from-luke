@@ -13,7 +13,7 @@ export default function Checkbox(props: IProps) {
       <input
         type="checkbox"
         checked={props.value}
-        onChange={e => props.setValue(e.target.checked)}
+        onChange={(e) => props.setValue(e.target.checked)}
       />
     </Label>
   );

@@ -24,46 +24,43 @@ export default function useLessonTStrings(
   const dispatch = useDispatch();
   const postProgress = usePostProgress();
 
-  const targetLanguage = useAppSelector(state => state.languages.translating);
-  const lesson = useAppSelector(state =>
-    findBy(state.lessons, "lessonId", lessonId)
-  );
-  const allTStrings = useAppSelector(state => state.tStrings);
+  const targetLanguage = useAppSelector((state) => state.languages.translating);
+  const lesson = useAppSelector((state) => findBy(state.lessons, "lessonId", lessonId));
+  const allTStrings = useAppSelector((state) => state.tStrings);
 
   const lessonTStrings = useMemo(() => {
     let lessonStrings = lesson ? lessonStringsFromLesson(lesson) : [];
-    if (opts.contentOnly)
-      lessonStrings = lessonStrings.filter(ls => ls.type == "content");
-    const tStrings = allTStrings.filter(str =>
-      languageIds.includes(str.languageId)
-    );
-    return lessonStrings.map(lStr => ({
+    if (opts.contentOnly) lessonStrings = lessonStrings.filter((ls) => ls.type == "content");
+    const tStrings = allTStrings.filter((str) => languageIds.includes(str.languageId));
+    return lessonStrings.map((lStr) => ({
       lStr,
-      tStrs: languageIds.map(id =>
-        tStrings.find(
-          tStr => tStr.masterId == lStr.masterId && tStr.languageId == id
-        )
-      )
+      tStrs: languageIds.map((id) =>
+        tStrings.find((tStr) => tStr.masterId == lStr.masterId && tStr.languageId == id)
+      ),
     }));
+    // languageIds/opts.contentOnly intentionally excluded — recompute only on lesson/tStrings change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lesson, allTStrings]);
 
   useEffect(() => {
     if (opts.updateProgress && lessonTStrings.length > 0 && targetLanguage) {
       const strings = targetLanguage.motherTongue
-        ? lessonTStrings.filter(ltStr => ltStr.lStr.motherTongue)
+        ? lessonTStrings.filter((ltStr) => ltStr.lStr.motherTongue)
         : lessonTStrings;
       const lessonProgress = Math.round(
-        (100 * count(strings, ltStr => !!ltStr.tStrs[1]?.text)) / strings.length
+        (100 * count(strings, (ltStr) => !!ltStr.tStrs[1]?.text)) / strings.length
       );
       dispatch(
         languageSlice.actions.setProgress({
           languageId: languageIds[1],
           lessonId,
-          progress: lessonProgress
+          progress: lessonProgress,
         })
       );
       postProgress({ lessonId, progress: lessonProgress });
     }
+    // re-run only on lessonTStrings/updateProgress changes; other deps read via closure
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lessonTStrings, opts.updateProgress]);
 
   return { lesson, lessonTStrings };
@@ -75,6 +72,5 @@ function usePostProgress(): (lessonProgress: LessonProgress) => void {
 
   if (!desktop) return () => {};
 
-  return (lessonProgress: LessonProgress) =>
-    post("/api/syncState/progress", {}, lessonProgress);
+  return (lessonProgress: LessonProgress) => post("/api/syncState/progress", {}, lessonProgress);
 }

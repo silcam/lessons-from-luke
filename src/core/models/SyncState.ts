@@ -39,12 +39,12 @@ export function initalStoredSyncState(): StoredSyncState {
       baseLessons: false,
       lessons: [],
       tStrings: {},
-      timestamp: 1
+      timestamp: 1,
     },
     syncLanguages: [],
     upSync: {
-      dirtyTStrings: []
-    }
+      dirtyTStrings: [],
+    },
   };
 }
 
@@ -58,19 +58,12 @@ export function downSyncProgress(
     0
   );
 
-  if (storedLessonCount == 0 || storedTStringCount + neededTStringCount == 0)
-    return 0;
+  if (storedLessonCount == 0 || storedTStringCount + neededTStringCount == 0) return 0;
 
-  let totalRequests = 2; // One for lessons, one for languages
-  let neededRequests = 0;
-  if (downSync.languages) ++neededRequests;
-  if (downSync.lessons) ++neededRequests;
+  let totalRequests = storedLessonCount * 2; // One request for lessonStrings, one for docPreview
+  let neededRequests = downSync.lessons.length * 2;
 
-  totalRequests = storedLessonCount * 2; // One request for lessonStrings, one for docPreview
-  neededRequests = downSync.lessons.length * 2;
-
-  totalRequests +=
-    (storedTStringCount + neededTStringCount) / T_STRING_BATCH_SIZE; // 100 tStrings per request
+  totalRequests += (storedTStringCount + neededTStringCount) / T_STRING_BATCH_SIZE; // 100 tStrings per request
   neededRequests += neededTStringCount / T_STRING_BATCH_SIZE;
 
   return Math.round((100 * (totalRequests - neededRequests)) / totalRequests);
@@ -84,15 +77,15 @@ export function updateLanguageTimestamps(
   return {
     ...syncState,
     syncLanguages: syncState.syncLanguages
-      .filter(langTS => !languageIds.some(id => langTS.languageId == id))
-      .concat(languageIds.map(languageId => ({ languageId, timestamp })))
+      .filter((langTS) => !languageIds.some((id) => langTS.languageId == id))
+      .concat(languageIds.map((languageId) => ({ languageId, timestamp }))),
   };
 }
 
 export function resync(syncState: StoredSyncState): StoredSyncState {
   return {
     ...syncState,
-    syncLanguages: syncState.syncLanguages.map(sl => ({ ...sl, timestamp: 1 })),
-    downSync: initalStoredSyncState().downSync
+    syncLanguages: syncState.syncLanguages.map((sl) => ({ ...sl, timestamp: 1 })),
+    downSync: initalStoredSyncState().downSync,
   };
 }

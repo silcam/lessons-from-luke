@@ -12,11 +12,15 @@ interface IProps extends ComponentProps<"textarea"> {
 }
 
 export default function StatusfulTextArea(props: IProps) {
-  const { value, saveValue, markDirty, markClean, ...otherProps } = props;
+  const {
+    value: _value,
+    saveValue,
+    markDirty: _markDirty,
+    markClean: _markClean,
+    ...otherProps
+  } = props;
 
-  const [inputState, setInputState] = useState<
-    "none" | "clean" | "dirty" | "working"
-  >("none");
+  const [inputState, setInputState] = useState<"none" | "clean" | "dirty" | "working">("none");
 
   const [text, _setText] = useState(props.value);
   const setText = (text: string) => {
@@ -29,7 +33,7 @@ export default function StatusfulTextArea(props: IProps) {
     if (!text.trim()) return;
 
     setInputState("working");
-    const success = await saveValue(text);
+    await saveValue(text);
     // setInputState(success ? "clean" : "dirty");
   };
 
@@ -48,12 +52,18 @@ export default function StatusfulTextArea(props: IProps) {
 
   useEffect(() => {
     // Change of props value
+    // reconcile internal status to external value change; cascading render intended
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (["dirty", "working"].includes(inputState)) setInputState("clean");
+    // only re-run when the external value changes; inputState is read but not tracked
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.value]);
 
   useEffect(() => {
     if (inputState == "dirty") props.markDirty();
     if (inputState == "clean") props.markClean();
+    // markDirty/markClean callbacks intentionally not tracked — fire only on state change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputState]);
 
   return (
@@ -63,7 +73,7 @@ export default function StatusfulTextArea(props: IProps) {
       setValue={setText}
       status={inputState}
       onBlur={save}
-      onKeyDown={e => {
+      onKeyDown={(e) => {
         if (e.key == "Enter" && props.saveOnEnter) {
           e.preventDefault();
           save();
@@ -79,7 +89,7 @@ interface SSTAProps extends ComponentProps<"textarea"> {
   status: "none" | "clean" | "dirty" | "working";
 }
 export const SSTA = styled(TextArea)<SSTAProps>`
-  ${props =>
+  ${(props) =>
     props.status == "none"
       ? ""
       : css`

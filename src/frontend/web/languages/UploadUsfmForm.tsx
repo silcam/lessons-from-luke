@@ -23,14 +23,14 @@ export default function UploadUsfmForm(props: IProps) {
   const [inputCaption, setInputCaption] = useState(t("Add_file"));
   const formValid = usfm.length > 0;
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop: async files => {
+  const { getRootProps, getInputProps } = useDropzone({
+    onDrop: async (files) => {
       if (files[0]) {
         const text = await (files[0] as any).text(); // Not sure why the cast is needed
         setUsfm(text);
         setInputCaption(files[0].name);
       }
-    }
+    },
   });
 
   const save = async () => {

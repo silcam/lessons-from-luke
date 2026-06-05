@@ -7,8 +7,8 @@ module.exports = defineConfig({
     defaultCommandTimeout: 10000,
     responseTimeout: 30000,
     pageLoadTimeout: 60000,
-    setupNodeEvents(on, config) {
+    setupNodeEvents() {
       // No plugin configuration needed
-    }
-  }
+    },
+  },
 });

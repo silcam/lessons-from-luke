@@ -14,23 +14,19 @@ export default function LessonEditor(props: IProps) {
   const { docStrings, setDocStrings } = props;
 
   const setText = (docStrings: DocString[], index: number, text: string) =>
-    produce(docStrings, ds => {
+    produce(docStrings, (ds) => {
       ds[index].text = text;
     });
 
   const deleteItem = (docStrings: DocString[], index: number) =>
-    produce(docStrings, ds => {
+    produce(docStrings, (ds) => {
       ds[index].text = "";
       ds.splice(0, 0, ds.splice(index, 1)[0]);
     });
 
   const mergeNext = (docStrings: DocString[], index: number, sep: string) =>
     deleteItem(
-      setText(
-        docStrings,
-        index,
-        docStrings[index].text + sep + docStrings[index + 1].text
-      ),
+      setText(docStrings, index, docStrings[index].text + sep + docStrings[index + 1].text),
       index + 1
     );
 
@@ -42,9 +38,9 @@ export default function LessonEditor(props: IProps) {
             key={index}
             docString={docString}
             lastString={index == docStrings.length - 1}
-            setText={text => setDocStrings(setText(docStrings, index, text))}
+            setText={(text) => setDocStrings(setText(docStrings, index, text))}
             deleteItem={() => setDocStrings(deleteItem(docStrings, index))}
-            mergeNext={sep => setDocStrings(mergeNext(docStrings, index, sep))}
+            mergeNext={(sep) => setDocStrings(mergeNext(docStrings, index, sep))}
           />
         )
       )}
@@ -52,13 +48,11 @@ export default function LessonEditor(props: IProps) {
   );
 }
 
-export function docStringsFromLessonTStrings(
-  lessonTStrings: LessonTStrings
-): DocString[] {
-  return lessonTStrings.map(ltStr => ({
+export function docStringsFromLessonTStrings(lessonTStrings: LessonTStrings): DocString[] {
+  return lessonTStrings.map((ltStr) => ({
     type: ltStr.lStr.type,
     xpath: ltStr.lStr.xpath,
     motherTongue: ltStr.lStr.motherTongue,
-    text: ltStr.tStrs[0]?.text || ""
+    text: ltStr.tStrs[0]?.text || "",
   }));
 }

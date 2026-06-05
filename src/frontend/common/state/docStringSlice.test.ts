@@ -7,7 +7,7 @@ function makeDocString(overrides: Partial<DocString> = {}): DocString {
     xpath: "/root/p[1]",
     motherTongue: false,
     text: "Hello",
-    ...overrides
+    ...overrides,
   };
 }
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { render, fireEvent, act, waitFor } from "@testing-library/react";
+import { render, fireEvent, act } from "@testing-library/react";
 import StatusfulTextArea from "./StatusfulTextArea";
 
 function makeSaveValue(success = true) {

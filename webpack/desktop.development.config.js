@@ -1,5 +1,4 @@
 const baseConfig = require("./desktop.base.config");
-const path = require("path");
 
 module.exports = {
   ...baseConfig,
@@ -8,12 +7,10 @@ module.exports = {
   devServer: {
     static: false,
     port: 8082,
-    proxy: [
-      { context: ["/api", "/webified"], target: "http://localhost:8081" }
-    ],
+    proxy: [{ context: ["/api", "/webified"], target: "http://localhost:8081" }],
     historyApiFallback: true,
     client: {
-      overlay: { errors: true, warnings: false, runtimeErrors: false }
-    }
-  }
+      overlay: { errors: true, warnings: false, runtimeErrors: false },
+    },
+  },
 };

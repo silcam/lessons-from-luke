@@ -1,26 +1,26 @@
 {
-    "compilerOptions": {
-        "module": "commonjs",
-        "esModuleInterop": true,
-        "target": "es2022",
-        "moduleResolution": "node",
-        "sourceMap": true,
-        "strictNullChecks": true,
-        "strict": true,
-        "useUnknownInCatchVariables": false,
-        "skipLibCheck": true,
-        "ignoreDeprecations": "5.0"
-    },
-    "exclude": [
-        "node_modules",
-        "**/*.test.ts",
-        // Jest-only infra: transformed by ts-jest from source (see jest.config.js),
-        // never consumed from dist/. Keeping these out of the build matters because
-        // jestSetupAfterEnv.ts imports ../testSupport/jestSilenceConsole (outside
-        // src/server) — pulling it into the server program would drag the inferred
-        // rootDir up to src/ and nest every output (dist/server/server/server.js).
-        "**/jestGlobalSetup.ts",
-        "**/jestSetupAfterEnv.ts",
-        "**/jestSilenceConsole.ts"
-    ]
+  "compilerOptions": {
+    "module": "commonjs",
+    "esModuleInterop": true,
+    "target": "es2022",
+    "moduleResolution": "node",
+    "sourceMap": true,
+    "strictNullChecks": true,
+    "strict": true,
+    "useUnknownInCatchVariables": false,
+    "skipLibCheck": true,
+    "ignoreDeprecations": "5.0"
+  },
+  "exclude": [
+    "node_modules",
+    "**/*.test.ts",
+    // Jest-only infra: transformed by ts-jest from source (see jest.config.js),
+    // never consumed from dist/. Keeping these out of the build matters because
+    // jestSetupAfterEnv.ts imports ../testSupport/jestSilenceConsole (outside
+    // src/server) — pulling it into the server program would drag the inferred
+    // rootDir up to src/ and nest every output (dist/server/server/server.js).
+    "**/jestGlobalSetup.ts",
+    "**/jestSetupAfterEnv.ts",
+    "**/jestSilenceConsole.ts"
+  ]
 }

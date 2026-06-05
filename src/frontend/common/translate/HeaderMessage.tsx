@@ -11,7 +11,7 @@ interface IProps {
 
 export default function HeaderMessage(props: IProps) {
   const t = useTranslation();
-  const syncStatus = useAppSelector(state => state.syncState);
+  const syncStatus = useAppSelector((state) => state.syncState);
 
   if (props.hdrMessage == "none") return null;
 
@@ -19,14 +19,14 @@ export default function HeaderMessage(props: IProps) {
     props.hdrMessage == "unsavedChanges"
       ? { text: t("Unsaved_changes"), color: Colors.warning }
       : syncStatus.connected && syncStatus.upSync.dirtyTStrings.length > 0
-      ? { text: t("Uploading"), color: Colors.warning }
-      : { text: t("Changes_saved"), color: Colors.success };
+        ? { text: t("Uploading"), color: Colors.warning }
+        : { text: t("Changes_saved"), color: Colors.success };
 
   return (
     <Heading
       level={4}
       style={{
-        color: headingProps.color
+        color: headingProps.color,
       }}
       text={headingProps.text}
     />

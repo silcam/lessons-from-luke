@@ -5,19 +5,13 @@ describe("loadingSlice reducers", () => {
 
   describe("addLoading", () => {
     it("increments the loading count from 0 to 1", () => {
-      const state = loadingSlice.reducer(
-        initialState,
-        loadingSlice.actions.addLoading()
-      );
+      const state = loadingSlice.reducer(initialState, loadingSlice.actions.addLoading());
 
       expect(state).toBe(1);
     });
 
     it("increments multiple times", () => {
-      let state = loadingSlice.reducer(
-        initialState,
-        loadingSlice.actions.addLoading()
-      );
+      let state = loadingSlice.reducer(initialState, loadingSlice.actions.addLoading());
       state = loadingSlice.reducer(state, loadingSlice.actions.addLoading());
       state = loadingSlice.reducer(state, loadingSlice.actions.addLoading());
 
@@ -27,19 +21,13 @@ describe("loadingSlice reducers", () => {
 
   describe("subtractLoading", () => {
     it("decrements the loading count", () => {
-      const state = loadingSlice.reducer(
-        2,
-        loadingSlice.actions.subtractLoading()
-      );
+      const state = loadingSlice.reducer(2, loadingSlice.actions.subtractLoading());
 
       expect(state).toBe(1);
     });
 
     it("decrements to zero", () => {
-      const state = loadingSlice.reducer(
-        1,
-        loadingSlice.actions.subtractLoading()
-      );
+      const state = loadingSlice.reducer(1, loadingSlice.actions.subtractLoading());
 
       expect(state).toBe(0);
     });

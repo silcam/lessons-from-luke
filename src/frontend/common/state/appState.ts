@@ -23,7 +23,7 @@ const reducer = combineReducers({
   docStrings: docStringSlice.reducer,
   network: networkSlice.reducer,
   docPreview: docPreviewSlice.reducer,
-  syncState: syncStateSlice.reducer
+  syncState: syncStateSlice.reducer,
 });
 
 const store = configureStore({ reducer });

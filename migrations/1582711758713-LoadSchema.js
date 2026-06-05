@@ -4,8 +4,8 @@ const { makeDbConnect } = require("./_helpers");
 const dbConnect = makeDbConnect(false);
 
 async function up() {
-  await dbConnect(async sql => {
-    await sql.begin(async sql => {
+  await dbConnect(async (sql) => {
+    await sql.begin(async (sql) => {
       console.log("Create languages table...");
       await sql`
       CREATE TABLE languages (
@@ -73,7 +73,7 @@ async function up() {
 }
 
 async function down() {
-  await dbConnect(async sql => {
+  await dbConnect(async (sql) => {
     await sql`DROP TABLE languages`;
     await sql`DROP TABLE lessons`;
     await sql`DROP TABLE lessonStrings`;

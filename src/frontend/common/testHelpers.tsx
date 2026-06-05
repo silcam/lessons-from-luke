@@ -24,10 +24,7 @@ import docPreviewSlice from "./state/docPreviewSlice";
 import syncStateSlice from "./state/syncStateSlice";
 
 // Minimal network reducer that avoids importing networkSlice (circular dep)
-function networkReducer(
-  state = { connected: true },
-  _action: { type: string }
-) {
+function networkReducer(state = { connected: true }, _action: { type: string }) {
   return state;
 }
 
@@ -48,24 +45,19 @@ export function buildStore(initialState?: Record<string, any>) {
       docStrings: docStringSlice.reducer,
       network: networkReducer,
       docPreview: docPreviewSlice.reducer,
-      syncState: syncStateSlice.reducer
+      syncState: syncStateSlice.reducer,
     },
-    preloadedState: initialState
+    preloadedState: initialState,
   });
 }
 
-export function renderWithProviders(
-  ui: React.ReactElement,
-  initialState?: Record<string, any>
-) {
+export function renderWithProviders(ui: React.ReactElement, initialState?: Record<string, any>) {
   const store = buildStore(initialState);
 
   return render(
     <Provider store={store}>
       <RequestContext.Provider value={{ get: mockGet, post: mockPost }}>
-        <MemoryRouter
-          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-        >
+        <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           {ui}
         </MemoryRouter>
       </RequestContext.Provider>
@@ -80,7 +72,7 @@ export const sampleLanguage = {
   code: "tst",
   motherTongue: false,
   progress: [],
-  defaultSrcLang: 1
+  defaultSrcLang: 1,
 };
 
 /** A minimal TString fixture */
@@ -88,7 +80,7 @@ export const sampleTString = {
   masterId: 1,
   languageId: 42,
   text: "Hello world",
-  history: []
+  history: [],
 };
 
 /** A minimal LessonString fixture */
@@ -99,7 +91,7 @@ export const sampleLessonString = {
   lessonVersion: 1,
   type: "content" as const,
   xpath: "/doc/p[1]",
-  motherTongue: true
+  motherTongue: true,
 };
 
 /** Default syncState preloaded state */
@@ -111,12 +103,12 @@ export const defaultSyncState = {
     baseLessons: false,
     lessons: [],
     tStrings: {},
-    timestamp: 1
+    timestamp: 1,
   },
   syncLanguages: [],
   upSync: {
-    dirtyTStrings: []
+    dirtyTStrings: [],
   },
   connected: false,
-  loaded: false
+  loaded: false,
 };

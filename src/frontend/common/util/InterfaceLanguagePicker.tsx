@@ -15,20 +15,18 @@ export default function InterfaceLanguagePicker() {
   const dispatch = useDispatch();
   const push = usePush();
   const desktop = useContext(PlatformContext) == "desktop";
-  const locale = useAppSelector(state =>
+  const locale = useAppSelector((state) =>
     desktop ? state.syncState.locale || "en" : state.currentUser.locale
   );
   const setLocale = (locale: Locale) =>
-    desktop
-      ? push(pushLocale(locale))
-      : dispatch(currentUserSlice.actions.setLocale(locale));
+    desktop ? push(pushLocale(locale)) : dispatch(currentUserSlice.actions.setLocale(locale));
 
   return (
     <Label text={t("Language") + ":"}>
       <SelectInput
         value={locale}
-        setValue={value => setLocale(value as Locale)}
-        options={availableLocales().map(locale => [locale, longName(locale)])}
+        setValue={(value) => setLocale(value as Locale)}
+        options={availableLocales().map((locale) => [locale, longName(locale)])}
       />
     </Label>
   );

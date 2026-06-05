@@ -14,9 +14,7 @@ export interface TString {
 
 export function equal(a: TString, b: TString) {
   return (
-    a.masterId == b.masterId &&
-    a.languageId == b.languageId &&
-    a.lessonStringId == b.lessonStringId
+    a.masterId == b.masterId && a.languageId == b.languageId && a.lessonStringId == b.lessonStringId
   );
 }
 
@@ -25,7 +23,7 @@ export function isTString(t: TString): t is TString {
     ["masterId", "number"],
     ["languageId", "number"],
     ["text", "string"],
-    ["history", "string[]"]
+    ["history", "string[]"],
   ];
   return validateFields(t, fields);
 }
@@ -36,11 +34,11 @@ export function newTString(
   language: Language,
   srcStr?: TString
 ) {
-  let tString: TString = {
+  const tString: TString = {
     masterId: lessonStr.masterId,
     languageId: language.languageId,
     text: text.trim(),
-    history: []
+    history: [],
   };
   if (srcStr) {
     tString.source = srcStr.text;
@@ -49,18 +47,14 @@ export function newTString(
   return tString;
 }
 
-export function newTStringFromSrc(
-  text: string,
-  languageId: number,
-  srcStr: TString
-) {
+export function newTStringFromSrc(text: string, languageId: number, srcStr: TString) {
   return {
     masterId: srcStr.masterId,
     languageId,
     text: text.trim(),
     history: [],
     source: srcStr.text,
-    sourceLanguageId: srcStr.languageId
+    sourceLanguageId: srcStr.languageId,
   };
 }
 
@@ -69,6 +63,6 @@ export function sqlizeTString(ts: Partial<TString>) {
     ...ts,
     history: JSON.stringify(ts.history),
     source: ts.source || null,
-    sourceLanguageId: ts.sourceLanguageId || null
+    sourceLanguageId: ts.sourceLanguageId || null,
   };
 }

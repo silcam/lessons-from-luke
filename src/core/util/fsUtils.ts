@@ -31,7 +31,7 @@ export function copyRecursive(from: string, to: string) {
   try {
     if (fs.statSync(from).isDirectory()) {
       mkdirSafe(to);
-      fs.readdirSync(from).forEach(filename => {
+      fs.readdirSync(from).forEach((filename) => {
         copyRecursive(path.join(from, filename), path.join(to, filename));
       });
     } else {
@@ -47,7 +47,7 @@ export function unlinkRecursive(filepath: string) {
   // console.log(`Unlink ${filepath}`);
   if (fs.existsSync(filepath)) {
     if (fs.statSync(filepath).isDirectory()) {
-      fs.readdirSync(filepath).forEach(filename => {
+      fs.readdirSync(filepath).forEach((filename) => {
         unlinkRecursive(path.join(filepath, filename));
       });
       fs.rmdirSync(filepath);

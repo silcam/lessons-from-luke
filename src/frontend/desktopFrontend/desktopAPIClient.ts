@@ -1,9 +1,4 @@
-import {
-  GetRoute,
-  APIGet,
-  APIPost,
-  PostRoute
-} from "../../core/interfaces/Api";
+import { GetRoute, APIGet, APIPost, PostRoute } from "../../core/interfaces/Api";
 import { asAppError } from "../../core/models/AppError";
 
 export async function ipcGet<T extends GetRoute>(
@@ -26,9 +21,7 @@ export async function ipcPost<T extends PostRoute>(
   data: APIPost[T][1]
 ): Promise<APIPost[T][2]> {
   try {
-    console.log(
-      `POST ${route} ${JSON.stringify(params)} WITH ${JSON.stringify(data)}`
-    );
+    console.log(`POST ${route} ${JSON.stringify(params)} WITH ${JSON.stringify(data)}`);
     const response = await window.electronAPI.invoke(route, params, data);
     if (response?.data) return response.data;
     throw response?.error;

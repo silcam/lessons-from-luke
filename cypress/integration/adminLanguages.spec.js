@@ -36,9 +36,13 @@ describe("Admin Languages", () => {
     cy.visit("/");
     cy.contains("button", "Batanga").click();
     cy.contains("Upload USFM").click();
-    cy.fixture("43LUKBMO.SFM", "base64").then(fileContent => {
+    cy.fixture("43LUKBMO.SFM", "base64").then((fileContent) => {
       cy.get("input[type='file']").selectFile(
-        { contents: Cypress.Buffer.from(fileContent, "base64"), fileName: "43LUKBMO.SFM", mimeType: "text/plain" },
+        {
+          contents: Cypress.Buffer.from(fileContent, "base64"),
+          fileName: "43LUKBMO.SFM",
+          mimeType: "text/plain",
+        },
         { action: "drag-drop", force: true }
       );
     });
@@ -54,12 +58,12 @@ describe("Admin Languages", () => {
     cy.visit("/");
     cy.contains("Français").click();
     cy.contains("Upload Document").click();
-    cy.fixture("Français_Luke-T1-L01.odt", "base64").then(fileContent => {
+    cy.fixture("Français_Luke-T1-L01.odt", "base64").then((fileContent) => {
       cy.get("input[type='file']").selectFile(
         {
           contents: Cypress.Buffer.from(fileContent, "base64"),
           fileName: "Français_Luke-T1-L01.odt",
-          mimeType: "application/vnd.oasis.opendocument.text"
+          mimeType: "application/vnd.oasis.opendocument.text",
         },
         { action: "drag-drop", force: true }
       );
@@ -70,10 +74,7 @@ describe("Admin Languages", () => {
     cy.contains("button", "Upload").click();
     cy.wait("@uploadDoc", { timeout: 30000 });
 
-    cy.url().should(
-      "eq",
-      "http://localhost:8080/languages/2/lessons/11/docStrings"
-    );
+    cy.url().should("eq", "http://localhost:8080/languages/2/lessons/11/docStrings");
 
     // // Exercise Split button
     // const tooLong =
@@ -123,7 +124,7 @@ describe("Admin Languages", () => {
       {
         contents: Cypress.Buffer.from("This is not valid USFM content"),
         fileName: "not-usfm.txt",
-        mimeType: "text/plain"
+        mimeType: "text/plain",
       },
       { action: "drag-drop", force: true }
     );
@@ -146,7 +147,7 @@ describe("Admin Languages", () => {
       {
         contents: Cypress.Buffer.from("not an odt file"),
         fileName: "invalid.pdf",
-        mimeType: "application/pdf"
+        mimeType: "application/pdf",
       },
       { action: "drag-drop", force: true }
     );

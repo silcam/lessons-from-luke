@@ -32,17 +32,13 @@ interface IProps {
 export type SetHdrMessage = (hm: HdrMessage) => void;
 
 export default function TranslateHome(props: IProps) {
-  const t = useTranslation();
-  const language = useAppSelector(state => state.languages.translating);
-  const lessons = useAppSelector(state => state.lessons);
+  const language = useAppSelector((state) => state.languages.translating);
+  const lessons = useAppSelector((state) => state.lessons);
   const [hdrMessage, setHdrMessage] = useState<HdrMessage>("none");
 
   const loading =
-    useLoadMultiple([
-      loadTranslatingLanguage(props.code),
-      loadLessons(),
-      loadLanguages(false)
-    ]) || lessons.length == 0;
+    useLoadMultiple([loadTranslatingLanguage(props.code), loadLessons(), loadLanguages(false)]) ||
+    lessons.length == 0;
 
   return (
     <StdHeaderBarPage
@@ -56,10 +52,7 @@ export default function TranslateHome(props: IProps) {
         ) : language ? (
           <React.Fragment>
             <DesktopSyncMessage />
-            <TranslateLanguage
-              language={language}
-              setHdrMessage={setHdrMessage}
-            />
+            <TranslateLanguage language={language} setHdrMessage={setHdrMessage} />
           </React.Fragment>
         ) : (
           <CodeError />
@@ -83,16 +76,12 @@ function CodeError() {
   );
 }
 
-function TranslateLanguage(props: {
-  language: Language;
-  setHdrMessage: SetHdrMessage;
-}) {
+function TranslateLanguage(props: { language: Language; setHdrMessage: SetHdrMessage }) {
   const t = useTranslation();
 
-  const lessons = useAppSelector(state => state.lessons);
+  const lessons = useAppSelector((state) => state.lessons);
   const [selectedLessonId, _setSelectedLessonId] = useState(
-    parseInt(window.localStorage.getItem(SELECTED_ITEM_KEY)!) ||
-      lessons[0].lessonId
+    parseInt(window.localStorage.getItem(SELECTED_ITEM_KEY)!) || lessons[0].lessonId
   );
   const setSelectedLessonId = (id: number) => {
     _setSelectedLessonId(id);
@@ -105,7 +94,7 @@ function TranslateLanguage(props: {
       <Scroll flexZero style={{ borderRight: `1px solid ${Colors.lightGrey}` }}>
         <List
           items={lessons}
-          renderItem={lesson => (
+          renderItem={(lesson) => (
             <div>
               <Button
                 link
@@ -114,14 +103,11 @@ function TranslateLanguage(props: {
                 onClick={() => setSelectedLessonId(lesson.lessonId)}
               />
               <LessonProgressBar
-                percent={lessonProgress(
-                  props.language.progress,
-                  lesson.lessonId
-                )}
+                percent={lessonProgress(props.language.progress, lesson.lessonId)}
               />
             </div>
           )}
-          itemKey={lesson => lesson.lessonId}
+          itemKey={(lesson) => lesson.lessonId}
         />
       </Scroll>
       <FlexCol>
@@ -146,5 +132,5 @@ function TranslateLanguage(props: {
 
 const LessonProgressBar = styled(ProgressBar)`
   margin-top: 6px;
-  display: ${props => (props.percent == 0 ? "none" : "block")};
+  display: ${(props) => (props.percent == 0 ? "none" : "block")};
 `;

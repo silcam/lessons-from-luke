@@ -9,18 +9,18 @@ const defaultSecrets = {
   db: {
     database: "lessons-from-luke",
     username: "lessons-from-luke",
-    password: "lessons-from-luke"
+    password: "lessons-from-luke",
   },
   testDb: {
     database: "lessons-from-luke-test",
     username: "lessons-from-luke",
-    password: "lessons-from-luke"
+    password: "lessons-from-luke",
   },
   devDb: {
     database: "lessons-from-luke-dev",
     username: "lessons-from-luke",
-    password: "lessons-from-luke"
-  }
+    password: "lessons-from-luke",
+  },
 };
 
 const secrets: typeof defaultSecrets = fs.existsSync(secretsJson)

@@ -1,15 +1,11 @@
-import currentUserSlice, {
-  loadCurrentUser,
-  pushLogin,
-  pushLogout
-} from "./currentUserSlice";
+import currentUserSlice, { loadCurrentUser, pushLogin, pushLogout } from "./currentUserSlice";
 import { User } from "../../../core/models/User";
 
 function makeUser(overrides: Partial<User> = {}): User {
   return {
     id: 1,
     admin: false,
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -64,10 +60,7 @@ describe("currentUserSlice reducers", () => {
     it("sets the user and marks loaded as true", () => {
       const user = makeUser({ id: 5, admin: true });
 
-      const state = currentUserSlice.reducer(
-        initialState,
-        currentUserSlice.actions.setUser(user)
-      );
+      const state = currentUserSlice.reducer(initialState, currentUserSlice.actions.setUser(user));
 
       expect(state.user).toEqual(user);
       expect(state.loaded).toBe(true);
@@ -76,10 +69,7 @@ describe("currentUserSlice reducers", () => {
     it("sets user to null and marks loaded as true", () => {
       const stateWithUser = { ...initialState, user: makeUser() };
 
-      const state = currentUserSlice.reducer(
-        stateWithUser,
-        currentUserSlice.actions.setUser(null)
-      );
+      const state = currentUserSlice.reducer(stateWithUser, currentUserSlice.actions.setUser(null));
 
       expect(state.user).toBeNull();
       expect(state.loaded).toBe(true);
@@ -90,10 +80,7 @@ describe("currentUserSlice reducers", () => {
     it("clears the user", () => {
       const stateWithUser = { ...initialState, user: makeUser(), loaded: true };
 
-      const state = currentUserSlice.reducer(
-        stateWithUser,
-        currentUserSlice.actions.logout()
-      );
+      const state = currentUserSlice.reducer(stateWithUser, currentUserSlice.actions.logout());
 
       expect(state.user).toBeNull();
     });
@@ -110,9 +97,7 @@ describe("currentUserSlice thunks", () => {
       await loadCurrentUser(get)(dispatch);
 
       expect(get).toHaveBeenCalledWith("/api/users/current", {});
-      expect(dispatch).toHaveBeenCalledWith(
-        currentUserSlice.actions.setUser(user)
-      );
+      expect(dispatch).toHaveBeenCalledWith(currentUserSlice.actions.setUser(user));
     });
 
     it("dispatches setUser(null) even if GET returns null (to mark loaded)", async () => {
@@ -121,9 +106,7 @@ describe("currentUserSlice thunks", () => {
 
       await loadCurrentUser(get)(dispatch);
 
-      expect(dispatch).toHaveBeenCalledWith(
-        currentUserSlice.actions.setUser(null)
-      );
+      expect(dispatch).toHaveBeenCalledWith(currentUserSlice.actions.setUser(null));
     });
   });
 
@@ -137,9 +120,7 @@ describe("currentUserSlice thunks", () => {
       await pushLogin(login)(post, dispatch);
 
       expect(post).toHaveBeenCalledWith("/api/users/login", {}, login);
-      expect(dispatch).toHaveBeenCalledWith(
-        currentUserSlice.actions.setUser(user)
-      );
+      expect(dispatch).toHaveBeenCalledWith(currentUserSlice.actions.setUser(user));
     });
 
     it("dispatches setUser(null) if post returns null", async () => {
@@ -149,9 +130,7 @@ describe("currentUserSlice thunks", () => {
 
       await pushLogin(login)(post, dispatch);
 
-      expect(dispatch).toHaveBeenCalledWith(
-        currentUserSlice.actions.setUser(null)
-      );
+      expect(dispatch).toHaveBeenCalledWith(currentUserSlice.actions.setUser(null));
     });
   });
 
@@ -163,9 +142,7 @@ describe("currentUserSlice thunks", () => {
       await pushLogout()(post, dispatch);
 
       expect(post).toHaveBeenCalledWith("/api/users/logout", {}, null);
-      expect(dispatch).toHaveBeenCalledWith(
-        currentUserSlice.actions.logout()
-      );
+      expect(dispatch).toHaveBeenCalledWith(currentUserSlice.actions.logout());
     });
   });
 });

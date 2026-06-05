@@ -4,7 +4,7 @@ import { FRENCH_ID, ENGLISH_ID } from "../models/Language";
 
 const strings = {
   en,
-  fr
+  fr,
 };
 export type Locale = keyof typeof strings;
 

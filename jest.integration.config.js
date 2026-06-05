@@ -3,28 +3,25 @@
 // Invoke with `yarn test:integration`.
 
 module.exports = {
-  displayName: 'integration',
-  preset: 'ts-jest',
+  displayName: "integration",
+  preset: "ts-jest",
   transform: {
-    "^.+\\.tsx?$": ["ts-jest", { tsconfig: { jsx: 'react' } }]
+    "^.+\\.tsx?$": ["ts-jest", { tsconfig: { jsx: "react" } }],
   },
-  testEnvironment: 'node',
-  globalSetup: '<rootDir>/src/server/jestGlobalSetup.ts',
-  setupFilesAfterEnv: ['<rootDir>/src/server/jestSetupAfterEnv.ts'],
-  testMatch: ['<rootDir>/src/**/*.integration.test.{ts,tsx}'],
+  testEnvironment: "node",
+  globalSetup: "<rootDir>/src/server/jestGlobalSetup.ts",
+  setupFilesAfterEnv: ["<rootDir>/src/server/jestSetupAfterEnv.ts"],
+  testMatch: ["<rootDir>/src/**/*.integration.test.{ts,tsx}"],
   testPathIgnorePatterns: [
-    '/node_modules/',
-    '<rootDir>/test/',
-    '<rootDir>/cypress/',
-    '<rootDir>/dist-desktop/',
-    '<rootDir>/.desktop-build-stage/'
+    "/node_modules/",
+    "<rootDir>/test/",
+    "<rootDir>/cypress/",
+    "<rootDir>/dist-desktop/",
+    "<rootDir>/.desktop-build-stage/",
   ],
-  modulePathIgnorePatterns: [
-    '<rootDir>/dist-desktop/',
-    '<rootDir>/.desktop-build-stage/'
-  ],
+  modulePathIgnorePatterns: ["<rootDir>/dist-desktop/", "<rootDir>/.desktop-build-stage/"],
   fakeTimers: {
-    doNotFake: ["setInterval", "clearInterval", "setImmediate", "clearImmediate", "nextTick"]
+    doNotFake: ["setInterval", "clearInterval", "setImmediate", "clearImmediate", "nextTick"],
   },
   forceExit: true,
 };

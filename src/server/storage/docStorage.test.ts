@@ -38,7 +38,7 @@ describe("docStorage", () => {
         book: "Luke",
         series: 1,
         lesson: 1,
-        version: 3
+        version: 3,
       };
       const filepath = docStorage.docFilepath(lesson);
       const expected = `${docsDirPath()}/Luke-1-01v03.odt`;
@@ -51,7 +51,7 @@ describe("docStorage", () => {
         book: "Acts",
         series: 2,
         lesson: 9,
-        version: 5
+        version: 5,
       };
       const filepath = docStorage.docFilepath(lesson);
       expect(filepath).toBe(`${docsDirPath()}/Acts-2-09v05.odt`);

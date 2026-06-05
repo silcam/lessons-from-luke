@@ -16,7 +16,7 @@ export default function TStringHistoryView(props: IProps) {
   return (
     <div>
       <Heading level={4} text={t("History")} />
-      <List items={props.tString.history} renderItem={text => text} />
+      <List items={props.tString.history} renderItem={(text) => text} />
     </div>
   );
 }

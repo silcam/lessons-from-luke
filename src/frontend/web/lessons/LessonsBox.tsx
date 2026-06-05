@@ -14,7 +14,7 @@ import AppLink from "../common/AppLink";
 
 export default function LessonsBox() {
   const t = useTranslation();
-  const lessons = useAppSelector(state => state.lessons);
+  const lessons = useAppSelector((state) => state.lessons);
 
   useLoad(loadLessons());
 
@@ -24,24 +24,19 @@ export default function LessonsBox() {
     <Foldable
       startUnFolded
       title={t("Lessons")}
-      render={folded =>
+      render={(folded) =>
         folded ? null : showUploadForm ? (
           <UploadLessonForm done={() => setShowUploadForm(false)} />
         ) : (
           <Div>
             <FlexRow>
-              <Button
-                onClick={() => setShowUploadForm(true)}
-                text={t("Add_lesson")}
-              />
+              <Button onClick={() => setShowUploadForm(true)} text={t("Add_lesson")} />
             </FlexRow>
             <List
               items={lessons}
               noBorders
-              renderItem={lesson => (
-                <AppLink to={`/lessons/${lesson.lessonId}`}>
-                  {lessonName(lesson)}
-                </AppLink>
+              renderItem={(lesson) => (
+                <AppLink to={`/lessons/${lesson.lessonId}`}>{lessonName(lesson)}</AppLink>
               )}
             />
           </Div>

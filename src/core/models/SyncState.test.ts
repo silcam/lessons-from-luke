@@ -7,7 +7,7 @@ import {
   initalStoredSyncState,
   StoredSyncState,
   ContinuousSyncPackage,
-  T_STRING_BATCH_SIZE
+  T_STRING_BATCH_SIZE,
 } from "./SyncState";
 
 const baseDownSync: ContinuousSyncPackage = {
@@ -15,7 +15,7 @@ const baseDownSync: ContinuousSyncPackage = {
   baseLessons: false,
   lessons: [],
   tStrings: {},
-  timestamp: 1
+  timestamp: 1,
 };
 
 describe("downSyncProgress", () => {
@@ -48,7 +48,7 @@ describe("downSyncProgress", () => {
     const pending = Array.from({ length: T_STRING_BATCH_SIZE }, (_, i) => i + 1);
     const downSync: ContinuousSyncPackage = {
       ...baseDownSync,
-      tStrings: { 3: pending }
+      tStrings: { 3: pending },
     };
     // neededTStringCount = 1000
     // totalRequests = 2*2 + (2000+1000)/1000 = 4+3 = 7
@@ -61,7 +61,7 @@ describe("downSyncProgress", () => {
     const pending = Array.from({ length: T_STRING_BATCH_SIZE }, (_, i) => i + 1);
     const downSync: ContinuousSyncPackage = {
       ...baseDownSync,
-      tStrings: { 3: pending, 4: pending }
+      tStrings: { 3: pending, 4: pending },
     };
     // neededTStringCount = 2000
     // storedLessonCount=1, storedTStringCount=0 (but neededTStringCount=2000 so doesn't return 0)
@@ -83,7 +83,7 @@ describe("updateLanguageTimestamps", () => {
   test("replaces existing timestamp for the same languageId", () => {
     const state: StoredSyncState = {
       ...initalStoredSyncState(),
-      syncLanguages: [{ languageId: 1, timestamp: 10 }]
+      syncLanguages: [{ languageId: 1, timestamp: 10 }],
     };
     const result = updateLanguageTimestamps(state, [1], 99);
     expect(result.syncLanguages).toHaveLength(1);
@@ -95,19 +95,19 @@ describe("updateLanguageTimestamps", () => {
       ...initalStoredSyncState(),
       syncLanguages: [
         { languageId: 1, timestamp: 10 },
-        { languageId: 2, timestamp: 20 }
-      ]
+        { languageId: 2, timestamp: 20 },
+      ],
     };
     const result = updateLanguageTimestamps(state, [1], 99);
     expect(result.syncLanguages).toHaveLength(2);
-    const lang2 = result.syncLanguages.find(l => l.languageId === 2);
+    const lang2 = result.syncLanguages.find((l) => l.languageId === 2);
     expect(lang2!.timestamp).toBe(20);
   });
 
   test("does not mutate the original state", () => {
     const state: StoredSyncState = {
       ...initalStoredSyncState(),
-      syncLanguages: [{ languageId: 1, timestamp: 10 }]
+      syncLanguages: [{ languageId: 1, timestamp: 10 }],
     };
     updateLanguageTimestamps(state, [1], 99);
     expect(state.syncLanguages[0].timestamp).toBe(10);
@@ -116,7 +116,7 @@ describe("updateLanguageTimestamps", () => {
   test("handles empty languageIds array", () => {
     const state: StoredSyncState = {
       ...initalStoredSyncState(),
-      syncLanguages: [{ languageId: 1, timestamp: 10 }]
+      syncLanguages: [{ languageId: 1, timestamp: 10 }],
     };
     const result = updateLanguageTimestamps(state, [], 99);
     expect(result.syncLanguages).toEqual(state.syncLanguages);
@@ -129,11 +129,11 @@ describe("resync", () => {
       ...initalStoredSyncState(),
       syncLanguages: [
         { languageId: 1, timestamp: 100 },
-        { languageId: 2, timestamp: 200 }
-      ]
+        { languageId: 2, timestamp: 200 },
+      ],
     };
     const result = resync(state);
-    expect(result.syncLanguages.every(sl => sl.timestamp === 1)).toBe(true);
+    expect(result.syncLanguages.every((sl) => sl.timestamp === 1)).toBe(true);
     expect(result.syncLanguages).toHaveLength(2);
   });
 
@@ -145,8 +145,8 @@ describe("resync", () => {
         baseLessons: true,
         lessons: [1, 2, 3],
         tStrings: { 1: [10, 20] },
-        timestamp: 50
-      }
+        timestamp: 50,
+      },
     };
     const result = resync(state);
     expect(result.downSync).toEqual(initalStoredSyncState().downSync);
@@ -156,7 +156,7 @@ describe("resync", () => {
     const state: StoredSyncState = {
       ...initalStoredSyncState(),
       syncLanguages: [{ languageId: 1, timestamp: 100 }],
-      upSync: { dirtyTStrings: [{ masterId: 1, languageId: 3, text: "hi", history: [] }] }
+      upSync: { dirtyTStrings: [{ masterId: 1, languageId: 3, text: "hi", history: [] }] },
     };
     const result = resync(state);
     expect(result.upSync).toEqual(state.upSync);
@@ -165,7 +165,7 @@ describe("resync", () => {
   test("does not mutate original state", () => {
     const state: StoredSyncState = {
       ...initalStoredSyncState(),
-      syncLanguages: [{ languageId: 1, timestamp: 100 }]
+      syncLanguages: [{ languageId: 1, timestamp: 100 }],
     };
     resync(state);
     expect(state.syncLanguages[0].timestamp).toBe(100);

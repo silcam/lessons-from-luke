@@ -15,19 +15,21 @@ interface IProps {
 export default function DownSyncPage(props: IProps) {
   const t = useTranslation();
   const { get } = useContext(RequestContext);
-  const syncState = useAppSelector(state => state.syncState);
+  const syncState = useAppSelector((state) => state.syncState);
   const progress = syncState.downSync.progress;
   const [canTranslate, setCanTranslate] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      get("/api/readyToTranslate", {}).then(data =>
+      get("/api/readyToTranslate", {}).then((data) =>
         setCanTranslate(data?.readyToTranslate || false)
       );
     }, 1000);
     return () => {
       clearInterval(interval);
     };
+    // mount-only polling interval; `get` from context is stable for the page lifetime
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -36,16 +38,12 @@ export default function DownSyncPage(props: IProps) {
         <MiddleOfPage>
           <h1>
             {t(progress == 100 ? "Synced_project" : "Syncing_project", {
-              language: syncState.language.name
+              language: syncState.language.name,
             })}
           </h1>
           <ProgressBar big percent={syncState.downSync.progress || 0} />
           {(canTranslate || progress == 100) && (
-            <Button
-              bigger
-              text={t("Start_translating")}
-              onClick={props.startTranslating}
-            />
+            <Button bigger text={t("Start_translating")} onClick={props.startTranslating} />
           )}
         </MiddleOfPage>
       ) : (

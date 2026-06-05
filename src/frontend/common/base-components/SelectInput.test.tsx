@@ -8,7 +8,10 @@ describe("SelectInput", () => {
       <SelectInput
         value="a"
         setValue={jest.fn()}
-        options={[["a", "Option A"], ["b", "Option B"]]}
+        options={[
+          ["a", "Option A"],
+          ["b", "Option B"],
+        ]}
       />
     );
     expect(container.querySelector("select")).toBeTruthy();
@@ -19,7 +22,10 @@ describe("SelectInput", () => {
       <SelectInput
         value="b"
         setValue={jest.fn()}
-        options={[["a", "Option A"], ["b", "Option B"]]}
+        options={[
+          ["a", "Option A"],
+          ["b", "Option B"],
+        ]}
       />
     );
     const select = container.querySelector("select") as HTMLSelectElement;
@@ -32,7 +38,10 @@ describe("SelectInput", () => {
       <SelectInput
         value="a"
         setValue={setValue}
-        options={[["a", "Option A"], ["b", "Option B"]]}
+        options={[
+          ["a", "Option A"],
+          ["b", "Option B"],
+        ]}
       />
     );
     const select = container.querySelector("select") as HTMLSelectElement;
@@ -44,6 +53,10 @@ describe("SelectInput", () => {
 describe("optionsDisplayIsKey", () => {
   it("maps each option to a [key, key] pair (line 27)", () => {
     const result = optionsDisplayIsKey(["en", "fr", "es"]);
-    expect(result).toEqual([["en", "en"], ["fr", "fr"], ["es", "es"]]);
+    expect(result).toEqual([
+      ["en", "en"],
+      ["fr", "fr"],
+      ["es", "es"],
+    ]);
   });
 });

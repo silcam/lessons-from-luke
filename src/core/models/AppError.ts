@@ -10,16 +10,14 @@ export type AppErrorType = AppError["type"];
 const appErrorModels: AppError[] = [
   { type: "No Connection" },
   { type: "HTTP", status: 0 },
-  { type: "Unknown" }
+  { type: "Unknown" },
 ];
 
 export function isAppError(err: any): err is AppError {
   if (!err) return false;
-  const appErrorModel = appErrorModels.find(model => model.type === err.type);
+  const appErrorModel = appErrorModels.find((model) => model.type === err.type);
   if (!appErrorModel) return false;
-  return objKeys(appErrorModel).every(
-    key => typeof appErrorModel[key] === typeof err[key]
-  );
+  return objKeys(appErrorModel).every((key) => typeof appErrorModel[key] === typeof err[key]);
 }
 
 export function asAppError(err: any): AppError {

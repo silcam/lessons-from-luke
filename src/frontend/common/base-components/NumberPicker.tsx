@@ -19,7 +19,7 @@ export default function NumberPicker(props: IProps) {
       <input
         type="text"
         value={valueText}
-        onChange={e => props.setValue(parseInt(e.target.value) || 0)}
+        onChange={(e) => props.setValue(parseInt(e.target.value) || 0)}
         size={2}
         disabled={!!props.noType}
       />

@@ -26,9 +26,7 @@ export default function UpdateIssuesPage(props: IProps) {
   const tSubs = useTSubs(props.lessonId);
 
   return (
-    <StdHeaderBarPage
-      title={`${t("Update_issues")} ${t("Lesson")} ${props.lessonId}`}
-    >
+    <StdHeaderBarPage title={`${t("Update_issues")} ${t("Lesson")} ${props.lessonId}`}>
       <Link to={`/lessons/${props.lessonId}`}>
         <Button onClick={() => {}} text={t("View_lesson")} />
       </Link>
@@ -48,8 +46,7 @@ export default function UpdateIssuesPage(props: IProps) {
 function TSubTable(props: { tSub: TSub }) {
   const { tSub } = props;
   const language = useAppSelector(
-    state =>
-      state.languages.adminLanguages.find(l => l.languageId == tSub.languageId)!
+    (state) => state.languages.adminLanguages.find((l) => l.languageId == tSub.languageId)!
   );
   if (!language) return null;
 
@@ -69,9 +66,7 @@ function TSubTable(props: { tSub: TSub }) {
           <td>
             {tStr && (
               <TStringInput
-                tString={
-                  tSub.to[index] || newTStringFromSrc("", tSub.languageId, tStr)
-                }
+                tString={tSub.to[index] || newTStringFromSrc("", tSub.languageId, tStr)}
                 language={language}
                 markDirty={() => {}}
                 markClean={() => {}}

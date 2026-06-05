@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 
-jest.mock('../xml/mergeXml', () => jest.fn());
-jest.mock('child_process', () => ({ exec: jest.fn() }));
+jest.mock("../xml/mergeXml", () => jest.fn());
+jest.mock("child_process", () => ({ exec: jest.fn() }));
 
 import { PGTestStorage } from "../storage/PGStorage";
 import webifyLesson from "./webifyLesson";
@@ -23,9 +23,7 @@ test("webifyLesson handles exec error gracefully", async () => {
       return {} as any;
     }
   );
-  const mvSpy = jest
-    .spyOn(docStorage, "mvWebifiedHtml")
-    .mockResolvedValue(undefined);
+  const mvSpy = jest.spyOn(docStorage, "mvWebifiedHtml").mockResolvedValue(undefined);
   const consoleSpy = jest.spyOn(console, "error").mockImplementation();
 
   await webifyLesson(lesson!, { force: true });
@@ -42,15 +40,11 @@ test("webifyLesson calls mvWebifiedHtml on exec success", async () => {
   const lesson = await storage.lesson(13);
   expect(lesson).toBeTruthy();
 
-  (exec as unknown as jest.Mock).mockImplementation(
-    (_cmd: string, cb: (err: null) => void) => {
-      cb(null);
-      return {} as any;
-    }
-  );
-  const mvSpy = jest
-    .spyOn(docStorage, "mvWebifiedHtml")
-    .mockResolvedValue(undefined);
+  (exec as unknown as jest.Mock).mockImplementation((_cmd: string, cb: (err: null) => void) => {
+    cb(null);
+    return {} as any;
+  });
+  const mvSpy = jest.spyOn(docStorage, "mvWebifiedHtml").mockResolvedValue(undefined);
 
   await webifyLesson(lesson!, { force: true });
 
@@ -62,13 +56,11 @@ test("webifyLesson calls mvWebifiedHtml on exec success", async () => {
 test("mvWebifiedHtml catches and logs errors when file never appears", async () => {
   jest.useFakeTimers();
   const realExistsSync = fs.existsSync.bind(fs);
-  const existsSpy = jest
-    .spyOn(fs, "existsSync")
-    .mockImplementation((p: fs.PathLike) => {
-      // Return false only for the .htm file being waited on; use real impl for dirs
-      if (typeof p === "string" && p.endsWith(".htm")) return false;
-      return realExistsSync(p);
-    });
+  const existsSpy = jest.spyOn(fs, "existsSync").mockImplementation((p: fs.PathLike) => {
+    // Return false only for the .htm file being waited on; use real impl for dirs
+    if (typeof p === "string" && p.endsWith(".htm")) return false;
+    return realExistsSync(p);
+  });
   const consoleSpy = jest.spyOn(console, "error").mockImplementation();
 
   const fakeLesson = {
@@ -76,7 +68,7 @@ test("mvWebifiedHtml catches and logs errors when file never appears", async () 
     version: 1,
     book: "Luke",
     series: 1,
-    lesson: 1
+    lesson: 1,
   } as any;
 
   const promise = docStorage.mvWebifiedHtml("/tmp/fake_test.odt", fakeLesson);
@@ -91,19 +83,15 @@ test("mvWebifiedHtml catches and logs errors when file never appears", async () 
 });
 
 test("mvWebifiedHtml renames converted HTML file on success", async () => {
-  const existsSpy = jest
-    .spyOn(fs, "existsSync")
-    .mockReturnValue(true as any);
-  const renameSpy = jest
-    .spyOn(fs, "renameSync")
-    .mockImplementation((() => {}) as any);
+  const existsSpy = jest.spyOn(fs, "existsSync").mockReturnValue(true as any);
+  const renameSpy = jest.spyOn(fs, "renameSync").mockImplementation((() => {}) as any);
 
   const fakeLesson = {
     lessonId: 99,
     version: 1,
     book: "Luke",
     series: 1,
-    lesson: 1
+    lesson: 1,
   } as any;
 
   await docStorage.mvWebifiedHtml("/tmp/fake_test_9999.odt", fakeLesson);
@@ -134,9 +122,7 @@ test("tmpFilePath deletes old files from tmp directory", () => {
 test("docStorage.webifyPath creates directory if it does not exist", () => {
   // We need requireDir to see the path as non-existent and call mkdirSync
   // Use a path-specific mock for existsSync
-  const mkdirSpy = jest
-    .spyOn(fs, "mkdirSync")
-    .mockImplementation((() => {}) as any);
+  const mkdirSpy = jest.spyOn(fs, "mkdirSync").mockImplementation((() => {}) as any);
 
   // Make existsSync return false to simulate a missing directory
   const existsSpy = jest.spyOn(fs, "existsSync").mockReturnValue(false as any);

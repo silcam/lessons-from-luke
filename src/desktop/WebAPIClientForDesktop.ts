@@ -15,9 +15,7 @@ export default class WebAPIClientForDesktop {
   private localStorage: LocalStorage;
 
   constructor(localStorage: LocalStorage) {
-    this.baseUrl = app.isPackaged
-      ? "https://luke.silcameroon.org"
-      : "http://localhost:8081";
+    this.baseUrl = app.isPackaged ? "https://luke.silcameroon.org" : "http://localhost:8081";
     // this.baseUrl = "https://luke.silcameroon.org"; // For testing with real server
     this.localStorage = localStorage;
   }
@@ -25,17 +23,12 @@ export default class WebAPIClientForDesktop {
   setConnected(connected: boolean) {
     if (connected !== this.connected) {
       this.connected = connected;
-      this.onConnectionChangeListeners.forEach(cb => cb(connected));
+      this.onConnectionChangeListeners.forEach((cb) => cb(connected));
     }
   }
 
-  async get<T extends GetRoute>(
-    route: T,
-    params: APIGet[T][0]
-  ): Promise<APIGet[T][1] | null> {
-    return this.trackConnection(() =>
-      webGet(route, params, this.baseUrl, msg => this.log(msg))
-    );
+  async get<T extends GetRoute>(route: T, params: APIGet[T][0]): Promise<APIGet[T][1] | null> {
+    return this.trackConnection(() => webGet(route, params, this.baseUrl, (msg) => this.log(msg)));
   }
 
   async post<T extends PostRoute>(
@@ -44,7 +37,7 @@ export default class WebAPIClientForDesktop {
     data: APIPost[T][1]
   ): Promise<APIPost[T][2] | null> {
     return this.trackConnection(() =>
-      webPost(route, params, data, this.baseUrl, msg => this.log(msg))
+      webPost(route, params, data, this.baseUrl, (msg) => this.log(msg))
     );
   }
 
@@ -58,7 +51,7 @@ export default class WebAPIClientForDesktop {
 
   removeOnConnectionChangeListener(cb: (connected: boolean) => void) {
     this.onConnectionChangeListeners = this.onConnectionChangeListeners.filter(
-      listener => listener !== cb
+      (listener) => listener !== cb
     );
   }
 
@@ -83,13 +76,8 @@ export default class WebAPIClientForDesktop {
       this.log(`Attempted ${this.baseUrl}`);
       this.log(`ERROR  ${err.log || err}`);
       const isNetworkError =
-        err?.code &&
-        ["ECONNREFUSED", "ENOTFOUND", "ETIMEDOUT", "ECONNRESET"].includes(
-          err.code
-        );
-      const error = isNetworkError
-        ? ({ type: "No Connection" } as AppError)
-        : asAppError(err);
+        err?.code && ["ECONNREFUSED", "ENOTFOUND", "ETIMEDOUT", "ECONNRESET"].includes(err.code);
+      const error = isNetworkError ? ({ type: "No Connection" } as AppError) : asAppError(err);
       if (error.type == "No Connection") {
         this.setConnected(false);
         return null;

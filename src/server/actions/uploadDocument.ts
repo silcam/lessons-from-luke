@@ -14,28 +14,22 @@ export async function uploadEnglishDoc(
 ): Promise<Lesson> {
   const lessons = await storage.lessons();
   const existingLesson = lessons.find(
-    lsn =>
-      lsn.book === meta.book &&
-      lsn.series === meta.series &&
-      lsn.lesson === meta.lesson
+    (lsn) => lsn.book === meta.book && lsn.series === meta.series && lsn.lesson === meta.lesson
   );
-  const lesson =
-    existingLesson || (await storage.createLesson(unset(meta, "languageId")));
+  const lesson = existingLesson || (await storage.createLesson(unset(meta, "languageId")));
   const newVersion = lesson.version + 1;
 
   const docFilepath = await docStorage.saveDoc(file, {
     ...lesson,
-    version: newVersion
+    version: newVersion,
   });
   const docStrings = parseDocStrings(docFilepath);
 
   return saveDocStrings(lesson.lessonId, newVersion, docStrings, storage);
 }
 
-export async function uploadNonenglishDoc(
-  file: UploadedFile
-): Promise<DocString[]> {
-  return docStorage.saveTmp(file, async docFilepath => {
+export async function uploadNonenglishDoc(file: UploadedFile): Promise<DocString[]> {
+  return docStorage.saveTmp(file, async (docFilepath) => {
     return parseDocStrings(docFilepath);
   });
 }

@@ -3,24 +3,25 @@
 jest.mock("electron", () => ({
   app: {
     getPath: jest.fn(() => "/tmp/fake-data"),
-    isPackaged: false
+    isPackaged: false,
   },
   ipcMain: {
     on: jest.fn(),
     handle: jest.fn(),
-    removeHandler: jest.fn()
-  }
+    removeHandler: jest.fn(),
+  },
 }));
 
-const registeredHandlers: { [route: string]: Function } = {};
+type Handler = (...args: any[]) => any;
+const registeredHandlers: { [route: string]: Handler } = {};
 
 jest.mock("../DesktopAPIServer", () => ({
-  addGetHandler: jest.fn((route: string, handler: Function) => {
+  addGetHandler: jest.fn((route: string, handler: Handler) => {
     registeredHandlers[route] = handler;
   }),
-  addPostHandler: jest.fn((route: string, handler: Function) => {
+  addPostHandler: jest.fn((route: string, handler: Handler) => {
     registeredHandlers[route] = handler;
-  })
+  }),
 }));
 
 import tStringsController from "./tStringsController";
@@ -40,14 +41,14 @@ function makeLanguage(overrides: Partial<Language> = {}): Language {
     motherTongue: false,
     progress: [],
     defaultSrcLang: 1,
-    ...overrides
+    ...overrides,
   };
 }
 
 function makeSyncState(overrides: Partial<StoredSyncState> = {}): StoredSyncState {
   return {
     ...initalStoredSyncState(),
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -56,34 +57,34 @@ function makeApp(syncStateOverrides: Partial<StoredSyncState> = {}) {
 
   const localStorage = {
     getSyncState: jest.fn(() => state.current),
-    setSyncState: jest.fn((partial: Partial<StoredSyncState>, app: any) => {
+    setSyncState: jest.fn((partial: Partial<StoredSyncState>, _app: any) => {
       state.current = { ...state.current, ...partial };
       return state.current;
     }),
     getTStrings: jest.fn(() => [] as TString[]),
     setProjectLanguageTStrings: jest.fn((tStrings: TString[]) => tStrings),
-    getAllTStrings: jest.fn(() => [] as TString[])
+    getAllTStrings: jest.fn(() => [] as TString[]),
   };
 
   const mockWebContents = {
-    send: jest.fn()
+    send: jest.fn(),
   };
 
   const mockWindow = {
-    webContents: mockWebContents
+    webContents: mockWebContents,
   };
 
   const webClient = {
     get: jest.fn().mockResolvedValue(null),
     post: jest.fn().mockResolvedValue(null),
     isConnected: jest.fn(() => false),
-    onConnectionChange: jest.fn()
+    onConnectionChange: jest.fn(),
   };
 
   const app = {
     localStorage,
     webClient,
-    getWindow: jest.fn(() => mockWindow)
+    getWindow: jest.fn(() => mockWindow),
   };
 
   return app as any;
@@ -91,7 +92,7 @@ function makeApp(syncStateOverrides: Partial<StoredSyncState> = {}) {
 
 describe("tStringsController", () => {
   beforeEach(() => {
-    Object.keys(registeredHandlers).forEach(k => delete registeredHandlers[k]);
+    Object.keys(registeredHandlers).forEach((k) => delete registeredHandlers[k]);
     jest.clearAllMocks();
   });
 
@@ -102,9 +103,9 @@ describe("tStringsController", () => {
       app.localStorage.getTStrings.mockReturnValue(tStrings);
       tStringsController(app);
 
-      const result = await registeredHandlers["/api/languages/:languageId/lessons/:lessonId/tStrings"](
-        { languageId: 10, lessonId: 5 }
-      );
+      const result = await registeredHandlers[
+        "/api/languages/:languageId/lessons/:lessonId/tStrings"
+      ]({ languageId: 10, lessonId: 5 });
       expect(app.localStorage.getTStrings).toHaveBeenCalledWith(10, 5);
       expect(result).toEqual(tStrings);
     });
@@ -114,9 +115,9 @@ describe("tStringsController", () => {
       app.localStorage.getTStrings.mockReturnValue([]);
       tStringsController(app);
 
-      const result = await registeredHandlers["/api/languages/:languageId/lessons/:lessonId/tStrings"](
-        { languageId: 99, lessonId: 99 }
-      );
+      const result = await registeredHandlers[
+        "/api/languages/:languageId/lessons/:lessonId/tStrings"
+      ]({ languageId: 99, lessonId: 99 });
       expect(result).toEqual([]);
     });
   });
@@ -206,7 +207,7 @@ describe("tStringsController", () => {
       const language = makeLanguage({ code: "btg" });
       const app = makeApp({
         language,
-        upSync: { dirtyTStrings: [makeTStr(3, 10, "Dirty")] }
+        upSync: { dirtyTStrings: [makeTStr(3, 10, "Dirty")] },
       });
       app.webClient.post.mockResolvedValue(null);
       tStringsController(app);

@@ -12,36 +12,28 @@ export default async function makeLessonFile(
   majorityLangId: number
 ): Promise<string> {
   const engFilePath = docStorage.docFilepath(lesson);
-  if (motherLang.languageId == ENGLISH_ID && majorityLangId == ENGLISH_ID)
-    return engFilePath;
+  if (motherLang.languageId == ENGLISH_ID && majorityLangId == ENGLISH_ID) return engFilePath;
 
   const mtTStrings = await storage.tStrings({
     languageId: motherLang.languageId,
-    lessonId: lesson.lessonId
+    lessonId: lesson.lessonId,
   });
   const otherTStrings =
     majorityLangId > 0 && majorityLangId != motherLang.languageId
       ? await storage.tStrings({
           languageId: majorityLangId,
-          lessonId: lesson.lessonId
+          lessonId: lesson.lessonId,
         })
       : mtTStrings;
 
-  let docStrings = makeDocStrings(
-    lesson.lessonStrings,
-    mtTStrings,
-    otherTStrings
-  );
+  let docStrings = makeDocStrings(lesson.lessonStrings, mtTStrings, otherTStrings);
 
   const singleLangDoc = majorityLangId == 0 ? true : false;
-  if (singleLangDoc)
-    docStrings = singleLanguageize(lesson.lessonStrings, docStrings);
+  if (singleLangDoc) docStrings = singleLanguageize(lesson.lessonStrings, docStrings);
 
-  const filepath = docStorage.tmpFilePath(
-    `${motherLang.name}_${lessonName(lesson)}.odt`
-  );
+  const filepath = docStorage.tmpFilePath(`${motherLang.name}_${lessonName(lesson)}.odt`);
   mergeXml(engFilePath, filepath, docStrings, {
-    clearEmptyParagraphs: singleLangDoc
+    clearEmptyParagraphs: singleLangDoc,
   });
   return filepath;
 }

@@ -3,13 +3,13 @@ jest.mock("../../common/state/networkSlice", () => ({
   __esModule: true,
   default: {
     reducer: (state = { connected: true }) => state,
-    actions: {}
+    actions: {},
   },
   useNetworkConnectionRestored: () => ({
     onConnectionRestored: jest.fn(),
-    clearHandlers: jest.fn()
+    clearHandlers: jest.fn(),
   }),
-  networkConnectionLostAction: jest.fn()
+  networkConnectionLostAction: jest.fn(),
 }));
 
 import React from "react";
@@ -20,7 +20,7 @@ describe("PublicHome", () => {
   it("renders without crashing", () => {
     const { container } = renderWithProviders(<PublicHome />, {
       syncState: defaultSyncState,
-      currentUser: { user: null, locale: "en", loaded: false }
+      currentUser: { user: null, locale: "en", loaded: false },
     });
     expect(container).toBeTruthy();
   });
@@ -28,7 +28,7 @@ describe("PublicHome", () => {
   it("shows the app title", () => {
     const { getByText } = renderWithProviders(<PublicHome />, {
       syncState: defaultSyncState,
-      currentUser: { user: null, locale: "en", loaded: false }
+      currentUser: { user: null, locale: "en", loaded: false },
     });
     expect(getByText("Lessons from Luke")).toBeTruthy();
   });
@@ -36,7 +36,7 @@ describe("PublicHome", () => {
   it("renders a login button", () => {
     const { getAllByText } = renderWithProviders(<PublicHome />, {
       syncState: defaultSyncState,
-      currentUser: { user: null, locale: "en", loaded: false }
+      currentUser: { user: null, locale: "en", loaded: false },
     });
     const buttons = getAllByText(/log.?in/i);
     expect(buttons.length).toBeGreaterThan(0);
@@ -48,9 +48,9 @@ describe("PublicHome", () => {
     // Simulate a 422 HTTP error from the server
     mockPost.mockRejectedValueOnce({ type: "HTTP", status: 422, message: "Unprocessable" });
 
-    const { container, getAllByText } = renderWithProviders(<PublicHome />, {
+    const { container } = renderWithProviders(<PublicHome />, {
       syncState: defaultSyncState,
-      currentUser: { user: null, locale: "en", loaded: false }
+      currentUser: { user: null, locale: "en", loaded: false },
     });
 
     // Click the Log In button
@@ -71,7 +71,7 @@ describe("PublicHome", () => {
 
     const { container } = renderWithProviders(<PublicHome />, {
       syncState: defaultSyncState,
-      currentUser: { user: null, locale: "en", loaded: false }
+      currentUser: { user: null, locale: "en", loaded: false },
     });
 
     // First trigger a login failure
@@ -96,7 +96,7 @@ describe("PublicHome", () => {
 
     const { container } = renderWithProviders(<PublicHome />, {
       syncState: defaultSyncState,
-      currentUser: { user: null, locale: "en", loaded: false }
+      currentUser: { user: null, locale: "en", loaded: false },
     });
 
     // First trigger login failure
@@ -121,7 +121,7 @@ describe("PublicHome", () => {
 
     const { container } = renderWithProviders(<PublicHome />, {
       syncState: defaultSyncState,
-      currentUser: { user: null, locale: "en", loaded: false }
+      currentUser: { user: null, locale: "en", loaded: false },
     });
 
     const loginButton = container.querySelector("button");

@@ -15,11 +15,11 @@ const DivBase = Div as any;
 export const FlexCol = styled(DivBase)<FlexProps>`
   display: flex;
   flex-direction: column;
-  flex-grow: ${props => (props.flexZero ? 0 : 1)};
-  flex-shrink: ${props => (props.flexZero ? 0 : 1)};
+  flex-grow: ${(props) => (props.flexZero ? 0 : 1)};
+  flex-shrink: ${(props) => (props.flexZero ? 0 : 1)};
   overflow: hidden;
-  height: ${props => (props.flexRoot ? "100%" : "auto")};
-  align-items: ${props => (props.alignCenter ? "center" : "stretch")};
+  height: ${(props) => (props.flexRoot ? "100%" : "auto")};
+  align-items: ${(props) => (props.alignCenter ? "center" : "stretch")};
 
   button {
     align-self: flex-start;
@@ -29,13 +29,12 @@ export const FlexCol = styled(DivBase)<FlexProps>`
 export const FlexRow = styled(DivBase)<FlexProps>`
   display: flex;
   flex-direction: row;
-  justify-content: ${props =>
-    props.spaceBetween ? "space-between" : "flex-start"};
+  justify-content: ${(props) => (props.spaceBetween ? "space-between" : "flex-start")};
   overflow: hidden;
-  flex-grow: ${props => (props.flexZero ? 0 : 1)};
-  flex-shrink: ${props => (props.flexZero ? 0 : 1)};
-  height: ${props => (props.flexRoot ? "100%" : "auto")};
-  align-items: ${props => (props.alignCenter ? "center" : "stretch")};
+  flex-grow: ${(props) => (props.flexZero ? 0 : 1)};
+  flex-shrink: ${(props) => (props.flexZero ? 0 : 1)};
+  height: ${(props) => (props.flexRoot ? "100%" : "auto")};
+  align-items: ${(props) => (props.alignCenter ? "center" : "stretch")};
 `;
 
 // export const FlexFill = styled(Div)`

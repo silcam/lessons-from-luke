@@ -13,13 +13,13 @@ import loadingSlice from "./loadingSlice";
 jest.mock("../state/networkSlice", () => ({
   __esModule: true,
   default: {
-    reducer: (state = { connected: true }) => state
+    reducer: (state = { connected: true }) => state,
   },
   networkConnectionLostAction: jest.fn(() => ({ type: "NetworkConnectionLost" })),
   useNetworkConnectionRestored: () => ({
     onConnectionRestored: jest.fn(),
-    clearHandlers: jest.fn()
-  })
+    clearHandlers: jest.fn(),
+  }),
 }));
 
 const createTestStore = () =>
@@ -27,8 +27,8 @@ const createTestStore = () =>
     reducer: combineReducers({
       banners: bannerSlice.reducer,
       loading: loadingSlice.reducer,
-      network: (state = { connected: true }) => state
-    })
+      network: (state = { connected: true }) => state,
+    }),
   });
 
 const createWrapper = (
@@ -57,14 +57,14 @@ describe("useJustLoad", () => {
 
   it("sets loading to true during load, then false after completion", async () => {
     let resolveLoader!: (val: any) => void;
-    const loaderPromise = new Promise(res => {
+    const loaderPromise = new Promise((res) => {
       resolveLoader = res;
     });
 
     const { Wrapper } = createWrapper();
     const { result } = renderHook(() => useJustLoad(), { wrapper: Wrapper });
 
-    const loader: Loader<any> = _get => _dispatch => loaderPromise;
+    const loader: Loader<any> = (_get) => (_dispatch) => loaderPromise;
 
     act(() => {
       result.current[0](loader);
@@ -84,7 +84,7 @@ describe("useJustLoad", () => {
     const { Wrapper, store } = createWrapper();
     const { result } = renderHook(() => useJustLoad(), { wrapper: Wrapper });
 
-    const loader: Loader<any> = _get => _dispatch =>
+    const loader: Loader<any> = (_get) => (_dispatch) =>
       Promise.reject(new Error("Something went wrong"));
 
     await act(async () => {
@@ -100,11 +100,10 @@ describe("useJustLoad", () => {
     const { Wrapper, store } = createWrapper();
     const errorHandler = jest.fn().mockReturnValue(true);
     const { result } = renderHook(() => useJustLoad(errorHandler), {
-      wrapper: Wrapper
+      wrapper: Wrapper,
     });
 
-    const loader: Loader<any> = _get => _dispatch =>
-      Promise.reject(new Error("Handled error"));
+    const loader: Loader<any> = (_get) => (_dispatch) => Promise.reject(new Error("Handled error"));
 
     await act(async () => {
       result.current[0](loader);
@@ -116,18 +115,14 @@ describe("useJustLoad", () => {
   });
 
   it("calls onConnectionRestored when a No Connection error occurs (line 48)", async () => {
-    const { networkConnectionLostAction, useNetworkConnectionRestored } = require("../state/networkSlice");
-    const onConnectionRestored = jest.fn();
-    useNetworkConnectionRestored.mockReturnValue
-      ? null
-      : null; // it's already mocked at the top
+    const { networkConnectionLostAction } = require("../state/networkSlice");
+    // useNetworkConnectionRestored is already mocked at the top of the file
 
-    const { Wrapper, store } = createWrapper();
+    const { Wrapper } = createWrapper();
     const { result } = renderHook(() => useJustLoad(), { wrapper: Wrapper });
 
     // Simulate a No Connection error
-    const loader: Loader<any> = _get => _dispatch =>
-      Promise.reject({ type: "No Connection" });
+    const loader: Loader<any> = (_get) => (_dispatch) => Promise.reject({ type: "No Connection" });
 
     await act(async () => {
       result.current[0](loader);
@@ -141,7 +136,7 @@ describe("useJustLoad", () => {
 describe("useLoad", () => {
   it("calls loader automatically on mount", async () => {
     const loaderImpl = jest.fn().mockResolvedValue(null);
-    const loader: Loader<any> = _get => _dispatch => loaderImpl();
+    const loader: Loader<any> = (_get) => (_dispatch) => loaderImpl();
 
     const { Wrapper } = createWrapper();
     await act(async () => {
@@ -153,11 +148,11 @@ describe("useLoad", () => {
 
   it("returns true (loading) initially then false after completion", async () => {
     let resolveLoader!: (val: any) => void;
-    const loaderPromise = new Promise(res => {
+    const loaderPromise = new Promise((res) => {
       resolveLoader = res;
     });
 
-    const loader: Loader<any> = _get => _dispatch => loaderPromise;
+    const loader: Loader<any> = (_get) => (_dispatch) => loaderPromise;
     const { Wrapper } = createWrapper();
 
     const { result } = renderHook(() => useLoad(loader), { wrapper: Wrapper });
@@ -178,17 +173,18 @@ describe("useLoadMultiple", () => {
   it("returns true while any loader is still loading", async () => {
     let resolve1!: (v: any) => void;
     let resolve2!: (v: any) => void;
-    const p1 = new Promise(res => { resolve1 = res; });
-    const p2 = new Promise(res => { resolve2 = res; });
+    const p1 = new Promise((res) => {
+      resolve1 = res;
+    });
+    const p2 = new Promise((res) => {
+      resolve2 = res;
+    });
 
-    const loader1: Loader<any> = _get => _dispatch => p1;
-    const loader2: Loader<any> = _get => _dispatch => p2;
+    const loader1: Loader<any> = (_get) => (_dispatch) => p1;
+    const loader2: Loader<any> = (_get) => (_dispatch) => p2;
 
     const { Wrapper } = createWrapper();
-    const { result } = renderHook(
-      () => useLoadMultiple([loader1, loader2]),
-      { wrapper: Wrapper }
-    );
+    const { result } = renderHook(() => useLoadMultiple([loader1, loader2]), { wrapper: Wrapper });
 
     expect(result.current).toBe(true);
 
@@ -208,15 +204,12 @@ describe("useLoadMultiple", () => {
   });
 
   it("returns false only after every loader has finished", async () => {
-    const loader1: Loader<any> = _get => _dispatch => Promise.resolve(null);
-    const loader2: Loader<any> = _get => _dispatch => Promise.resolve(null);
+    const loader1: Loader<any> = (_get) => (_dispatch) => Promise.resolve(null);
+    const loader2: Loader<any> = (_get) => (_dispatch) => Promise.resolve(null);
 
     const { Wrapper } = createWrapper();
 
-    const hook = renderHook(
-      () => useLoadMultiple([loader1, loader2]),
-      { wrapper: Wrapper }
-    );
+    const hook = renderHook(() => useLoadMultiple([loader1, loader2]), { wrapper: Wrapper });
 
     await act(async () => {
       await Promise.resolve();
@@ -276,7 +269,7 @@ describe("usePush", () => {
 
   it("updates loading state during push", async () => {
     let resolvePusher!: (val: any) => void;
-    const pusherPromise = new Promise(res => {
+    const pusherPromise = new Promise((res) => {
       resolvePusher = res;
     });
     const pusher: Pusher<any> = jest.fn().mockReturnValue(pusherPromise);

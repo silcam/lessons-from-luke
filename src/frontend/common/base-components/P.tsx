@@ -8,7 +8,7 @@ interface IProps {
 }
 
 const P = styled.p<IProps>`
-  color: ${props => (props.subdued ? Colors.grey : "inherit")};
+  color: ${(props) => (props.subdued ? Colors.grey : "inherit")};
 `;
 
 export default P;

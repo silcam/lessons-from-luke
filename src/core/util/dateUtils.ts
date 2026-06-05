@@ -3,10 +3,7 @@ import { zeroPad } from "./numberUtils";
 // UTC!
 export function lastMonthStr() {
   const date = new Date();
-  const yearMonth: [number, number] = [
-    date.getUTCFullYear(),
-    date.getUTCMonth() + 1
-  ];
+  const yearMonth: [number, number] = [date.getUTCFullYear(), date.getUTCMonth() + 1];
   if (yearMonth[1] == 1) {
     yearMonth[0] = yearMonth[0] - 1;
     yearMonth[1] = 12;

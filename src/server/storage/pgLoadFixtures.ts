@@ -7,7 +7,7 @@ const jsonFixturesPath = process.cwd() + "/test/fixtures-0.json";
 const fixtures = JSON.parse(fs.readFileSync(jsonFixturesPath).toString());
 
 export default async function pgLoadFixtures(sql: SqlFunc) {
-  await sql.begin(async sql => {
+  await sql.begin(async (sql) => {
     await sql`DELETE FROM languages`;
     await sql`INSERT INTO languages ${sql(fixtures.languages.map(sqlizeLang))}`;
     await sql`UPDATE languages SET created=1594220697740, modified=1594220697740`;
@@ -28,9 +28,7 @@ export default async function pgLoadFixtures(sql: SqlFunc) {
     await sql`DELETE FROM lessonDiffs`;
 
     await sql`DELETE FROM tStrings`;
-    await sql`INSERT INTO tStrings ${sql(
-      fixtures.tStrings.map(sqlizeTString)
-    )}`;
+    await sql`INSERT INTO tStrings ${sql(fixtures.tStrings.map(sqlizeTString))}`;
     await sql`UPDATE tstrings SET created=1594220697740, modified=1594220697740`;
     await sql`ALTER SEQUENCE tstrings_masterid_seq RESTART 655`;
   });

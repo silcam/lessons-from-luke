@@ -12,13 +12,13 @@ const STable = styled.table<StyleProps>`
 
   td {
     padding: 0.3em 0.7em;
-    border-width: ${props => (props.borders ? "1px" : "0")};
+    border-width: ${(props) => (props.borders ? "1px" : "0")};
     border-style: solid;
     border-color: ${Colors.lightGrey};
   }
 `;
 
-interface IProps extends StyleProps {}
+type IProps = StyleProps;
 
 export default function Table(props: PropsWithChildren<IProps>) {
   return (

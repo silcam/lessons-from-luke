@@ -43,7 +43,7 @@ describe("decode", () => {
 
   test("encode and decode are inverse operations", () => {
     const timestamps = [1514761200001, 1594232387331, 1700000000000];
-    timestamps.forEach(ts => {
+    timestamps.forEach((ts) => {
       expect(decode(encode(ts))).toBe(ts);
     });
   });

@@ -30,9 +30,8 @@ export default function LessonStringEditor(props: IProps) {
         <Button
           text={t("Ok")}
           onClick={() => {
-            draftText.length > 0
-              ? props.setText(draftText)
-              : props.deleteItem();
+            if (draftText.length > 0) props.setText(draftText);
+            else props.deleteItem();
             setEditing(false);
           }}
         />
@@ -45,16 +44,8 @@ export default function LessonStringEditor(props: IProps) {
       <FlexRow className="buttonRow">
         {!props.lastString && (
           <React.Fragment>
-            <Button
-              link
-              text={t("Merge_next")}
-              onClick={() => props.mergeNext("")}
-            />
-            <Button
-              link
-              text={t("Merge_next_with_space")}
-              onClick={() => props.mergeNext(" ")}
-            />
+            <Button link text={t("Merge_next")} onClick={() => props.mergeNext("")} />
+            <Button link text={t("Merge_next_with_space")} onClick={() => props.mergeNext(" ")} />
           </React.Fragment>
         )}
         <Button

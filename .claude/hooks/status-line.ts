@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execSync } from "child_process";
 
 interface StatusLineInput {
   workspace?: {
@@ -22,11 +22,11 @@ interface StatusLineInput {
  */
 async function readStdin(): Promise<string> {
   return new Promise((resolve) => {
-    let data = '';
-    process.stdin.on('data', (chunk: Buffer) => {
-      data += chunk.toString('utf8');
+    let data = "";
+    process.stdin.on("data", (chunk: Buffer) => {
+      data += chunk.toString("utf8");
     });
-    process.stdin.on('end', () => {
+    process.stdin.on("end", () => {
       resolve(data);
     });
   });
@@ -52,13 +52,13 @@ function formatTokens(tokens: number): string {
  */
 function getGitBranch(): string {
   try {
-    const branch = execSync('git rev-parse --abbrev-ref HEAD 2>/dev/null', {
-      encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'ignore'],
+    const branch = execSync("git rev-parse --abbrev-ref HEAD 2>/dev/null", {
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "ignore"],
     }).trim();
-    return branch.length > 0 ? branch : 'no-git';
+    return branch.length > 0 ? branch : "no-git";
   } catch {
-    return 'no-git';
+    return "no-git";
   }
 }
 
@@ -76,17 +76,17 @@ async function main(): Promise<void> {
   const contextSize = input.context_window?.context_window_size ?? 200000;
   const tokens = Math.round((contextSize * percent) / 100);
   const currentDir = input.workspace?.current_dir ?? process.cwd();
-  const folderName = currentDir.split('/').pop() ?? 'unknown';
+  const folderName = currentDir.split("/").pop() ?? "unknown";
   const gitBranch = getGitBranch();
 
   const formattedTokens = formatTokens(tokens);
   const percentFormatted = Math.round(percent);
 
   // ANSI color codes: green=32, cyan=36, yellow=33
-  const folderColor = '\x1b[32m';
-  const branchColor = '\x1b[36m';
-  const contextColor = '\x1b[33m';
-  const reset = '\x1b[0m';
+  const folderColor = "\x1b[32m";
+  const branchColor = "\x1b[36m";
+  const contextColor = "\x1b[33m";
+  const reset = "\x1b[0m";
 
   // Output plain text (not JSON) with colors
   console.log(
@@ -95,6 +95,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((_error: unknown) => {
-  console.error('Error');
+  console.error("Error");
   process.exit(0);
 });

@@ -18,16 +18,12 @@ export default function TranslateRow(props: IProps) {
   const { lessonTString, language } = props;
   const lessonString = lessonTString.lStr;
   const srcStr = lessonTString.tStrs[0];
-  const tStr =
-    lessonTString.tStrs[1] || newTString("", lessonString, language, srcStr);
+  const tStr = lessonTString.tStrs[1] || newTString("", lessonString, language, srcStr);
 
   return (
     <Div>
       <PDiv>
-        <TStringSpan
-          text={srcStr?.text}
-          motherTongue={lessonString.motherTongue}
-        />
+        <TStringSpan text={srcStr?.text} motherTongue={lessonString.motherTongue} />
       </PDiv>
 
       {lessonString.motherTongue && (

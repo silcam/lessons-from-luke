@@ -3,31 +3,32 @@
 jest.mock("electron", () => ({
   app: {
     getPath: jest.fn(() => "/tmp/fake-data"),
-    isPackaged: false
+    isPackaged: false,
   },
   ipcMain: {
     on: jest.fn(),
     handle: jest.fn(),
-    removeHandler: jest.fn()
-  }
+    removeHandler: jest.fn(),
+  },
 }));
 
 // We mock DesktopAPIServer so we can intercept addGetHandler / addPostHandler
 // and directly invoke the handlers in tests.
-const registeredHandlers: { [route: string]: Function } = {};
+type Handler = (...args: any[]) => any;
+const registeredHandlers: { [route: string]: Handler } = {};
 
 jest.mock("../DesktopAPIServer", () => ({
-  addGetHandler: jest.fn((route: string, handler: Function) => {
+  addGetHandler: jest.fn((route: string, handler: Handler) => {
     registeredHandlers[route] = handler;
   }),
-  addPostHandler: jest.fn((route: string, handler: Function) => {
+  addPostHandler: jest.fn((route: string, handler: Handler) => {
     registeredHandlers[route] = handler;
-  })
+  }),
 }));
 
 // Mock downSyncTStrings so it doesn't actually do anything
 jest.mock("./downSync", () => ({
-  downSyncTStrings: jest.fn()
+  downSyncTStrings: jest.fn(),
 }));
 
 import syncStateController from "./syncStateController";
@@ -43,14 +44,14 @@ function makeLanguage(overrides: Partial<Language> = {}): Language {
     motherTongue: false,
     progress: [],
     defaultSrcLang: 1,
-    ...overrides
+    ...overrides,
   };
 }
 
 function makeSyncState(overrides: Partial<StoredSyncState> = {}): StoredSyncState {
   return {
     ...initalStoredSyncState(),
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -65,27 +66,27 @@ function makeApp(syncStateOverrides: Partial<StoredSyncState> = {}) {
     }),
     getLessons: jest.fn(() => []),
     getLessonStrings: jest.fn(() => []),
-    getTStrings: jest.fn(() => [])
+    getTStrings: jest.fn(() => []),
   };
 
   const mockWebContents = {
-    send: jest.fn()
+    send: jest.fn(),
   };
 
   const mockWindow = {
-    webContents: mockWebContents
+    webContents: mockWebContents,
   };
 
   const webClient = {
     get: jest.fn().mockResolvedValue(null),
     isConnected: jest.fn(() => false),
-    onConnectionChange: jest.fn()
+    onConnectionChange: jest.fn(),
   };
 
   const app = {
     localStorage,
     webClient,
-    getWindow: jest.fn(() => mockWindow)
+    getWindow: jest.fn(() => mockWindow),
   };
 
   return app as any;
@@ -94,7 +95,7 @@ function makeApp(syncStateOverrides: Partial<StoredSyncState> = {}) {
 describe("syncStateController", () => {
   beforeEach(() => {
     // Clear all registered handlers before each test
-    Object.keys(registeredHandlers).forEach(k => delete registeredHandlers[k]);
+    Object.keys(registeredHandlers).forEach((k) => delete registeredHandlers[k]);
     jest.clearAllMocks();
   });
 
@@ -107,7 +108,7 @@ describe("syncStateController", () => {
       const result = await registeredHandlers["/api/syncState"]();
       expect(result).toMatchObject({
         loaded: true,
-        connected: true
+        connected: true,
       });
     });
 
@@ -155,7 +156,7 @@ describe("syncStateController", () => {
       const language = makeLanguage();
       const app = makeApp({ language });
       app.localStorage.getLessons.mockReturnValue([
-        { lessonId: 1, book: "Luke", series: 1, lesson: 1, version: 1 }
+        { lessonId: 1, book: "Luke", series: 1, lesson: 1, version: 1 },
       ]);
       app.localStorage.getLessonStrings.mockReturnValue([]);
       syncStateController(app);
@@ -168,13 +169,21 @@ describe("syncStateController", () => {
       const language = makeLanguage({ defaultSrcLang: 1 });
       const app = makeApp({ language });
       app.localStorage.getLessons.mockReturnValue([
-        { lessonId: 1, book: "Luke", series: 1, lesson: 1, version: 1 }
+        { lessonId: 1, book: "Luke", series: 1, lesson: 1, version: 1 },
       ]);
       app.localStorage.getLessonStrings.mockReturnValue([
-        { lessonStringId: 1, masterId: 100, lessonId: 1, lessonVersion: 1, type: "content", xpath: "/root", motherTongue: false }
+        {
+          lessonStringId: 1,
+          masterId: 100,
+          lessonId: 1,
+          lessonVersion: 1,
+          type: "content",
+          xpath: "/root",
+          motherTongue: false,
+        },
       ]);
       app.localStorage.getTStrings.mockReturnValue([
-        { masterId: 100, languageId: 1, text: "Hello", history: [] }
+        { masterId: 100, languageId: 1, text: "Hello", history: [] },
       ]);
       syncStateController(app);
 
@@ -186,15 +195,31 @@ describe("syncStateController", () => {
       const language = makeLanguage({ defaultSrcLang: 1 });
       const app = makeApp({ language });
       app.localStorage.getLessons.mockReturnValue([
-        { lessonId: 1, book: "Luke", series: 1, lesson: 1, version: 1 }
+        { lessonId: 1, book: "Luke", series: 1, lesson: 1, version: 1 },
       ]);
       app.localStorage.getLessonStrings.mockReturnValue([
-        { lessonStringId: 1, masterId: 100, lessonId: 1, lessonVersion: 1, type: "content", xpath: "/root", motherTongue: false },
-        { lessonStringId: 2, masterId: 101, lessonId: 1, lessonVersion: 1, type: "content", xpath: "/root2", motherTongue: false }
+        {
+          lessonStringId: 1,
+          masterId: 100,
+          lessonId: 1,
+          lessonVersion: 1,
+          type: "content",
+          xpath: "/root",
+          motherTongue: false,
+        },
+        {
+          lessonStringId: 2,
+          masterId: 101,
+          lessonId: 1,
+          lessonVersion: 1,
+          type: "content",
+          xpath: "/root2",
+          motherTongue: false,
+        },
       ]);
       // Only one of two tStrings is available
       app.localStorage.getTStrings.mockReturnValue([
-        { masterId: 100, languageId: 1, text: "Hello", history: [] }
+        { masterId: 100, languageId: 1, text: "Hello", history: [] },
       ]);
       syncStateController(app);
 
@@ -228,8 +253,8 @@ describe("syncStateController", () => {
           language,
           syncLanguages: expect.arrayContaining([
             { languageId: 10, timestamp: 1 },
-            { languageId: 1, timestamp: 1 }
-          ])
+            { languageId: 1, timestamp: 1 },
+          ]),
         }),
         null
       );
@@ -283,7 +308,10 @@ describe("syncStateController", () => {
       const app = makeApp({ language: null });
       syncStateController(app);
 
-      const result = await registeredHandlers["/api/syncState/progress"]({}, { lessonId: 1, progress: 50 });
+      const result = await registeredHandlers["/api/syncState/progress"](
+        {},
+        { lessonId: 1, progress: 50 }
+      );
       expect(result).toBeUndefined();
       expect(app.localStorage.setSyncState).not.toHaveBeenCalled();
     });
@@ -292,8 +320,8 @@ describe("syncStateController", () => {
       const language = makeLanguage({
         progress: [
           { lessonId: 1, progress: 30 },
-          { lessonId: 2, progress: 60 }
-        ]
+          { lessonId: 2, progress: 60 },
+        ],
       });
       const app = makeApp({ language });
       syncStateController(app);
@@ -304,9 +332,9 @@ describe("syncStateController", () => {
           language: expect.objectContaining({
             progress: expect.arrayContaining([
               { lessonId: 1, progress: 80 },
-              { lessonId: 2, progress: 60 }
-            ])
-          })
+              { lessonId: 2, progress: 60 },
+            ]),
+          }),
         }),
         null
       );
@@ -318,7 +346,7 @@ describe("syncStateController", () => {
 
     test("adds progress entry for a new lesson", async () => {
       const language = makeLanguage({
-        progress: [{ lessonId: 2, progress: 60 }]
+        progress: [{ lessonId: 2, progress: 60 }],
       });
       const app = makeApp({ language });
       syncStateController(app);

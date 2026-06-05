@@ -3,13 +3,13 @@ jest.mock("../../common/state/networkSlice", () => ({
   __esModule: true,
   default: {
     reducer: (state = { connected: true }) => state,
-    actions: {}
+    actions: {},
   },
   useNetworkConnectionRestored: () => ({
     onConnectionRestored: jest.fn(),
-    clearHandlers: jest.fn()
+    clearHandlers: jest.fn(),
   }),
-  networkConnectionLostAction: jest.fn()
+  networkConnectionLostAction: jest.fn(),
 }));
 
 import React from "react";
@@ -22,7 +22,7 @@ describe("LanguagesBox", () => {
     const { container } = renderWithProviders(<LanguagesBox />, {
       syncState: defaultSyncState,
       languages: { languages: [], adminLanguages: [] },
-      currentUser: { user: null, locale: "en", loaded: false }
+      currentUser: { user: null, locale: "en", loaded: false },
     });
     await act(async () => {});
     expect(container).toBeTruthy();
@@ -32,7 +32,7 @@ describe("LanguagesBox", () => {
     const { getByText } = renderWithProviders(<LanguagesBox />, {
       syncState: defaultSyncState,
       languages: { languages: [], adminLanguages: [] },
-      currentUser: { user: null, locale: "en", loaded: false }
+      currentUser: { user: null, locale: "en", loaded: false },
     });
     await act(async () => {});
     expect(getByText(/languages/i)).toBeTruthy();
@@ -43,9 +43,9 @@ describe("LanguagesBox", () => {
       syncState: defaultSyncState,
       languages: {
         languages: [],
-        adminLanguages: [sampleLanguage]
+        adminLanguages: [sampleLanguage],
       },
-      currentUser: { user: null, locale: "en", loaded: false }
+      currentUser: { user: null, locale: "en", loaded: false },
     });
     await act(async () => {});
     expect(getByText("Test Language")).toBeTruthy();
@@ -55,7 +55,7 @@ describe("LanguagesBox", () => {
     const { getByText } = renderWithProviders(<LanguagesBox />, {
       syncState: defaultSyncState,
       languages: { languages: [], adminLanguages: [] },
-      currentUser: { user: null, locale: "en", loaded: false }
+      currentUser: { user: null, locale: "en", loaded: false },
     });
     await act(async () => {});
 
@@ -75,9 +75,9 @@ describe("LanguagesBox", () => {
       syncState: defaultSyncState,
       languages: {
         languages: [],
-        adminLanguages: [sampleLanguage]
+        adminLanguages: [sampleLanguage],
       },
-      currentUser: { user: null, locale: "en", loaded: false }
+      currentUser: { user: null, locale: "en", loaded: false },
     });
     await act(async () => {});
 
@@ -98,9 +98,9 @@ describe("LanguagesBox", () => {
       syncState: defaultSyncState,
       languages: {
         languages: [],
-        adminLanguages: [sampleLanguage]
+        adminLanguages: [sampleLanguage],
       },
-      currentUser: { user: null, locale: "en", loaded: false }
+      currentUser: { user: null, locale: "en", loaded: false },
     });
     await act(async () => {});
 

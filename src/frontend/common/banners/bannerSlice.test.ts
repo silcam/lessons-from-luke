@@ -12,20 +12,14 @@ describe("bannerSlice reducers", () => {
       const stateWithBanners: AppBanner[] = [errorBanner, successBanner];
 
       const newBanner: AppBanner = { type: "Success", message: "New!" };
-      const state = bannerSlice.reducer(
-        stateWithBanners,
-        bannerSlice.actions.add(newBanner)
-      );
+      const state = bannerSlice.reducer(stateWithBanners, bannerSlice.actions.add(newBanner));
 
       expect(state).toHaveLength(1);
       expect(state[0]).toEqual(newBanner);
     });
 
     it("works on empty state", () => {
-      const state = bannerSlice.reducer(
-        initialState,
-        bannerSlice.actions.add(errorBanner)
-      );
+      const state = bannerSlice.reducer(initialState, bannerSlice.actions.add(errorBanner));
 
       expect(state).toHaveLength(1);
       expect(state[0]).toEqual(errorBanner);
@@ -36,19 +30,13 @@ describe("bannerSlice reducers", () => {
     it("clears all banners", () => {
       const stateWithBanners: AppBanner[] = [errorBanner, successBanner];
 
-      const state = bannerSlice.reducer(
-        stateWithBanners,
-        bannerSlice.actions.reset()
-      );
+      const state = bannerSlice.reducer(stateWithBanners, bannerSlice.actions.reset());
 
       expect(state).toHaveLength(0);
     });
 
     it("works on empty state", () => {
-      const state = bannerSlice.reducer(
-        initialState,
-        bannerSlice.actions.reset()
-      );
+      const state = bannerSlice.reducer(initialState, bannerSlice.actions.reset());
 
       expect(state).toHaveLength(0);
     });
@@ -58,10 +46,7 @@ describe("bannerSlice reducers", () => {
     it("removes all banners of the specified type", () => {
       const banners: AppBanner[] = [errorBanner, successBanner, errorBanner];
 
-      const state = bannerSlice.reducer(
-        banners,
-        bannerSlice.actions.removeType("Error")
-      );
+      const state = bannerSlice.reducer(banners, bannerSlice.actions.removeType("Error"));
 
       expect(state).toHaveLength(1);
       expect(state[0].type).toBe("Success");
@@ -70,10 +55,7 @@ describe("bannerSlice reducers", () => {
     it("removes success banners", () => {
       const banners: AppBanner[] = [errorBanner, successBanner];
 
-      const state = bannerSlice.reducer(
-        banners,
-        bannerSlice.actions.removeType("Success")
-      );
+      const state = bannerSlice.reducer(banners, bannerSlice.actions.removeType("Success"));
 
       expect(state).toHaveLength(1);
       expect(state[0].type).toBe("Error");
@@ -82,10 +64,7 @@ describe("bannerSlice reducers", () => {
     it("returns empty array when all banners are the removed type", () => {
       const banners: AppBanner[] = [errorBanner, errorBanner];
 
-      const state = bannerSlice.reducer(
-        banners,
-        bannerSlice.actions.removeType("Error")
-      );
+      const state = bannerSlice.reducer(banners, bannerSlice.actions.removeType("Error"));
 
       expect(state).toHaveLength(0);
     });
@@ -96,18 +75,12 @@ describe("bannerSlice reducers", () => {
       // add then remove using the state reference
       // Since remove uses immer's original(), we test via the reducer
       // by adding a banner then passing that same banner reference to remove
-      const stateAfterAdd = bannerSlice.reducer(
-        initialState,
-        bannerSlice.actions.add(errorBanner)
-      );
+      const stateAfterAdd = bannerSlice.reducer(initialState, bannerSlice.actions.add(errorBanner));
       // The banner in state is a draft proxy; we need to test that
       // passing the original payload works with remove
       // We'll test that a banner NOT in the list is not removed
       const otherBanner: AppBanner = { type: "Success", message: "Other" };
-      const state = bannerSlice.reducer(
-        stateAfterAdd,
-        bannerSlice.actions.remove(otherBanner)
-      );
+      const state = bannerSlice.reducer(stateAfterAdd, bannerSlice.actions.remove(otherBanner));
 
       // The other banner is not in state, so nothing is removed
       expect(state).toHaveLength(1);
@@ -120,10 +93,7 @@ describe("bannerSlice extraReducers", () => {
 
   describe("NetworkConnectionLost", () => {
     it("adds an Error banner with type 'No Connection'", () => {
-      const state = bannerSlice.reducer(
-        initialState,
-        { type: "NetworkConnectionLost" }
-      );
+      const state = bannerSlice.reducer(initialState, { type: "NetworkConnectionLost" });
 
       expect(state).toHaveLength(1);
       expect(state[0].type).toBe("Error");
@@ -135,10 +105,7 @@ describe("bannerSlice extraReducers", () => {
     it("replaces existing banners with the error banner", () => {
       const stateWithBanners: AppBanner[] = [successBanner];
 
-      const state = bannerSlice.reducer(
-        stateWithBanners,
-        { type: "NetworkConnectionLost" }
-      );
+      const state = bannerSlice.reducer(stateWithBanners, { type: "NetworkConnectionLost" });
 
       expect(state).toHaveLength(1);
       expect(state[0].type).toBe("Error");
@@ -147,10 +114,7 @@ describe("bannerSlice extraReducers", () => {
 
   describe("NetworkConnectionRestored", () => {
     it("adds a Success banner with networkConnectionRestored=true", () => {
-      const state = bannerSlice.reducer(
-        initialState,
-        { type: "NetworkConnectionRestored" }
-      );
+      const state = bannerSlice.reducer(initialState, { type: "NetworkConnectionRestored" });
 
       expect(state).toHaveLength(1);
       expect(state[0].type).toBe("Success");
@@ -162,10 +126,7 @@ describe("bannerSlice extraReducers", () => {
     it("replaces existing banners with the success banner", () => {
       const stateWithError: AppBanner[] = [errorBanner];
 
-      const state = bannerSlice.reducer(
-        stateWithError,
-        { type: "NetworkConnectionRestored" }
-      );
+      const state = bannerSlice.reducer(stateWithError, { type: "NetworkConnectionRestored" });
 
       expect(state).toHaveLength(1);
       expect(state[0].type).toBe("Success");

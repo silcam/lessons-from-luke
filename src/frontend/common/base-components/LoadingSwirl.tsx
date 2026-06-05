@@ -19,21 +19,17 @@ const colorOptions = [
   Colors.primary,
   Colors.success,
   Colors.danger,
-  Colors.highlight
+  Colors.highlight,
 ];
 const numberOfDots = 25;
 const defaults = new Array(numberOfDots).fill(50);
 const diff = 4;
 export default function LoadingSwirl() {
-  const [vals, setVals] = useState<[number, number][]>(
-    defaults.map(d => [d, d])
-  );
+  const [vals, setVals] = useState<[number, number][]>(defaults.map((d) => [d, d]));
   const [angleDiff, setAngleDiff] = useState(-0.5);
   const [angle, setAngle] = useState(0);
   const [tick, setTick] = useState(0);
-  const [colors, setColors] = useState(
-    new Array(numberOfDots).fill(colorOptions[0])
-  );
+  const [colors, setColors] = useState(new Array(numberOfDots).fill(colorOptions[0]));
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -58,7 +54,7 @@ export default function LoadingSwirl() {
           style={{
             left: `${val[0]}%`,
             top: `${val[1]}%`,
-            color: colors[index]
+            color: colors[index],
           }}
         >
           o
@@ -68,22 +64,15 @@ export default function LoadingSwirl() {
   );
 }
 
-function nextValues(
-  values: [number, number][],
-  angle: number
-): [number, number][] {
-  const newVal = [
-    diff * Math.cos(angle) + values[0][0],
-    diff * Math.sin(angle) + values[0][1]
-  ];
-  const normalNewVal = newVal.map(val =>
+function nextValues(values: [number, number][], angle: number): [number, number][] {
+  const newVal = [diff * Math.cos(angle) + values[0][0], diff * Math.sin(angle) + values[0][1]];
+  const normalNewVal = newVal.map((val) =>
     val < 0 ? val + 100 : val >= 100 ? val - 100 : val
   ) as [number, number];
   return [normalNewVal, ...values.slice(0, values.length - 1)];
 }
 
 function nextColors(colors: string[]) {
-  const newColor =
-    colorOptions[Math.floor(Math.random() * colorOptions.length)];
+  const newColor = colorOptions[Math.floor(Math.random() * colorOptions.length)];
   return [newColor, ...colors.slice(0, colors.length - 1)];
 }

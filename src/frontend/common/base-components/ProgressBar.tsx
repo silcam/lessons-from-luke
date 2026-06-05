@@ -10,15 +10,14 @@ interface IProps {
 
 const ProgressBarContainer = styled.div<IProps>`
   background-color: ${Colors.lightGrey};
-  height: ${props => (props.big ? "8px" : props.fixed ? "6px" : "2px")};
-  margin: ${props => (props.big ? "6px 0" : "0")};
-  width: ${props => (props.fixed ? "100px" : "100%")};
+  height: ${(props) => (props.big ? "8px" : props.fixed ? "6px" : "2px")};
+  margin: ${(props) => (props.big ? "6px 0" : "0")};
+  width: ${(props) => (props.fixed ? "100px" : "100%")};
 
   .bar {
-    background-color: ${props =>
-      props.percent == 100 ? Colors.success : Colors.warning};
+    background-color: ${(props) => (props.percent == 100 ? Colors.success : Colors.warning)};
     height: 100%;
-    width: ${props => props.percent}%;
+    width: ${(props) => props.percent}%;
   }
 `;
 

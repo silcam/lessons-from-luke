@@ -5,12 +5,7 @@ import path from "path";
 import { UploadedFile } from "express-fileupload";
 import { BaseLesson } from "../../core/models/Lesson";
 import { zeroPad } from "../../core/util/numberUtils";
-import {
-  mkdirSafe,
-  unzip,
-  unlinkRecursive,
-  unlinkSafe
-} from "../../core/util/fsUtils";
+import { mkdirSafe, unzip, unlinkRecursive, unlinkSafe } from "../../core/util/fsUtils";
 import { objKeys } from "../../core/util/objectUtils";
 import waitFor from "../../core/util/waitFor";
 
@@ -21,10 +16,7 @@ async function saveDoc(file: UploadedFile, lesson: BaseLesson) {
   return filepath;
 }
 
-async function saveTmp<T>(
-  file: UploadedFile,
-  cb: (filepath: string) => Promise<T>
-): Promise<T> {
+async function saveTmp<T>(file: UploadedFile, cb: (filepath: string) => Promise<T>): Promise<T> {
   const filename = new Date().valueOf().toString() + ".odt";
   const filepath = `${docsTmpPath()}/${filename}`;
   await file.mv(filepath);
@@ -43,7 +35,7 @@ function tmpFilePath(baseName: string) {
 function cleanTmpDir() {
   const old = new Date().valueOf() - 1000 * 60 * 60 * 24;
   const filenames = fs.readdirSync(docsTmpPath());
-  filenames.forEach(filename => {
+  filenames.forEach((filename) => {
     if (parseInt(filename) < old) unlinkSafe(`${docsTmpPath()}/${filename}`);
   });
 }
@@ -66,7 +58,7 @@ function docXml(docPath: string) {
   try {
     unzip(docPath, extractDirPath);
     const xmls = { content: "", meta: "", styles: "" };
-    objKeys(xmls).forEach(xmlType => {
+    objKeys(xmls).forEach((xmlType) => {
       const xmlPath = path.join(extractDirPath, `${xmlType}.xml`);
       const xml = fs.readFileSync(xmlPath).toString();
       xmls[xmlType] = xml;
@@ -98,9 +90,7 @@ function webifiedHtml(lesson: BaseLesson): string | null {
 }
 
 async function mvWebifiedHtml(tmpOdtPath: string, lesson: BaseLesson) {
-  const inPath = `${webifyPath()}/${path
-    .basename(tmpOdtPath)
-    .replace(/odt$/, "htm")}`;
+  const inPath = `${webifyPath()}/${path.basename(tmpOdtPath).replace(/odt$/, "htm")}`;
   try {
     await waitFor(() => fs.existsSync(inPath));
 
@@ -127,11 +117,7 @@ function webifyPath() {
 function docsDirPath() {
   const env = process.env.NODE_ENV;
   const subpath =
-    env === "test"
-      ? "/test/docs/serverDocs"
-      : env === "development"
-      ? "/docs/dev"
-      : "/docs";
+    env === "test" ? "/test/docs/serverDocs" : env === "development" ? "/docs/dev" : "/docs";
   return requireDir(process.cwd() + subpath);
 }
 
@@ -148,5 +134,5 @@ export default {
   docFilepath,
   webifyPath,
   mvWebifiedHtml,
-  webifiedHtml
+  webifiedHtml,
 };

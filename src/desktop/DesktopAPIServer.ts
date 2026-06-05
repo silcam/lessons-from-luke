@@ -27,10 +27,7 @@ export function addGetHandler<T extends GetRoute>(
 
 export function addPostHandler<T extends PostRoute>(
   route: T,
-  handler: (
-    params: APIPost[T][0],
-    data: APIPost[T][1]
-  ) => Promise<APIPost[T][2]>
+  handler: (params: APIPost[T][0], data: APIPost[T][1]) => Promise<APIPost[T][2]>
 ) {
   ipcMain.handle(route, async (event, params, data) => {
     try {
@@ -50,5 +47,5 @@ function listen(app: DesktopApp) {
 }
 
 export default {
-  listen
+  listen,
 };

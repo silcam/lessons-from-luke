@@ -13,7 +13,7 @@ const colorOptions = [
   Colors.primary,
   Colors.success,
   Colors.danger,
-  Colors.highlight
+  Colors.highlight,
 ];
 type Box = (string | null)[][];
 
@@ -39,10 +39,7 @@ export default function LoadingBox(props: IProps) {
       {box.map((row, x) => (
         <div key={x}>
           {row.map((color, y) => (
-            <span
-              key={y}
-              style={{ color: color || "#ffffff00", fontWeight: "bold" }}
-            >
+            <span key={y} style={{ color: color || "#ffffff00", fontWeight: "bold" }}>
               o
             </span>
           ))}

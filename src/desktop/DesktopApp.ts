@@ -8,7 +8,7 @@ import {
   Menu,
   shell,
   dialog,
-  MenuItemConstructorOptions
+  MenuItemConstructorOptions,
 } from "electron";
 import contextMenu from "electron-context-menu";
 import windowStateKeeper from "electron-window-state";
@@ -95,9 +95,9 @@ export default class DesktopApp {
           click: () => {
             dialog.showMessageBox({
               message: app.getVersion(),
-              buttons: ["OK"]
+              buttons: ["OK"],
             });
-          }
+          },
         },
         {
           label: "Data Usage",
@@ -105,25 +105,22 @@ export default class DesktopApp {
             const usageLog = this.localStorage.readDataUsed();
             dialog.showMessageBox({
               message: dataUsageReport(usageLog),
-              buttons: ["OK"]
+              buttons: ["OK"],
             });
-          }
+          },
         },
         {
           label: "Resync",
           click: async () => {
             const choice = await dialog.showMessageBox({
               message: this.t("Resync_explanation"),
-              buttons: [this.t("Yes_resync"), this.t("Cancel")]
+              buttons: [this.t("Yes_resync"), this.t("Cancel")],
             });
             if (choice.response == 0)
-              this.localStorage.setSyncState(
-                resync(this.localStorage.getSyncState()),
-                this
-              );
-          }
-        }
-      ]
+              this.localStorage.setSyncState(resync(this.localStorage.getSyncState()), this);
+          },
+        },
+      ],
     });
 
     const viewMenuTop: MenuItemConstructorOptions[] = app.isPackaged
@@ -132,14 +129,14 @@ export default class DesktopApp {
           { role: "reload" },
           { role: "forceReload" },
           { role: "toggleDevTools" },
-          { type: "separator" }
+          { type: "separator" },
         ];
     const viewMenuBottom: MenuItemConstructorOptions[] = [
       { role: "resetZoom" },
       { role: "zoomIn" },
       { role: "zoomOut" },
       { type: "separator" },
-      { role: "togglefullscreen" }
+      { role: "togglefullscreen" },
     ];
     menu[2].submenu = viewMenuTop.concat(viewMenuBottom);
 
@@ -149,7 +146,7 @@ export default class DesktopApp {
   private createWindow() {
     const windowState = windowStateKeeper({
       defaultWidth: 1000,
-      defaultHeight: 800
+      defaultHeight: 800,
     });
     this.mainWindow = new BrowserWindow({
       x: windowState.x,
@@ -159,8 +156,8 @@ export default class DesktopApp {
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
-        preload: path.join(__dirname, "preload.js")
-      }
+        preload: path.join(__dirname, "preload.js"),
+      },
     });
     windowState.manage(this.mainWindow);
 

@@ -9,19 +9,16 @@ export default function webifyLesson(
   lesson: Lesson,
   opts: { force?: boolean } = {}
 ): Promise<void> {
-  if (process.env.NODE_ENV == "test" && !opts.force)
-    return new Promise(resolve => resolve());
+  if (process.env.NODE_ENV == "test" && !opts.force) return new Promise((resolve) => resolve());
 
   const origDocPath = docStorage.docFilepath(lesson);
-  const webDocPath = docStorage.tmpFilePath(
-    `${lesson.series}-${zeroPad(lesson.lesson, 2)}.odt`
-  );
+  const webDocPath = docStorage.tmpFilePath(`${lesson.series}-${zeroPad(lesson.lesson, 2)}.odt`);
   const docStrings = makeWebifyDocStrings(lesson.lessonStrings);
   mergeXml(origDocPath, webDocPath, docStrings);
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve, _reject) => {
     exec(
       `soffice --headless --convert-to htm:HTML --outdir ${docStorage.webifyPath()} ${webDocPath}`,
-      error => {
+      (error) => {
         if (error) {
           console.error(error);
           resolve();

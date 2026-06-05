@@ -4,20 +4,12 @@ import useTranslation from "../../common/util/useTranslation";
 import {
   EnglishUploadMeta,
   defaultEnglishUploadMeta,
-  OtherUploadMeta
+  OtherUploadMeta,
 } from "../../../core/models/DocUploadMeta";
 import Heading from "../../common/base-components/Heading";
 import { useDropzone } from "react-dropzone";
-import SelectInput, {
-  optionsDisplayIsKey
-} from "../../common/base-components/SelectInput";
-import {
-  Book,
-  AllBooks,
-  BaseLesson,
-  lessonName,
-  TOC_LESSON
-} from "../../../core/models/Lesson";
+import SelectInput, { optionsDisplayIsKey } from "../../common/base-components/SelectInput";
+import { Book, AllBooks, BaseLesson, lessonName, TOC_LESSON } from "../../../core/models/Lesson";
 import NumberPicker from "../../common/base-components/NumberPicker";
 import Button from "../../common/base-components/Button";
 import Label from "../../common/base-components/Label";
@@ -32,9 +24,7 @@ export default function UploadLessonForm(props: { done: () => void }) {
   const push = usePush();
   const navigate = useNavigate();
 
-  const [uploadMeta, setUploadMeta] = useState<EnglishUploadMeta>(
-    defaultEnglishUploadMeta()
-  );
+  const [uploadMeta, setUploadMeta] = useState<EnglishUploadMeta>(defaultEnglishUploadMeta());
   const [file, _setFile] = useState<File | null>(null);
   const formValid = !!file;
   const setFile = (file: File) => {
@@ -58,30 +48,26 @@ export default function UploadLessonForm(props: { done: () => void }) {
           <Label text={t("Book")}>
             <SelectInput
               value={uploadMeta.book}
-              setValue={value =>
-                setUploadMeta({ ...uploadMeta, book: value as Book })
-              }
+              setValue={(value) => setUploadMeta({ ...uploadMeta, book: value as Book })}
               options={optionsDisplayIsKey(AllBooks)}
             />
           </Label>
           <Label text={t("Series")}>
             <NumberPicker
               value={uploadMeta.series}
-              setValue={series => setUploadMeta({ ...uploadMeta, series })}
+              setValue={(series) => setUploadMeta({ ...uploadMeta, series })}
             />
           </Label>
           <Checkbox
             label={t("Table_of_Contents")}
             value={uploadMeta.lesson == TOC_LESSON}
-            setValue={toc =>
-              setUploadMeta({ ...uploadMeta, lesson: toc ? TOC_LESSON : 1 })
-            }
+            setValue={(toc) => setUploadMeta({ ...uploadMeta, lesson: toc ? TOC_LESSON : 1 })}
           />
           {uploadMeta.lesson != TOC_LESSON && (
             <Label text={t("Lesson")}>
               <NumberPicker
                 value={uploadMeta.lesson}
-                setValue={lesson => setUploadMeta({ ...uploadMeta, lesson })}
+                setValue={(lesson) => setUploadMeta({ ...uploadMeta, lesson })}
               />
             </Label>
           )}
@@ -93,14 +79,11 @@ export default function UploadLessonForm(props: { done: () => void }) {
   );
 }
 
-export function UploadDocForTranslationForm(props: {
-  done: () => void;
-  languageId: number;
-}) {
+export function UploadDocForTranslationForm(props: { done: () => void; languageId: number }) {
   const t = useTranslation();
   const push = usePush();
   const navigate = useNavigate();
-  const lessons = useAppSelector(state => state.lessons);
+  const lessons = useAppSelector((state) => state.lessons);
 
   const [lessonId, setLessonId] = useState(0);
   const [file, _setFile] = useState<File | null>(null);
@@ -114,10 +97,7 @@ export function UploadDocForTranslationForm(props: {
     if (file) {
       const meta: OtherUploadMeta = { languageId: props.languageId, lessonId };
       const lesson = await push(pushDocument(file, meta));
-      if (lesson)
-        navigate(
-          `/languages/${props.languageId}/lessons/${lessonId}/docStrings`
-        );
+      if (lesson) navigate(`/languages/${props.languageId}/lessons/${lessonId}/docStrings`);
     }
   };
 
@@ -130,8 +110,8 @@ export function UploadDocForTranslationForm(props: {
           <Label text={t("Lesson")}>
             <SelectInput
               value={`${lessonId}`}
-              setValue={id => setLessonId(parseInt(id))}
-              options={lessons.map(lsn => [`${lsn.lessonId}`, lessonName(lsn)])}
+              setValue={(id) => setLessonId(parseInt(id))}
+              options={lessons.map((lsn) => [`${lsn.lessonId}`, lessonName(lsn)])}
             />
           </Label>
         </Div>
@@ -142,26 +122,19 @@ export function UploadDocForTranslationForm(props: {
   );
 }
 
-function DocUploadInput(props: {
-  file: File | null;
-  setFile: (f: File) => void;
-}) {
+function DocUploadInput(props: { file: File | null; setFile: (f: File) => void }) {
   const t = useTranslation();
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps } = useDropzone({
     accept: "application/vnd.oasis.opendocument.text",
-    onDrop: files => {
+    onDrop: (files) => {
       if (files[0]) props.setFile(files[0]);
-    }
+    },
   });
 
   return (
     <Div marginBelow {...getRootProps()}>
       <input {...getInputProps()} />
-      <Button
-        link
-        onClick={() => {}}
-        text={props.file ? props.file.name : t("Add_file")}
-      />
+      <Button link onClick={() => {}} text={props.file ? props.file.name : t("Add_file")} />
     </Div>
   );
 }
@@ -189,10 +162,7 @@ function lessonIdFromFilename(filename: string, lessons: BaseLesson[]) {
 
   const meta = metaFromFilename(filename);
   const lesson = lessons.find(
-    lsn =>
-      lsn.book == meta.book &&
-      lsn.series == meta.series &&
-      lsn.lesson == meta.lesson
+    (lsn) => lsn.book == meta.book && lsn.series == meta.series && lsn.lesson == meta.lesson
   );
   return lesson ? lesson.lessonId : lessons[0].lessonId;
 }

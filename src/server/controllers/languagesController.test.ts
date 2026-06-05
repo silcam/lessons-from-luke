@@ -1,29 +1,19 @@
 /// <reference types="jest" />
 
-import {
-  plainAgent,
-  loggedInAgent
-} from "../testHelper";
-import {
-  isLanguage,
-  LessonProgress,
-  Language
-} from "../../core/models/Language";
+import { plainAgent, loggedInAgent } from "../testHelper";
+import { isLanguage, LessonProgress, Language } from "../../core/models/Language";
 import fs from "fs";
 import { findByStrict } from "../../core/util/arrayUtils";
 
 const usfm = fs.readFileSync("cypress/fixtures/43LUKBMO.SFM").toString();
 
-
 test("Public Languages", async () => {
   const agent = plainAgent();
   const response = await agent.get("/api/languages");
   expect(response.status).toBe(200);
-  expect(
-    findByStrict(response.body as Language[], "name", "English")
-  ).toMatchObject({
+  expect(findByStrict(response.body as Language[], "name", "English")).toMatchObject({
     languageId: 1,
-    name: "English"
+    name: "English",
   });
   expect(response.body.length).toBe(3);
 });
@@ -33,12 +23,10 @@ test("Admin Languages", async () => {
   const agent = await loggedInAgent();
   const response = await agent.get("/api/admin/languages");
   expect(response.status).toBe(200);
-  expect(
-    findByStrict(response.body as Language[], "name", "English")
-  ).toMatchObject({
+  expect(findByStrict(response.body as Language[], "name", "English")).toMatchObject({
     languageId: 1,
     name: "English",
-    code: "ABC"
+    code: "ABC",
   });
 });
 
@@ -50,7 +38,7 @@ test("Get Language by code", async () => {
   expect(response.body).toMatchObject({
     languageId: 3,
     name: "Batanga",
-    code: "GHI"
+    code: "GHI",
   });
 });
 
@@ -73,15 +61,11 @@ test("Get language progress", async () => {
     "English"
   ).progress;
   expect(englishProgess.length).toBe(5);
-  expect(englishProgess.every(p => p.progress == 100)).toBe(true);
-  const batangaProgress = findByStrict(
-    response.body as Language[],
-    "languageId",
-    3
-  ).progress;
+  expect(englishProgess.every((p) => p.progress == 100)).toBe(true);
+  const batangaProgress = findByStrict(response.body as Language[], "languageId", 3).progress;
   expect(batangaProgress[0]).toEqual({
     lessonId: 11,
-    progress: 6
+    progress: 6,
   });
 });
 
@@ -99,9 +83,7 @@ test("POST /api/languages", async () => {
 test("POST /api/languages requires login", async () => {
   expect.assertions(1);
   const agent = plainAgent();
-  const response = await agent
-    .post("/api/admin/languages")
-    .send({ name: "Klingon" });
+  const response = await agent.post("/api/admin/languages").send({ name: "Klingon" });
   expect(response.status).toBe(401);
 });
 
@@ -114,37 +96,30 @@ test("POST /api/languages validation", async () => {
 
 test("POST update language mother tongue status", async () => {
   const agent = await loggedInAgent();
-  const response = await agent
-    .post("/api/admin/languages/3")
-    .send({ motherTongue: false });
+  const response = await agent.post("/api/admin/languages/3").send({ motherTongue: false });
   expect(response.status).toBe(200);
   const batanga: Language = response.body;
   expect(batanga.motherTongue).toBe(false);
   expect(batanga.progress[0].progress).toBe(5); // Was 6
-
 });
 
 test("POST update language defaultSrcLang", async () => {
   const agent = await loggedInAgent();
-  const response = await agent
-    .post("/api/admin/languages/3")
-    .send({ defaultSrcLang: 2 });
+  const response = await agent.post("/api/admin/languages/3").send({ defaultSrcLang: 2 });
   expect(response.status).toBe(200);
   expect(response.body).toMatchObject({
     name: "Batanga",
-    defaultSrcLang: 2
+    defaultSrcLang: 2,
   });
 });
 
 test("POST usfm", async () => {
   const agent = await loggedInAgent();
-  const response = await agent
-    .post("/api/admin/languages/3/usfm")
-    .send({ usfm });
+  const response = await agent.post("/api/admin/languages/3/usfm").send({ usfm });
   expect(response.status).toBe(200);
   expect(response.body.language.progress[0]).toEqual({
     lessonId: 11,
-    progress: 23 // Was 6
+    progress: 23, // Was 6
   });
   expect(response.body.errors).toEqual([]);
   expect(response.body.tStrings.length).toBe(60);
@@ -152,31 +127,23 @@ test("POST usfm", async () => {
     history: [],
     languageId: 3,
     masterId: 179,
-    text:
-      "Luka 1:13 Ndɔ ŋgaŋ ntaoŋ ghɔ chhu ŋa, “Kiʼi mfāʼo pɔgɔ gu, ma Shakaria. Minnwi yaʼo luoŋ yɔ. Ɛlishabe ŋgwɛ ghɔ shi mbhi muuŋ mimbia ɔ chhɔ̄ ligi yi ni Jouŋ."
+    text: "Luka 1:13 Ndɔ ŋgaŋ ntaoŋ ghɔ chhu ŋa, “Kiʼi mfāʼo pɔgɔ gu, ma Shakaria. Minnwi yaʼo luoŋ yɔ. Ɛlishabe ŋgwɛ ghɔ shi mbhi muuŋ mimbia ɔ chhɔ̄ ligi yi ni Jouŋ.",
   });
-
 });
 
 test("POST usfm with non-existent languageId returns 404", async () => {
   const agent = await loggedInAgent();
-  const response = await agent
-    .post("/api/admin/languages/99999/usfm")
-    .send({ usfm });
+  const response = await agent.post("/api/admin/languages/99999/usfm").send({ usfm });
   expect(response.status).toBe(404);
-
 });
 
 test("POST usfm with error expected", async () => {
   expect.assertions(2);
   const tweakedUsfm = usfm.replace("\\v 36", "\\v 36-37").replace("\\v 37", "");
   const agent = await loggedInAgent();
-  const response = await agent
-    .post("/api/admin/languages/3/usfm")
-    .send({ usfm: tweakedUsfm });
+  const response = await agent.post("/api/admin/languages/3/usfm").send({ usfm: tweakedUsfm });
   expect(response.status).toBe(200);
   expect(response.body.errors).toContain(
     "The following error occurred while processing « Luke 1:37 For nothing is impossible with God. » : Could not find 1:37."
   );
-
 });

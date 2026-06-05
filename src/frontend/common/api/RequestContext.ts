@@ -1,9 +1,4 @@
-import {
-  GetRoute,
-  APIGet,
-  PostRoute,
-  APIPost
-} from "../../../core/interfaces/Api";
+import { GetRoute, APIGet, PostRoute, APIPost } from "../../../core/interfaces/Api";
 import React from "react";
 
 export type GetRequest = <T extends GetRoute>(
@@ -22,7 +17,7 @@ const RequestContext = React.createContext<{
   post: PostRequest;
 }>({
   get: async () => null,
-  post: async () => null
+  post: async () => null,
 });
 
 export default RequestContext;

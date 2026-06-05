@@ -5,7 +5,7 @@ import {
   ON_SYNC_STATE_CHANGE,
   OnSyncStateChangePayload,
   OnErrorPayload,
-  ON_ERROR
+  ON_ERROR,
 } from "../../../core/api/IpcChannels";
 import bannerSlice from "../../common/banners/bannerSlice";
 import languageSlice from "../../common/state/languageSlice";
@@ -19,18 +19,13 @@ export default function useHandleIPCEvents() {
       (syncStateUpdate: OnSyncStateChangePayload) => {
         dispatch(syncStateSlice.actions.setSyncState(syncStateUpdate));
         if (syncStateUpdate.language)
-          dispatch(
-            languageSlice.actions.setTranslating(syncStateUpdate.language)
-          );
+          dispatch(languageSlice.actions.setTranslating(syncStateUpdate.language));
       }
     );
 
-    const unsubError = window.electronAPI.on(
-      ON_ERROR,
-      (error: OnErrorPayload) => {
-        dispatch(bannerSlice.actions.add({ type: "Error", error }));
-      }
-    );
+    const unsubError = window.electronAPI.on(ON_ERROR, (error: OnErrorPayload) => {
+      dispatch(bannerSlice.actions.add({ type: "Error", error }));
+    });
 
     return () => {
       unsubSync();

@@ -4,7 +4,7 @@ import requireUser, { isLoggedIn } from "./requireUser";
 
 function mockReq(sessionData?: Record<string, any>) {
   return {
-    session: sessionData
+    session: sessionData,
   } as any;
 }
 
@@ -17,7 +17,7 @@ function mockRes() {
     },
     send() {
       return this;
-    }
+    },
   } as any;
 }
 

@@ -17,7 +17,7 @@ const GridContent = styled.div<{ children?: React.ReactNode }>`
   grid-area: content;
 `;
 
-export default function MiddleOfPage(props: PropsWithChildren<{}>) {
+export default function MiddleOfPage(props: PropsWithChildren) {
   return (
     <GridContainer>
       <GridContent>{props.children}</GridContent>

@@ -1,5 +1,4 @@
 import tSubSlice, { loadTSubs } from "./tSubSlice";
-import tStringSlice from "./tStringSlice";
 import { TSubLite, TSub } from "../../../core/models/TSub";
 import { TString } from "../../../core/models/TString";
 
@@ -9,7 +8,7 @@ function makeTString(overrides: Partial<TString> = {}): TString {
     languageId: 1,
     text: "Hello",
     history: [],
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -18,7 +17,7 @@ function makeTSubLite(overrides: Partial<TSubLite> = {}): TSubLite {
     languageId: 1,
     from: [1, 2],
     to: [3, 4],
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -94,8 +93,8 @@ describe("loadTSubs thunk", () => {
         engFrom: [tStr1],
         engTo: [tStr2],
         from: [],
-        to: []
-      }
+        to: [],
+      },
     ];
 
     const get = jest.fn().mockResolvedValue(tSubs);
@@ -103,10 +102,9 @@ describe("loadTSubs thunk", () => {
 
     await loadTSubs(42)(get)(dispatch);
 
-    expect(get).toHaveBeenCalledWith(
-      "/api/admin/lessons/:lessonId/lessonUpdateIssues",
-      { lessonId: 42 }
-    );
+    expect(get).toHaveBeenCalledWith("/api/admin/lessons/:lessonId/lessonUpdateIssues", {
+      lessonId: 42,
+    });
 
     // Should have dispatched tSubSlice.actions.set and tStringSlice.actions.add
     expect(dispatch).toHaveBeenCalledTimes(2);
@@ -126,8 +124,8 @@ describe("loadTSubs thunk", () => {
         engFrom: [tStr1],
         engTo: [tStr2],
         from: [],
-        to: []
-      }
+        to: [],
+      },
     ];
 
     const get = jest.fn().mockResolvedValue(tSubs);

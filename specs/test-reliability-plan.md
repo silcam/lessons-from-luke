@@ -3,6 +3,7 @@
 ## Executive Summary
 
 This plan addresses three goals:
+
 1. **Proper test isolation** - Eliminate intermittent failures from shared database state
 2. **Reliability verification** - Prove the test suite is deterministic
 3. **Coverage expansion** - Achieve >90% test coverage
@@ -10,12 +11,14 @@ This plan addresses three goals:
 ## Current State Analysis
 
 ### Infrastructure
+
 - **Jest**: 21 test files, uses `ts-jest`, global setup resets fixtures once
 - **Cypress**: 5 E2E spec files, has `/api/test/reset-storage` endpoint (unused)
 - **Database**: PostgreSQL with `PGTestStorage` class, `postgres` library
 - **Migrations**: `node-migrate` v1.6.2 with global `.migrate` file (problematic)
 
 ### Root Causes of Intermittent Failures
+
 1. **No per-test isolation**: Fixtures load once via `jestGlobalSetup.ts`, tests share state
 2. **Migration state mismatch**: `.migrate` file is global, test DB schema can drift
 3. **Cypress state pollution**: E2E tests don't reset between runs
@@ -25,9 +28,11 @@ This plan addresses three goals:
 ## Phase 1: Fix Migration System
 
 ### Problem
+
 `node-migrate` stores state in `./.migrate` regardless of target database. Running migrations against dev marks them complete, preventing them from running against test.
 
 ### Solution
+
 Configure environment-specific migration state files.
 
 ### Implementation
@@ -36,13 +41,13 @@ Configure environment-specific migration state files.
 
 ```javascript
 // scripts/migrate.js
-const { execSync } = require('child_process');
-const env = process.env.TEST_DB ? 'test' : 'dev';
+const { execSync } = require("child_process");
+const env = process.env.TEST_DB ? "test" : "dev";
 const stateFile = `.migrate-${env}`;
 
 execSync(`npx migrate --state-file=${stateFile} up`, {
-  stdio: 'inherit',
-  env: { ...process.env }
+  stdio: "inherit",
+  env: { ...process.env },
 });
 ```
 
@@ -69,11 +74,11 @@ execSync(`npx migrate --state-file=${stateFile} up`, {
 
 ```typescript
 // src/server/jestGlobalSetup.ts
-import { execSync } from 'child_process';
+import { execSync } from "child_process";
 
 export default async function globalSetup() {
   // Ensure test DB schema is current
-  execSync('yarn migrate:test', { stdio: 'inherit' });
+  execSync("yarn migrate:test", { stdio: "inherit" });
 
   // Then load fixtures
   await pgLoadFixtures();
@@ -82,6 +87,7 @@ export default async function globalSetup() {
 ```
 
 ### Acceptance Criteria
+
 - [ ] `yarn migrate` affects only dev DB, uses `.migrate-dev`
 - [ ] `yarn migrate:test` affects only test DB, uses `.migrate-test`
 - [ ] Jest global setup runs migrations before fixtures
@@ -92,6 +98,7 @@ export default async function globalSetup() {
 ## Phase 2: Transaction-Based Test Isolation (Jest)
 
 ### Strategy
+
 Wrap each test in a database transaction that rolls back after the test completes. This provides ~5ms isolation overhead per test.
 
 ### Implementation
@@ -100,9 +107,9 @@ Wrap each test in a database transaction that rolls back after the test complete
 
 ```typescript
 // src/server/storage/TransactionalTestStorage.ts
-import postgres, { Sql } from 'postgres';
-import { PGTestStorage } from './PGStorage';
-import { getSecrets } from '../util/secrets';
+import postgres, { Sql } from "postgres";
+import { PGTestStorage } from "./PGStorage";
+import { getSecrets } from "../util/secrets";
 
 export class TransactionalTestStorage extends PGTestStorage {
   private transactionSql: Sql | null = null;
@@ -149,7 +156,7 @@ export class TransactionalTestStorage extends PGTestStorage {
 
 ```typescript
 // src/server/jestSetupAfterEnv.ts
-import { TransactionalTestStorage } from './storage/TransactionalTestStorage';
+import { TransactionalTestStorage } from "./storage/TransactionalTestStorage";
 
 declare global {
   var testStorage: TransactionalTestStorage;
@@ -181,8 +188,8 @@ afterAll(async () => {
 ```javascript
 module.exports = {
   // ... existing config
-  globalSetup: '<rootDir>/src/server/jestGlobalSetup.ts',
-  setupFilesAfterEnv: ['<rootDir>/src/server/jestSetupAfterEnv.ts'],
+  globalSetup: "<rootDir>/src/server/jestGlobalSetup.ts",
+  setupFilesAfterEnv: ["<rootDir>/src/server/jestSetupAfterEnv.ts"],
 };
 ```
 
@@ -210,9 +217,9 @@ Controller tests using `supertest` need the app to use the transactional storage
 
 ```typescript
 // src/server/testHelper.ts
-import { TransactionalTestStorage } from './storage/TransactionalTestStorage';
-import express from 'express';
-import { createApp } from './serverApp';
+import { TransactionalTestStorage } from "./storage/TransactionalTestStorage";
+import express from "express";
+import { createApp } from "./serverApp";
 
 export function createTestApp(): express.Express {
   return createApp(global.testStorage);
@@ -220,6 +227,7 @@ export function createTestApp(): express.Express {
 ```
 
 ### Files to Modify
+
 - `src/server/storage/storage.test.ts`
 - `src/server/controllers/languagesController.test.ts`
 - `src/server/controllers/lessonsController.test.ts`
@@ -228,6 +236,7 @@ export function createTestApp(): express.Express {
 - `src/server/controllers/syncController.test.ts`
 
 ### Acceptance Criteria
+
 - [ ] Each Jest test runs in its own transaction
 - [ ] Database state resets automatically after each test
 - [ ] Tests can run in any order with same results
@@ -238,6 +247,7 @@ export function createTestApp(): express.Express {
 ## Phase 3: Cypress Test Isolation
 
 ### Strategy
+
 Reset database to fixtures before each test using the existing `/api/test/reset-storage` endpoint.
 
 ### Implementation
@@ -246,11 +256,11 @@ Reset database to fixtures before each test using the existing `/api/test/reset-
 
 ```javascript
 // cypress/support/commands.js
-Cypress.Commands.add('resetDatabase', () => {
+Cypress.Commands.add("resetDatabase", () => {
   return cy.request({
-    method: 'POST',
-    url: '/api/test/reset-storage',
-    timeout: 30000  // Fixture loading can be slow
+    method: "POST",
+    url: "/api/test/reset-storage",
+    timeout: 30000, // Fixture loading can be slow
   });
 });
 ```
@@ -259,7 +269,7 @@ Cypress.Commands.add('resetDatabase', () => {
 
 ```javascript
 // cypress/support/index.js
-import './commands';
+import "./commands";
 
 beforeEach(() => {
   cy.resetDatabase();
@@ -271,6 +281,7 @@ beforeEach(() => {
 The server must use `PGTestStorage` when Cypress runs. This is already handled by `NODE_ENV=test` in dev scripts.
 
 ### Acceptance Criteria
+
 - [ ] Database resets before each Cypress test
 - [ ] Cypress tests can run in any order
 - [ ] Cypress tests don't affect Jest test state
@@ -280,6 +291,7 @@ The server must use `PGTestStorage` when Cypress runs. This is already handled b
 ## Phase 4: Verify Test Reliability
 
 ### Strategy
+
 Run the test suite multiple times in different orders to prove determinism.
 
 ### Implementation
@@ -328,6 +340,7 @@ yarn cypress run && yarn cypress run
 ```
 
 ### Acceptance Criteria
+
 - [ ] Tests pass 10 consecutive runs with `--randomize`
 - [ ] Tests pass when run in reverse order
 - [ ] Cypress tests pass on repeated runs
@@ -341,15 +354,15 @@ yarn cypress run && yarn cypress run
 
 Based on test file inventory, these areas likely need coverage:
 
-| Area | Current Tests | Gaps |
-|------|---------------|------|
-| Core models | None | Lesson, TString, Language, LessonString |
-| Core API | None | All API client code |
-| Server storage | storage.test.ts | Individual method coverage |
-| Server controllers | 6 test files | Error paths, edge cases |
-| Server XML | 2 test files | Error handling |
-| Frontend components | None | React components |
-| Desktop | 1 test file | LocalStorage, sync logic |
+| Area                | Current Tests   | Gaps                                    |
+| ------------------- | --------------- | --------------------------------------- |
+| Core models         | None            | Lesson, TString, Language, LessonString |
+| Core API            | None            | All API client code                     |
+| Server storage      | storage.test.ts | Individual method coverage              |
+| Server controllers  | 6 test files    | Error paths, edge cases                 |
+| Server XML          | 2 test files    | Error handling                          |
+| Frontend components | None            | React components                        |
+| Desktop             | 1 test file     | LocalStorage, sync logic                |
 
 ### Implementation
 
@@ -369,38 +382,29 @@ Based on test file inventory, these areas likely need coverage:
 // jest.config.js
 module.exports = {
   // ... existing config
-  collectCoverageFrom: [
-    'src/**/*.ts',
-    '!src/**/*.test.ts',
-    '!src/**/*.d.ts',
-    '!src/**/index.ts'
-  ],
+  collectCoverageFrom: ["src/**/*.ts", "!src/**/*.test.ts", "!src/**/*.d.ts", "!src/**/index.ts"],
   coverageThreshold: {
     global: {
       branches: 90,
       functions: 90,
       lines: 90,
-      statements: 90
-    }
-  }
+      statements: 90,
+    },
+  },
 };
 ```
 
 **5.3 Priority test additions**
 
 High priority (core business logic):
+
 1. `src/core/models/` - Unit tests for all model classes
 2. `src/server/storage/PGStorage.ts` - Method-level coverage
 3. `src/server/controllers/` - Error path coverage
 
-Medium priority (integration):
-4. `src/core/api/` - API client tests with mocked responses
-5. `src/server/xml/` - XML parsing edge cases
-6. `src/server/usfm/` - USFM parsing edge cases
+Medium priority (integration): 4. `src/core/api/` - API client tests with mocked responses 5. `src/server/xml/` - XML parsing edge cases 6. `src/server/usfm/` - USFM parsing edge cases
 
-Lower priority (UI - consider React Testing Library):
-7. `src/frontend/common/` - Component unit tests
-8. `src/frontend/web/` - Page component tests
+Lower priority (UI - consider React Testing Library): 7. `src/frontend/common/` - Component unit tests 8. `src/frontend/web/` - Page component tests
 
 **5.4 Coverage improvement workflow**
 
@@ -416,6 +420,7 @@ open coverage/lcov-report/index.html
 ```
 
 ### Acceptance Criteria
+
 - [ ] Coverage report generates successfully
 - [ ] Global coverage >90% for lines, branches, functions, statements
 - [ ] All core models have unit tests
@@ -427,16 +432,19 @@ open coverage/lcov-report/index.html
 ## Implementation Order
 
 ### Week 1: Foundation
+
 1. [ ] Phase 1: Fix migration system (1 day)
 2. [ ] Phase 2: Transaction isolation for Jest (2-3 days)
 3. [ ] Phase 3: Cypress reset per test (0.5 day)
 
 ### Week 2: Verification
+
 4. [ ] Phase 4: Run verification suite (1 day)
 5. [ ] Fix any remaining flaky tests discovered
 6. [ ] Set up CI verification job
 
 ### Week 3-4: Coverage
+
 7. [ ] Phase 5: Add coverage tracking
 8. [ ] Write tests for core models
 9. [ ] Write tests for storage methods
@@ -447,12 +455,12 @@ open coverage/lcov-report/index.html
 
 ## Risks & Mitigations
 
-| Risk | Mitigation |
-|------|------------|
+| Risk                                                       | Mitigation                                                |
+| ---------------------------------------------------------- | --------------------------------------------------------- |
 | Transaction isolation doesn't work with `postgres` library | Fall back to savepoint-based isolation or truncate-reload |
-| Some tests implicitly depend on shared state | Identify and fix during Phase 4 verification |
-| Coverage goal too aggressive | Start with 80%, incrementally increase |
-| Cypress reset too slow | Consider per-spec reset as fallback |
+| Some tests implicitly depend on shared state               | Identify and fix during Phase 4 verification              |
+| Coverage goal too aggressive                               | Start with 80%, incrementally increase                    |
+| Cypress reset too slow                                     | Consider per-spec reset as fallback                       |
 
 ---
 

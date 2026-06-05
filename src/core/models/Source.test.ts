@@ -6,14 +6,14 @@ import {
   newSource,
   newSourceDoc,
   deleteLessonVersion,
-  SourceLessonId
+  SourceLessonId,
 } from "./Source";
 
 describe("sourceLessonIdToString", () => {
   test("converts a SourceLessonId to a string", () => {
-    expect(
-      sourceLessonIdToString({ language: "fr", lesson: "Luke-Q1-L01", version: 2 })
-    ).toBe("fr_Luke-Q1-L01_2");
+    expect(sourceLessonIdToString({ language: "fr", lesson: "Luke-Q1-L01", version: 2 })).toBe(
+      "fr_Luke-Q1-L01_2"
+    );
   });
 });
 
@@ -91,9 +91,9 @@ describe("deleteLessonVersion", () => {
       lessons: [
         {
           ...source.lessons[0],
-          versions: [{ ...source.lessons[0].versions[0], projects: ["proj1"] }]
-        }
-      ]
+          versions: [{ ...source.lessons[0].versions[0], projects: ["proj1"] }],
+        },
+      ],
     };
     const lessonId: SourceLessonId = { language: "fr", lesson: "Luke-Q1-L01", version: 1 };
     expect(() => deleteLessonVersion(source, lessonId)).toThrow();

@@ -6,30 +6,27 @@ import { unset, objFilter } from "../../core/util/objectUtils";
 import importUsfm from "../usfm/importUsfm";
 import defaultTranslations from "../actions/defaultTranslations";
 
-export default function languagesController(
-  app: Express,
-  storage: Persistence
-) {
-  addGetHandler(app, "/api/languages", async req => {
-    return (await storage.languages()).map(lang => unset(lang, "code"));
+export default function languagesController(app: Express, storage: Persistence) {
+  addGetHandler(app, "/api/languages", async (_req) => {
+    return (await storage.languages()).map((lang) => unset(lang, "code"));
   });
 
-  addGetHandler(app, "/api/admin/languages", async req => {
+  addGetHandler(app, "/api/admin/languages", async (_req) => {
     return storage.languages();
   });
 
-  addGetHandler(app, "/api/languages/code/:code", async req => {
+  addGetHandler(app, "/api/languages/code/:code", async (req) => {
     return storage.language({ code: req.params.code });
   });
 
-  addPostHandler(app, "/api/admin/languages", async req => {
+  addPostHandler(app, "/api/admin/languages", async (req) => {
     const newLanguage = req.body;
     if (!isNewLanguage(newLanguage)) {
       throw { status: 422 };
     }
     const existing = await storage.languages();
     const duplicate = existing.some(
-      lang => lang.name.toLowerCase() === newLanguage.name.toLowerCase()
+      (lang) => lang.name.toLowerCase() === newLanguage.name.toLowerCase()
     );
     if (duplicate) throw { status: 409 };
     const language = await storage.createLanguage(newLanguage);
@@ -37,18 +34,14 @@ export default function languagesController(
     return language;
   });
 
-  addPostHandler(app, "/api/admin/languages/:languageId", async req => {
+  addPostHandler(app, "/api/admin/languages/:languageId", async (req) => {
     const langUpdate = objFilter(req.body, ["motherTongue", "defaultSrcLang"]);
     return storage.updateLanguage(parseInt(req.params.languageId), langUpdate);
   });
 
-  addPostHandler(app, "/api/admin/languages/:languageId/usfm", async req => {
+  addPostHandler(app, "/api/admin/languages/:languageId/usfm", async (req) => {
     const languageId = parseInt(req.params.languageId);
-    const { errors, tStrings } = await importUsfm(
-      req.body.usfm,
-      languageId,
-      storage
-    );
+    const { errors, tStrings } = await importUsfm(req.body.usfm, languageId, storage);
     const language = await storage.language({ languageId });
     if (!language) throw { status: 404 };
     return { language, tStrings, errors };

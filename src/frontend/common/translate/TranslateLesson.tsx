@@ -4,7 +4,6 @@ import { useLoad } from "../api/useLoad";
 import { loadTStrings } from "../state/tStringSlice";
 import { loadLesson } from "../state/lessonSlice";
 import useLessonTStrings from "./useLessonTStrings";
-import useTranslation from "../util/useTranslation";
 import { useAppSelector } from "../state/appState";
 import { SetHdrMessage } from "./TranslateHome";
 import { loadDocPreview } from "../state/docPreviewSlice";
@@ -26,9 +25,7 @@ export default function TranslateLesson(props: IProps) {
     [srcLangId, props.language.languageId],
     { contentOnly: props.language.motherTongue, updateProgress: true }
   );
-  const docHtml: string | undefined = useAppSelector(
-    state => state.docPreview[props.lessonId]
-  );
+  const docHtml: string | undefined = useAppSelector((state) => state.docPreview[props.lessonId]);
 
   const onDirtyStateChange = (dirty: boolean) =>
     props.setHdrMessage(dirty ? "unsavedChanges" : "changesSaved");
@@ -36,7 +33,7 @@ export default function TranslateLesson(props: IProps) {
   useLoad(loadLesson(lessonId));
   useLoad(loadTStrings(props.language.languageId, lessonId));
   useLoad(loadTStrings(srcLangId, lessonId), [srcLangId]);
-  useLoad(loadDocPreview(lessonId), [lessonId], err => {
+  useLoad(loadDocPreview(lessonId), [lessonId], (err) => {
     if (err.type == "HTTP" && err.status == 404) return true; // Ignore 404's
     return false;
   });
@@ -50,7 +47,7 @@ export default function TranslateLesson(props: IProps) {
         srcLangId,
         setSrcLangId,
         onDirtyStateChange,
-        docHtml
+        docHtml,
       }}
     />
   ) : (
@@ -61,7 +58,7 @@ export default function TranslateLesson(props: IProps) {
         language: props.language,
         srcLangId,
         setSrcLangId,
-        onDirtyStateChange
+        onDirtyStateChange,
       }}
     />
   );

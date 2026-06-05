@@ -30,16 +30,14 @@ export default function List<T>(props: IProps<T>) {
 }
 
 const ListItem = styled.div<StyleProps>`
-  border-bottom: ${props =>
-    props.noBorders ? "none" : `1px solid ${Colors.lightGrey}`};
-  padding: ${props => (props.noXPad ? "0.5em 0" : "0.5em 1em")};
+  border-bottom: ${(props) => (props.noBorders ? "none" : `1px solid ${Colors.lightGrey}`)};
+  padding: ${(props) => (props.noXPad ? "0.5em 0" : "0.5em 1em")};
 
   &:first-child {
-    border-top: ${props =>
-      props.noBorders ? "none" : `1px solid ${Colors.lightGrey}`};
+    border-top: ${(props) => (props.noBorders ? "none" : `1px solid ${Colors.lightGrey}`)};
   }
 
   &:hover {
-    background-color: ${props => (props.hoverStriping ? "#efefef" : "inherit")};
+    background-color: ${(props) => (props.hoverStriping ? "#efefef" : "inherit")};
   }
 `;

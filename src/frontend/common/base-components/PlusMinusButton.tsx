@@ -10,10 +10,7 @@ interface IProps {
 
 export default function PlusMinusButton(props: IProps) {
   return (
-    <StyledPMButton
-      onClick={() => props.setPlus(!props.plus)}
-      text={props.plus ? "+" : "-"}
-    />
+    <StyledPMButton onClick={() => props.setPlus(!props.plus)} text={props.plus ? "+" : "-"} />
   );
 }
 

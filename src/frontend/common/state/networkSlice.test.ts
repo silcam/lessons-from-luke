@@ -1,14 +1,14 @@
 // Mock appState to break the circular dependency:
 // networkSlice -> appState -> networkSlice
 jest.mock("./appState", () => ({
-  useAppSelector: jest.fn()
+  useAppSelector: jest.fn(),
 }));
 
-import React, { useState } from "react";
+import React from "react";
 import { render, act } from "@testing-library/react";
 import networkSlice, {
   networkConnectionLostAction,
-  useNetworkConnectionRestored
+  useNetworkConnectionRestored,
 } from "./networkSlice";
 import { useAppSelector } from "./appState";
 
@@ -21,19 +21,13 @@ const disconnectedState = { connected: false };
 describe("networkSlice extraReducers", () => {
   describe("NetworkConnectionLost", () => {
     it("sets connected to false", () => {
-      const state = networkSlice.reducer(
-        connectedState,
-        { type: "NetworkConnectionLost" }
-      );
+      const state = networkSlice.reducer(connectedState, { type: "NetworkConnectionLost" });
 
       expect(state.connected).toBe(false);
     });
 
     it("is idempotent when already disconnected", () => {
-      const state = networkSlice.reducer(
-        disconnectedState,
-        { type: "NetworkConnectionLost" }
-      );
+      const state = networkSlice.reducer(disconnectedState, { type: "NetworkConnectionLost" });
 
       expect(state.connected).toBe(false);
     });
@@ -41,19 +35,13 @@ describe("networkSlice extraReducers", () => {
 
   describe("NetworkConnectionRestored", () => {
     it("sets connected to true", () => {
-      const state = networkSlice.reducer(
-        disconnectedState,
-        { type: "NetworkConnectionRestored" }
-      );
+      const state = networkSlice.reducer(disconnectedState, { type: "NetworkConnectionRestored" });
 
       expect(state.connected).toBe(true);
     });
 
     it("is idempotent when already connected", () => {
-      const state = networkSlice.reducer(
-        connectedState,
-        { type: "NetworkConnectionRestored" }
-      );
+      const state = networkSlice.reducer(connectedState, { type: "NetworkConnectionRestored" });
 
       expect(state.connected).toBe(true);
     });
@@ -133,9 +121,7 @@ describe("networkConnectionLostAction thunk", () => {
     await Promise.resolve();
 
     // The restored action is itself a thunk — check it was dispatched
-    const dispatchedThunks = dispatch.mock.calls.filter(
-      ([action]) => typeof action === "function"
-    );
+    const dispatchedThunks = dispatch.mock.calls.filter(([action]) => typeof action === "function");
     expect(dispatchedThunks.length).toBeGreaterThan(0);
   });
 
@@ -168,7 +154,7 @@ describe("useNetworkConnectionRestored hook", () => {
   const mockUseAppSelector = useAppSelector as jest.Mock;
 
   // Helper: renders a component that exposes the hook return value via callbacks
-  function renderHookViaComponent(
+  function _renderHookViaComponent(
     connected: boolean,
     onMount: (api: ReturnType<typeof useNetworkConnectionRestored>) => void
   ) {
@@ -189,7 +175,7 @@ describe("useNetworkConnectionRestored hook", () => {
     return {
       rerender: (isConnected: boolean) =>
         rerender(React.createElement(TestComponent, { isConnected })),
-      getApi: () => hookApi!
+      getApi: () => hookApi!,
     };
   }
 
@@ -220,9 +206,7 @@ describe("useNetworkConnectionRestored hook", () => {
       return null;
     }
 
-    const { rerender } = render(
-      React.createElement(TestComponent, { isConnected: false })
-    );
+    const { rerender } = render(React.createElement(TestComponent, { isConnected: false }));
 
     act(() => {
       api!.onConnectionRestored(handler);
@@ -245,9 +229,7 @@ describe("useNetworkConnectionRestored hook", () => {
       return null;
     }
 
-    const { rerender } = render(
-      React.createElement(TestComponent, { isConnected: false })
-    );
+    const { rerender } = render(React.createElement(TestComponent, { isConnected: false }));
 
     act(() => {
       api!.onConnectionRestored(handler);
@@ -280,9 +262,7 @@ describe("useNetworkConnectionRestored hook", () => {
       return null;
     }
 
-    const { rerender } = render(
-      React.createElement(TestComponent, { isConnected: false })
-    );
+    const { rerender } = render(React.createElement(TestComponent, { isConnected: false }));
 
     act(() => {
       api!.onConnectionRestored(handler);

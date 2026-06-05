@@ -19,7 +19,7 @@ import docPreviewSlice from "../common/state/docPreviewSlice";
 // Mock useHandleIPCEvents to avoid ipcRenderer side effects in component tests
 jest.mock("./downSync/useHandleIPCEvents", () => ({
   __esModule: true,
-  default: jest.fn()
+  default: jest.fn(),
 }));
 
 // Mock useLoad/useJustLoad to avoid actual API calls.
@@ -29,7 +29,7 @@ jest.mock("../common/api/useLoad", () => ({
   useLoad: jest.fn().mockReturnValue(false),
   useJustLoad: jest.fn().mockReturnValue([jest.fn(), false]),
   usePush: jest.fn().mockReturnValue(jest.fn()),
-  useLoadMultiple: jest.fn().mockReturnValue(false)
+  useLoadMultiple: jest.fn().mockReturnValue(false),
 }));
 
 // networkSlice has a circular dep with appState, so we mock it with a minimal stub
@@ -39,23 +39,21 @@ jest.mock("../common/state/networkSlice", () => {
   const stub = createSlice({
     name: "network",
     initialState: { connected: true },
-    reducers: {}
+    reducers: {},
   });
   return {
     __esModule: true,
     default: stub,
     useNetworkConnectionRestored: () => ({
       onConnectionRestored: jest.fn(),
-      clearHandlers: jest.fn()
-    })
+      clearHandlers: jest.fn(),
+    }),
   };
 });
 
-function createTestStore(
-  syncStateOverrides?: Partial<ReturnType<typeof syncStateSlice.reducer>>
-) {
+function createTestStore(syncStateOverrides?: Partial<ReturnType<typeof syncStateSlice.reducer>>) {
   // Import networkSlice after mock is set up
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+
   const networkSlice = require("../common/state/networkSlice").default;
 
   const reducer = combineReducers({
@@ -69,7 +67,7 @@ function createTestStore(
     tSubs: tSubSlice.reducer,
     lessons: lessonSlice.reducer,
     docStrings: docStringSlice.reducer,
-    docPreview: docPreviewSlice.reducer
+    docPreview: docPreviewSlice.reducer,
   });
 
   const store = configureStore({ reducer });
@@ -82,17 +80,12 @@ function createTestStore(
 const mockGet = jest.fn().mockResolvedValue(null);
 const mockPost = jest.fn().mockResolvedValue(null);
 
-function renderWithProviders(
-  ui: React.ReactElement,
-  store = createTestStore()
-) {
+function renderWithProviders(ui: React.ReactElement, store = createTestStore()) {
   return render(
     <Provider store={store}>
       <RequestContext.Provider value={{ get: mockGet as any, post: mockPost as any }}>
         <PlatformContext.Provider value="desktop">
-          <MemoryRouter
-            future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-          >
+          <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             {ui}
           </MemoryRouter>
         </PlatformContext.Provider>
@@ -132,8 +125,8 @@ describe("MainPage", () => {
         lessons: [],
         tStrings: {},
         timestamp: 1,
-        progress: 50
-      }
+        progress: 50,
+      },
     });
     const { container } = renderWithProviders(<MainPage />, store);
     expect(container).toBeTruthy();
@@ -146,7 +139,7 @@ describe("MainPage", () => {
       code: "fr",
       motherTongue: false,
       progress: [],
-      defaultSrcLang: 1
+      defaultSrcLang: 1,
     };
     const store = createTestStore({
       loaded: true,
@@ -157,8 +150,8 @@ describe("MainPage", () => {
         lessons: [],
         tStrings: {},
         timestamp: 1,
-        progress: 100
-      }
+        progress: 100,
+      },
     });
     const { container } = renderWithProviders(<MainPage />, store);
     // TranslateHome renders when doTranslate is true
@@ -169,19 +162,13 @@ describe("MainPage", () => {
 describe("DownSyncPage", () => {
   it("renders without crashing when no language is set", () => {
     const store = createTestStore({ loaded: true, language: null });
-    const { container } = renderWithProviders(
-      <DownSyncPage startTranslating={jest.fn()} />,
-      store
-    );
+    const { container } = renderWithProviders(<DownSyncPage startTranslating={jest.fn()} />, store);
     expect(container).toBeTruthy();
   });
 
   it("renders SyncCodeForm when no language set", () => {
     const store = createTestStore({ loaded: true, language: null });
-    const { container } = renderWithProviders(
-      <DownSyncPage startTranslating={jest.fn()} />,
-      store
-    );
+    const { container } = renderWithProviders(<DownSyncPage startTranslating={jest.fn()} />, store);
     // SyncCodeForm contains a text input with placeholder ABCDEF
     expect(container.querySelector('input[placeholder="ABCDEF"]')).toBeTruthy();
   });
@@ -193,7 +180,7 @@ describe("DownSyncPage", () => {
       code: "en",
       motherTongue: false,
       progress: [],
-      defaultSrcLang: 1
+      defaultSrcLang: 1,
     };
     const store = createTestStore({
       loaded: true,
@@ -204,13 +191,10 @@ describe("DownSyncPage", () => {
         lessons: [],
         tStrings: {},
         timestamp: 1,
-        progress: 50
-      }
+        progress: 50,
+      },
     });
-    const { container } = renderWithProviders(
-      <DownSyncPage startTranslating={jest.fn()} />,
-      store
-    );
+    const { container } = renderWithProviders(<DownSyncPage startTranslating={jest.fn()} />, store);
     expect(container).toBeTruthy();
   });
 });
@@ -233,7 +217,7 @@ describe("SyncCodeForm", () => {
     const store = createTestStore({
       loaded: true,
       language: null,
-      connected: false
+      connected: false,
     });
     renderWithProviders(<SyncCodeForm />, store);
     // Alert is shown for no connection - verify the store reflects this

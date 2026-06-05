@@ -1,15 +1,12 @@
 /// <reference types="jest" />
 
-import {
-  encodeLanguageTimestamps,
-  decodeLanguageTimestamps
-} from "./Api";
+import { encodeLanguageTimestamps, decodeLanguageTimestamps } from "./Api";
 
 describe("encodeLanguageTimestamps", () => {
   test("encodes a list of language timestamps to a comma-separated string", () => {
     const result = encodeLanguageTimestamps([
       { languageId: 2, timestamp: 1594232387331 },
-      { languageId: 3, timestamp: 1600000000000 }
+      { languageId: 3, timestamp: 1600000000000 },
     ]);
     expect(result).toBe("2-1594232387331,3-1600000000000");
   });
@@ -30,7 +27,7 @@ describe("decodeLanguageTimestamps", () => {
 
   test("decodes a single language-timestamp pair", () => {
     expect(decodeLanguageTimestamps("2-1594232387331")).toEqual([
-      { languageId: 2, timestamp: 1594232387331 }
+      { languageId: 2, timestamp: 1594232387331 },
     ]);
   });
 
@@ -38,14 +35,14 @@ describe("decodeLanguageTimestamps", () => {
     const result = decodeLanguageTimestamps("2-1594232387331,3-1600000000000");
     expect(result).toEqual([
       { languageId: 2, timestamp: 1594232387331 },
-      { languageId: 3, timestamp: 1600000000000 }
+      { languageId: 3, timestamp: 1600000000000 },
     ]);
   });
 
   test("encode and decode are inverse operations", () => {
     const timestamps = [
       { languageId: 2, timestamp: 1594232387331 },
-      { languageId: 3, timestamp: 1600000000000 }
+      { languageId: 3, timestamp: 1600000000000 },
     ];
     expect(decodeLanguageTimestamps(encodeLanguageTimestamps(timestamps))).toEqual(timestamps);
   });

@@ -27,13 +27,9 @@ export function objKeys<T extends object>(t: T): (keyof T)[] {
   return Object.keys(t) as (keyof T)[];
 }
 
-export function objFilter<T, U extends T>(
-  obj: Partial<U>,
-  fields: (keyof T)[]
-): Partial<T> {
+export function objFilter<T, U extends T>(obj: Partial<U>, fields: (keyof T)[]): Partial<T> {
   return fields.reduce(
-    (final: Partial<T>, field) =>
-      field in obj ? { ...final, [field]: obj[field] } : final,
+    (final: Partial<T>, field) => (field in obj ? { ...final, [field]: obj[field] } : final),
     {}
   );
 }

@@ -1,10 +1,4 @@
-import {
-  GetRoute,
-  APIGet,
-  Params,
-  APIPost,
-  PostRoute
-} from "../interfaces/Api";
+import { GetRoute, APIGet, Params, APIPost, PostRoute } from "../interfaces/Api";
 import Axios from "axios";
 import { AppError } from "../models/AppError";
 
@@ -52,10 +46,10 @@ export async function postFile(
   try {
     console.log(`POST ${route}`);
     const formData = new FormData();
-    Object.keys(data).forEach(key => formData.set(key, data[key]));
+    Object.keys(data).forEach((key) => formData.set(key, data[key]));
     formData.set(name, file);
     const response = await Axios.post(route, formData, {
-      headers: { "Content-Type": "multipart/form-data" }
+      headers: { "Content-Type": "multipart/form-data" },
     });
     return response.data;
   } catch (err) {

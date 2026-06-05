@@ -8,7 +8,7 @@ import {
   isTOCLesson,
   TOC_LESSON,
   BaseLesson,
-  Lesson
+  Lesson,
 } from "./Lesson";
 
 const makeLesson = (overrides = {}): BaseLesson => ({
@@ -17,7 +17,7 @@ const makeLesson = (overrides = {}): BaseLesson => ({
   series: 1,
   lesson: 1,
   version: 1,
-  ...overrides
+  ...overrides,
 });
 
 describe("isTOCLesson", () => {
@@ -81,7 +81,15 @@ describe("documentName", () => {
 
 describe("lessonStringsFromLesson", () => {
   test("returns lesson strings when lesson has them", () => {
-    const ls = { lessonStringId: 1, masterId: 1, lessonId: 1, lessonVersion: 1, type: "content" as const, xpath: "/", motherTongue: false };
+    const ls = {
+      lessonStringId: 1,
+      masterId: 1,
+      lessonId: 1,
+      lessonVersion: 1,
+      type: "content" as const,
+      xpath: "/",
+      motherTongue: false,
+    };
     const lesson: Lesson = { ...makeLesson(), lessonStrings: [ls] };
     expect(lessonStringsFromLesson(lesson)).toEqual([ls]);
   });

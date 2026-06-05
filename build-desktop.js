@@ -18,9 +18,7 @@ const STAGE = path.join(ROOT, ".desktop-build-stage");
 fs.rmSync(STAGE, { recursive: true, force: true });
 fs.mkdirSync(STAGE);
 
-const rootPackage = JSON.parse(
-  fs.readFileSync(path.join(ROOT, "package.json"), "utf8"),
-);
+const rootPackage = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
 
 const stagePackage = {
   name: rootPackage.name,
@@ -39,21 +37,13 @@ const stagePackage = {
   packageManager: rootPackage.packageManager,
 };
 
-fs.writeFileSync(
-  path.join(STAGE, "package.json"),
-  JSON.stringify(stagePackage, null, 2),
-);
+fs.writeFileSync(path.join(STAGE, "package.json"), JSON.stringify(stagePackage, null, 2));
 
 fs.copyFileSync(path.join(ROOT, "yarn.lock"), path.join(STAGE, "yarn.lock"));
-fs.copyFileSync(
-  path.join(ROOT, ".yarnrc.yml"),
-  path.join(STAGE, ".yarnrc.yml"),
-);
-fs.cpSync(
-  path.join(ROOT, ".yarn", "releases"),
-  path.join(STAGE, ".yarn", "releases"),
-  { recursive: true },
-);
+fs.copyFileSync(path.join(ROOT, ".yarnrc.yml"), path.join(STAGE, ".yarnrc.yml"));
+fs.cpSync(path.join(ROOT, ".yarn", "releases"), path.join(STAGE, ".yarn", "releases"), {
+  recursive: true,
+});
 
 fs.cpSync(path.join(ROOT, "dist"), path.join(STAGE, "dist"), {
   recursive: true,
@@ -66,7 +56,4 @@ execSync("yarn electron-builder -mwl --x64", {
 });
 
 fs.rmSync(path.join(ROOT, "dist-desktop"), { recursive: true, force: true });
-fs.renameSync(
-  path.join(STAGE, "dist-desktop"),
-  path.join(ROOT, "dist-desktop"),
-);
+fs.renameSync(path.join(STAGE, "dist-desktop"), path.join(ROOT, "dist-desktop"));

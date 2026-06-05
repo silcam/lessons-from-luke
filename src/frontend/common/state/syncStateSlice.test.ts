@@ -11,7 +11,7 @@ function makeLanguage(overrides: Partial<Language> = {}): Language {
     motherTongue: false,
     progress: [],
     defaultSrcLang: 1,
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -19,7 +19,7 @@ function makeInitialState(): SyncState {
   return {
     ...initalStoredSyncState(),
     connected: false,
-    loaded: false
+    loaded: false,
   };
 }
 
@@ -58,7 +58,7 @@ describe("syncStateSlice reducers", () => {
         baseLessons: true,
         lessons: [1, 2],
         tStrings: {},
-        timestamp: 42
+        timestamp: 42,
       };
 
       const state = syncStateSlice.reducer(
@@ -77,7 +77,7 @@ describe("syncStateSlice thunks", () => {
       const syncState: SyncState = {
         ...initalStoredSyncState(),
         connected: true,
-        loaded: true
+        loaded: true,
       };
       const get = jest.fn().mockResolvedValue(syncState);
       const dispatch = jest.fn();
@@ -85,9 +85,7 @@ describe("syncStateSlice thunks", () => {
       const result = await loadSyncState()(get)(dispatch);
 
       expect(get).toHaveBeenCalledWith("/api/syncState", {});
-      expect(dispatch).toHaveBeenCalledWith(
-        syncStateSlice.actions.setSyncState(syncState)
-      );
+      expect(dispatch).toHaveBeenCalledWith(syncStateSlice.actions.setSyncState(syncState));
       expect(result).toEqual(syncState);
     });
 
@@ -97,16 +95,14 @@ describe("syncStateSlice thunks", () => {
         ...initalStoredSyncState(),
         language: lang,
         connected: true,
-        loaded: true
+        loaded: true,
       };
       const get = jest.fn().mockResolvedValue(syncState);
       const dispatch = jest.fn();
 
       await loadSyncState()(get)(dispatch);
 
-      expect(dispatch).toHaveBeenCalledWith(
-        languageSlice.actions.setTranslating(lang)
-      );
+      expect(dispatch).toHaveBeenCalledWith(languageSlice.actions.setTranslating(lang));
     });
 
     it("does not dispatch setTranslating if syncState has no language", async () => {
@@ -114,7 +110,7 @@ describe("syncStateSlice thunks", () => {
         ...initalStoredSyncState(),
         language: null,
         connected: true,
-        loaded: true
+        loaded: true,
       };
       const get = jest.fn().mockResolvedValue(syncState);
       const dispatch = jest.fn();
@@ -145,7 +141,7 @@ describe("syncStateSlice thunks", () => {
       const syncState: SyncState = {
         ...initalStoredSyncState(),
         connected: true,
-        loaded: true
+        loaded: true,
       };
       const post = jest.fn().mockResolvedValue(syncState);
       const dispatch = jest.fn();
@@ -153,9 +149,7 @@ describe("syncStateSlice thunks", () => {
       const result = await pushCode("ABC123")(post, dispatch);
 
       expect(post).toHaveBeenCalledWith("/api/syncState/code", {}, { code: "ABC123" });
-      expect(dispatch).toHaveBeenCalledWith(
-        syncStateSlice.actions.setSyncState(syncState)
-      );
+      expect(dispatch).toHaveBeenCalledWith(syncStateSlice.actions.setSyncState(syncState));
       expect(result).toEqual(syncState);
     });
 
@@ -175,7 +169,7 @@ describe("syncStateSlice thunks", () => {
         ...initalStoredSyncState(),
         locale: "fr",
         connected: true,
-        loaded: true
+        loaded: true,
       };
       const post = jest.fn().mockResolvedValue(syncState);
       const dispatch = jest.fn();
@@ -183,9 +177,7 @@ describe("syncStateSlice thunks", () => {
       await pushLocale("fr")(post, dispatch);
 
       expect(post).toHaveBeenCalledWith("/api/syncState/locale", {}, { locale: "fr" });
-      expect(dispatch).toHaveBeenCalledWith(
-        syncStateSlice.actions.setSyncState(syncState)
-      );
+      expect(dispatch).toHaveBeenCalledWith(syncStateSlice.actions.setSyncState(syncState));
     });
 
     it("does not dispatch if post returns null", async () => {

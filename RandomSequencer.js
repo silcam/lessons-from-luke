@@ -1,4 +1,4 @@
-const Sequencer = require('@jest/test-sequencer').default;
+const Sequencer = require("@jest/test-sequencer").default;
 
 class RandomSequencer extends Sequencer {
   sort(tests) {

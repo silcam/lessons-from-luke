@@ -7,7 +7,7 @@ export default async function globalSetup() {
   execSync("yarn migrate:test", { stdio: "inherit" });
 
   const sql = postgres({
-    ...secrets.testDb
+    ...secrets.testDb,
   });
 
   await pgLoadFixtures(sql);

@@ -3,18 +3,18 @@
 jest.mock("electron", () => ({
   app: {
     getPath: jest.fn(() => "/tmp/fake-electron-data"),
-    isPackaged: false
-  }
+    isPackaged: false,
+  },
 }));
 
 jest.mock("./DesktopApp", () => ({
-  default: class MockDesktopApp {}
+  default: class MockDesktopApp {},
 }));
 
 import os from "os";
 import path from "path";
 import fs from "fs";
-import LocalStorage, { MEMORY_STORE, defaultMemoryStore } from "./LocalStorage";
+import LocalStorage, { defaultMemoryStore } from "./LocalStorage";
 import { BaseLesson } from "../core/models/Lesson";
 import { LessonString } from "../core/models/LessonString";
 import { TString } from "../core/models/TString";
@@ -42,7 +42,7 @@ function makeLessonString(masterId: number, lessonId: number): LessonString {
     lessonVersion: 1,
     type: "content",
     xpath: `/root[${masterId}]`,
-    motherTongue: false
+    motherTongue: false,
   };
 }
 
@@ -102,8 +102,8 @@ describe("LocalStorage", () => {
     ls.setTStrings(3, [makeTStr(2, 3, "World")]);
     const all = ls.getAllTStrings(3);
     expect(all).toHaveLength(2);
-    expect(all.map(t => t.masterId)).toContain(1);
-    expect(all.map(t => t.masterId)).toContain(2);
+    expect(all.map((t) => t.masterId)).toContain(1);
+    expect(all.map((t) => t.masterId)).toContain(2);
   });
 
   test("getTStrings filters by masterIds in lesson strings", () => {
@@ -120,7 +120,7 @@ describe("LocalStorage", () => {
     const ls = new LocalStorage(testDir);
     ls.setLanguages([
       { languageId: 3, name: "French", motherTongue: false, defaultSrcLang: 1, progress: [] },
-      { languageId: 4, name: "German", motherTongue: false, defaultSrcLang: 1, progress: [] }
+      { languageId: 4, name: "German", motherTongue: false, defaultSrcLang: 1, progress: [] },
     ]);
     ls.setTStrings(3, [makeTStr(1, 3, "A"), makeTStr(2, 3, "B")]);
     ls.setTStrings(4, [makeTStr(1, 4, "C")]);
@@ -156,7 +156,7 @@ describe("LocalStorage", () => {
   test("setLanguages persists across restart", () => {
     const ls = new LocalStorage(testDir);
     ls.setLanguages([
-      { languageId: 3, name: "French", motherTongue: false, defaultSrcLang: 1, progress: [] }
+      { languageId: 3, name: "French", motherTongue: false, defaultSrcLang: 1, progress: [] },
     ]);
     const ls2 = new LocalStorage(testDir);
     expect(ls2.getLanguages()).toHaveLength(1);
@@ -166,14 +166,14 @@ describe("LocalStorage", () => {
   test("writeLogEntry appends a log file (appendTextFile)", () => {
     const ls = new LocalStorage(testDir);
     ls.writeLogEntry("Network", "Test log entry");
-    const files = fs.readdirSync(testDir).filter(f => f.startsWith("LOG-Network"));
+    const files = fs.readdirSync(testDir).filter((f) => f.startsWith("LOG-Network"));
     expect(files.length).toBeGreaterThan(0);
   });
 
   test("logDataUsed appends to a daily data usage file (appendTextFile)", () => {
     const ls = new LocalStorage(testDir);
     ls.logDataUsed(1024);
-    const files = fs.readdirSync(testDir).filter(f => f.startsWith("LOG-DataUsage-"));
+    const files = fs.readdirSync(testDir).filter((f) => f.startsWith("LOG-DataUsage-"));
     expect(files.length).toBeGreaterThan(0);
   });
 
@@ -246,8 +246,8 @@ describe("LocalStorage", () => {
           code: "btg",
           motherTongue: false,
           progress: [],
-          defaultSrcLang: 1
-        }
+          defaultSrcLang: 1,
+        },
       },
       null
     );
@@ -265,8 +265,8 @@ describe("LocalStorage", () => {
           code: "btg",
           motherTongue: false,
           progress: [],
-          defaultSrcLang: 1
-        }
+          defaultSrcLang: 1,
+        },
       },
       null
     );
@@ -291,8 +291,8 @@ describe("LocalStorage", () => {
           code: "btg",
           motherTongue: false,
           progress: [],
-          defaultSrcLang: 1
-        }
+          defaultSrcLang: 1,
+        },
       },
       null
     );
@@ -313,14 +313,14 @@ describe("LocalStorage", () => {
           code: "btg",
           motherTongue: false,
           progress: [],
-          defaultSrcLang: 1
+          defaultSrcLang: 1,
         },
         downSync: {},
-        upSync: { dirtyTStrings: [] }
+        upSync: { dirtyTStrings: [] },
       },
       languages: [],
       lessons: [],
-      localStorageVersion: 1
+      localStorageVersion: 1,
     };
     fs.writeFileSync(path.join(testDir, "memoryStore.json"), JSON.stringify(v1Store));
     const ls = new LocalStorage(testDir);
@@ -336,7 +336,7 @@ describe("LocalStorage", () => {
       syncState: { language: null, downSync: {}, upSync: { dirtyTStrings: [] } },
       languages: [],
       lessons: [],
-      localStorageVersion: 1
+      localStorageVersion: 1,
     };
     fs.writeFileSync(path.join(testDir, "memoryStore.json"), JSON.stringify(v1Store));
     const ls = new LocalStorage(testDir);
@@ -410,8 +410,8 @@ describe("LocalStorage", () => {
           code: "btg",
           motherTongue: false,
           progress: [],
-          defaultSrcLang: 1
-        }
+          defaultSrcLang: 1,
+        },
       },
       null
     );
@@ -419,7 +419,7 @@ describe("LocalStorage", () => {
     ls.setProjectLanguageTStrings([makeTStr(1, 10, "Updated")]);
 
     const all = ls.getAllTStrings(10);
-    const updated = all.find(t => t.masterId === 1);
+    const updated = all.find((t) => t.masterId === 1);
     expect(updated).toBeDefined();
     expect(updated!.text).toBe("Updated");
     expect(updated!.history).toContain("Original");

@@ -4,7 +4,7 @@ const { makeDbConnect } = require("./_helpers");
 const dbConnect = makeDbConnect();
 
 module.exports.up = async () => {
-  await dbConnect(async sql => {
+  await dbConnect(async (sql) => {
     console.log(`Create Table...`);
     await sql`
     CREATE TABLE lessonDiffs (
@@ -18,7 +18,7 @@ module.exports.up = async () => {
 };
 
 module.exports.down = async () => {
-  await dbConnect(async sql => {
+  await dbConnect(async (sql) => {
     console.log(`Drop Table...`);
     await sql`DROP TABLE lessonDiffs`;
   });

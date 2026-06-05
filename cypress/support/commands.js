@@ -35,9 +35,7 @@ Cypress.Commands.add("login", () =>
 );
 
 // Find input by placeholder
-Cypress.Commands.add("placeholder", placeholder =>
-  cy.get(`input[placeholder='${placeholder}']`)
-);
+Cypress.Commands.add("placeholder", (placeholder) => cy.get(`input[placeholder='${placeholder}']`));
 
 // // Find item by label
 // Cypress.Commands.add("withLabel", label =>
@@ -48,11 +46,8 @@ Cypress.Commands.add("placeholder", placeholder =>
 // );
 
 // Find item by label
-Cypress.Commands.add("inLabel", label =>
-  cy
-    .contains("label", label)
-    .find("input, select")
-    .first()
+Cypress.Commands.add("inLabel", (label) =>
+  cy.contains("label", label).find("input, select").first()
 );
 
 // Visit the translate page for a language code and wait for all data to load.
@@ -62,7 +57,7 @@ Cypress.Commands.add("inLabel", label =>
 // 3. After the 3 calls complete, waits for span.lessonString to appear — those
 //    elements only render once the lesson tStrings have also loaded, so this
 //    serves as the final "page fully ready" signal.
-Cypress.Commands.add("visitTranslatePage", code => {
+Cypress.Commands.add("visitTranslatePage", (code) => {
   cy.clearLocalStorage();
   cy.intercept("GET", "/api/lessons").as("_tpLessons");
   cy.intercept("GET", `/api/languages/code/${code}`).as("_tpLanguage");

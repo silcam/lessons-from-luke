@@ -23,8 +23,7 @@ const en = {
   Username: "Username",
   Password: "Password",
   Log_in_failed: "Login failed.",
-  Code_error:
-    "Translation Project not found. Please check that you have the right web address.",
+  Code_error: "Translation Project not found. Please check that you have the right web address.",
   Code_error_for_desktop:
     "Translation Project not found. Please check that you have the right code.",
   Start_translating_lesson: "Start Translating %{name}",
@@ -52,8 +51,7 @@ const en = {
   Errors: "Errors",
   Imported_texts: "Imported Texts",
   Split: "Split",
-  Split_instructions:
-    "Place the cursor where you want the split and then press the Split button.",
+  Split_instructions: "Place the cursor where you want the split and then press the Split button.",
   Upload: "Upload",
   Mother_tongue: "Mother Tongue",
   Pick_a_lesson: "Pick a lesson",
@@ -76,12 +74,11 @@ const en = {
   Uploading: "Uploading",
   Start_translating: "Start Translating",
   History: "History",
-  Resync_explanation:
-    "Do you want to reset this project and download all the data again?",
+  Resync_explanation: "Do you want to reset this project and download all the data again?",
   Yes_resync: "Yes, Resync",
   Table_of_Contents: "Table of Contents",
   Update_issues: "Update Issues",
-  View_lesson: "View Lesson"
+  View_lesson: "View Lesson",
 };
 
 export type I18nStrings = typeof en;

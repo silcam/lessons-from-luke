@@ -3,24 +3,25 @@
 jest.mock("electron", () => ({
   app: {
     getPath: jest.fn(() => "/tmp/fake-data"),
-    isPackaged: false
+    isPackaged: false,
   },
   ipcMain: {
     on: jest.fn(),
     handle: jest.fn(),
-    removeHandler: jest.fn()
-  }
+    removeHandler: jest.fn(),
+  },
 }));
 
-const registeredHandlers: { [route: string]: Function } = {};
+type Handler = (...args: any[]) => any;
+const registeredHandlers: { [route: string]: Handler } = {};
 
 jest.mock("../DesktopAPIServer", () => ({
-  addGetHandler: jest.fn((route: string, handler: Function) => {
+  addGetHandler: jest.fn((route: string, handler: Handler) => {
     registeredHandlers[route] = handler;
   }),
-  addPostHandler: jest.fn((route: string, handler: Function) => {
+  addPostHandler: jest.fn((route: string, handler: Handler) => {
     registeredHandlers[route] = handler;
-  })
+  }),
 }));
 
 import lessonsController from "./lessonsController";
@@ -34,7 +35,7 @@ function makeLesson(lessonId: number, overrides: Partial<BaseLesson> = {}): Base
     series: 1,
     lesson: lessonId,
     version: 1,
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -46,7 +47,7 @@ function makeLessonString(masterId: number, lessonId: number): LessonString {
     lessonVersion: 1,
     type: "content",
     xpath: `/root[${masterId}]`,
-    motherTongue: false
+    motherTongue: false,
   };
 }
 
@@ -54,7 +55,7 @@ function makeApp() {
   const localStorage = {
     getLessons: jest.fn(() => [] as BaseLesson[]),
     getLessonStrings: jest.fn(() => [] as LessonString[]),
-    getDocPreview: jest.fn(() => "")
+    getDocPreview: jest.fn(() => ""),
   };
 
   return { localStorage } as any;
@@ -62,7 +63,7 @@ function makeApp() {
 
 describe("lessonsController", () => {
   beforeEach(() => {
-    Object.keys(registeredHandlers).forEach(k => delete registeredHandlers[k]);
+    Object.keys(registeredHandlers).forEach((k) => delete registeredHandlers[k]);
     jest.clearAllMocks();
   });
 
@@ -118,9 +119,9 @@ describe("lessonsController", () => {
       app.localStorage.getLessonStrings.mockReturnValue([]);
       lessonsController(app);
 
-      await expect(
-        registeredHandlers["/api/lessons/:lessonId"]({ lessonId: 999 })
-      ).rejects.toEqual({ status: 404 });
+      await expect(registeredHandlers["/api/lessons/:lessonId"]({ lessonId: 999 })).rejects.toEqual(
+        { status: 404 }
+      );
     });
 
     test("throws { status: 404 } when no lessons are stored at all", async () => {
@@ -129,9 +130,9 @@ describe("lessonsController", () => {
       app.localStorage.getLessonStrings.mockReturnValue([]);
       lessonsController(app);
 
-      await expect(
-        registeredHandlers["/api/lessons/:lessonId"]({ lessonId: 1 })
-      ).rejects.toEqual({ status: 404 });
+      await expect(registeredHandlers["/api/lessons/:lessonId"]({ lessonId: 1 })).rejects.toEqual({
+        status: 404,
+      });
     });
 
     test("merges lessonStrings into the lesson object", async () => {

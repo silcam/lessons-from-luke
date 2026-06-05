@@ -11,7 +11,7 @@ const Colors = {
   grey: "#999",
   success: "#39b54a",
   warning: "#ffba08",
-  danger: "#d00000"
+  danger: "#d00000",
 };
 
 // const Colors = {
@@ -34,12 +34,7 @@ export function darker(color: string) {
   return (
     "#" +
     [1, 3, 5]
-      .map(i =>
-        zeroPad(
-          Math.round(parseInt(color.substr(i, 2), 16) * 0.82).toString(16),
-          2
-        )
-      )
+      .map((i) => zeroPad(Math.round(parseInt(color.substr(i, 2), 16) * 0.82).toString(16), 2))
       .join("")
   );
 }

@@ -15,17 +15,14 @@ interface EngSub {
   to: string;
 }
 
-export default async function findTSubs(
-  storage: Persistence,
-  lessonId: number
-): Promise<TSub[]> {
+export default async function findTSubs(storage: Persistence, lessonId: number): Promise<TSub[]> {
   const idSubs = await diffLesson(storage, lessonId);
   const englishStrings = await storage.tStrings({ languageId: ENGLISH_ID });
   const engSubs = idSubs
-    .map(idSub => ({
+    .map((idSub) => ({
       ...idSub,
       engFrom: subIds(idSub.from, englishStrings),
-      engTo: subIds(idSub.to, englishStrings)
+      engTo: subIds(idSub.to, englishStrings),
     }))
     .filter(usefulEngSub);
 
@@ -36,14 +33,14 @@ export default async function findTSubs(
     // console.log(`Language: ${language.name}`);
     if (language.languageId == ENGLISH_ID) continue;
     const tStrings = await storage.tStrings({
-      languageId: language.languageId
+      languageId: language.languageId,
     });
 
-    const tSubs = engSubs.map(engSub => ({
+    const tSubs = engSubs.map((engSub) => ({
       ...engSub,
       languageId: language.languageId,
       from: subIds(engSub.from, tStrings),
-      to: subIds(engSub.to, tStrings)
+      to: subIds(engSub.to, tStrings),
     }));
     finalTSubs.push(...tSubs.filter(usefulTSub));
   }
@@ -52,9 +49,7 @@ export default async function findTSubs(
 }
 
 export function combineLessonDiffs(diffs: LessonDiff[]) {
-  return uniqIdSubs(
-    diffs.reduce((idSubs: IdSub[], diff) => idSubs.concat(diff.diff), [])
-  );
+  return uniqIdSubs(diffs.reduce((idSubs: IdSub[], diff) => idSubs.concat(diff.diff), []));
 }
 
 function uniqIdSubs(subs: IdSub[]) {
@@ -62,8 +57,7 @@ function uniqIdSubs(subs: IdSub[]) {
 }
 
 function sortTSubs(a: TSub, b: TSub) {
-  const compVal = (sps: SubPiece[]) =>
-    sps.map(sp => (sp ? sp.masterId : "")).join(",");
+  const compVal = (sps: SubPiece[]) => sps.map((sp) => (sp ? sp.masterId : "")).join(",");
   return compVal(a.engFrom).localeCompare(compVal(b.engFrom));
 }
 
@@ -73,7 +67,7 @@ function usefulEngSub(engSub: EngSub): boolean {
   return (
     allThere(engSub.engFrom) &&
     allThere(engSub.engTo) &&
-    engSub.engFrom.some(tStr => tStr && !canAutoTranslate(tStr.text))
+    engSub.engFrom.some((tStr) => tStr && !canAutoTranslate(tStr.text))
   );
 }
 
@@ -83,13 +77,11 @@ function usefulTSub(tSub: TSub): boolean {
 }
 
 function allThere(pieces: SubPiece[]) {
-  return all(pieces, sp => !!sp);
+  return all(pieces, (sp) => !!sp);
 }
 
 function subIds(ids: string, tStrings: TString[]): SubPiece[] {
-  return ids
-    .split(",")
-    .map(id => tStrings.find(tStr => tStr.masterId == parseInt(id)) || null);
+  return ids.split(",").map((id) => tStrings.find((tStr) => tStr.masterId == parseInt(id)) || null);
 }
 
 // export async function computeLessonDiffs(
@@ -112,10 +104,7 @@ async function diffLesson(storage: Persistence, lessonId: number) {
   if (!lesson) throw `Bad lesson id ${lessonName} in diffLesson()`;
   // console.log(`Diff lesson: ${lessonName(lesson)}`);
 
-  const oldLStrings = await storage.oldLessonStrings(
-    lessonId,
-    lesson.version - 1
-  );
+  const oldLStrings = await storage.oldLessonStrings(lessonId, lesson.version - 1);
   return uniqIdSubs(diffLessonStrings(lesson.lessonStrings, oldLStrings));
 }
 
@@ -124,10 +113,7 @@ export function diffLessonStrings(
   oldLStrings: LessonString[]
 ): IdSub[] {
   const subs: IdSub[] = [];
-  const changes = diffLines(
-    stringifyLStrings(oldLStrings),
-    stringifyLStrings(newLStrings)
-  );
+  const changes = diffLines(stringifyLStrings(oldLStrings), stringifyLStrings(newLStrings));
   let i = 1;
   while (i < changes.length) {
     const change = changes[i];
@@ -149,7 +135,7 @@ export function diffLessonStrings(
 function subFromChanges(removed: Change, added: Change): IdSub {
   return {
     from: subify(removed),
-    to: subify(added)
+    to: subify(added),
   };
 }
 
@@ -159,5 +145,5 @@ function subify(change: Change): string {
 
 // Transform lesson strings into string of masterId's separated by newlines for diffing
 function stringifyLStrings(lessonStrings: LessonString[]) {
-  return lessonStrings.map(lStr => `${lStr.masterId}\n`).join("");
+  return lessonStrings.map((lStr) => `${lStr.masterId}\n`).join("");
 }

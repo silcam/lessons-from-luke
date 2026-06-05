@@ -1,5 +1,3 @@
-const webpack = require("webpack");
-
 module.exports = {
   module: {
     rules: [
@@ -7,17 +5,17 @@ module.exports = {
         test: /\.tsx?$/,
         use: {
           loader: "ts-loader",
-          options: { transpileOnly: true }
+          options: { transpileOnly: true },
         },
-        exclude: /node_modules/
+        exclude: /node_modules/,
       },
       {
         test: /\.(jpg|png|svg)$/,
-        type: "asset/resource"
-      }
-    ]
+        type: "asset/resource",
+      },
+    ],
   },
   resolve: {
-    extensions: [".tsx", ".ts", ".js"]
-  }
+    extensions: [".tsx", ".ts", ".js"],
+  },
 };

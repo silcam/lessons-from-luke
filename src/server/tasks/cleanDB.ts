@@ -1,6 +1,5 @@
 import PGStorage from "../storage/PGStorage";
 import { ENGLISH_ID } from "../../core/models/Language";
-import { uniq } from "../../core/util/arrayUtils";
 import { equal, sqlizeTString } from "../../core/models/TString";
 
 class PGStorageCleaner extends PGStorage {
@@ -42,9 +41,7 @@ class PGStorageCleaner extends PGStorage {
             else
               await this
                 .sql`DELETE FROM tstrings WHERE languageId=${tString.languageId} AND masterId=${tString.masterId} AND lessonStringId IS NULL`;
-            await this.sql`INSERT INTO tStrings ${this.sql(
-              sqlizeTString(tString)
-            )}`;
+            await this.sql`INSERT INTO tStrings ${this.sql(sqlizeTString(tString))}`;
           }
         }
       }
@@ -67,8 +64,7 @@ class PGStorageCleaner extends PGStorage {
             .sql`UPDATE lessonstrings SET masterid=${englishStrings[j].masterId} WHERE masterid=${englishStrings[i].masterId}`;
           await this
             .sql`UPDATE oldlessonstrings SET masterid=${englishStrings[j].masterId} WHERE masterid=${englishStrings[i].masterId}`;
-          await this
-            .sql`DELETE FROM tstrings WHERE masterid=${englishStrings[i].masterId}`;
+          await this.sql`DELETE FROM tstrings WHERE masterid=${englishStrings[i].masterId}`;
         }
       }
     }

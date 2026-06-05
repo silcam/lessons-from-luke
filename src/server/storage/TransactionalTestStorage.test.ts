@@ -43,8 +43,8 @@ test("saveTStrings returns empty array outside a transaction", async () => {
       text: "something",
       history: [],
       sourceLanguageId: 2,
-      source: "source"
-    }
+      source: "source",
+    },
   ]);
   expect(result).toEqual([]);
   // Re-enter a transaction so afterEach can roll it back cleanly.

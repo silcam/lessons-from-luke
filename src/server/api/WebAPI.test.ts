@@ -11,7 +11,7 @@ function mockRes() {
     },
     send() {
       return this;
-    }
+    },
   } as any;
 }
 

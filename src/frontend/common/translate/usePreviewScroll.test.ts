@@ -10,9 +10,9 @@ const makeLessonTString = (lessonStringId: number): LessonTString => ({
     lessonVersion: 1,
     type: "content",
     xpath: "/body/p[1]",
-    motherTongue: false
+    motherTongue: false,
   },
-  tStrs: []
+  tStrs: [],
 });
 
 describe("usePreviewScroll", () => {
@@ -58,7 +58,7 @@ describe("usePreviewScroll", () => {
     span.id = "ls77";
     Object.defineProperty(span, "getBoundingClientRect", {
       value: () => ({ top: 200 }),
-      configurable: true
+      configurable: true,
     });
     document.body.appendChild(span);
 

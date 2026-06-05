@@ -10,13 +10,11 @@ describe("PlatformContext", () => {
 
   it("provides 'web' when wrapped with web value", () => {
     const Wrapper: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
-      <PlatformContext.Provider value="web">
-        {children}
-      </PlatformContext.Provider>
+      <PlatformContext.Provider value="web">{children}</PlatformContext.Provider>
     );
 
     const { result } = renderHook(() => useContext(PlatformContext), {
-      wrapper: Wrapper
+      wrapper: Wrapper,
     });
 
     expect(result.current).toBe("web");
@@ -24,13 +22,11 @@ describe("PlatformContext", () => {
 
   it("provides 'desktop' when wrapped with desktop value", () => {
     const Wrapper: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
-      <PlatformContext.Provider value="desktop">
-        {children}
-      </PlatformContext.Provider>
+      <PlatformContext.Provider value="desktop">{children}</PlatformContext.Provider>
     );
 
     const { result } = renderHook(() => useContext(PlatformContext), {
-      wrapper: Wrapper
+      wrapper: Wrapper,
     });
 
     expect(result.current).toBe("desktop");
@@ -38,9 +34,7 @@ describe("PlatformContext", () => {
 
   it("allows consumers to check platform equality", () => {
     const Wrapper: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
-      <PlatformContext.Provider value="desktop">
-        {children}
-      </PlatformContext.Provider>
+      <PlatformContext.Provider value="desktop">{children}</PlatformContext.Provider>
     );
 
     const { result } = renderHook(
@@ -48,7 +42,7 @@ describe("PlatformContext", () => {
         const platform = useContext(PlatformContext);
         return {
           isDesktop: platform === "desktop",
-          isWeb: platform === "web"
+          isWeb: platform === "web",
         };
       },
       { wrapper: Wrapper }

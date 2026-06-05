@@ -3,13 +3,13 @@ jest.mock("../../common/state/networkSlice", () => ({
   __esModule: true,
   default: {
     reducer: (state = { connected: true }) => state,
-    actions: {}
+    actions: {},
   },
   useNetworkConnectionRestored: () => ({
     onConnectionRestored: jest.fn(),
-    clearHandlers: jest.fn()
+    clearHandlers: jest.fn(),
   }),
-  networkConnectionLostAction: jest.fn()
+  networkConnectionLostAction: jest.fn(),
 }));
 
 import React from "react";
@@ -21,7 +21,7 @@ const sampleLesson = {
   lessonId: 1,
   book: "Luke" as const,
   series: 1,
-  lesson: 1
+  lesson: 1,
 };
 
 describe("LessonsBox", () => {
@@ -29,7 +29,7 @@ describe("LessonsBox", () => {
     const { container } = renderWithProviders(<LessonsBox />, {
       syncState: defaultSyncState,
       lessons: [],
-      currentUser: { user: null, locale: "en", loaded: false }
+      currentUser: { user: null, locale: "en", loaded: false },
     });
     await act(async () => {});
     expect(container).toBeTruthy();
@@ -39,7 +39,7 @@ describe("LessonsBox", () => {
     const { getByText } = renderWithProviders(<LessonsBox />, {
       syncState: defaultSyncState,
       lessons: [],
-      currentUser: { user: null, locale: "en", loaded: false }
+      currentUser: { user: null, locale: "en", loaded: false },
     });
     await act(async () => {});
     expect(getByText(/lessons/i)).toBeTruthy();
@@ -49,7 +49,7 @@ describe("LessonsBox", () => {
     const { container } = renderWithProviders(<LessonsBox />, {
       syncState: defaultSyncState,
       lessons: [sampleLesson],
-      currentUser: { user: null, locale: "en", loaded: false }
+      currentUser: { user: null, locale: "en", loaded: false },
     });
     await act(async () => {});
     // Should have rendered the lesson link
@@ -60,7 +60,7 @@ describe("LessonsBox", () => {
     const { getByText, container } = renderWithProviders(<LessonsBox />, {
       syncState: defaultSyncState,
       lessons: [],
-      currentUser: { user: null, locale: "en", loaded: false }
+      currentUser: { user: null, locale: "en", loaded: false },
     });
     await act(async () => {});
 
@@ -78,7 +78,7 @@ describe("LessonsBox", () => {
     const { getByText } = renderWithProviders(<LessonsBox />, {
       syncState: defaultSyncState,
       lessons: [],
-      currentUser: { user: null, locale: "en", loaded: false }
+      currentUser: { user: null, locale: "en", loaded: false },
     });
     await act(async () => {});
 

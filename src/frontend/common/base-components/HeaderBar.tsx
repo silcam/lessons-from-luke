@@ -2,7 +2,6 @@ import React, { PropsWithChildren, useContext } from "react";
 import styled from "styled-components";
 import Colors from "../util/Colors";
 import { FlexRow, FlexCol } from "./Flex";
-//@ts-ignore
 import logoImg from "../../../../art/logo.svg";
 import Heading from "./Heading";
 import { Link } from "react-router-dom";
@@ -79,7 +78,7 @@ export function StdHeaderBarPage(props: PropsWithChildren<IProps>) {
 function OfflineIndicator() {
   // Only applies to Desktop
   const t = useTranslation();
-  const online = useAppSelector(state => state.syncState.connected);
+  const online = useAppSelector((state) => state.syncState.connected);
   return (
     <Heading
       level={4}

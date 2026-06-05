@@ -15,7 +15,7 @@ function englishTStrings(texts: string[]): TString[] {
     text,
     masterId: index + 1,
     languageId: ENGLISH_ID,
-    history: []
+    history: [],
   }));
 }
 const sampleEngStrings = englishTStrings([
@@ -29,14 +29,11 @@ const sampleEngStrings = englishTStrings([
 
   "Luc 3.20-21  Un jour, alors que la classe (d’Abia) était chargée des fonctions sacerdotales, Zacharie assurait son service devant Dieu. En effet, suivant la coutume des prêtres, il avait été désigné par le sort pour offrir l’encens dans le sanctuaire du Seigneur. C’était l’heure de l’offrande des parfums et toute la multitude des fidèles se tenait dehors, (dans le parvis), pour prier. Tout à coup, un ange du Seigneur apparut, debout à la droite de l’autel des parfums. Quand Zacharie, le vit, il fut troublé et la peur s’empara de lui.",
 
-  "Luc 24.53  Un jour, alors que la classe (d’Abia) était chargée des fonctions sacerdotales, Zacharie assurait son service devant Dieu. En effet, suivant la coutume des prêtres, il avait été désigné par le sort pour offrir l’encens dans le sanctuaire du Seigneur. C’était l’heure de l’offrande des parfums et toute la multitude des fidèles se tenait dehors, (dans le parvis), pour prier. Tout à coup, un ange du Seigneur apparut, debout à la droite de l’autel des parfums. Quand Zacharie, le vit, il fut troublé et la peur s’empara de lui."
+  "Luc 24.53  Un jour, alors que la classe (d’Abia) était chargée des fonctions sacerdotales, Zacharie assurait son service devant Dieu. En effet, suivant la coutume des prêtres, il avait été désigné par le sort pour offrir l’encens dans le sanctuaire du Seigneur. C’était l’heure de l’offrande des parfums et toute la multitude des fidèles se tenait dehors, (dans le parvis), pour prier. Tout à coup, un ange du Seigneur apparut, debout à la droite de l’autel des parfums. Quand Zacharie, le vit, il fut troublé et la peur s’empara de lui.",
 ]);
 
 test("USFM Translate: A few valid refs", () => {
-  const result = translateFromUsfm(
-    sampleEngStrings,
-    sampleUSFM
-  ).translations.map(tr => tr.text);
+  const result = translateFromUsfm(sampleEngStrings, sampleUSFM).translations.map((tr) => tr.text);
   expect(result[0]).toEqual(
     "Luka 1, 4-7 nɛnnɛ ŋa mimfɛ ɔ ya nji shishiʼi pa nnu haʼaŋ pi shwei ghɔ nɔ nɛ. A ni mbɔ thɔ Hɛrɔ, mbɔ fùoŋ Judia, yichəɨ ŋgaŋ fɛʼiŋgiɛŋ Minnwi ni mbɔ fɔ, ligi yi pɔ Shakaria. A ni ndhɔ moŋ ghrà ghaŋ fɛʼiŋgiɛŋ Minnwi, llɔ moŋ ndaaŋoŋ Abija. A ni mfāʼo ŋgwɛ vi llɔ moŋ ŋgwrɛiŋoŋ Ɛroŋ, ligi yi ni mbɔ Ɛlishabe. Ŋguoŋ vugu ni mbɔ ŋgwa ndɨndɨ shhɨ Minnwi, nthɔ nūʼɔŋ ŋguoŋ kɨ̀na pugu pa gɨ́ Taathɔ ndɔ ki lɔ mfāʼo ntəɨ. Ndɔ paʼa pugu lɔ njiʼi fāʼo muuŋ, nthɛ ŋa Ɛlishabe ni mbɔ pi ŋkhwɛ̄, ndɔ pugu ni ŋkwo ya ndunu."
   );
@@ -49,9 +46,7 @@ test("USFM Translate: A few valid refs", () => {
   expect(result[3]).toEqual(
     "Luka 3.20-21 Hɛrɔ pɨnɨ mbīgi phɨ yi nɔ fɨ̄nɨ nu Jouŋ. Ŋkaoŋ Jouŋ maa ŋgə̄ɨ chə́ɨŋ, ndɨɨ ŋa ŋguoŋ ŋgwa ni ŋkwo kwe ŋkhǐ nɛ, Jishɔ kwe ŋkaa yu, ŋga nchhɔ nduoŋ Minnwi, po ŋaʼaŋ,"
   );
-  expect(result[4]).toEqual(
-    "Luka 24.53 Pugu ni ŋkɨna moŋ Nda Minnwi ŋguoŋ llɛ́ nthɔ ntōo Minnwi."
-  );
+  expect(result[4]).toEqual("Luka 24.53 Pugu ni ŋkɨna moŋ Nda Minnwi ŋguoŋ llɛ́ nthɔ ntōo Minnwi.");
 });
 
 test("USFM Errors", () => {
@@ -69,8 +64,8 @@ test("Reference Errors", () => {
   const badChapterTStrings = [
     {
       ...sampleEngStrings[5],
-      text: sampleEngStrings[5].text.replace("Luc 24.53", "Luc 25.1")
-    }
+      text: sampleEngStrings[5].text.replace("Luc 24.53", "Luc 25.1"),
+    },
   ];
   expect(translateFromUsfm(badChapterTStrings, sampleUSFM).errors[0]).toEqual(
     "The following error occurred while processing « Luc 25.1  Un jour, alors que la classe (d’Abia) était chargée des fonctions sacerdotales, Zacharie assurait son service devant Dieu. En effet, suivant la coutume des prêtres, il avait été désigné par le sort pour offrir l’encens dans le sanctuaire du Seigneur. C’était l’heure de l’offrande des parfums et toute la multitude des fidèles se tenait dehors, (dans le parvis), pour prier. Tout à coup, un ange du Seigneur apparut, debout à la droite de l’autel des parfums. Quand Zacharie, le vit, il fut troublé et la peur s’empara de lui. » : Chapter 25 not found."
@@ -78,8 +73,8 @@ test("Reference Errors", () => {
   const badVerseTStrings = [
     {
       ...badChapterTStrings[0],
-      text: badChapterTStrings[0].text.replace("Luc 25.1", "Luc 1.81")
-    }
+      text: badChapterTStrings[0].text.replace("Luc 25.1", "Luc 1.81"),
+    },
   ];
   expect(translateFromUsfm(badVerseTStrings, sampleUSFM).errors[0]).toEqual(
     "The following error occurred while processing « Luc 1.81  Un jour, alors que la classe (d’Abia) était chargée des fonctions sacerdotales, Zacharie assurait son service devant Dieu. En effet, suivant la coutume des prêtres, il avait été désigné par le sort pour offrir l’encens dans le sanctuaire du Seigneur. C’était l’heure de l’offrande des parfums et toute la multitude des fidèles se tenait dehors, (dans le parvis), pour prier. Tout à coup, un ange du Seigneur apparut, debout à la droite de l’autel des parfums. Quand Zacharie, le vit, il fut troublé et la peur s’empara de lui. » : Could not find 1:81."
@@ -105,12 +100,10 @@ test("USFM translate Book Mismatch", () => {
   const actsTStrings = [
     {
       ...sampleEngStrings[1],
-      text: sampleEngStrings[1].text.replace("Luc", "Actes")
-    }
+      text: sampleEngStrings[1].text.replace("Luc", "Actes"),
+    },
   ];
-  expect(translateFromUsfm(actsTStrings, sampleUSFM).translations.length).toBe(
-    0
-  );
+  expect(translateFromUsfm(actsTStrings, sampleUSFM).translations.length).toBe(0);
 });
 
 test("USFM translate Other Books/Languages", () => {
@@ -118,12 +111,10 @@ test("USFM translate Other Books/Languages", () => {
   const lukeTStrings = [
     {
       ...sampleEngStrings[3],
-      text: sampleEngStrings[3].text.replace("Luc 2:49", "Luke 2:49")
-    }
+      text: sampleEngStrings[3].text.replace("Luc 2:49", "Luke 2:49"),
+    },
   ];
-  expect(
-    translateFromUsfm(lukeTStrings, noHdrUsfm).translations[0].text
-  ).toEqual(
+  expect(translateFromUsfm(lukeTStrings, noHdrUsfm).translations[0].text).toEqual(
     "Luke 2:49 A chhu ni pugu ŋa, “Pəɨ nì nthɔ ntāʼa a ŋa? Pəɨ shi ki lɔ nji ŋa m̀fāʼo nɔ pɔ nu nda Tǎa a?”"
   );
 
@@ -131,23 +122,19 @@ test("USFM translate Other Books/Languages", () => {
   const actesTStrings = [
     {
       ...sampleEngStrings[1],
-      text: sampleEngStrings[1].text.replace("Luc", "Actes")
-    }
+      text: sampleEngStrings[1].text.replace("Luc", "Actes"),
+    },
   ];
-  expect(
-    translateFromUsfm(actesTStrings, actsUSFM).translations[0].text
-  ).toEqual(
+  expect(translateFromUsfm(actesTStrings, actsUSFM).translations[0].text).toEqual(
     "Actes 1, 4-7 nɛnnɛ ŋa mimfɛ ɔ ya nji shishiʼi pa nnu haʼaŋ pi shwei ghɔ nɔ nɛ. A ni mbɔ thɔ Hɛrɔ, mbɔ fùoŋ Judia, yichəɨ ŋgaŋ fɛʼiŋgiɛŋ Minnwi ni mbɔ fɔ, ligi yi pɔ Shakaria. A ni ndhɔ moŋ ghrà ghaŋ fɛʼiŋgiɛŋ Minnwi, llɔ moŋ ndaaŋoŋ Abija. A ni mfāʼo ŋgwɛ vi llɔ moŋ ŋgwrɛiŋoŋ Ɛroŋ, ligi yi ni mbɔ Ɛlishabe. Ŋguoŋ vugu ni mbɔ ŋgwa ndɨndɨ shhɨ Minnwi, nthɔ nūʼɔŋ ŋguoŋ kɨ̀na pugu pa gɨ́ Taathɔ ndɔ ki lɔ mfāʼo ntəɨ. Ndɔ paʼa pugu lɔ njiʼi fāʼo muuŋ, nthɛ ŋa Ɛlishabe ni mbɔ pi ŋkhwɛ̄, ndɔ pugu ni ŋkwo ya ndunu."
   );
   const actsTStrings = [
     {
       ...sampleEngStrings[3],
-      text: sampleEngStrings[3].text.replace("Luc 2:49", "Acts 2:49")
-    }
+      text: sampleEngStrings[3].text.replace("Luc 2:49", "Acts 2:49"),
+    },
   ];
-  expect(
-    translateFromUsfm(actsTStrings, actsUSFM).translations[0].text
-  ).toEqual(
+  expect(translateFromUsfm(actsTStrings, actsUSFM).translations[0].text).toEqual(
     "Acts 2:49 A chhu ni pugu ŋa, “Pəɨ nì nthɔ ntāʼa a ŋa? Pəɨ shi ki lɔ nji ŋa m̀fāʼo nɔ pɔ nu nda Tǎa a?”"
   );
 });
@@ -169,12 +156,12 @@ const mvSampleTStrings = englishTStrings([
   "Luc 6.46-48 Words",
   "Luc 6.47-49 Words",
   "Luc 6.46-47 Words",
-  "Luc 6.48-49 Words"
+  "Luc 6.48-49 Words",
 ]);
 
 test("USFM Translator multiverse marker", () => {
   const result = translateFromUsfm(mvSampleTStrings, sampleUSFM);
-  const translations = result.translations.map(tr => tr.text);
+  const translations = result.translations.map((tr) => tr.text);
   expect(translations[0]).toEqual(
     "Luka 6.47-48 Shesheŋoŋ ŋa a thɔ njəɨ a njaʼo nchrā a nchwīe ndɔ haʼaŋ ǹchhu nɛ, ǹshi nshwei ghɔ ni ŋkwaŋ yaoŋ ŋa a fhi nɛ. A pɔ nɔ ŋoŋ ŋa a gha nthɔ ŋkrao nda, nja ntou kwò yi a shhi, a nūʼɔŋ ŋkuoŋ ŋgùʼɔ. Nɨnəɨ gha mbɨ̄gəɨ, ŋkhǐ thɔ mbɨŋ nda ghɔ ndɔ paʼa ndɔ nchɨʼɨ vi nthɛ ŋa pi ni nja ŋkrao vi shiʼi."
   );

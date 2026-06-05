@@ -22,8 +22,7 @@ test("Webify Lesson", async () => {
 
   unlinkSafe(docStorage.webifyPath() + "/13.htm");
   const filenames = fs.readdirSync(docStorage.webifyPath());
-  filenames.forEach(filename => {
-    if (/_1-03_htm/.test(filename))
-      unlinkSafe(docStorage.webifyPath() + "/" + filename);
+  filenames.forEach((filename) => {
+    if (/_1-03_htm/.test(filename)) unlinkSafe(docStorage.webifyPath() + "/" + filename);
   });
 }, 30000);

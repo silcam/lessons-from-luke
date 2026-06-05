@@ -57,18 +57,18 @@ describe("secrets — file-based branch (line 21 true path)", () => {
       db: {
         database: "my-db",
         username: "my-user",
-        password: "my-pass"
+        password: "my-pass",
       },
       testDb: {
         database: "my-test-db",
         username: "my-user",
-        password: "my-pass"
+        password: "my-pass",
       },
       devDb: {
         database: "my-dev-db",
         username: "my-user",
-        password: "my-pass"
-      }
+        password: "my-pass",
+      },
     };
 
     // Write a temporary secrets.json at cwd so the module finds it
@@ -81,7 +81,7 @@ describe("secrets — file-based branch (line 21 true path)", () => {
 
     // Re-require the module so it re-evaluates from scratch
     jest.resetModules();
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+
     const freshSecrets = require("./secrets").default;
 
     expect(freshSecrets.cookieSecret).toBe("custom-cookie-secret");
@@ -98,7 +98,6 @@ describe("secrets — file-based branch (line 21 true path)", () => {
       fs.unlinkSync(secretsJsonPath);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const freshSecrets = require("./secrets").default;
 
     // Default values from the source

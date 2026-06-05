@@ -11,7 +11,7 @@ import Colors from "../util/Colors";
 
 export default function Banners() {
   const dispatch = useDispatch();
-  let banners = useAppSelector(state => state.banners);
+  const banners = useAppSelector((state) => state.banners);
 
   return (
     <div>
@@ -40,9 +40,7 @@ function AppBannerError(props: { error: AppError; close: () => void }) {
         {errorMessage(t, props.error)}
         {props.error.type == "No Connection" && <Dots />}
       </div>
-      {allowClose(props.error) && (
-        <Button link text="X" onClick={props.close} />
-      )}
+      {allowClose(props.error) && <Button link text="X" onClick={props.close} />}
     </ErrBanner>
   );
 }

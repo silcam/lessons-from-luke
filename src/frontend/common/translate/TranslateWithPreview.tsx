@@ -36,26 +36,22 @@ export default function TranslateWithPreview(props: IProps) {
   const push = usePush();
   const { onConnectionRestored } = useNetworkConnectionRestored();
 
-  const languages = useAppSelector(state => state.languages.languages);
+  const languages = useAppSelector((state) => state.languages.languages);
   const { setDirty, setClean } = useDirtyState(props.onDirtyStateChange);
 
   const [index, setIndex] = useState(0);
   const [ltStringsForTranslation, otherLTStrings] = discriminate(
     props.lessonTStrings,
-    ltStr => !props.language.motherTongue || ltStr.lStr.motherTongue
+    (ltStr) => !props.language.motherTongue || ltStr.lStr.motherTongue
   );
-  const selectedLTStr: LessonTString | undefined =
-    ltStringsForTranslation[index];
+  const selectedLTStr: LessonTString | undefined = ltStringsForTranslation[index];
   const scrollDivRef = usePreviewScroll(selectedLTStr);
 
   const save = async (text: string) => {
     const ltStr = selectedLTStr;
     const savedStr = await push(
-      pushTStrings(
-        [newTString(text, ltStr.lStr, props.language, ltStr.tStrs[0])],
-        props.language
-      ),
-      err => {
+      pushTStrings([newTString(text, ltStr.lStr, props.language, ltStr.tStrs[0])], props.language),
+      (err) => {
         if (err.type == "No Connection") onConnectionRestored(() => save(text));
         return false;
       }
@@ -70,17 +66,13 @@ export default function TranslateWithPreview(props: IProps) {
         <Label text={t("Source_language")}>
           <SelectInput
             value={`${props.srcLangId}`}
-            setValue={v => props.setSrcLangId(parseInt(v))}
-            options={languages.map(lng => [`${lng.languageId}`, lng.name])}
+            setValue={(v) => props.setSrcLangId(parseInt(v))}
+            options={languages.map((lng) => [`${lng.languageId}`, lng.name])}
           />
         </Label>
         {selectedLTStr && (
           <Div>
-            <Button
-              text="<<"
-              onClick={() => setIndex(index - 1)}
-              disabled={index == 0}
-            />
+            <Button text="<<" onClick={() => setIndex(index - 1)} disabled={index == 0} />
             <Button
               text=">>"
               onClick={() => setIndex(index + 1)}
@@ -93,11 +85,7 @@ export default function TranslateWithPreview(props: IProps) {
                   const goToIndex = ltStringsForTranslation.findIndex(
                     (ltStr, i) => i > index && !ltStr.tStrs[1]
                   );
-                  setIndex(
-                    goToIndex >= 0
-                      ? goToIndex
-                      : ltStringsForTranslation.length - 1
-                  );
+                  setIndex(goToIndex >= 0 ? goToIndex : ltStringsForTranslation.length - 1);
                 }}
               />
             )}
@@ -111,8 +99,7 @@ export default function TranslateWithPreview(props: IProps) {
               placeholder={props.language.name}
               autoFocus
               saveOnEnter={() => {
-                if (index < ltStringsForTranslation.length - 1)
-                  setIndex(index + 1);
+                if (index < ltStringsForTranslation.length - 1) setIndex(index + 1);
               }}
             />
             <Button

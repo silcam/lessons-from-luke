@@ -1,14 +1,14 @@
 {
-    "extends": "../../tsconfig.json",
-    "compilerOptions": {
-        "outDir": "../../dist/desktop",
-        // Dev build: core resolves to declarations via the reference below, so the
-        // program is entirely under src/desktop and output is flat (dist/desktop/main.js,
-        // dist/desktop/main-test.js — what `run-test-desktop` runs). Pin rootDir so this
-        // can never silently shift: a stray import from outside src/desktop now errors
-        // instead of inflating rootDir and moving every output. The prod build
-        // (tsconfig.prod.json) deliberately overrides rootDir — see there.
-        "rootDir": "."
-    },
-    "references": [{"path": "../core"}]
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../../dist/desktop",
+    // Dev build: core resolves to declarations via the reference below, so the
+    // program is entirely under src/desktop and output is flat (dist/desktop/main.js,
+    // dist/desktop/main-test.js — what `run-test-desktop` runs). Pin rootDir so this
+    // can never silently shift: a stray import from outside src/desktop now errors
+    // instead of inflating rootDir and moving every output. The prod build
+    // (tsconfig.prod.json) deliberately overrides rootDir — see there.
+    "rootDir": "."
+  },
+  "references": [{ "path": "../core" }]
 }

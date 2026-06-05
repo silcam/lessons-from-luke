@@ -20,13 +20,13 @@ export default class TestLocalStorage extends LocalStorage {
     // Clear Test JSON folder
     if (!fs.existsSync(basePath)) fs.mkdirSync(basePath);
     const filenames = fs.readdirSync(basePath);
-    filenames.forEach(filename => fs.unlinkSync(path.join(basePath, filename)));
+    filenames.forEach((filename) => fs.unlinkSync(path.join(basePath, filename)));
 
     // Copy if requred
     if (fixtures) {
       const srcPath = "src/desktop/localFixtures/" + fixtures;
       const filenames = fs.readdirSync(srcPath);
-      filenames.forEach(filename =>
+      filenames.forEach((filename) =>
         fs.copyFileSync(`${srcPath}/${filename}`, `${basePath}/${filename}`)
       );
     }

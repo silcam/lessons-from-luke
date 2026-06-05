@@ -1,27 +1,21 @@
 /// <reference types="jest" />
 
 jest.mock("../DesktopApp", () => ({
-  default: class MockDesktopApp {}
+  default: class MockDesktopApp {},
 }));
 
 jest.mock("electron", () => ({
   app: {
     getPath: jest.fn(() => "/tmp/fake-data"),
-    isPackaged: false
-  }
+    isPackaged: false,
+  },
 }));
 
-import {
-  downSync,
-  downSyncTStrings,
-  fetchMissingPreviews,
-  NO_CONNECTION,
-  EXPIRED_SYNC
-} from "./downSync";
+import { downSync, downSyncTStrings, fetchMissingPreviews } from "./downSync";
 import {
   initalStoredSyncState,
   StoredSyncState,
-  ContinuousSyncPackage
+  ContinuousSyncPackage,
 } from "../../core/models/SyncState";
 
 function makeDownSync(overrides: Partial<ContinuousSyncPackage> = {}): ContinuousSyncPackage {
@@ -31,14 +25,14 @@ function makeDownSync(overrides: Partial<ContinuousSyncPackage> = {}): Continuou
     lessons: [],
     tStrings: {},
     timestamp: 1,
-    ...overrides
+    ...overrides,
   };
 }
 
 function makeSyncState(overrides: Partial<StoredSyncState> = {}): StoredSyncState {
   return {
     ...initalStoredSyncState(),
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -65,11 +59,11 @@ function makeApp(syncState: StoredSyncState = makeSyncState(), webGetImpl?: jest
     getAllTStrings: jest.fn(() => []),
     getLessonCount: jest.fn(() => 0),
     getTStringCount: jest.fn(() => 0),
-    recalcProgress: jest.fn()
+    recalcProgress: jest.fn(),
   };
 
   const webClient = {
-    get: mockGet
+    get: mockGet,
   };
 
   return { localStorage, webClient } as any;
@@ -84,13 +78,21 @@ describe("downSync", () => {
 
   test("syncs languages when downSync.languages is true", async () => {
     const syncState = makeSyncState({
-      downSync: makeDownSync({ languages: true, timestamp: 5 })
+      downSync: makeDownSync({ languages: true, timestamp: 5 }),
     });
     const app = makeApp(syncState);
-    const languages = [{ languageId: 3, name: "French", motherTongue: false, defaultSrcLang: 1, progress: [] }];
+    const languages = [
+      { languageId: 3, name: "French", motherTongue: false, defaultSrcLang: 1, progress: [] },
+    ];
 
     app.webClient.get
-      .mockResolvedValueOnce({ languages: true, baseLessons: false, lessons: [], tStrings: {}, timestamp: 5 })
+      .mockResolvedValueOnce({
+        languages: true,
+        baseLessons: false,
+        lessons: [],
+        tStrings: {},
+        timestamp: 5,
+      })
       .mockResolvedValueOnce(languages);
 
     await downSync(app);
@@ -100,13 +102,19 @@ describe("downSync", () => {
 
   test("syncs base lessons when downSync.baseLessons is true", async () => {
     const syncState = makeSyncState({
-      downSync: makeDownSync({ baseLessons: true, timestamp: 3 })
+      downSync: makeDownSync({ baseLessons: true, timestamp: 3 }),
     });
     const app = makeApp(syncState);
     const lessons = [{ lessonId: 1, book: "Luke", series: 1, lesson: 1, version: 1 }];
 
     app.webClient.get
-      .mockResolvedValueOnce({ languages: false, baseLessons: true, lessons: [], tStrings: {}, timestamp: 3 })
+      .mockResolvedValueOnce({
+        languages: false,
+        baseLessons: true,
+        lessons: [],
+        tStrings: {},
+        timestamp: 3,
+      })
       .mockResolvedValueOnce(lessons);
 
     await downSync(app);
@@ -131,7 +139,7 @@ describe("fetchMissingPreviews", () => {
   test("skips lessons that already have a preview", async () => {
     const app = makeApp();
     app.localStorage.getLessons.mockReturnValue([
-      { lessonId: 1, book: "Luke", series: 1, lesson: 1, version: 1 }
+      { lessonId: 1, book: "Luke", series: 1, lesson: 1, version: 1 },
     ]);
     app.localStorage.getDocPreview.mockReturnValue("<html>existing</html>");
 
@@ -144,7 +152,7 @@ describe("fetchMissingPreviews", () => {
   test("fetches preview for lesson without one", async () => {
     const app = makeApp();
     app.localStorage.getLessons.mockReturnValue([
-      { lessonId: 5, book: "Luke", series: 1, lesson: 1, version: 1 }
+      { lessonId: 5, book: "Luke", series: 1, lesson: 1, version: 1 },
     ]);
     app.localStorage.getDocPreview.mockReturnValue("");
     app.webClient.get.mockResolvedValue({ html: "<html>preview</html>" });
@@ -157,7 +165,7 @@ describe("fetchMissingPreviews", () => {
   test("handles no-connection gracefully when fetching previews", async () => {
     const app = makeApp();
     app.localStorage.getLessons.mockReturnValue([
-      { lessonId: 5, book: "Luke", series: 1, lesson: 1, version: 1 }
+      { lessonId: 5, book: "Luke", series: 1, lesson: 1, version: 1 },
     ]);
     app.localStorage.getDocPreview.mockReturnValue("");
     app.webClient.get.mockResolvedValue(null);
@@ -169,11 +177,11 @@ describe("fetchMissingPreviews", () => {
     const app = makeApp();
     app.localStorage.getLessons.mockReturnValue([
       { lessonId: 1, book: "Luke", series: 1, lesson: 1, version: 1 },
-      { lessonId: 2, book: "Luke", series: 1, lesson: 2, version: 1 }
+      { lessonId: 2, book: "Luke", series: 1, lesson: 2, version: 1 },
     ]);
     app.localStorage.getDocPreview
       .mockReturnValueOnce("<html>existing</html>") // lesson 1 has preview
-      .mockReturnValueOnce("");                      // lesson 2 does not
+      .mockReturnValueOnce(""); // lesson 2 does not
     app.webClient.get.mockResolvedValue({ html: "<html>new preview</html>" });
 
     await fetchMissingPreviews(app);
@@ -193,7 +201,7 @@ describe("downSync - TString batching", () => {
       downSync: makeDownSync({ tStrings: {}, timestamp: 5 }),
       syncLanguages: [{ languageId: 3, timestamp: 1 }],
       // No language set so fetchMissingSrcStrings short-circuits early (language == null)
-      language: null
+      language: null,
     });
     const app = makeApp(state);
 
@@ -205,7 +213,7 @@ describe("downSync - TString batching", () => {
       lessons: [],
       tStrings: { 3: tStringIds },
       timestamp: 5,
-      progress: 100
+      progress: 100,
     };
     app.webClient.get
       .mockResolvedValueOnce(newDownSyncPackage) // initial downSync fetch in downSyncTStrings
@@ -214,8 +222,8 @@ describe("downSync - TString batching", () => {
     await downSyncTStrings(app);
 
     // Should have fetched in 2 batches (one of 1000, one of 5)
-    const tStringGetCalls = app.webClient.get.mock.calls.filter(
-      (call: any[]) => String(call[0]).includes("tStrings")
+    const tStringGetCalls = app.webClient.get.mock.calls.filter((call: any[]) =>
+      String(call[0]).includes("tStrings")
     );
     expect(tStringGetCalls.length).toBe(2);
   });
@@ -231,25 +239,43 @@ describe("downSync - lesson string sync", () => {
       lesson: 1,
       version: 1,
       lessonStrings: [
-        { lessonStringId: 1, masterId: 100, lessonId, lessonVersion: 1, type: "content", xpath: "/root", motherTongue: false }
-      ]
+        {
+          lessonStringId: 1,
+          masterId: 100,
+          lessonId,
+          lessonVersion: 1,
+          type: "content",
+          xpath: "/root",
+          motherTongue: false,
+        },
+      ],
     };
     const syncState = makeSyncState({
       downSync: makeDownSync({ lessons: [lessonId], timestamp: 10 }),
-      syncLanguages: []
+      syncLanguages: [],
     });
     const app = makeApp(syncState);
 
     // getDownSync will see progress=undefined (falsy) → fetch new downSync
-    const newDownSync = { languages: false, baseLessons: false, lessons: [lessonId], tStrings: {}, timestamp: 10, progress: 50 };
+    const newDownSync = {
+      languages: false,
+      baseLessons: false,
+      lessons: [lessonId],
+      tStrings: {},
+      timestamp: 10,
+      progress: 50,
+    };
     app.webClient.get
-      .mockResolvedValueOnce(newDownSync)      // getDownSync
-      .mockResolvedValueOnce(lessonData)       // syncLessons: fetch lesson
+      .mockResolvedValueOnce(newDownSync) // getDownSync
+      .mockResolvedValueOnce(lessonData) // syncLessons: fetch lesson
       .mockResolvedValueOnce({ html: "<html>preview</html>" }); // fetchDocPreview
 
     await downSync(app);
 
-    expect(app.localStorage.setLessonStrings).toHaveBeenCalledWith(lessonId, lessonData.lessonStrings);
+    expect(app.localStorage.setLessonStrings).toHaveBeenCalledWith(
+      lessonId,
+      lessonData.lessonStrings
+    );
     expect(app.localStorage.setDocPreview).toHaveBeenCalledWith(lessonId, "<html>preview</html>");
     expect(app.localStorage.recalcProgress).toHaveBeenCalled();
   });
@@ -260,10 +286,17 @@ describe("downSyncTStrings", () => {
     const syncState = makeSyncState({
       downSync: makeDownSync({
         tStrings: { 3: [1, 2] },
-        timestamp: 5
+        timestamp: 5,
       }),
       syncLanguages: [{ languageId: 3, timestamp: 1 }],
-      language: { languageId: 10, name: "Batanga", code: "btg", motherTongue: false, progress: [], defaultSrcLang: 1 }
+      language: {
+        languageId: 10,
+        name: "Batanga",
+        code: "btg",
+        motherTongue: false,
+        progress: [],
+        defaultSrcLang: 1,
+      },
     });
     const app = makeApp(syncState);
 
@@ -272,11 +305,9 @@ describe("downSyncTStrings", () => {
       baseLessons: false,
       lessons: [],
       tStrings: { 3: [3, 4] }, // server returns additional IDs
-      timestamp: 5
+      timestamp: 5,
     };
-    app.webClient.get
-      .mockResolvedValueOnce(newDownSyncPackage)
-      .mockResolvedValue([]); // tStrings fetch
+    app.webClient.get.mockResolvedValueOnce(newDownSyncPackage).mockResolvedValue([]); // tStrings fetch
 
     await downSyncTStrings(app);
 
@@ -286,7 +317,7 @@ describe("downSyncTStrings", () => {
 
   test("handles NO_CONNECTION gracefully during downSyncTStrings", async () => {
     const syncState = makeSyncState({
-      syncLanguages: [{ languageId: 3, timestamp: 1 }]
+      syncLanguages: [{ languageId: 3, timestamp: 1 }],
     });
     const app = makeApp(syncState);
     app.webClient.get.mockResolvedValue(null); // null → NO_CONNECTION
@@ -298,7 +329,13 @@ describe("downSyncTStrings", () => {
 describe("downSync - getDownSync skips fetch when progress is between 1-99 (line 76)", () => {
   test("skips getDownSync fetch when progress is 50 (sync in progress)", async () => {
     const syncState = makeSyncState({
-      downSync: makeDownSync({ progress: 50, languages: false, baseLessons: false, tStrings: {}, timestamp: 5 })
+      downSync: makeDownSync({
+        progress: 50,
+        languages: false,
+        baseLessons: false,
+        tStrings: {},
+        timestamp: 5,
+      }),
     });
     const app = makeApp(syncState);
 
@@ -314,25 +351,32 @@ describe("downSync - fetchDocPreview handles 404 gracefully (line 226)", () => {
     const lessonId = 10;
     const syncState = makeSyncState({
       downSync: makeDownSync({ lessons: [lessonId], timestamp: 4 }),
-      syncLanguages: []
+      syncLanguages: [],
     });
     const app = makeApp(syncState);
 
-    const newDownSync = { languages: false, baseLessons: false, lessons: [lessonId], tStrings: {}, timestamp: 4, progress: 50 };
+    const newDownSync = {
+      languages: false,
+      baseLessons: false,
+      lessons: [lessonId],
+      tStrings: {},
+      timestamp: 4,
+      progress: 50,
+    };
     const lessonData = {
       lessonId,
       book: "Luke",
       series: 1,
       lesson: 1,
       version: 1,
-      lessonStrings: []
+      lessonStrings: [],
     };
     // Fetch lesson succeeds, but doc preview returns 404
     const notFoundError = { status: 404, message: "Not Found" };
     app.webClient.get
-      .mockResolvedValueOnce(newDownSync)     // getDownSync
-      .mockResolvedValueOnce(lessonData)      // syncLessons: fetch lesson
-      .mockRejectedValueOnce(notFoundError);  // fetchDocPreview: 404
+      .mockResolvedValueOnce(newDownSync) // getDownSync
+      .mockResolvedValueOnce(lessonData) // syncLessons: fetch lesson
+      .mockRejectedValueOnce(notFoundError); // fetchDocPreview: 404
 
     // Should not throw - 404 is swallowed
     await expect(downSync(app)).resolves.toBeUndefined();
@@ -345,8 +389,8 @@ describe("downSync - syncLanguages timestamps (line 92)", () => {
       downSync: makeDownSync({ timestamp: 7 }),
       syncLanguages: [
         { languageId: 1, timestamp: 1 },
-        { languageId: 2, timestamp: 2 }
-      ]
+        { languageId: 2, timestamp: 2 },
+      ],
     });
     const app = makeApp(syncState);
 
@@ -356,7 +400,7 @@ describe("downSync - syncLanguages timestamps (line 92)", () => {
       baseLessons: false,
       lessons: [],
       tStrings: {},
-      timestamp: 7
+      timestamp: 7,
     });
 
     await downSync(app);
@@ -375,22 +419,30 @@ describe("downSync - fetchMissingSrcStrings (lines 188-202)", () => {
       code: "btg",
       motherTongue: false,
       progress: [],
-      defaultSrcLang: 1
+      defaultSrcLang: 1,
     };
     const syncState = makeSyncState({
       downSync: makeDownSync({ tStrings: { 10: [999] }, timestamp: 5 }),
       syncLanguages: [{ languageId: 10, timestamp: 1 }],
-      language
+      language,
     });
     const app = makeApp(syncState);
 
     // getLessons returns a lesson
     app.localStorage.getLessons.mockReturnValue([
-      { lessonId: 1, book: "Luke", series: 1, lesson: 1, version: 1 }
+      { lessonId: 1, book: "Luke", series: 1, lesson: 1, version: 1 },
     ]);
     // getLessonStrings returns a string with masterId 99
     app.localStorage.getLessonStrings.mockReturnValue([
-      { lessonStringId: 1, masterId: 99, lessonId: 1, lessonVersion: 1, type: "content", xpath: "/root", motherTongue: false }
+      {
+        lessonStringId: 1,
+        masterId: 99,
+        lessonId: 1,
+        lessonVersion: 1,
+        type: "content",
+        xpath: "/root",
+        motherTongue: false,
+      },
     ]);
     // getAllTStrings returns nothing (so masterId 99 is "missing")
     app.localStorage.getAllTStrings.mockReturnValue([]);
@@ -401,11 +453,11 @@ describe("downSync - fetchMissingSrcStrings (lines 188-202)", () => {
       baseLessons: false,
       lessons: [],
       tStrings: { 10: [999] },
-      timestamp: 5
+      timestamp: 5,
     };
     app.webClient.get
       .mockResolvedValueOnce(newDownSyncPackage) // downSyncTStrings initial fetch
-      .mockResolvedValueOnce([])                 // syncTStrings batch fetch for language 10
+      .mockResolvedValueOnce([]) // syncTStrings batch fetch for language 10
       .mockResolvedValueOnce([{ masterId: 99, languageId: 1, text: "Hello", history: [] }]); // fetchMissingSrcStrings
 
     await downSyncTStrings(app);
@@ -422,24 +474,32 @@ describe("downSync - fetchMissingSrcStrings (lines 188-202)", () => {
       code: "btg",
       motherTongue: false,
       progress: [],
-      defaultSrcLang: 1
+      defaultSrcLang: 1,
     };
     const syncState = makeSyncState({
       downSync: makeDownSync({ tStrings: { 10: [1] }, timestamp: 5 }),
       syncLanguages: [{ languageId: 10, timestamp: 1 }],
-      language
+      language,
     });
     const app = makeApp(syncState);
 
     app.localStorage.getLessons.mockReturnValue([
-      { lessonId: 1, book: "Luke", series: 1, lesson: 1, version: 1 }
+      { lessonId: 1, book: "Luke", series: 1, lesson: 1, version: 1 },
     ]);
     app.localStorage.getLessonStrings.mockReturnValue([
-      { lessonStringId: 1, masterId: 50, lessonId: 1, lessonVersion: 1, type: "content", xpath: "/root", motherTongue: false }
+      {
+        lessonStringId: 1,
+        masterId: 50,
+        lessonId: 1,
+        lessonVersion: 1,
+        type: "content",
+        xpath: "/root",
+        motherTongue: false,
+      },
     ]);
     // getAllTStrings returns the string — so no missing ids
     app.localStorage.getAllTStrings.mockReturnValue([
-      { masterId: 50, languageId: 1, text: "Exists", history: [] }
+      { masterId: 50, languageId: 1, text: "Exists", history: [] },
     ]);
 
     const newDownSyncPackage = {
@@ -447,11 +507,9 @@ describe("downSync - fetchMissingSrcStrings (lines 188-202)", () => {
       baseLessons: false,
       lessons: [],
       tStrings: { 10: [1] },
-      timestamp: 5
+      timestamp: 5,
     };
-    app.webClient.get
-      .mockResolvedValueOnce(newDownSyncPackage)
-      .mockResolvedValue([]); // batch fetches
+    app.webClient.get.mockResolvedValueOnce(newDownSyncPackage).mockResolvedValue([]); // batch fetches
 
     await downSyncTStrings(app);
 
@@ -475,7 +533,7 @@ describe("catchSyncError - rethrows unknown errors (line 265)", () => {
   test("fetchMissingPreviews rethrows non-sync errors through catchSyncError (line 265)", async () => {
     const app = makeApp();
     app.localStorage.getLessons.mockReturnValue([
-      { lessonId: 5, book: "Luke", series: 1, lesson: 1, version: 1 }
+      { lessonId: 5, book: "Luke", series: 1, lesson: 1, version: 1 },
     ]);
     app.localStorage.getDocPreview.mockReturnValue(""); // no existing preview
     // fetchDocPreview will call throwsNoConnection which throws when null
@@ -491,17 +549,23 @@ describe("downSync - EXPIRED_SYNC", () => {
   test("catches EXPIRED_SYNC without rethrowing", async () => {
     // This happens when timestamp changes mid-sync
     const syncState = makeSyncState({
-      downSync: makeDownSync({ baseLessons: true, timestamp: 5 })
+      downSync: makeDownSync({ baseLessons: true, timestamp: 5 }),
     });
     const app = makeApp(syncState);
 
     // First get returns a different timestamp → causes EXPIRED_SYNC on updateDownSync
     app.webClient.get
-      .mockResolvedValueOnce({ languages: false, baseLessons: true, lessons: [], tStrings: {}, timestamp: 5 })
+      .mockResolvedValueOnce({
+        languages: false,
+        baseLessons: true,
+        lessons: [],
+        tStrings: {},
+        timestamp: 5,
+      })
       .mockImplementation(() => {
         // After baseLessons sync, change the timestamp so updateDownSync throws EXPIRED_SYNC
         app.localStorage.getSyncState.mockReturnValue({
-          ...makeSyncState({ downSync: makeDownSync({ timestamp: 999 }) })
+          ...makeSyncState({ downSync: makeDownSync({ timestamp: 999 }) }),
         });
         return Promise.resolve([]);
       });

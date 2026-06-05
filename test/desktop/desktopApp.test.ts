@@ -3,10 +3,28 @@ import { _electron as electron } from "playwright";
 import Axios from "axios";
 import path from "path";
 
+// Headless-test flags appended to every electron.launch:
+// - --no-sandbox: Chromium's setuid sandbox is unavailable on Ubuntu CI runners
+//   without privileged userns (we already toggle the apparmor restriction in
+//   the desktop-e2e workflow, but --no-sandbox is the belt-and-suspenders fix
+//   that doesn't rely on the runner's kernel config).
+// - --disable-gpu / --disable-software-rasterizer: under Xvfb there is no real
+//   GPU; Chromium spends seconds negotiating GPU initialization before falling
+//   back to software rendering, which was pushing the Downsync and Translation
+//   tests past their 15-20s timeouts in CI.
+const ELECTRON_TEST_ARGS = ["--no-sandbox", "--disable-gpu", "--disable-software-rasterizer"];
+
 beforeAll(async () => {
   try {
     await Axios.get("http://localhost:8081/api/users/current");
     await Axios.get("http://localhost:8082/desktop.html", {});
+    // Seed the test API's database from fixtures so the GHI project / Batanga
+    // language exist. Without this, a freshly-migrated CI database has only
+    // schema, the downsync request for "GHI" returns nothing, and every test
+    // times out waiting for the "Syncing Batanga project..." screen. (Locally
+    // this worked by accident because the test DB carried over fixtures from
+    // the previous jest run.)
+    await Axios.post("http://localhost:8081/api/test/reset-storage");
   } catch (err) {
     console.error(
       "Please ensure that the Server App is running on port 8081 and webpack for desktop on port 8082. (Try starting yarn test-desktop-e2e-deps.)"
@@ -17,8 +35,8 @@ beforeAll(async () => {
 
 test("Downsync", async () => {
   const app = await electron.launch({
-    args: [path.join(__dirname, "../../dist/desktop/main-test.js")],
-    env: { ...process.env, FIXTURES: "fresh-install" }
+    args: [path.join(__dirname, "../../dist/desktop/main-test.js"), ...ELECTRON_TEST_ARGS],
+    env: { ...process.env, FIXTURES: "fresh-install" },
   });
   const window = await app.firstWindow();
 
@@ -30,17 +48,15 @@ test("Downsync", async () => {
 
   await window.locator('button:text("Start Translating")').waitFor();
   await window.click('button:text("Start Translating")');
-  await window
-    .locator('p:text("The Book of Luke and the Birth of John the Baptizer")')
-    .waitFor();
+  await window.locator('p:text("The Book of Luke and the Birth of John the Baptizer")').waitFor();
 
   await app.close();
 }, 15000);
 
 test("Login guard: translation UI is inaccessible before entering a project code", async () => {
   const app = await electron.launch({
-    args: [path.join(__dirname, "../../dist/desktop/main-test.js")],
-    env: { ...process.env, FIXTURES: "fresh-install" }
+    args: [path.join(__dirname, "../../dist/desktop/main-test.js"), ...ELECTRON_TEST_ARGS],
+    env: { ...process.env, FIXTURES: "fresh-install" },
   });
   const window = await app.firstWindow();
 
@@ -59,8 +75,8 @@ test("Login guard: translation UI is inaccessible before entering a project code
 
 test("Translation workflow: type and save a translation string", async () => {
   const app = await electron.launch({
-    args: [path.join(__dirname, "../../dist/desktop/main-test.js")],
-    env: { ...process.env, FIXTURES: "fresh-install" }
+    args: [path.join(__dirname, "../../dist/desktop/main-test.js"), ...ELECTRON_TEST_ARGS],
+    env: { ...process.env, FIXTURES: "fresh-install" },
   });
   const window = await app.firstWindow();
 
@@ -73,9 +89,7 @@ test("Translation workflow: type and save a translation string", async () => {
   await window.click('button:text("Start Translating")');
 
   // Wait for the translation UI to load (a lesson string becomes visible)
-  await window
-    .locator('p:text("The Book of Luke and the Birth of John the Baptizer")')
-    .waitFor();
+  await window.locator('p:text("The Book of Luke and the Birth of John the Baptizer")').waitFor();
 
   // Find the first translation textarea (placeholder = language name "Batanga")
   const textarea = window.locator('textarea[placeholder="Batanga"]').first();
@@ -88,9 +102,7 @@ test("Translation workflow: type and save a translation string", async () => {
   await textarea.press("Tab");
 
   // Header should reflect saved or uploading state
-  await window
-    .locator('h1:text("Changes Saved"), h1:text("Uploading")')
-    .waitFor({ timeout: 5000 });
+  await window.locator('h1:text("Changes Saved"), h1:text("Uploading")').waitFor({ timeout: 5000 });
 
   await app.close();
 }, 20000);

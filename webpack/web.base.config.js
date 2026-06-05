@@ -6,7 +6,7 @@ module.exports = {
   entry: "./src/frontend/webApp.tsx",
   plugins: [
     new HtmlWebpackPlugin({
-      title: "Lessons from Luke"
-    })
-  ]
+      title: "Lessons from Luke",
+    }),
+  ],
 };

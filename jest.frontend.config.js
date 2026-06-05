@@ -1,4 +1,4 @@
-const base = require('./jest.config');
+const base = require("./jest.config");
 
 module.exports = {
   ...base,
@@ -9,14 +9,11 @@ module.exports = {
   globalSetup: undefined,
   setupFilesAfterEnv: undefined,
   // Only run frontend and desktop frontend tests
-  testMatch: [
-    "**/*src/frontend/**/*.test.{ts,tsx}",
-    "**/*src/desktop/**/*.test.{ts,tsx}"
-  ],
+  testMatch: ["**/*src/frontend/**/*.test.{ts,tsx}", "**/*src/desktop/**/*.test.{ts,tsx}"],
   testPathIgnorePatterns: ["/node_modules/", "<rootDir>/test/", "<rootDir>/cypress/"],
   // ts-jest needs jsx enabled since base tsconfig.json does not set it
   transform: {
-    "^.+\\.tsx?$": ["ts-jest", { tsconfig: { jsx: 'react' } }]
+    "^.+\\.tsx?$": ["ts-jest", { tsconfig: { jsx: "react" } }],
   },
   moduleNameMapper: {
     // Mock electron APIs
@@ -24,6 +21,6 @@ module.exports = {
     // Handle CSS/assets if needed
     "\\.(css|less|scss)$": "<rootDir>/__mocks__/styleMock.js",
     // Handle SVG and other image assets
-    "\\.(svg|png|jpg|jpeg|gif|ico)$": "<rootDir>/__mocks__/styleMock.js"
-  }
+    "\\.(svg|png|jpg|jpeg|gif|ico)$": "<rootDir>/__mocks__/styleMock.js",
+  },
 };

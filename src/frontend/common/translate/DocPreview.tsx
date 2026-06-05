@@ -18,10 +18,7 @@ export default function DocPreview(props: IProps) {
   let finalHtml = preprocessHtml(props.docHtml);
   finalHtml = props.otherLTStrings.reduce(
     (html: string, ltStr) =>
-      html.replace(
-        `##${ltStr.lStr.lessonStringId}##`,
-        ltStr.tStrs[0]?.text || "[...]"
-      ),
+      html.replace(`##${ltStr.lStr.lessonStringId}##`, ltStr.tStrs[0]?.text || "[...]"),
     finalHtml
   );
   finalHtml = props.ltStringsForTranslation.reduce(

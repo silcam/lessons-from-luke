@@ -9,7 +9,7 @@ test("DataUsage Log", () => {
     "2020-10-07": 13457,
     "2020-10-06": 12345123,
     "2020-10-08": 9123456788,
-    "2020-09-30": 612
+    "2020-09-30": 612,
   };
 
   expect(dataUsageReport(usage)).toBe(
@@ -50,7 +50,7 @@ test("DataUsage - large counts (> 10 days) only shows last 10 in report", () => 
 test("DataUsage - two days: average is mean of daily values", () => {
   const usage = {
     "2021-01-01": 2000,
-    "2021-01-02": 4000
+    "2021-01-02": 4000,
   };
   const report = dataUsageReport(usage);
   // total = 6000B = 6K, average = 3000B = 3K
@@ -61,7 +61,7 @@ test("DataUsage - two days: average is mean of daily values", () => {
 test("DataUsage - zero value entry displays as 0B", () => {
   const usage = {
     "2021-01-01": 1000,
-    "2021-01-02": 0
+    "2021-01-02": 0,
   };
   const report = dataUsageReport(usage);
   expect(report).toContain("2021-01-02  0B");
@@ -71,14 +71,14 @@ test("DataUsage - report entries are sorted in descending date order", () => {
   const usage = {
     "2021-01-01": 100,
     "2021-01-03": 300,
-    "2021-01-02": 200
+    "2021-01-02": 200,
   };
   const report = dataUsageReport(usage);
   const lines = report.split("\n");
   // Find the index of each date line
-  const idx1 = lines.findIndex(l => l.startsWith("2021-01-03"));
-  const idx2 = lines.findIndex(l => l.startsWith("2021-01-02"));
-  const idx3 = lines.findIndex(l => l.startsWith("2021-01-01"));
+  const idx1 = lines.findIndex((l) => l.startsWith("2021-01-03"));
+  const idx2 = lines.findIndex((l) => l.startsWith("2021-01-02"));
+  const idx3 = lines.findIndex((l) => l.startsWith("2021-01-01"));
   expect(idx1).toBeLessThan(idx2);
   expect(idx2).toBeLessThan(idx3);
 });
