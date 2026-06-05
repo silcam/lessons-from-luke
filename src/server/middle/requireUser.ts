@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from "express";
-import { GetRoute, PostRoute } from "../../core/interfaces/Api";
 
 export function isLoggedIn(req: Request) {
   return !!(req.session && req.session.userId);
@@ -18,11 +17,7 @@ export function isLoggedIn(req: Request) {
 //   return exceptions.includes(req.route.path);
 // }
 
-export default function requireUser(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
+export default function requireUser(req: Request, res: Response, next: NextFunction) {
   if (isLoggedIn(req)) {
     next();
   } else {

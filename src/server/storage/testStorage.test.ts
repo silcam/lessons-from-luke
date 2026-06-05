@@ -77,12 +77,12 @@ describe("tStrings", () => {
   test("returns all tStrings for a language when no lessonId", async () => {
     const tStrings = await storage.tStrings({ languageId: 1 });
     expect(tStrings.length).toBeGreaterThan(0);
-    expect(tStrings.every(ts => ts.languageId === 1)).toBe(true);
+    expect(tStrings.every((ts) => ts.languageId === 1)).toBe(true);
   });
 
   test("returns filtered tStrings when lessonId provided", async () => {
     const tStrings = await storage.tStrings({ languageId: 3, lessonId: 11 });
-    expect(tStrings.every(ts => ts.languageId === 3)).toBe(true);
+    expect(tStrings.every((ts) => ts.languageId === 3)).toBe(true);
   });
 
   test("returns empty array when no tStrings for language", async () => {
@@ -97,7 +97,7 @@ describe("saveTStrings", () => {
       masterId: 1,
       languageId: 99,
       text: "New translation",
-      history: []
+      history: [],
     };
     const result = await storage.saveTStrings([newTStr]);
     expect(result).toHaveLength(1);
@@ -137,7 +137,9 @@ describe("saveTStrings", () => {
 
 describe("addOrFindMasterStrings", () => {
   test("returns existing master string when text matches", async () => {
-    const result = await storage.addOrFindMasterStrings(["Le livre de Luc et la naissance de Jean Baptiste"]);
+    const result = await storage.addOrFindMasterStrings([
+      "Le livre de Luc et la naissance de Jean Baptiste",
+    ]);
     expect(result.length).toBe(1);
     expect(result[0].languageId).toBe(ENGLISH_ID);
   });
@@ -155,7 +157,7 @@ describe("createLanguage and updateLanguage", () => {
   test("createLanguage adds a new language with unique code", async () => {
     const newLang = await storage.createLanguage({ name: "Klingon", defaultSrcLang: 1 });
     const after = await storage.languages();
-    expect(after.find(l => l.name === "Klingon")).toBeTruthy();
+    expect(after.find((l) => l.name === "Klingon")).toBeTruthy();
     expect(newLang.name).toBe("Klingon");
     expect(newLang.code).toBeTruthy();
   });
@@ -171,12 +173,12 @@ describe("createLesson and updateLesson", () => {
     const newLesson = await storage.createLesson({
       book: "Luke",
       series: 1,
-      lesson: 99
+      lesson: 99,
     });
     expect(newLesson.lessonId).toBeGreaterThan(0);
     expect(newLesson.lesson).toBe(99);
     const lessons = await storage.lessons();
-    expect(lessons.find(l => l.lesson === 99)).toBeTruthy();
+    expect(lessons.find((l) => l.lesson === 99)).toBeTruthy();
   });
 
   test("updateLesson updates version and lessonStrings", async () => {
@@ -213,7 +215,7 @@ describe("sync", () => {
       languages: false,
       baseLessons: false,
       lessons: [],
-      tStrings: {}
+      tStrings: {},
     });
   });
 });
@@ -224,7 +226,7 @@ describe("saveTStrings with awaitProgress", () => {
       masterId: 1,
       languageId: 88,
       text: "Awaited progress test",
-      history: []
+      history: [],
     };
     const result = await storage.saveTStrings([newTStr], { awaitProgress: true });
     expect(result).toHaveLength(1);
@@ -240,7 +242,7 @@ describe("writeToDisk", () => {
     await storage.writeToDisk!();
 
     const afterFiles = fs.readdirSync(storageDir);
-    const newFiles = afterFiles.filter(f => !beforeFiles.includes(f));
+    const newFiles = afterFiles.filter((f) => !beforeFiles.includes(f));
     expect(newFiles.length).toBe(1);
     expect(newFiles[0]).toMatch(/^fixtures-\d+\.json$/);
 
@@ -267,13 +269,13 @@ describe("updateLesson sequential lessonStringId assignment", () => {
     const drafts = [
       { masterId: 1, lessonId: 11, type: "content" as const, xpath: "/a", motherTongue: false },
       { masterId: 2, lessonId: 11, type: "content" as const, xpath: "/b", motherTongue: false },
-      { masterId: 3, lessonId: 11, type: "content" as const, xpath: "/c", motherTongue: false }
+      { masterId: 3, lessonId: 11, type: "content" as const, xpath: "/c", motherTongue: false },
     ];
 
     const lesson = await storage.updateLesson(11, 5, drafts);
     expect(lesson.lessonStrings).toHaveLength(3);
 
-    const ids = lesson.lessonStrings.map(ls => ls.lessonStringId);
+    const ids = lesson.lessonStrings.map((ls) => ls.lessonStringId);
     // Each id should be exactly 1 more than the previous
     expect(ids[1]).toBe(ids[0] + 1);
     expect(ids[2]).toBe(ids[1] + 1);
@@ -282,18 +284,18 @@ describe("updateLesson sequential lessonStringId assignment", () => {
   test("assigns non-overlapping lessonStringIds across two consecutive updates", async () => {
     const draftsA = [
       { masterId: 1, lessonId: 11, type: "content" as const, xpath: "/x1", motherTongue: false },
-      { masterId: 2, lessonId: 11, type: "content" as const, xpath: "/x2", motherTongue: false }
+      { masterId: 2, lessonId: 11, type: "content" as const, xpath: "/x2", motherTongue: false },
     ];
     const draftsB = [
       { masterId: 3, lessonId: 11, type: "content" as const, xpath: "/y1", motherTongue: false },
-      { masterId: 4, lessonId: 11, type: "content" as const, xpath: "/y2", motherTongue: false }
+      { masterId: 4, lessonId: 11, type: "content" as const, xpath: "/y2", motherTongue: false },
     ];
 
     const firstLesson = await storage.updateLesson(11, 5, draftsA);
     const secondLesson = await storage.updateLesson(11, 6, draftsB);
 
-    const firstIds = firstLesson.lessonStrings.map(ls => ls.lessonStringId);
-    const secondIds = secondLesson.lessonStrings.map(ls => ls.lessonStringId);
+    const firstIds = firstLesson.lessonStrings.map((ls) => ls.lessonStringId);
+    const secondIds = secondLesson.lessonStrings.map((ls) => ls.lessonStringId);
 
     // The second batch of IDs must come after the first batch
     expect(Math.min(...secondIds)).toBeGreaterThan(Math.max(...firstIds));
@@ -306,8 +308,14 @@ describe("updateLesson sequential lessonStringId assignment", () => {
 
 describe("outerJoin", () => {
   test("returns merged objects when there are matching pairs", () => {
-    const alist = [{ id: 1, aVal: "a" }, { id: 2, aVal: "b" }];
-    const blist = [{ id: 1, bVal: "x" }, { id: 3, bVal: "z" }];
+    const alist = [
+      { id: 1, aVal: "a" },
+      { id: 2, aVal: "b" },
+    ];
+    const blist = [
+      { id: 1, bVal: "x" },
+      { id: 3, bVal: "z" },
+    ];
     const result = outerJoin(alist, blist, (a, b) => a.id === b.id);
 
     // id=1 matches → merged object; id=2 has no match → kept as-is
@@ -327,13 +335,16 @@ describe("outerJoin", () => {
   });
 
   test("returns empty array when alist is empty", () => {
-    const result = outerJoin([], [{ id: 1 }], (a: any, b) => false);
+    const result = outerJoin([], [{ id: 1 }], (_a: any, _b) => false);
     expect(result).toEqual([]);
   });
 
   test("duplicates a-side item for each b-side match", () => {
     const alist = [{ id: 1, aVal: "a" }];
-    const blist = [{ id: 1, bVal: "x" }, { id: 1, bVal: "y" }];
+    const blist = [
+      { id: 1, bVal: "x" },
+      { id: 1, bVal: "y" },
+    ];
     const result = outerJoin(alist, blist, (a, b) => a.id === b.id);
 
     // One a-item matches two b-items → two result rows
@@ -360,8 +371,14 @@ describe("outerJoin", () => {
 
 describe("join", () => {
   test("returns merged objects for matching pairs only", () => {
-    const alist = [{ id: 1, aVal: "a" }, { id: 2, aVal: "b" }];
-    const blist = [{ id: 1, bVal: "x" }, { id: 3, bVal: "z" }];
+    const alist = [
+      { id: 1, aVal: "a" },
+      { id: 2, aVal: "b" },
+    ];
+    const blist = [
+      { id: 1, bVal: "x" },
+      { id: 3, bVal: "z" },
+    ];
     const result = join(alist, blist, (a, b) => a.id === b.id);
 
     // Only id=1 matches; id=2 is dropped (inner join)
@@ -383,7 +400,10 @@ describe("join", () => {
 
   test("duplicates a-side item for each b-side match", () => {
     const alist = [{ id: 1, aVal: "a" }];
-    const blist = [{ id: 1, bVal: "x" }, { id: 1, bVal: "y" }];
+    const blist = [
+      { id: 1, bVal: "x" },
+      { id: 1, bVal: "y" },
+    ];
     const result = join(alist, blist, (a, b) => a.id === b.id);
     expect(result).toHaveLength(2);
   });

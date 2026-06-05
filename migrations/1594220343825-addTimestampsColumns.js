@@ -4,7 +4,7 @@ const { makeDbConnect } = require("./_helpers");
 const dbConnect = makeDbConnect();
 
 module.exports.up = async () => {
-  await dbConnect(async sql => {
+  await dbConnect(async (sql) => {
     console.log("Adding columns...");
     await sql`
       ALTER TABLE tstrings
@@ -43,21 +43,23 @@ module.exports.up = async () => {
 };
 
 module.exports.down = async () => {
-  console.log("Dropping columns...");
-  await sql`
-    ALTER TABLE tstrings
-    DROP created,
-    DROP modified
-  `;
-  await sql`
-    ALTER TABLE languages
-    DROP created,
-    DROP modified
-  `;
-  await sql`
-    ALTER TABLE lessons
-    DROP created,
-    DROP modified
-  `;
-  console.log("Done");
+  await dbConnect(async (sql) => {
+    console.log("Dropping columns...");
+    await sql`
+      ALTER TABLE tstrings
+      DROP created,
+      DROP modified
+    `;
+    await sql`
+      ALTER TABLE languages
+      DROP created,
+      DROP modified
+    `;
+    await sql`
+      ALTER TABLE lessons
+      DROP created,
+      DROP modified
+    `;
+    console.log("Done");
+  });
 };

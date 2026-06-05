@@ -2,7 +2,6 @@
 
 import {
   last,
-  findBy,
   findIndexBy,
   findByStrict,
   set,
@@ -12,11 +11,14 @@ import {
   uniq,
   count,
   insertSorted,
-  all
+  all,
 } from "./arrayUtils";
 
 test("findIndexBy finds item by key", () => {
-  const items = [{ id: 1, name: "a" }, { id: 2, name: "b" }];
+  const items = [
+    { id: 1, name: "a" },
+    { id: 2, name: "b" },
+  ];
   expect(findIndexBy(items, "id", 2)).toBe(1);
   expect(findIndexBy(items, "id", 99)).toBe(-1);
 });
@@ -63,12 +65,7 @@ test("last", () => {
 test("modelListMerge", () => {
   const a = [{ id: "0" }, { id: "1", name: "Wilma" }, { id: "2" }];
   const b = [{ id: "1", name: "Fred" }, { id: "3" }];
-  const out = [
-    { id: "0" },
-    { id: "1", name: "Fred" },
-    { id: "2" },
-    { id: "3" }
-  ];
+  const out = [{ id: "0" }, { id: "1", name: "Fred" }, { id: "2" }, { id: "3" }];
   expect(modelListMerge(a, b, (a, b) => a.id == b.id)).toEqual(out);
 });
 
@@ -76,11 +73,12 @@ test("modelListMerge with sort function", () => {
   const a = [{ id: "3" }, { id: "1" }];
   const b = [{ id: "2" }];
   const result = modelListMerge(
-    a, b,
+    a,
+    b,
     (a, b) => a.id == b.id,
     (a, b) => a.id.localeCompare(b.id)
   );
-  expect(result.map(x => x.id)).toEqual(["1", "2", "3"]);
+  expect(result.map((x) => x.id)).toEqual(["1", "2", "3"]);
 });
 
 test("modelListMerge returns aList when bList is empty", () => {
@@ -107,22 +105,18 @@ test("uniq", () => {
 test("uniq with cb", () => {
   const items = [{ id: 1 }, { id: 2 }, { id: 1 }, { id: 3 }];
   expect(uniq(items)).toEqual(items);
-  expect(uniq(items, (a, b) => a.id == b.id)).toEqual([
-    { id: 1 },
-    { id: 2 },
-    { id: 3 }
-  ]);
+  expect(uniq(items, (a, b) => a.id == b.id)).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
 });
 
 test("count", () => {
   expect(count([], () => true)).toBe(0);
-  expect(count([1, 2, 3], n => n > 1)).toBe(2);
+  expect(count([1, 2, 3], (n) => n > 1)).toBe(2);
 });
 
 test("all", () => {
   const a = [1, 2, 3, 4];
-  expect(all(a, item => item > 0)).toBe(true);
-  expect(all(a, item => item < 4)).toBe(false);
+  expect(all(a, (item) => item > 0)).toBe(true);
+  expect(all(a, (item) => item < 4)).toBe(false);
 });
 
 test("insertSorted", () => {

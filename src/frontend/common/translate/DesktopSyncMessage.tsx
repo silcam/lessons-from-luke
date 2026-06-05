@@ -1,18 +1,17 @@
-import React, { useContext, useState, useEffect } from "react";
+import React, { useContext } from "react";
 import useTranslation from "../util/useTranslation";
 import PlatformContext from "../PlatformContext";
 import { useAppSelector } from "../state/appState";
 import { FlexRow, FlexRowBase } from "../base-components/Flex";
 import ProgressBar from "../base-components/ProgressBar";
 import Label from "../base-components/Label";
-import { count } from "../../../core/util/arrayUtils";
 import styled from "styled-components";
 import Colors from "../../common/util/Colors";
 
 export default function DesktopSyncMessage() {
   const t = useTranslation();
   const desktop = useContext(PlatformContext) == "desktop";
-  const syncState = useAppSelector(state => state.syncState);
+  const syncState = useAppSelector((state) => state.syncState);
 
   if (!desktop) return null;
 

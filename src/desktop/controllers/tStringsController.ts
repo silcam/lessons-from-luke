@@ -1,5 +1,4 @@
 import { addGetHandler, addPostHandler } from "../DesktopAPIServer";
-import WebAPIClientForDesktop from "../WebAPIClientForDesktop";
 import DesktopApp from "../DesktopApp";
 import { ON_ERROR, OnErrorPayload } from "../../core/api/IpcChannels";
 import { asAppError } from "../../core/models/AppError";
@@ -18,14 +17,14 @@ export default function tStringsController(app: DesktopApp) {
     }
   );
 
-  addPostHandler("/api/tStrings", async ({}, { tStrings }) => {
+  addPostHandler("/api/tStrings", async (_, { tStrings }) => {
     const allTStrings = localStorage.setProjectLanguageTStrings(tStrings);
     upSyncTStrings(app, tStrings);
     return allTStrings;
   });
 
   // Run upSync on reconnect
-  webClient.onConnectionChange(connected => {
+  webClient.onConnectionChange((connected) => {
     if (connected) {
       upSyncTStrings(app, []);
     }
@@ -36,12 +35,8 @@ async function upSyncTStrings(app: DesktopApp, tStrings: TString[]) {
   const { localStorage } = app;
 
   try {
-    const upSync = updateUpSync(app, upSync => {
-      upSync.dirtyTStrings = modelListMerge(
-        upSync.dirtyTStrings,
-        tStrings,
-        equal
-      );
+    const upSync = updateUpSync(app, (upSync) => {
+      upSync.dirtyTStrings = modelListMerge(upSync.dirtyTStrings, tStrings, equal);
     });
     const tStringsToSave = upSync.dirtyTStrings;
 
@@ -55,14 +50,12 @@ async function upSyncTStrings(app: DesktopApp, tStrings: TString[]) {
     );
     if (savedTStrings) {
       app.localStorage.setProjectLanguageTStrings(savedTStrings);
-      updateUpSync(app, upSync => {
+      updateUpSync(app, (upSync) => {
         // Other TStrings may have been added, filter out the ones we saved
         // Filter checks matching text, since a newer version of the same string could have been added since
         upSync.dirtyTStrings = upSync.dirtyTStrings.filter(
-          tString =>
-            !tStringsToSave.find(
-              tStr => equal(tStr, tString) && tStr.text == tString.text
-            )
+          (tString) =>
+            !tStringsToSave.find((tStr) => equal(tStr, tString) && tStr.text == tString.text)
         );
       });
     }
@@ -73,10 +66,7 @@ async function upSyncTStrings(app: DesktopApp, tStrings: TString[]) {
   }
 }
 
-function updateUpSync(
-  app: DesktopApp,
-  update: (upSync: SyncState["upSync"]) => void
-) {
+function updateUpSync(app: DesktopApp, update: (upSync: SyncState["upSync"]) => void) {
   const upSync = produce(app.localStorage.getSyncState().upSync, update);
   app.localStorage.setSyncState({ upSync }, app);
   return upSync;

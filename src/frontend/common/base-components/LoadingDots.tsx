@@ -12,14 +12,12 @@ const colorOptions = [
   Colors.primary,
   Colors.success,
   Colors.danger,
-  Colors.highlight
+  Colors.highlight,
 ];
 
 export default function LoadingDots(props: IProps) {
   const size = props.size || 5;
-  const [dots, setDots] = useState(
-    new Array(size).fill("").map(() => randomColor())
-  );
+  const [dots, setDots] = useState(new Array(size).fill("").map(() => randomColor()));
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -32,8 +30,10 @@ export default function LoadingDots(props: IProps) {
 
   return (
     <LoadingDotsDiv>
-      {dots.map(color => (
-        <span style={{ color }}>o</span>
+      {dots.map((color, idx) => (
+        <span key={idx} style={{ color }}>
+          o
+        </span>
       ))}
     </LoadingDotsDiv>
   );

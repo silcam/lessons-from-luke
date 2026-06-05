@@ -37,7 +37,7 @@ describe("combineLessonDiffs", () => {
   test("flattens diffs from multiple LessonDiff objects", () => {
     const diffs: LessonDiff[] = [
       { lessonId: 1, version: 1, diff: [{ from: "1", to: "2" }] },
-      { lessonId: 2, version: 1, diff: [{ from: "3", to: "4" }] }
+      { lessonId: 2, version: 1, diff: [{ from: "3", to: "4" }] },
     ];
     const result = combineLessonDiffs(diffs);
     expect(result).toHaveLength(2);
@@ -49,7 +49,7 @@ describe("combineLessonDiffs", () => {
     const shared: IdSub = { from: "1", to: "2" };
     const diffs: LessonDiff[] = [
       { lessonId: 1, version: 1, diff: [shared] },
-      { lessonId: 2, version: 1, diff: [{ ...shared }] } // same content, different object
+      { lessonId: 2, version: 1, diff: [{ ...shared }] }, // same content, different object
     ];
     const result = combineLessonDiffs(diffs);
     expect(result).toHaveLength(1);
@@ -59,7 +59,7 @@ describe("combineLessonDiffs", () => {
   test("returns empty array when all diffs are empty", () => {
     const diffs: LessonDiff[] = [
       { lessonId: 1, version: 1, diff: [] },
-      { lessonId: 2, version: 1, diff: [] }
+      { lessonId: 2, version: 1, diff: [] },
     ];
     const result = combineLessonDiffs(diffs);
     expect(result).toEqual([]);
@@ -73,9 +73,9 @@ describe("combineLessonDiffs", () => {
         diff: [
           { from: "10", to: "20" },
           { from: "30", to: "40" },
-          { from: "10", to: "20" } // duplicate within same diff
-        ]
-      }
+          { from: "10", to: "20" }, // duplicate within same diff
+        ],
+      },
     ];
     const result = combineLessonDiffs(diffs);
     expect(result).toHaveLength(2);
@@ -97,7 +97,7 @@ describe("combineLessonDiffs", () => {
 // Mock the `diff` module so we can control diffLines output.
 jest.mock("diff", () => ({
   ...jest.requireActual("diff"),
-  diffLines: jest.fn()
+  diffLines: jest.fn(),
 }));
 
 import findTSubs from "./findTSubs";
@@ -121,7 +121,7 @@ function makeLessonString(
     lessonVersion: 1,
     motherTongue: false,
     type: "content",
-    xpath: `/xpath/${masterId}`
+    xpath: `/xpath/${masterId}`,
   };
 }
 
@@ -143,8 +143,8 @@ function makeStorage(opts: {
       code: "ABC",
       motherTongue: false,
       progress: [],
-      defaultSrcLang: ENGLISH_ID
-    }
+      defaultSrcLang: ENGLISH_ID,
+    },
   ];
 
   const lesson: Lesson = {
@@ -153,14 +153,28 @@ function makeStorage(opts: {
     series: 1,
     lesson: 1,
     version: 2,
-    lessonStrings: opts.lessonStrings
+    lessonStrings: opts.lessonStrings,
   };
 
   return {
     languages: async () => languages,
     language: async () => null,
-    createLanguage: async () => ({ languageId: 99, name: "", code: "", motherTongue: false, progress: [], defaultSrcLang: 1 }),
-    updateLanguage: async () => ({ languageId: 99, name: "", code: "", motherTongue: false, progress: [], defaultSrcLang: 1 }),
+    createLanguage: async () => ({
+      languageId: 99,
+      name: "",
+      code: "",
+      motherTongue: false,
+      progress: [],
+      defaultSrcLang: 1,
+    }),
+    updateLanguage: async () => ({
+      languageId: 99,
+      name: "",
+      code: "",
+      motherTongue: false,
+      progress: [],
+      defaultSrcLang: 1,
+    }),
     invalidCode: async () => false,
     lessons: async () => [],
     lesson: async (id: number) => (id === 1 ? lesson : null),
@@ -179,9 +193,9 @@ function makeStorage(opts: {
       baseLessons: false,
       lessons: [],
       tStrings: {},
-      timestamp: Date.now()
+      timestamp: Date.now(),
     }),
-    close: async () => {}
+    close: async () => {},
   } as Persistence;
 }
 
@@ -193,7 +207,7 @@ describe("diffLessonStrings — added-before-removed branch (lines 139-141)", ()
   const { diffLines } = require("diff") as { diffLines: jest.Mock };
 
   afterEach(() => {
-    diffLines.mockRestore && diffLines.mockRestore();
+    if (diffLines.mockRestore) diffLines.mockRestore();
     jest.restoreAllMocks();
   });
 
@@ -215,7 +229,7 @@ describe("diffLessonStrings — added-before-removed branch (lines 139-141)", ()
     // This exercises the defensive `change.removed && prevChange.added` branch.
     diffLines.mockReturnValue([
       { added: true, removed: false, value: "20\n", count: 1 },
-      { added: false, removed: true, value: "10\n", count: 1 }
+      { added: false, removed: true, value: "10\n", count: 1 },
     ]);
 
     const oldStrings = [makeLessonString(1, 10, 1)];
@@ -254,7 +268,7 @@ describe("findTSubs integration", () => {
     const storage = makeStorage({
       lessonStrings: strings,
       oldLessonStrings: strings,
-      englishStrings: engStrings
+      englishStrings: engStrings,
     });
 
     const result = await findTSubs(storage, 1);
@@ -267,17 +281,31 @@ describe("findTSubs integration", () => {
     const newStrings = [makeLessonString(1, 2, 2)];
     const engStrings = [
       makeTString(1, "Original English sentence here"),
-      makeTString(2, "Replacement English sentence here")
+      makeTString(2, "Replacement English sentence here"),
     ];
     const languages: Language[] = [
-      { languageId: ENGLISH_ID, name: "English", code: "ENG", motherTongue: false, progress: [], defaultSrcLang: ENGLISH_ID },
-      { languageId: 2, name: "French", code: "FRE", motherTongue: true, progress: [], defaultSrcLang: ENGLISH_ID }
+      {
+        languageId: ENGLISH_ID,
+        name: "English",
+        code: "ENG",
+        motherTongue: false,
+        progress: [],
+        defaultSrcLang: ENGLISH_ID,
+      },
+      {
+        languageId: 2,
+        name: "French",
+        code: "FRE",
+        motherTongue: true,
+        progress: [],
+        defaultSrcLang: ENGLISH_ID,
+      },
     ];
     const storage = makeStorage({
       lessonStrings: newStrings,
       oldLessonStrings: oldStrings,
       englishStrings: engStrings,
-      languages
+      languages,
     });
 
     const result = await findTSubs(storage, 1);

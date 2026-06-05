@@ -1,31 +1,23 @@
 import postgres, { SqlFunc, Options } from "postgres";
-import {
-  Persistence,
-  TestPersistence
-} from "../../core/interfaces/Persistence";
+import { Persistence, TestPersistence } from "../../core/interfaces/Persistence";
 import {
   Language,
   NewLanguage,
   LessonProgress,
   ENGLISH_ID,
-  calcLessonProgress
+  calcLessonProgress,
 } from "../../core/models/Language";
 import prexit from "prexit";
 import { Lesson, DraftLesson, BaseLesson } from "../../core/models/Lesson";
-import {
-  DraftLessonString,
-  LessonString
-} from "../../core/models/LessonString";
+import { DraftLessonString, LessonString } from "../../core/models/LessonString";
 import { TString, equal, sqlizeTString } from "../../core/models/TString";
 import { ContinuousSyncPackage } from "../../core/models/SyncState";
 import { encode } from "../../core/util/timestampEncode";
 import { uniq, discriminate, findBy } from "../../core/util/arrayUtils";
 import { VerseStringPattern } from "../usfm/translateFromUsfm";
-import { percent } from "../../core/util/numberUtils";
 import pgLoadFixtures from "./pgLoadFixtures";
 import secrets from "../util/secrets";
 import { LanguageTimestamp } from "../../core/interfaces/Api";
-import { LessonDiff } from "../../core/models/TSub";
 
 export default class PGStorage implements Persistence {
   sql: SqlFunc;
@@ -43,9 +35,7 @@ export default class PGStorage implements Persistence {
     return langs;
   }
 
-  async language(
-    params: { languageId: number } | { code: string }
-  ): Promise<Language | null> {
+  async language(params: { languageId: number } | { code: string }): Promise<Language | null> {
     const rows = await this.sql`
       SELECT languageid, name, code, motherTongue, progress, defaultsrclang 
       FROM languages 
@@ -62,7 +52,7 @@ export default class PGStorage implements Persistence {
       motherTongue: true,
       progress: "[]",
       created: timestamp,
-      modified: timestamp
+      modified: timestamp,
     };
     const [final] = await this.sql`
       INSERT INTO languages 
@@ -71,14 +61,9 @@ export default class PGStorage implements Persistence {
     return final;
   }
 
-  async updateLanguage(
-    id: number,
-    update: Partial<Language>
-  ): Promise<Language> {
+  async updateLanguage(id: number, update: Partial<Language>): Promise<Language> {
     const finalUpdate = { ...update, modified: Date.now() };
-    await this.sql`UPDATE languages SET ${this.sql(
-      finalUpdate
-    )} WHERE languageId=${id}`;
+    await this.sql`UPDATE languages SET ${this.sql(finalUpdate)} WHERE languageId=${id}`;
     await this.updateProgress();
     return (await this.language({ languageId: id }))!;
   }
@@ -86,7 +71,7 @@ export default class PGStorage implements Persistence {
   async invalidCode(code: string, languageIds: number[]): Promise<boolean> {
     const language = await this.language({ code });
     if (!language) return true;
-    return !languageIds.every(id => id == language.languageId);
+    return !languageIds.every((id) => id == language.languageId);
   }
 
   async lessons(): Promise<BaseLesson[]> {
@@ -110,9 +95,7 @@ export default class PGStorage implements Persistence {
     const timestamp = Date.now();
     const newLesson: Omit<BaseLesson, "lessonId"> = { ...lesson, version: 0 };
     const insert = { ...newLesson, created: timestamp, modified: timestamp };
-    const [finalLesson] = await this.sql`INSERT INTO lessons ${this.sql(
-      insert
-    )} returning *`;
+    const [finalLesson] = await this.sql`INSERT INTO lessons ${this.sql(insert)} returning *`;
     return finalLesson;
   }
 
@@ -138,13 +121,11 @@ export default class PGStorage implements Persistence {
       `;
 
       if (oldLessonStrings.length > 0)
-        await this.sql`INSERT INTO oldlessonstrings ${this.sql(
-          oldLessonStrings
-        )}`;
+        await this.sql`INSERT INTO oldlessonstrings ${this.sql(oldLessonStrings)}`;
 
-      const newLessonStringInserts = lessonStrings.map(ls => ({
+      const newLessonStringInserts = lessonStrings.map((ls) => ({
         ...ls,
-        lessonVersion: lessonVersion
+        lessonVersion: lessonVersion,
       }));
       const newLessonStrings: LessonString[] = await this.sql`
       INSERT INTO lessonstrings ${this.sql(newLessonStringInserts)}
@@ -155,15 +136,11 @@ export default class PGStorage implements Persistence {
     });
   }
 
-  async oldLessonStrings(
-    lessonId: number,
-    version?: number
-  ): Promise<LessonString[]> {
+  async oldLessonStrings(lessonId: number, version?: number): Promise<LessonString[]> {
     return version
       ? this
           .sql`SELECT * FROM oldLessonStrings WHERE lessonId=${lessonId} AND lessonVersion=${version} ORDER BY lessonStringId`
-      : this
-          .sql`SELECT * FROM oldLessonStrings WHERE lessonId=${lessonId} ORDER BY lessonStringId`;
+      : this.sql`SELECT * FROM oldLessonStrings WHERE lessonId=${lessonId} ORDER BY lessonStringId`;
   }
 
   async tStrings(params: {
@@ -176,8 +153,8 @@ export default class PGStorage implements Persistence {
         .sql`SELECT * FROM lessonstrings WHERE lessonid=${params.lessonId}`;
       if (lessonStrings.length == 0) return [];
 
-      const masterIds = lessonStrings.map(ls => ls.masterId);
-      const lessonStringIds = lessonStrings.map(ls => ls.lessonStringId);
+      const masterIds = lessonStrings.map((ls) => ls.masterId);
+      const lessonStringIds = lessonStrings.map((ls) => ls.lessonStringId);
       return this.sql`
         SELECT masterid, languageid, sourcelanguageid, source, text, history, lessonstringid
         FROM tStrings
@@ -206,7 +183,7 @@ export default class PGStorage implements Persistence {
 
   async englishScriptureTStrings() {
     const engStrings = await this.tStrings({ languageId: ENGLISH_ID });
-    return engStrings.filter(tStr => VerseStringPattern.test(tStr.text));
+    return engStrings.filter((tStr) => VerseStringPattern.test(tStr.text));
   }
 
   async addOrFindMasterStrings(texts: string[]) {
@@ -222,7 +199,7 @@ export default class PGStorage implements Persistence {
           const draftTString: Omit<TString, "masterId"> = {
             languageId: ENGLISH_ID,
             text,
-            history: []
+            history: [],
           };
           const [newTString]: TString[] = await this.sql`
           INSERT INTO tstrings ${this.sql(sqlizeTString(draftTString))}
@@ -236,42 +213,32 @@ export default class PGStorage implements Persistence {
     });
   }
 
-  async saveTStrings(
-    tStrings: TString[],
-    opts: { awaitProgress?: boolean } = {}
-  ) {
+  async saveTStrings(tStrings: TString[], opts: { awaitProgress?: boolean } = {}) {
     tStrings = uniq(tStrings, (a, b) => a.masterId == b.masterId);
-    const langIds = uniq(tStrings.map(ts => ts.languageId));
+    const langIds = uniq(tStrings.map((ts) => ts.languageId));
     const existingStrings: TString[] = await this
       .sql`SELECT * FROM tstrings WHERE languageid IN (${langIds})`;
 
     const tStringsWithHistory = tStrings.reduce((tStrings: TString[], tStr) => {
-      const existing = existingStrings.find(e => equal(e, tStr));
+      const existing = existingStrings.find((e) => equal(e, tStr));
       if (existing && existing.text == tStr.text) return tStrings;
-      tStrings.push(
-        existing
-          ? { ...tStr, history: [...existing.history, existing.text] }
-          : tStr
-      );
+      tStrings.push(existing ? { ...tStr, history: [...existing.history, existing.text] } : tStr);
       return tStrings;
     }, []);
-    const [toUpdate, toAdd] = discriminate(
-      tStringsWithHistory,
-      tStr => tStr.history.length > 0
-    );
+    const [toUpdate, toAdd] = discriminate(tStringsWithHistory, (tStr) => tStr.history.length > 0);
 
     const timestamp = Date.now();
     if (toAdd.length > 0)
       await this.sql`INSERT INTO tstrings ${this.sql(
-        toAdd.map(tStr => ({
+        toAdd.map((tStr) => ({
           ...sqlizeTString(tStr),
           created: timestamp,
-          modified: timestamp
+          modified: timestamp,
         }))
       )}`;
 
     await Promise.all(
-      toUpdate.map(tStr => {
+      toUpdate.map((tStr) => {
         const set = { ...sqlizeTString(tStr), modified: timestamp };
         return tStr.lessonStringId == null
           ? this.sql`UPDATE tstrings SET ${this.sql(set)}
@@ -303,19 +270,19 @@ export default class PGStorage implements Persistence {
       const lessons = await this.lessons();
       const allLessonStrings: LessonString[][] = await Promise.all(
         lessons.map(
-          lesson => this.sql`
+          (lesson) => this.sql`
           SELECT * FROM lessonstrings WHERE lessonid=${lesson.lessonId}
         `
         )
       );
-      const lessonStrings = allLessonStrings.filter(lss => lss.length > 0);
+      const lessonStrings = allLessonStrings.filter((lss) => lss.length > 0);
 
       await Promise.all(
-        languages.map(async language => {
+        languages.map(async (language) => {
           const tStrings = await this.tStrings({
-            languageId: language.languageId
+            languageId: language.languageId,
           });
-          const langProgress: LessonProgress[] = lessonStrings.map(lStrings =>
+          const langProgress: LessonProgress[] = lessonStrings.map((lStrings) =>
             calcLessonProgress(language.motherTongue, lStrings, tStrings)
           );
           await this.sql`
@@ -357,15 +324,15 @@ export default class PGStorage implements Persistence {
         WHERE tstrings.languageid = ${languageId}
         AND tstrings.modified > ${langTimeStamp}
     `;
-      tStringsByLangId[languageId] = tStrings.map(tStr => tStr.masterId);
+      tStringsByLangId[languageId] = tStrings.map((tStr) => tStr.masterId);
     }
 
     return {
       languages: langsTimestamp > timestamp,
       baseLessons: lessonsTimestamp > timestamp,
-      lessons: lessons.map(lsn => lsn.lessonId),
+      lessons: lessons.map((lsn) => lsn.lessonId),
       tStrings: tStringsByLangId,
-      timestamp: now
+      timestamp: now,
     };
   }
 
@@ -401,14 +368,14 @@ function dbConnect() {
   const opts: Options = {
     ...secrets.db,
     transform: {
-      column: transformCol
+      column: transformCol,
     },
-    debug: (con, query, params) => {
+    debug: (_con, _query, _params) => {
       // if (true) {
       //   console.log(`QUERY: ${query}`);
       //   console.log(JSON.stringify(params));
       // }
-    }
+    },
   };
   return postgres(opts);
 }
@@ -417,8 +384,8 @@ function testDbConnect() {
   const opts: Options = {
     ...secrets.testDb,
     transform: {
-      column: transformCol
-    }
+      column: transformCol,
+    },
   };
   return postgres(opts);
 }
@@ -427,8 +394,8 @@ function devDbConnect() {
   const opts: Options = {
     ...secrets.devDb,
     transform: {
-      column: transformCol
-    }
+      column: transformCol,
+    },
   };
   return postgres(opts);
 }
@@ -442,7 +409,7 @@ export function transformCol(col: string) {
     "masterId",
     "lessonVersion",
     "sourceLanguageId",
-    "defaultSrcLang"
+    "defaultSrcLang",
   ];
-  return cols.find(colName => colName.toLocaleLowerCase() == col) || col;
+  return cols.find((colName) => colName.toLocaleLowerCase() == col) || col;
 }

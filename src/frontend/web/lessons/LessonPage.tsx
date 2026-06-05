@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { lessonName } from "../../../core/models/Lesson";
 import useTranslation from "../../common/util/useTranslation";
 import { loadLesson, pushLessonStrings } from "../../common/state/lessonSlice";
-import { useLoad, usePush, useLoadMultiple } from "../../common/api/useLoad";
+import { usePush, useLoadMultiple } from "../../common/api/useLoad";
 import Div from "../../common/base-components/Div";
 import { FlexRow } from "../../common/base-components/Flex";
 import Button from "../../common/base-components/Button";
@@ -13,7 +13,6 @@ import TStringSpan from "../../common/base-components/TStringSpan";
 import useLessonTStrings from "../../common/translate/useLessonTStrings";
 import LessonEditor, { docStringsFromLessonTStrings } from "./LessonEditor";
 import { StdHeaderBarPage } from "../../common/base-components/HeaderBar";
-import Scroll from "../../common/base-components/Scroll";
 import { DocString } from "../../../core/models/DocString";
 import { Link } from "react-router-dom";
 import HeaderMessage, { HdrMessage } from "../../common/translate/HeaderMessage";
@@ -27,10 +26,7 @@ export default function LessonPage(props: IProps) {
   const push = usePush();
   const { lesson, lessonTStrings } = useLessonTStrings(props.id, [ENGLISH_ID]);
 
-  const loading = useLoadMultiple([
-    loadLesson(props.id),
-    loadTStrings(ENGLISH_ID, props.id)
-  ]);
+  const loading = useLoadMultiple([loadLesson(props.id), loadTStrings(ENGLISH_ID, props.id)]);
 
   const [editing, setEditing] = useState(false);
   const [hdrMessage, setHdrMessage] = useState<HdrMessage>("none");
@@ -75,11 +71,8 @@ export default function LessonPage(props: IProps) {
         <Div>
           <List
             items={lessonTStrings}
-            renderItem={ltStr => (
-              <TStringSpan
-                text={ltStr.tStrs[0]?.text}
-                motherTongue={ltStr.lStr.motherTongue}
-              />
+            renderItem={(ltStr) => (
+              <TStringSpan text={ltStr.tStrs[0]?.text} motherTongue={ltStr.lStr.motherTongue} />
             )}
           />
         </Div>

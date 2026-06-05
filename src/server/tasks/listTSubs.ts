@@ -1,5 +1,4 @@
 import PGStorage from "../storage/PGStorage";
-import findTSubs from "../actions/findTSubs";
 
 listTSubs();
 
@@ -9,7 +8,7 @@ listTSubs();
 */
 
 async function listTSubs() {
-  const storage = new PGStorage();
+  const _storage = new PGStorage();
   // const subs = (await findTSubs(storage)).tSubs;
   // const xfrmd = subs.map(sub => ({
   //   engFrom: sub.engFrom.map(tStr => tStr?.text),

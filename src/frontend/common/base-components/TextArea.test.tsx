@@ -4,16 +4,12 @@ import TextArea from "./TextArea";
 
 describe("TextArea", () => {
   it("renders a textarea", () => {
-    const { container } = render(
-      <TextArea value="hello" setValue={jest.fn()} />
-    );
+    const { container } = render(<TextArea value="hello" setValue={jest.fn()} />);
     expect(container.querySelector("textarea")).toBeTruthy();
   });
 
   it("displays the provided value", () => {
-    const { container } = render(
-      <TextArea value="initial text" setValue={jest.fn()} />
-    );
+    const { container } = render(<TextArea value="initial text" setValue={jest.fn()} />);
     const ta = container.querySelector("textarea") as HTMLTextAreaElement;
     expect(ta.value).toBe("initial text");
   });
@@ -28,9 +24,7 @@ describe("TextArea", () => {
 
   it("transforms << and >> to guillemets when commonSubs is true", () => {
     const setValue = jest.fn();
-    const { container } = render(
-      <TextArea value="" setValue={setValue} commonSubs />
-    );
+    const { container } = render(<TextArea value="" setValue={setValue} commonSubs />);
     const ta = container.querySelector("textarea") as HTMLTextAreaElement;
     fireEvent.change(ta, { target: { value: "<<hello>>" } });
     expect(setValue).toHaveBeenCalledWith("«hello»");
@@ -38,9 +32,7 @@ describe("TextArea", () => {
 
   it("does not transform << and >> when commonSubs is false", () => {
     const setValue = jest.fn();
-    const { container } = render(
-      <TextArea value="" setValue={setValue} commonSubs={false} />
-    );
+    const { container } = render(<TextArea value="" setValue={setValue} commonSubs={false} />);
     const ta = container.querySelector("textarea") as HTMLTextAreaElement;
     fireEvent.change(ta, { target: { value: "<<hello>>" } });
     expect(setValue).toHaveBeenCalledWith("<<hello>>");
@@ -56,9 +48,7 @@ describe("TextArea", () => {
 
   it("calls onBlur when blurred", () => {
     const onBlur = jest.fn();
-    const { container } = render(
-      <TextArea value="" setValue={jest.fn()} onBlur={onBlur} />
-    );
+    const { container } = render(<TextArea value="" setValue={jest.fn()} onBlur={onBlur} />);
     const ta = container.querySelector("textarea") as HTMLTextAreaElement;
     fireEvent.blur(ta);
     expect(onBlur).toHaveBeenCalledTimes(1);
@@ -66,7 +56,7 @@ describe("TextArea", () => {
 
   it("uses provided taRef", () => {
     const ref = React.createRef<HTMLTextAreaElement>();
-    const { container } = render(
+    render(
       <TextArea
         value="ref test"
         setValue={jest.fn()}

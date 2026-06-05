@@ -1,5 +1,4 @@
-import { addGetHandler, addPostHandler } from "../DesktopAPIServer";
-import WebAPIClientForDesktop from "../WebAPIClientForDesktop";
+import { addGetHandler } from "../DesktopAPIServer";
 import DesktopApp from "../DesktopApp";
 
 export default function languagesController(app: DesktopApp) {
@@ -7,11 +6,9 @@ export default function languagesController(app: DesktopApp) {
 
   addGetHandler("/api/languages", async () => {
     // Only return languages that are being synced
-    const syncLangIds = localStorage
-      .getSyncState()
-      .syncLanguages.map(lt => lt.languageId);
+    const syncLangIds = localStorage.getSyncState().syncLanguages.map((lt) => lt.languageId);
     const languages = localStorage.getLanguages();
-    return languages.filter(lang => syncLangIds.includes(lang.languageId));
+    return languages.filter((lang) => syncLangIds.includes(lang.languageId));
   });
 
   addGetHandler("/api/languages/code/:code", async ({ code }) => {

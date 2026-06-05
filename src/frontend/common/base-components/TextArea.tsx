@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, MutableRefObject } from "react";
-import styled, { css } from "styled-components";
+import styled from "styled-components";
 import Colors from "../util/Colors";
 
-interface STAProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {}
+type STAProps = React.TextareaHTMLAttributes<HTMLTextAreaElement>;
 
 interface IProps extends STAProps {
   placeholder?: string;
@@ -31,7 +31,7 @@ const StyledTextArea = styled.textarea<STAProps>`
 `;
 
 export default function TextArea(props: IProps) {
-  const { setValue, taRef, ...inputProps } = props;
+  const { setValue: _setValue, taRef, ...inputProps } = props;
   const localRef = useRef<HTMLTextAreaElement | null>(null);
   const ref = taRef || localRef;
 
@@ -50,7 +50,9 @@ export default function TextArea(props: IProps) {
   return (
     <StyledTextAreaWithRef
       ref={ref}
-      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => props.setValue(transformValue(e.target.value))}
+      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+        props.setValue(transformValue(e.target.value))
+      }
       {...inputProps}
     />
   );

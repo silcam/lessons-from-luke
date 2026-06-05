@@ -3,25 +3,19 @@ jest.mock("../state/networkSlice", () => ({
   __esModule: true,
   default: {
     reducer: (state = { connected: true }) => state,
-    actions: {}
+    actions: {},
   },
   useNetworkConnectionRestored: () => ({
     onConnectionRestored: jest.fn(),
-    clearHandlers: jest.fn()
+    clearHandlers: jest.fn(),
   }),
-  networkConnectionLostAction: jest.fn()
+  networkConnectionLostAction: jest.fn(),
 }));
 
 import React from "react";
 import { render, act } from "@testing-library/react";
 import { Provider } from "react-redux";
-import {
-  MemoryRouter,
-  Routes,
-  Route,
-  Link,
-  useNavigate
-} from "react-router-dom";
+import { MemoryRouter, Routes, Route, useNavigate } from "react-router-dom";
 import { buildStore } from "../testHelpers";
 import bannerSlice from "./bannerSlice";
 import { AppBanner } from "./Banner";
@@ -29,7 +23,7 @@ import { useClearBannersOnNavigation } from "./useClearBannersOnNavigation";
 
 const errorBanner: AppBanner = {
   type: "Error",
-  error: { type: "HTTP", status: 504 }
+  error: { type: "HTTP", status: 504 },
 };
 
 function HookHost() {
@@ -39,9 +33,7 @@ function HookHost() {
 
 function PageWithNavigateButton(props: { to: string; label: string }) {
   const navigate = useNavigate();
-  return (
-    <button onClick={() => navigate(props.to)}>{props.label}</button>
-  );
+  return <button onClick={() => navigate(props.to)}>{props.label}</button>;
 }
 
 describe("useClearBannersOnNavigation", () => {
@@ -57,10 +49,7 @@ describe("useClearBannersOnNavigation", () => {
         >
           <HookHost />
           <Routes>
-            <Route
-              path="/page-a"
-              element={<PageWithNavigateButton to="/" label="go home" />}
-            />
+            <Route path="/page-a" element={<PageWithNavigateButton to="/" label="go home" />} />
             <Route path="/" element={<div>home</div>} />
           </Routes>
         </MemoryRouter>
@@ -92,10 +81,7 @@ describe("useClearBannersOnNavigation", () => {
         >
           <HookHost />
           <Routes>
-            <Route
-              path="/page-a"
-              element={<PageWithNavigateButton to="/page-a" label="stay" />}
-            />
+            <Route path="/page-a" element={<PageWithNavigateButton to="/page-a" label="stay" />} />
           </Routes>
         </MemoryRouter>
       </Provider>

@@ -3,17 +3,22 @@ jest.mock("../state/networkSlice", () => ({
   __esModule: true,
   default: {
     reducer: (state = { connected: true }) => state,
-    actions: {}
+    actions: {},
   },
   useNetworkConnectionRestored: () => ({
     onConnectionRestored: jest.fn(),
-    clearHandlers: jest.fn()
+    clearHandlers: jest.fn(),
   }),
-  networkConnectionLostAction: jest.fn(() => ({ type: "NetworkConnectionLost" }))
+  networkConnectionLostAction: jest.fn(() => ({ type: "NetworkConnectionLost" })),
 }));
 
 import React from "react";
-import { renderWithProviders, sampleLanguage, sampleTString, defaultSyncState } from "../testHelpers";
+import {
+  renderWithProviders,
+  sampleLanguage,
+  sampleTString,
+  defaultSyncState,
+} from "../testHelpers";
 import TStringInput from "./TStringInput";
 
 describe("TStringInput", () => {
@@ -49,7 +54,9 @@ describe("TStringInput", () => {
     const { fireEvent, act } = require("@testing-library/react");
     // mockPost returns a valid result so push resolves with truthy
     const { mockPost } = require("../testHelpers");
-    mockPost.mockResolvedValueOnce([{ masterId: 1, languageId: 42, text: "New text", history: [] }]);
+    mockPost.mockResolvedValueOnce([
+      { masterId: 1, languageId: 42, text: "New text", history: [] },
+    ]);
 
     const { container } = renderWithProviders(
       <TStringInput
@@ -80,9 +87,12 @@ describe("TStringInput", () => {
 
     const onConnectionRestored = jest.fn();
     const { useNetworkConnectionRestored } = require("../state/networkSlice");
-    useNetworkConnectionRestored.mockReturnValueOnce
-      ? useNetworkConnectionRestored.mockReturnValueOnce({ onConnectionRestored, clearHandlers: jest.fn() })
-      : null;
+    if (useNetworkConnectionRestored.mockReturnValueOnce) {
+      useNetworkConnectionRestored.mockReturnValueOnce({
+        onConnectionRestored,
+        clearHandlers: jest.fn(),
+      });
+    }
 
     const { container } = renderWithProviders(
       <TStringInput
