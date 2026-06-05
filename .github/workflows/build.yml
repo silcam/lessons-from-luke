@@ -308,7 +308,7 @@ jobs:
         run: xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24" yarn test-desktop-e2e
       - name: Upload server log on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: desktop-e2e-logs
           path: |
@@ -331,7 +331,7 @@ jobs:
         run: ls -l ./dist-desktop
       - name: Look at what we've got num2
         run: ls -l ./dist-desktop/mac
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: platform-build
           path: |
