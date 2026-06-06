@@ -20,6 +20,45 @@ print-ready lesson booklets in any language — including minority and mother-to
 languages, and including translators who often work with little or no internet.
 
 It is built and used by [SIL](https://www.sil.org/), with roots in [SIL Cameroon](https://cameroon.sil.org/).
+This repository is the **software**; the curriculum it helps translate is described below.
+
+---
+
+## About the curriculum
+
+[![A sample Lessons from Luke lesson: teacher's guide, Flip Book picture pages, and a coloring page](art/curriculum-sample.png)](https://scripture-engagement.org/content/lessons-from-luke/)
+
+**Lessons from Luke** is a **52-lesson curriculum for children**, based on the Gospel of
+Luke and developed in the North West region of Cameroon. It provides an easy-to-follow
+series of lessons that are culturally appropriate and make use of teaching aids and
+illustrations found in a typical rural milieu.
+
+Each lesson contains:
+
+- a **teacher's guide**,
+- a **coloring page** with the memory verse and the "truth of the week", and
+- a **Flip Book** — a big picture book in A3 format with the pictures from the Bible
+  story section.
+
+There are also review lessons. The curriculum was designed around a single book of
+Scripture so that language communities can begin engaging with mother-tongue Scripture
+at the earliest opportunity — as soon as that book is translated and approved for
+publication. The original 2015 edition covered **only the Gospel of Luke**; it has since
+expanded to include the book of **Acts** (the software organizes lessons by both).
+
+It is designed as a **bilingual document**: the teaching content is translated into the
+local language, while repeated text and teacher instructions stay in English or French
+for the benefit of new mother-tongue readers. *(This bilingual design is exactly why the
+software lets only some strings be marked as needing mother-tongue translation — see
+[Key concepts](#key-concepts).)*
+
+> **Author:** Chris and Karen Jackson (eds.) &nbsp;•&nbsp;
+> **Publisher:** Cameroon Association for Bible Translation and Literacy (CABTAL), 2015 &nbsp;•&nbsp;
+> **More:** [scripture-engagement.org/content/lessons-from-luke](https://scripture-engagement.org/content/lessons-from-luke/)
+>
+> Curriculum content and artwork © CABTAL, licensed
+> [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/). (This license
+> applies to the curriculum materials, not to this software repository.)
 
 ---
 
