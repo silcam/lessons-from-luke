@@ -328,7 +328,11 @@ second-order leaks the functional spec did not call out:
 - **Pool sizing / exhaustion**: the new auth `pg.Pool` is a *second* pool against the same Postgres
   instance as the domain porsager driver. Its `max` MUST be bounded so the two pools combined stay
   under Postgres `max_connections`; an unbounded auth pool under a sign-in flood could starve the
-  domain driver and take down unrelated endpoints. Document the chosen `max`.
+  domain driver and take down unrelated endpoints. **Chosen `max: 5`** — the porsager driver defaults
+  to `os.cpus().length` (≤ 4 on this single-VPS deploy), so the combined ceiling is ≤ 9, well within
+  PostgreSQL's default `max_connections = 100`. Create the auth pool as:
+  `new Pool({ ...secrets.db, max: 5 })` (or the env-appropriate secret block). The test-env pool
+  uses `secrets.testDb` with the same `max: 5` cap.
 
 ### Bootstrap / Migration Edge Cases (hardening FR-003)
 
