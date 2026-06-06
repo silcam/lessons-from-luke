@@ -1,4 +1,4 @@
-import { User, LoginAttempt } from "../models/User";
+import { User } from "../models/User";
 import { TString } from "../models/TString";
 import { Language, NewLanguage, PublicLanguage, LessonProgress } from "../models/Language";
 import { BaseLesson, Lesson } from "../models/Lesson";
@@ -23,7 +23,6 @@ export interface APIGet {
 
   // Web Only
   "/api/auth/get-session": [Record<string, never>, { user: User } | null];
-  "/api/users/current": [Record<string, never>, User | null];
   "/api/admin/languages": [Record<string, never>, Language[]];
   "/api/languages/:languageId/tStrings": [{ languageId: number }, TString[]];
   "/api/languages/:languageId/tStrings/:ids": [{ languageId: number; ids: string }, TString[]];
@@ -43,8 +42,6 @@ export interface APIPost {
   "/api/tStrings": [Record<string, never>, { code: string; tStrings: TString[] }, TString[]];
 
   // Web Only
-  "/api/users/login": [Record<string, never>, LoginAttempt, User | null];
-  "/api/users/logout": [Record<string, never>, null, null];
   "/api/admin/languages": [Record<string, never>, NewLanguage, Language];
   "/api/admin/languages/:languageId": [
     { languageId: number },
