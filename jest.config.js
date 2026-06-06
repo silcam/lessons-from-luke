@@ -13,6 +13,17 @@ module.exports = {
       transform: {
         "^.+\\.tsx?$": ["ts-jest", { tsconfig: { jsx: "react" } }],
       },
+      // Redirect ESM-only better-auth packages to CJS shims so Jest's CommonJS
+      // runner can load them without hitting the "Cannot use import statement
+      // outside a module" ESM parse error.
+      // - better-auth: stub betterAuth() factory (unit tests mock getAuth() directly)
+      // - better-auth/node: real CJS wrapper around better-call/node (which IS CJS)
+      // Integration tests use real better-auth via a compiled child-process server
+      // (jestIntegrationGlobalSetup.ts) and have their own config without these shims.
+      moduleNameMapper: {
+        "^better-auth$": "<rootDir>/src/server/__mocks__/better-auth.cjs",
+        "^better-auth/node$": "<rootDir>/src/server/__mocks__/better-auth-node.cjs",
+      },
       testEnvironment: "node",
       globalSetup: "<rootDir>/src/server/jestGlobalSetup.ts",
       setupFilesAfterEnv: ["<rootDir>/src/server/jestSetupAfterEnv.ts"],

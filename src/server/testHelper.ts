@@ -19,8 +19,8 @@ server.unref();
 export async function loggedInAgent() {
   const agent = request.agent(server);
   await agent
-    .post("/api/users/login")
-    .send({ username: secrets.adminUsername, password: secrets.adminPassword });
+    .post("/api/auth/sign-in/email")
+    .send({ email: secrets.adminEmail, password: secrets.adminPassword });
   return agent;
 }
 

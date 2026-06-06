@@ -47,16 +47,19 @@ export default [
       ],
     },
   },
-  // CommonJS .js files (configs, scripts, webpack, migrations, mocks, root tooling)
+  // CommonJS .js and .cjs files (configs, scripts, webpack, migrations, mocks, root tooling)
   {
     files: [
       "**/*.config.js",
       "**/*Sequencer.js",
       "webpack/**/*.js",
       "scripts/**/*.js",
+      "scripts/**/*.cjs",
       "migrations/**/*.js",
       "__mocks__/**/*.js",
+      "src/server/__mocks__/**/*.cjs",
       "*.js",
+      "*.cjs",
     ],
     languageOptions: {
       globals: { ...globals.node },
