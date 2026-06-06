@@ -19,8 +19,7 @@ English Sunday School lessons (based on the Gospel of Luke and Acts) into finish
 print-ready lesson booklets in any language — including minority and mother-tongue
 languages, and including translators who often work with little or no internet.
 
-It is built and used by [SIL](https://www.sil.org/) (the project's app id is
-`org.sil.cmb.lessons-from-luke`, reflecting its roots in SIL Cameroon).
+It is built and used by [SIL](https://www.sil.org/), with roots in SIL Cameroon.
 
 ---
 
