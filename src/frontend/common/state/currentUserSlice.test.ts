@@ -3,7 +3,7 @@ import { User } from "../../../core/models/User";
 
 function makeUser(overrides: Partial<User> = {}): User {
   return {
-    id: 1,
+    id: "u1",
     admin: false,
     ...overrides,
   };
@@ -58,7 +58,7 @@ describe("currentUserSlice reducers", () => {
 
   describe("setUser", () => {
     it("sets the user and marks loaded as true", () => {
-      const user = makeUser({ id: 5, admin: true });
+      const user = makeUser({ id: "u5", admin: true });
 
       const state = currentUserSlice.reducer(initialState, currentUserSlice.actions.setUser(user));
 
@@ -90,7 +90,7 @@ describe("currentUserSlice reducers", () => {
 describe("currentUserSlice thunks", () => {
   describe("loadCurrentUser", () => {
     it("calls GET /api/users/current and dispatches setUser", async () => {
-      const user = makeUser({ id: 1, admin: false });
+      const user = makeUser({ id: "u1", admin: false });
       const get = jest.fn().mockResolvedValue(user);
       const dispatch = jest.fn();
 
@@ -112,8 +112,8 @@ describe("currentUserSlice thunks", () => {
 
   describe("pushLogin", () => {
     it("posts login and dispatches setUser", async () => {
-      const user = makeUser({ id: 2, admin: true });
-      const login = { username: "admin", password: "secret" };
+      const user = makeUser({ id: "u2", admin: true });
+      const login = { email: "admin@example.com", password: "secret" };
       const post = jest.fn().mockResolvedValue(user);
       const dispatch = jest.fn();
 
@@ -124,7 +124,7 @@ describe("currentUserSlice thunks", () => {
     });
 
     it("dispatches setUser(null) if post returns null", async () => {
-      const login = { username: "wrong", password: "wrong" };
+      const login = { email: "wrong@example.com", password: "wrong" };
       const post = jest.fn().mockResolvedValue(null);
       const dispatch = jest.fn();
 

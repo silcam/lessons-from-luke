@@ -1,9 +1,9 @@
 export interface User {
-  id: number;
+  id: string;
   admin: boolean;
 }
 
 export interface LoginAttempt {
-  username: string;
+  email: string;
   password: string;
 }

@@ -1,7 +1,5 @@
 import express from "express";
 import usersController from "./controllers/usersController";
-import cookieSession from "cookie-session";
-import secrets from "./util/secrets";
 import bodyParser from "body-parser";
 import languagesController from "./controllers/languagesController";
 import lessonsController from "./controllers/lessonsController";
@@ -31,8 +29,6 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
     console.log(`[serverApp] NODE_ENV=${process.env.NODE_ENV} storage=${cls}`);
   }
 
-  // Casts needed: @types/connect's NextHandleFunction is incompatible with @types/node@20 ServerResponse types
-  app.use(cookieSession({ secret: secrets.cookieSecret }) as any);
   app.use(bodyParser.json({ limit: "2MB" }) as any);
   app.use("/api/admin", requireUser);
 

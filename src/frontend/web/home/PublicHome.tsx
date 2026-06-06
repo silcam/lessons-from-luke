@@ -12,12 +12,12 @@ import useTranslation from "../../common/util/useTranslation";
 
 export default function PublicHome() {
   const t = useTranslation();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginFailed, setLoginFailed] = useState(false);
   const push = usePush();
   const logIn = () =>
-    push(pushLogin({ username, password }), (appError) => {
+    push(pushLogin({ email, password }), (appError) => {
       if (appError.type == "HTTP" && appError.status == 422) {
         setLoginFailed(true);
         return true;
@@ -32,12 +32,12 @@ export default function PublicHome() {
         <Heading level={3} text={t("Log_in")} />
         <PDiv>
           <TextInput
-            value={username}
+            value={email}
             setValue={(v) => {
-              setUsername(v);
+              setEmail(v);
               setLoginFailed(false);
             }}
-            placeholder={t("Username")}
+            placeholder={t("Email")}
             autoFocus
           />
         </PDiv>

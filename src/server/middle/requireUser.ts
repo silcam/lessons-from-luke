@@ -1,26 +1,11 @@
 import { Request, Response, NextFunction } from "express";
 
-export function isLoggedIn(req: Request) {
-  return !!(req.session && req.session.userId);
+// TODO(US2): Rewrite with better-auth session validation. This stub returns 401
+// for all requests after cookie-session removal; better-auth middleware lands next.
+export function isLoggedIn(_req: Request) {
+  return false;
 }
 
-// const getLoginExceptions: GetRoute[] = [];
-
-// const postLoginExceptions: PostRoute[] = [
-//   "/api/users/login",
-//   "/api/users/logout"
-// ];
-
-// function loginNotRequired(req: Request) {
-//   const exceptions: string[] =
-//     req.method === "POST" ? postLoginExceptions : getLoginExceptions;
-//   return exceptions.includes(req.route.path);
-// }
-
-export default function requireUser(req: Request, res: Response, next: NextFunction) {
-  if (isLoggedIn(req)) {
-    next();
-  } else {
-    res.status(401).send("Not logged in");
-  }
+export default function requireUser(_req: Request, res: Response, _next: NextFunction) {
+  res.status(401).send("Not logged in");
 }
