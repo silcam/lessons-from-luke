@@ -35,6 +35,12 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> { // eslint-disabl
     database: pool,
     secret: secrets.cookieSecret,
     baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:8081",
+    advanced: {
+      // Explicitly enforce Secure cookies in production regardless of
+      // baseURL scheme detection, so a misconfigured proxy can't silently
+      // downgrade cookie security.
+      useSecureCookies: process.env.NODE_ENV === "production",
+    },
     emailAndPassword: {
       enabled: true,
       disableSignUp: true,

@@ -67,4 +67,14 @@ if (process.env.NODE_ENV === "production" && !secrets.adminEmail) {
   );
 }
 
+if (process.env.NODE_ENV === "production") {
+  const betterAuthUrl = process.env.BETTER_AUTH_URL;
+  if (!betterAuthUrl || !betterAuthUrl.startsWith("https://")) {
+    throw new Error(
+      "Invalid configuration: BETTER_AUTH_URL must be set to an https:// URL in production. " +
+        "Set the BETTER_AUTH_URL environment variable to your server's public https URL."
+    );
+  }
+}
+
 export default secrets;

@@ -137,6 +137,7 @@ describe("secrets — file-based branch (line 21 true path)", () => {
 describe("secrets — FR-011 fail-fast validation", () => {
   let originalContent: string | null = null;
   let originalNodeEnv: string | undefined;
+  let originalBetterAuthUrl: string | undefined;
 
   beforeAll(() => {
     if (fs.existsSync(secretsJsonPath)) {
@@ -146,6 +147,7 @@ describe("secrets — FR-011 fail-fast validation", () => {
 
   beforeEach(() => {
     originalNodeEnv = process.env.NODE_ENV;
+    originalBetterAuthUrl = process.env.BETTER_AUTH_URL;
   });
 
   afterEach(() => {
@@ -154,6 +156,13 @@ describe("secrets — FR-011 fail-fast validation", () => {
       delete process.env.NODE_ENV;
     } else {
       process.env.NODE_ENV = originalNodeEnv;
+    }
+
+    // Restore BETTER_AUTH_URL
+    if (originalBetterAuthUrl === undefined) {
+      delete process.env.BETTER_AUTH_URL;
+    } else {
+      process.env.BETTER_AUTH_URL = originalBetterAuthUrl;
     }
 
     if (originalContent !== null) {
@@ -227,8 +236,9 @@ describe("secrets — FR-011 fail-fast validation", () => {
     expect(() => require("./secrets")).not.toThrow();
   });
 
-  test("succeeds with a valid configuration (cookieSecret >= 32 chars, adminEmail present)", () => {
+  test("succeeds with a valid configuration (cookieSecret >= 32 chars, adminEmail present, BETTER_AUTH_URL https)", () => {
     process.env.NODE_ENV = "production";
+    process.env.BETTER_AUTH_URL = "https://example.com";
 
     fs.writeFileSync(secretsJsonPath, JSON.stringify(validSecrets), "utf8");
 
@@ -241,5 +251,57 @@ describe("secrets — FR-011 fail-fast validation", () => {
 
     expect(freshSecrets).not.toBeNull();
     expect(freshSecrets.adminEmail).toBe("admin@example.com");
+  });
+
+  test("throws when NODE_ENV=production and BETTER_AUTH_URL is not set", () => {
+    process.env.NODE_ENV = "production";
+    delete process.env.BETTER_AUTH_URL;
+
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(validSecrets), "utf8");
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).toThrow(/BETTER_AUTH_URL/i);
+  });
+
+  test("throws when NODE_ENV=production and BETTER_AUTH_URL does not start with https://", () => {
+    process.env.NODE_ENV = "production";
+    process.env.BETTER_AUTH_URL = "http://example.com";
+
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(validSecrets), "utf8");
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).toThrow(/BETTER_AUTH_URL/i);
+  });
+
+  test("error message for invalid BETTER_AUTH_URL does not contain the URL value", () => {
+    process.env.NODE_ENV = "production";
+    process.env.BETTER_AUTH_URL = "http://my-secret-internal-host.corp";
+
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(validSecrets), "utf8");
+
+    jest.resetModules();
+
+    let errorMessage = "";
+    try {
+      require("./secrets");
+    } catch (e) {
+      errorMessage = (e as Error).message;
+    }
+
+    expect(errorMessage).not.toContain("http://my-secret-internal-host.corp");
+    expect(errorMessage).toMatch(/BETTER_AUTH_URL/i);
+  });
+
+  test("does not throw when BETTER_AUTH_URL is unset outside production", () => {
+    process.env.NODE_ENV = "test";
+    delete process.env.BETTER_AUTH_URL;
+
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(validSecrets), "utf8");
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).not.toThrow();
   });
 });
