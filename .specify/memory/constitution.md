@@ -1,34 +1,24 @@
 <!--
 Sync Impact Report:
-- Project identity: turtlebased-ts → Lessons from Luke (inaugural re-ratification)
-- Version: turtlebased-ts 1.2.1 → Lessons from Luke 1.0.0 (re-ratified)
-  Lineage: this document descends from the turtlebased-ts constitution (last at
-  v1.2.1); it is re-ratified as v1.0.0 as the inaugural constitution under the
-  Lessons from Luke project identity, not a 1.2.1 → x amendment of turtlebased-ts.
+- Version change: 1.0.0 → 1.1.0 (MINOR)
+- Lineage: re-ratified from the turtlebased-ts constitution as v1.0.0 on 2026-06-05;
+  this is the first amendment under the Lessons from Luke identity.
 - Modified principles:
-  - I. Test-First Development (NON-NEGOTIABLE) — REWRITTEN: vitest → jest; watch
-    command `npx vitest` → `yarn test`; removed the "Static Site Code (Hugo)"
-    subsection; added "Document Processing & Multi-Layer Verification"
-    (integration tests + Cypress/Playwright E2E); retargeted Development Workflow.
-  - II. Type Safety and Static Analysis — module target clarified to ES2022 /
-    CommonJS (was NodeNext); maximalist standards kept as aspirational hard targets.
-  - IV. Pre-commit Quality Gates — ALIGNED to the real pipeline
-    (`yarn typecheck` then `npx lint-staged`: eslint --fix → prettier --write →
-    jest --findRelatedTests --bail).
-  - V. Warning and Deprecation Policy — `npm audit` → `yarn audit`.
-  - VI. Cloudflare Workers Target Environment → REDEFINED as "Layered
-    Architecture and Dual Deployment Targets".
-- Unchanged: Preamble; Zeroth Principle; III. Code Quality Standards;
-  VII. Simplicity and Maintainability; Governance procedure.
-- Removed sections: "Static Site Code (Hugo)" subsection of Principle I; the
-  Cloudflare Workers principle.
+  - VI. Layered Architecture and Dual Deployment Targets — Persistence mandate
+    scoped to DOMAIN data; new "Server-only infrastructure exemption" bullet
+    permitting auth backends (better-auth) to own their storage; rationale extended.
+- Unchanged: Preamble; Zeroth Principle; I. Test-First Development; II. Type Safety
+  and Static Analysis; III. Code Quality Standards; IV. Pre-commit Quality Gates;
+  V. Warning and Deprecation Policy; VII. Simplicity and Maintainability; Governance.
+- Added sections: "Server-only infrastructure exemption" bullet under Principle VI.
+- Removed sections: none.
 - Templates checked:
-  ✅ .specify/templates/plan-template.md (retargeted Presentation Design examples; removed Hugo)
-  ✅ .specify/templates/spec-template.md (no stale references; no change needed)
-  ✅ .specify/templates/checklist-template.md (no stale references; no change needed)
-  ✅ CLAUDE.md (already Lessons-from-Luke-accurate; no change needed)
+  ✅ .specify/templates/plan-template.md (Constitution Check gate unaffected; no edit needed)
+  ✅ .specify/templates/spec-template.md (no stale references; no edit needed)
+  ✅ .specify/templates/checklist-template.md (no stale references; no edit needed)
+  ✅ CLAUDE.md (unaffected; no edit needed)
   N/A .specify/templates/tasks-template.md (not present in this repo)
-- Follow-up TODOs (tooling gaps vs. aspirational standards):
+- Follow-up TODOs (tooling gaps vs. aspirational standards — carried forward):
   - TODO: raise jest coverage threshold 95 → 100 (jest.config.js coverageThreshold).
   - TODO: tighten ESLint `@typescript-eslint/no-explicit-any` warn → error.
   - TODO: add `@typescript-eslint/explicit-module-boundary-types` (explicit return types).
@@ -227,14 +217,15 @@ ALL warnings and deprecations MUST be addressed immediately. No deferral allowed
 The codebase is an isomorphic four-layer architecture serving two deployment targets behind a single storage abstraction. These boundaries MUST be respected.
 
 - **Isomorphic core**: `src/core/` MUST remain platform-agnostic — no Node-only, DOM-only, or Electron-only APIs — so it runs unchanged on the server, the web frontend, and the desktop app.
-- **Persistence abstraction**: all data access MUST go through the `Persistence` interface (`src/core/interfaces/Persistence.ts`). Implementations: `PGStorage` (production), `PGTestStorage`/`TransactionalTestStorage` (test), `PGDevStorage` (development), and `LocalStorage` (desktop, offline-first). Layer dependency direction is one-way: `core` ← `server`/`frontend`/`desktop` (never the reverse).
+- **Persistence abstraction**: all **domain** data access (languages, lessons, tStrings, and related curriculum/translation entities) MUST go through the `Persistence` interface (`src/core/interfaces/Persistence.ts`). Implementations: `PGStorage` (production), `PGTestStorage`/`TransactionalTestStorage` (test), `PGDevStorage` (development), and `LocalStorage` (desktop, offline-first). Layer dependency direction is one-way: `core` ← `server`/`frontend`/`desktop` (never the reverse).
+- **Server-only infrastructure exemption**: dedicated **server-only** infrastructure that manages its own storage — notably authentication/session backends (e.g. better-auth) and the tables and database connection they own — is EXEMPT from the `Persistence` mandate, provided it (a) runs only on the server and is never imported into the isomorphic `core` or the desktop offline path, and (b) does not store or proxy domain data. Such infrastructure MAY own its own schema, migrations, and DB connection.
 - **Two deployment targets**:
   - **Web**: Express server compiled to TypeScript/CommonJS, deployed via Capistrano + Passenger (Node 24 via nvm; appId `org.sil.cmb.lessons-from-luke`).
   - **Desktop**: Electron main process with the offline-first `LocalStorage`, packaged by electron-builder (`.dmg`/`.exe`). The desktop app MUST work offline and reconcile via sync.
 - **Three isolated runtime environments**: production, development, and test each have a distinct `NODE_ENV`, storage class, database, and ODT root. They MUST NOT cross-contaminate — only the test environment mounts `/api/test/reset-storage`; dev resets through the `yarn reset:dev` CLI.
 - **Target**: ES2022, CommonJS, strict.
 
-**Rationale**: Keeping `core` isomorphic and routing all persistence through one interface is what makes a single codebase serve both an online server and an offline-capable desktop app correctly. Hard environment isolation prevents test fixtures or dev data from ever reaching production.
+**Rationale**: Keeping `core` isomorphic and routing all persistence through one interface is what makes a single codebase serve both an online server and an offline-capable desktop app correctly. Hard environment isolation prevents test fixtures or dev data from ever reaching production. The Persistence mandate governs domain data because that is what crosses the isomorphic-core and offline-desktop boundaries; server-only auth infrastructure never enters those paths, so it is scoped out rather than forced through an interface designed for domain persistence.
 
 ### VII. Simplicity and Maintainability
 
@@ -286,4 +277,4 @@ Constitution follows semantic versioning:
 - Violations require either fix or constitutional amendment
 - Use CLAUDE.md for runtime development guidance to Claude Code
 
-**Version**: 1.0.0 | **Ratified**: 2026-06-05 | **Last Amended**: 2026-06-05
+**Version**: 1.1.0 | **Ratified**: 2026-06-05 | **Last Amended**: 2026-06-05
