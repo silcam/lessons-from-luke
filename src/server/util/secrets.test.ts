@@ -29,9 +29,9 @@ import path from "path";
 
 const secretsJsonPath = path.join(process.cwd(), "secrets.json");
 
-/** A valid secrets object that satisfies all validation rules. */
+/** A valid secrets object that satisfies all validation rules (including production). */
 const validSecrets = {
-  cookieSecret: "dev-only-secret-replace-in-production-xx",
+  cookieSecret: "a-strong-unique-cookie-secret-for-testing!!",
   adminEmail: "admin@example.com",
   adminUsername: "admin",
   adminPassword: "hunter2",
@@ -97,7 +97,7 @@ describe("secrets — file-based branch (line 21 true path)", () => {
     expect(fs.existsSync(secretsJsonPath)).toBe(true);
     const onDisk = JSON.parse(fs.readFileSync(secretsJsonPath, "utf8"));
     expect(onDisk.cookieSecret).toBe(
-      "dev-only-secret-replace-in-production-xx"
+      "a-strong-unique-cookie-secret-for-testing!!"
     );
 
     // Re-require the module so it re-evaluates from scratch
@@ -106,7 +106,7 @@ describe("secrets — file-based branch (line 21 true path)", () => {
     const freshSecrets = require("./secrets").default;
 
     expect(freshSecrets.cookieSecret).toBe(
-      "dev-only-secret-replace-in-production-xx"
+      "a-strong-unique-cookie-secret-for-testing!!"
     );
     expect(freshSecrets.adminEmail).toBe("admin@example.com");
     expect(freshSecrets.adminUsername).toBe("admin");
@@ -303,5 +303,69 @@ describe("secrets — FR-011 fail-fast validation", () => {
     jest.resetModules();
 
     expect(() => require("./secrets")).not.toThrow();
+  });
+
+  test("throws when NODE_ENV=production and cookieSecret is the built-in default", () => {
+    process.env.NODE_ENV = "production";
+    process.env.BETTER_AUTH_URL = "https://example.com";
+
+    const defaultCookieSecretSecrets = {
+      ...validSecrets,
+      cookieSecret: "dev-only-secret-replace-in-production-xx",
+    };
+    fs.writeFileSync(
+      secretsJsonPath,
+      JSON.stringify(defaultCookieSecretSecrets),
+      "utf8"
+    );
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).toThrow(/cookieSecret/i);
+  });
+
+  test("does not throw when cookieSecret is the built-in default outside production", () => {
+    process.env.NODE_ENV = "test";
+
+    const defaultCookieSecretSecrets = {
+      ...validSecrets,
+      cookieSecret: "dev-only-secret-replace-in-production-xx",
+    };
+    fs.writeFileSync(
+      secretsJsonPath,
+      JSON.stringify(defaultCookieSecretSecrets),
+      "utf8"
+    );
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).not.toThrow();
+  });
+
+  test("error message for default cookieSecret in production does not contain the secret value", () => {
+    process.env.NODE_ENV = "production";
+    process.env.BETTER_AUTH_URL = "https://example.com";
+
+    const defaultCookieSecretSecrets = {
+      ...validSecrets,
+      cookieSecret: "dev-only-secret-replace-in-production-xx",
+    };
+    fs.writeFileSync(
+      secretsJsonPath,
+      JSON.stringify(defaultCookieSecretSecrets),
+      "utf8"
+    );
+
+    jest.resetModules();
+
+    let errorMessage = "";
+    try {
+      require("./secrets");
+    } catch (e) {
+      errorMessage = (e as Error).message;
+    }
+
+    expect(errorMessage).not.toContain("dev-only-secret-replace-in-production-xx");
+    expect(errorMessage).toMatch(/cookieSecret/i);
   });
 });

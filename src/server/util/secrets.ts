@@ -60,6 +60,16 @@ if (secrets.cookieSecret.length < 32) {
   );
 }
 
+if (
+  process.env.NODE_ENV === "production" &&
+  secrets.cookieSecret === defaultSecrets.cookieSecret
+) {
+  throw new Error(
+    "Invalid configuration: cookieSecret must not be the built-in default in production. " +
+      "Set a strong, unique cookieSecret in your secrets.json."
+  );
+}
+
 if (process.env.NODE_ENV === "production" && !secrets.adminEmail) {
   throw new Error(
     "Invalid configuration: adminEmail is required in production. " +
