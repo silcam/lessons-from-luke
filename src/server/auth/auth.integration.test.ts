@@ -9,9 +9,10 @@
  * directly by Jest's CommonJS runner. The INTEGRATION_SERVER_URL env var provides
  * the base URL to the running server.
  *
- * Spec: specs/001-better-auth-migration/spec.md §US1, US2, US3; plan.md §Testing
+ * Spec: specs/001-better-auth-migration/spec.md §US1, US2, US3, US4; plan.md §Testing
  * Research: research.md Decision 5, 6
  */
+import { execSync } from "child_process";
 import request from "supertest";
 import { Pool } from "pg";
 import crypto from "crypto";
@@ -25,9 +26,7 @@ import secrets from "../util/secrets";
 // as a compiled child process (avoids Jest/ESM conflict with better-auth).
 const serverUrl = process.env.INTEGRATION_SERVER_URL;
 if (!serverUrl) {
-  throw new Error(
-    "INTEGRATION_SERVER_URL is not set. Run tests via `yarn test:integration`."
-  );
+  throw new Error("INTEGRATION_SERVER_URL is not set. Run tests via `yarn test:integration`.");
 }
 
 // supertest can accept a URL string directly to make requests against a running server
@@ -221,13 +220,11 @@ test("Repeated bad sign-in (>10 attempts) → 429 rate limit", async () => {
 // better-auth returns 400 (not 403) with code EMAIL_PASSWORD_SIGN_UP_DISABLED
 // when disableSignUp is true.
 test("POST /api/auth/sign-up/email → 400 (sign-up disabled)", async () => {
-  const res = await agent()
-    .post("/api/auth/sign-up/email")
-    .send({
-      email: "newuser@example.com",
-      password: "SomePassword1!",
-      name: "New User",
-    });
+  const res = await agent().post("/api/auth/sign-up/email").send({
+    email: "newuser@example.com",
+    password: "SomePassword1!",
+    name: "New User",
+  });
   // better-auth returns 400 with EMAIL_PASSWORD_SIGN_UP_DISABLED when sign-up is disabled
   expect(res.status).toBe(400);
   expect(res.body.code).toBe("EMAIL_PASSWORD_SIGN_UP_DISABLED");
@@ -248,3 +245,46 @@ test("POST /api/auth/sign-in/email with overlong password (200 chars) → reject
   expect(res.status).not.toBe(200);
   expect([400, 401, 422, 429]).toContain(res.status);
 });
+
+// ------------------------------------------------------------------
+// US4: Invitation-only provisioning explicit assertions
+// ------------------------------------------------------------------
+
+// US4 scenario 1: After running yarn migrate:test, SELECT email, admin FROM "user"
+// returns exactly one row with admin=true. Verifies the SeedAdminUser migration
+// provisioned the admin account correctly.
+test("US4 S1: migrate:test seeds exactly one admin row with admin=true", async () => {
+  const client = await authPool.connect();
+  try {
+    const result = await client.query<{ email: string; admin: boolean }>(
+      `SELECT email, admin FROM "user" WHERE admin = true`
+    );
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0].admin).toBe(true);
+    expect(result.rows[0].email).toBe(adminEmail);
+  } finally {
+    client.release();
+  }
+});
+
+// US4 scenario 2: Re-running yarn migrate:test produces no duplicate and no error
+// (idempotency). After the second run, there is still exactly one admin row.
+test("US4 S2: re-running migrate:test is idempotent — no duplicate admin, no error", async () => {
+  // Run the migration a second time against the test database
+  expect(() => {
+    execSync("yarn migrate:test", { stdio: "pipe" });
+  }).not.toThrow();
+
+  // Verify still exactly one admin user after the second migration run
+  const client = await authPool.connect();
+  try {
+    const result = await client.query<{ email: string; admin: boolean }>(
+      `SELECT email, admin FROM "user" WHERE admin = true`
+    );
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0].admin).toBe(true);
+    expect(result.rows[0].email).toBe(adminEmail);
+  } finally {
+    client.release();
+  }
+}, 30_000); // allow up to 30 s for the second migration run
