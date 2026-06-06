@@ -39,6 +39,18 @@ describe("HTTP security headers", () => {
     const response = await request(app).get("/api/languages");
     expect(response.header["strict-transport-security"]).toBeUndefined();
   });
+
+  test("Content-Security-Policy styleSrc does not contain 'unsafe-inline'", async () => {
+    // 'unsafe-inline' in styleSrc allows CSS-based exfiltration / UI-redressing
+    // attacks; it must be absent so the CSP provides meaningful XSS protection.
+    const app = serverApp({ silent: true });
+    const response = await request(app).get("/api/languages");
+    const csp = (response.header["content-security-policy"] ?? "") as string;
+    // Isolate the style-src directive value (ends at ';' or end-of-string)
+    const styleSrcMatch = csp.match(/style-src\s+([^;]*)/i);
+    const styleSrcValue = styleSrcMatch ? styleSrcMatch[1] : "";
+    expect(styleSrcValue).not.toContain("'unsafe-inline'");
+  });
 });
 
 test("serverApp can be called with no arguments (default opts)", () => {
