@@ -228,3 +228,12 @@ Helper scripts:
 ## Subagents
 
 Use subagents liberally and aggressively to conserve the main context window. Avoid performing tasks directly: instead, orchestrate subagents.
+
+## Active Technologies
+
+- TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) — isomorphic four-layer architecture (`core` / `server` / `frontend` / `desktop`).
+- PostgreSQL with **two isolated drivers**: domain data via porsager `postgres@1.0.2` (`PGStorage`, through the `Persistence` interface); server-only authentication via better-auth on its own `pg` (node-postgres) `Pool`. (001-better-auth-migration)
+
+## Recent Changes
+
+- 001-better-auth-migration: better-auth email+password (Argon2id) replaces the plaintext hardcoded admin and `cookie-session`. Auth owns its `user`/`session`/`account`/`verification` tables through an isolated `pg.Pool` (constitution Principle VI v1.1.0 server-only exemption); the domain `postgres@1` driver is untouched. New `secrets.json` field `adminEmail`; new env var `BETTER_AUTH_URL`; `cookieSecret` must be ≥ 32 chars; new `/api/auth/*` routes; legacy `/api/users/*` removed; desktop access-code auth unchanged.
