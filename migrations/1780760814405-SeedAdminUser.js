@@ -6,28 +6,29 @@
 var crypto = require("crypto");
 const fs = require("fs");
 const { makeDbConnect } = require("./_helpers");
+const { ALGO, MEMORY, ITERATIONS, PARALLELISM, TAG_LENGTH } = require("./_argon2Params");
 
 /**
  * Hash a password using Argon2id via Node 24's built-in crypto.argon2Sync.
  *
- * Parameters match passwordHasher.ts (src/server/auth/passwordHasher.ts) so
- * the seeded credential verifies against the same runtime hasher wired into
- * better-auth's emailAndPassword.password config.
+ * Parameters come from migrations/_argon2Params.js (the single source of truth),
+ * which is also cross-referenced by src/server/auth/passwordHasher.ts. Tuning
+ * parameters in _argon2Params.js is visible to both the migration and the runtime
+ * hasher without requiring a dual-site update.
  *
  * Format: "argon2id$<m>$<t>$<p>$<saltHex>$<hashHex>"
- *   m = 19456 (memory KiB), t = 2 (iterations), p = 1 (parallelism), tagLen = 32
  */
 function hashPassword(password) {
   const nonce = crypto.randomBytes(16);
-  const hashBuf = crypto.argon2Sync("argon2id", {
+  const hashBuf = crypto.argon2Sync(ALGO, {
     message: Buffer.from(password, "utf8"),
     nonce,
-    passes: 2,
-    memory: 19456,
-    parallelism: 1,
-    tagLength: 32,
+    passes: ITERATIONS,
+    memory: MEMORY,
+    parallelism: PARALLELISM,
+    tagLength: TAG_LENGTH,
   });
-  return `argon2id$19456$2$1$${nonce.toString("hex")}$${hashBuf.toString("hex")}`;
+  return `${ALGO}$${MEMORY}$${ITERATIONS}$${PARALLELISM}$${nonce.toString("hex")}$${hashBuf.toString("hex")}`;
 }
 
 const dbConnect = makeDbConnect();

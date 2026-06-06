@@ -1,10 +1,16 @@
 import { randomBytes, timingSafeEqual } from "crypto";
 
+/**
+ * Argon2id parameters — MUST stay in sync with migrations/_argon2Params.js,
+ * which is the CommonJS single source of truth shared by the SeedAdminUser
+ * migration. If you tune any of these values, update _argon2Params.js first
+ * so that both the runtime hasher and future migration runs use identical params.
+ */
 const ALGO = "argon2id";
-const MEMORY = 19456;
-const ITERATIONS = 2;
-const PARALLELISM = 1;
-const TAG_LENGTH = 32;
+const MEMORY = 19456; // KiB — see migrations/_argon2Params.js
+const ITERATIONS = 2; // passes — see migrations/_argon2Params.js
+const PARALLELISM = 1; // see migrations/_argon2Params.js
+const TAG_LENGTH = 32; // bytes — see migrations/_argon2Params.js
 
 // Node 24 built-in argon2Sync: not yet in @types/node@20, so we pull it at
 // runtime via require and assert the minimal shape we need.

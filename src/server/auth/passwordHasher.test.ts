@@ -17,22 +17,34 @@ const { argon2Sync } = require("crypto") as {
   ) => Buffer;
 };
 
+// Shared Argon2id constants from the single source of truth used by the migration.
+// Importing here ensures the test exercises the same parameter values that
+// migrations/_argon2Params.js exports, so any param drift is caught immediately.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { ALGO, MEMORY, ITERATIONS, PARALLELISM, TAG_LENGTH } = require("../../../migrations/_argon2Params") as {
+  ALGO: string;
+  MEMORY: number;
+  ITERATIONS: number;
+  PARALLELISM: number;
+  TAG_LENGTH: number;
+};
+
 /**
- * Inline Argon2id hash helper using the same code path as the updated migration
- * (SeedAdminUser.js). This is the CommonJS-compatible form that the migration
- * will use to produce a credential the runtime `passwordHasher.verify` can check.
+ * Inline Argon2id hash helper using the same code path as the SeedAdminUser
+ * migration. Consumes parameters from migrations/_argon2Params.js (the single
+ * source of truth) so that any param tuning is caught by this test.
  */
 function migrationArgon2idHash(password: string): string {
   const nonce = randomBytes(16);
-  const hashBuf = argon2Sync("argon2id", {
+  const hashBuf = argon2Sync(ALGO, {
     message: Buffer.from(password, "utf8"),
     nonce,
-    passes: 2,
-    memory: 19456,
-    parallelism: 1,
-    tagLength: 32,
+    passes: ITERATIONS,
+    memory: MEMORY,
+    parallelism: PARALLELISM,
+    tagLength: TAG_LENGTH,
   });
-  return `argon2id$19456$2$1$${nonce.toString("hex")}$${hashBuf.toString("hex")}`;
+  return `${ALGO}$${MEMORY}$${ITERATIONS}$${PARALLELISM}$${nonce.toString("hex")}$${hashBuf.toString("hex")}`;
 }
 
 describe("passwordHasher", () => {
