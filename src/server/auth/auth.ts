@@ -26,7 +26,10 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> { // eslint-disabl
         ? secrets.devDb
         : secrets.db;
 
-  const pool = new Pool({ ...dbConfig, max: 5 });
+  // porsager/postgres uses "username" but pg/Pool (used by better-auth) uses "user".
+  // Remap so the pool connects with the correct credentials.
+  const { username, ...restDbConfig } = dbConfig as typeof dbConfig & { username?: string };
+  const pool = new Pool({ ...restDbConfig, user: username, max: 5 });
 
   authInstance = betterAuth({
     database: pool,
