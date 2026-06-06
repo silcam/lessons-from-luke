@@ -18,7 +18,7 @@ describe("Translate", () => {
   it("Uses the defaultSrcLang to set interface locale", () => {
     cy.login();
     cy.request("POST", "/api/admin/languages/3", { defaultSrcLang: 2 });
-    cy.request("POST", "/api/users/logout");
+    cy.request("POST", "/api/auth/sign-out");
 
     cy.visit("/translate/GHI");
     cy.contains("Luc 1-1").should("exist");
