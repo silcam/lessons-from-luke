@@ -22,6 +22,7 @@ export interface APIGet {
   "/api/lessons/:lessonId/webified": [{ lessonId: number }, { html: string }];
 
   // Web Only
+  "/api/auth/get-session": [Record<string, never>, { user: User } | null];
   "/api/users/current": [Record<string, never>, User | null];
   "/api/admin/languages": [Record<string, never>, Language[]];
   "/api/languages/:languageId/tStrings": [{ languageId: number }, TString[]];

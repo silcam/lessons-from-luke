@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { usePush } from "../../common/api/useLoad";
+import { useDispatch, useSelector } from "react-redux";
+import { AppDispatch, AppState } from "../../common/state/appState";
 import { pushLogin } from "../../common/state/currentUserSlice";
 import Button from "../../common/base-components/Button";
 import TextInput from "../../common/base-components/TextInput";
@@ -14,16 +15,11 @@ export default function PublicHome() {
   const t = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loginFailed, setLoginFailed] = useState(false);
-  const push = usePush();
-  const logIn = () =>
-    push(pushLogin({ email, password }), (appError) => {
-      if (appError.type == "HTTP" && appError.status == 422) {
-        setLoginFailed(true);
-        return true;
-      }
-      return false;
-    });
+  const dispatch = useDispatch<AppDispatch>();
+  const error = useSelector((state: AppState) => state.currentUser.error);
+  const loginFailed = Boolean(error);
+
+  const logIn = () => dispatch(pushLogin({ email, password }));
 
   return (
     <MiddleOfPage>
@@ -35,7 +31,6 @@ export default function PublicHome() {
             value={email}
             setValue={(v) => {
               setEmail(v);
-              setLoginFailed(false);
             }}
             placeholder={t("Email")}
             autoFocus
@@ -46,7 +41,6 @@ export default function PublicHome() {
             value={password}
             setValue={(v) => {
               setPassword(v);
-              setLoginFailed(false);
             }}
             placeholder={t("Password")}
             password

@@ -89,7 +89,7 @@ describe("networkConnectionLostAction thunk", () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(get).toHaveBeenCalledWith("/api/users/current", {});
+    expect(get).toHaveBeenCalledWith("/api/auth/get-session", {});
   });
 
   it("does not start reconnection polling when already disconnected", async () => {

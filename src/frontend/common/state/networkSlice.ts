@@ -48,7 +48,7 @@ export function networkConnectionLostAction(get: GetRequest) {
 async function tryToReconnect(get: GetRequest, onReconnect: () => void) {
   const timer = setInterval(async () => {
     try {
-      await get("/api/users/current", {});
+      await get("/api/auth/get-session", {});
       clearInterval(timer);
       onReconnect();
     } catch {
