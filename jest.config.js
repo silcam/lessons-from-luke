@@ -124,6 +124,12 @@ module.exports = {
     "!src/frontend/web/languages/UsfmImportResultPage.tsx",
     "!src/frontend/web/lessons/UploadLessonForm.tsx",
     "!src/frontend/web/documents/useGetDocument.tsx",
+    // Auth config glue — getAuth() factory around the better-auth constructor + env switch;
+    // sign-in/guard behavior is covered by auth.integration.test.ts, not the unit coverage report:
+    "!src/server/auth/auth.ts",
+    // Auth client glue — better-auth React client construction; behavior covered by
+    // currentUserSlice.test.ts mocks and Cypress e2e, not unit tests:
+    "!src/frontend/web/auth/authClient.ts",
   ],
   coverageThreshold: {
     global: {
