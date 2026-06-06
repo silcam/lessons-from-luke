@@ -23,7 +23,7 @@ It is built and used by [SIL](https://www.sil.org/), with roots in SIL Cameroon.
 
 ---
 
-## Why this exists (the point)
+## Why this exists
 
 Bible-based Sunday School curriculum is written once, in English, as carefully
 formatted documents (titles, lesson text, coloring pages, scripture references).
@@ -58,7 +58,7 @@ Lessons from Luke solves three problems at once:
   them — the app skips the rest, saving real effort for small language communities.
 - Work entirely offline on the desktop app; sync when you can.
 
-### Value to the organization (SIL)
+### Value to an organization or community
 
 - One canonical English curriculum feeds an unlimited number of language editions —
   no duplicated typesetting, no drift between versions.
