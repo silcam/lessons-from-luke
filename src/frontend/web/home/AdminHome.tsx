@@ -1,7 +1,7 @@
 import React from "react";
 import { useDispatch } from "react-redux";
 import { AppDispatch } from "../../common/state/appState";
-import { pushLogout } from "../../common/state/currentUserSlice";
+import { pushLogout } from "../auth/authThunks";
 import useTranslation from "../../common/util/useTranslation";
 import LanguagesBox from "../languages/LanguagesBox";
 import LessonsBox from "../lessons/LessonsBox";

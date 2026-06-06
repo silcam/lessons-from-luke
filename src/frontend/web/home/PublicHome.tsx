@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, AppState } from "../../common/state/appState";
-import { pushLogin } from "../../common/state/currentUserSlice";
+import { pushLogin } from "../auth/authThunks";
 import Button from "../../common/base-components/Button";
 import TextInput from "../../common/base-components/TextInput";
 import MiddleOfPage from "../../common/base-components/MiddleOfPage";

@@ -74,16 +74,22 @@ module.exports = {
         // Handle CSS/assets
         "\\.(css|less|scss|svg|png|jpg|jpeg|gif|ico)$": "<rootDir>/__mocks__/styleMock.js",
         // Redirect ESM-only better-auth/react to a CJS shim so Jest's CommonJS
-        // runner can load it. Unit tests mock authClient directly via jest.mock()
-        // with { virtual: true }; this shim only needs to satisfy the static import
-        // in currentUserSlice.ts.
+        // runner can load it. The authClient moduleNameMapper entries below redirect
+        // all authClient imports to a manual mock, so better-auth/react is never
+        // actually called in unit tests; this shim exists to satisfy the static import
+        // in authClient.ts (which is itself redirected to the mock, but ts-jest still
+        // needs to parse it).
         "^better-auth/react$": "<rootDir>/src/frontend/__mocks__/better-auth-react.cjs",
         // Redirect authClient imports to a jest.fn()-based manual mock so that
         // unit tests can call mockResolvedValue() without the virtual-mock
         // keying mismatch (virtual mocks key on the raw path, not the resolved
         // absolute path, so the slice's import and the test's require end up
         // consulting different registry entries).
+        // The first pattern matches cross-layer imports (../../web/auth/authClient).
+        // The second matches the relative import ./authClient used by authThunks.ts
+        // (which lives in web/auth/ and imports authClient as a sibling module).
         ".*/web/auth/authClient": "<rootDir>/src/frontend/__mocks__/authClient.ts",
+        "^\\./authClient(\\.ts)?$": "<rootDir>/src/frontend/__mocks__/authClient.ts",
       },
     },
   ],

@@ -5,7 +5,7 @@ import AdminHome from "./home/AdminHome";
 import PublicHome from "./home/PublicHome";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, AppState } from "../common/state/appState";
-import { loadCurrentUser } from "../common/state/currentUserSlice";
+import { loadCurrentUser } from "./auth/authThunks";
 import RootDiv from "../common/base-components/RootDiv";
 import LoadingSnake from "../common/base-components/LoadingSnake";
 import LessonPage from "./lessons/LessonPage";
