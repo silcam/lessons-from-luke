@@ -1,0 +1,14 @@
+;=============================================
+; Admin signs out and session is ended with cookie cleared.
+;=============================================
+GIVEN a signed-in admin.
+WHEN the admin signs out.
+THEN the session ends.
+THEN the session cookie is cleared.
+
+;=============================================
+; After sign-out, admin-only endpoint returns 401.
+;=============================================
+GIVEN a just-signed-out admin.
+WHEN an admin-only endpoint is requested.
+THEN the system responds with 401 Unauthorized.

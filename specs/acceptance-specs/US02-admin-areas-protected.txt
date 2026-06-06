@@ -1,0 +1,20 @@
+;=============================================
+; Unauthenticated request to admin endpoint returns 401.
+;=============================================
+GIVEN no active session.
+WHEN an admin-only endpoint is requested.
+THEN the system responds with 401 Unauthorized.
+
+;=============================================
+; Non-admin authenticated session is denied admin access with 403.
+;=============================================
+GIVEN a signed-in non-admin session.
+WHEN an admin-only endpoint is requested.
+THEN the system responds with 403 Forbidden.
+
+;=============================================
+; Admin session succeeds on admin-only endpoint.
+;=============================================
+GIVEN a signed-in admin session.
+WHEN an admin-only endpoint is requested.
+THEN the request succeeds with a 200 response.
