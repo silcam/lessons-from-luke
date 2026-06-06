@@ -72,8 +72,8 @@ export function pushLogin(login: { email: string; password: string }) {
         )
       );
     } else if (result.data?.user) {
-      const { id } = result.data.user as { id: string; admin?: boolean };
-      dispatch(currentUserSlice.actions.setUser({ id, admin: true }));
+      const { id, admin } = result.data.user as { id: string; admin?: boolean };
+      dispatch(currentUserSlice.actions.setUser({ id, admin: Boolean(admin) }));
     }
   };
 }

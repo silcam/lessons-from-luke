@@ -202,7 +202,7 @@ describe("currentUserSlice thunks", () => {
     it("on success, dispatches setUser with id:string and admin:true from response", async () => {
       const login = { email: "admin@example.com", password: "secret" };
       (authClient.signIn.email as jest.Mock).mockResolvedValue({
-        data: { user: { id: "u1", email: "admin@example.com" } },
+        data: { user: { id: "u1", email: "admin@example.com", admin: true } },
         error: null,
       });
       const dispatch = jest.fn();
@@ -211,6 +211,36 @@ describe("currentUserSlice thunks", () => {
 
       expect(dispatch).toHaveBeenCalledWith(
         currentUserSlice.actions.setUser(expect.objectContaining({ id: "u1", admin: true }))
+      );
+    });
+
+    it("on success for a non-admin user, dispatches setUser with admin:false", async () => {
+      const login = { email: "nonadmin@example.com", password: "secret" };
+      (authClient.signIn.email as jest.Mock).mockResolvedValue({
+        data: { user: { id: "u2", email: "nonadmin@example.com", admin: false } },
+        error: null,
+      });
+      const dispatch = jest.fn();
+
+      await pushLogin(login)(dispatch);
+
+      expect(dispatch).toHaveBeenCalledWith(
+        currentUserSlice.actions.setUser(expect.objectContaining({ id: "u2", admin: false }))
+      );
+    });
+
+    it("on success when admin field is absent, dispatches setUser with admin:false", async () => {
+      const login = { email: "nonadmin@example.com", password: "secret" };
+      (authClient.signIn.email as jest.Mock).mockResolvedValue({
+        data: { user: { id: "u3", email: "nonadmin@example.com" } },
+        error: null,
+      });
+      const dispatch = jest.fn();
+
+      await pushLogin(login)(dispatch);
+
+      expect(dispatch).toHaveBeenCalledWith(
+        currentUserSlice.actions.setUser(expect.objectContaining({ id: "u3", admin: false }))
       );
     });
 
