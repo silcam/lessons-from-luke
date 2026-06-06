@@ -21,7 +21,10 @@ paths:
       description: >
         Verifies the submitted password against the stored Argon2id hash. On success a
         server-side session is created and a session cookie is set. Failure responses MUST NOT
-        reveal whether the email is registered (FR-007).
+        reveal whether the email is registered (FR-007). The password length is bounded by an
+        explicitly-configured `emailAndPassword.maxPasswordLength` (red-team Pass 2) so an
+        over-length password cannot amplify Argon2id CPU/memory cost via the 2MB JSON body limit;
+        over-length input is rejected BEFORE hashing.
       requestBody:
         required: true
         content:
@@ -31,7 +34,12 @@ paths:
               required: [email, password]
               properties:
                 email: { type: string, format: email }
-                password: { type: string }
+                password:
+                  type: string
+                  description: >
+                    Bounded by the configured maxPasswordLength (~128; explicitly set, not relying
+                    on an unverified library default — red-team Pass 2).
+                  maxLength: 128
       responses:
         "200":
           description: Authenticated. Session cookie set.
@@ -45,6 +53,15 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/SessionUserEnvelope" }
+        "400":
+          description: >
+            Malformed or out-of-bounds input (missing field, non-email, or password exceeding
+            maxPasswordLength). Rejected by validation BEFORE the Argon2id hash runs, so it cannot
+            be used as a CPU/memory amplification vector (red-team Pass 2). This is an input-shape
+            error, NOT a credential-validity signal, and MUST NOT reveal whether the email exists.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthError" }
         "401":
           description: >
             Invalid credentials (wrong password OR unknown email — indistinguishable to the
@@ -52,6 +69,10 @@ paths:
             (AuthError), and headers MUST be byte-identical for "unknown email" and "wrong
             password", and the response time MUST NOT distinguish them (no early-return for
             unknown email) — closing the timing enumeration side-channel. (red-team Pass 1.)
+            **This 401 is the failure status the web sign-in UI keys on** — it replaces the legacy
+            422 that `PublicHome.tsx` currently checks; the rewired slice/component MUST surface 401
+            (not 422) to render the `Log_in_failed` alert, or US1-scenario-2 silently regresses
+            (red-team Pass 2).
         "429":
           description: >
             Too Many Requests — sign-in is rate-limited (red-team Pass 1). better-auth's rate

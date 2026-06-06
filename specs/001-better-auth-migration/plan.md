@@ -117,7 +117,7 @@ only its dispatch wiring changes. All other work is backend/auth infrastructure.
 
 | Screen / Component                | User Story | Approach                                                                                          | Design Skills |
 | --------------------------------- | ---------- | ------------------------------------------------------------------------------------------------- | ------------- |
-| Public sign-in form (`PublicHome`) | US1        | Rename `username` state → `email`; placeholder `t("Username")` → `t("Email")`; keep `Login failed` alert and failure handling (no enumeration) | —             |
+| Public sign-in form (`PublicHome`) | US1        | Rename `username` state → `email`; placeholder `t("Username")` → `t("Email")`; **rewire the failure check from `appError.status == 422` to the better-auth failure status (401)** — see Edge Cases "Login-failure status drift"; keep `Log_in_failed` alert and no-enumeration behavior | —             |
 | Admin log-out button (`AdminHome`) | US3        | Existing button; switch `usePush(pushLogout)` → plain thunk dispatch (no visual change)            | —             |
 
 No DaisyUI, onboarding, or adaptive-layout work applies — this repo uses styled base-components and
@@ -359,6 +359,25 @@ second-order leaks the functional spec did not call out:
   `get-session`. A protected call will 401; `MainRouter`/`currentUserSlice` MUST map a 401 from any
   admin call back to `setUser(null)` so the UI does not present admin affordances that no longer work.
 
+### Frontend Failure-Status Drift (NEW — Pass 2)
+
+- **Login-failure status drift (422 → 401)**: `PublicHome.tsx` currently gates its `Log_in_failed`
+  alert on `appError.type == "HTTP" && appError.status == 422` — the status the legacy
+  `usersController` threw. better-auth's `/sign-in/email` rejects bad credentials with **401**
+  (see `contracts/auth-api.yaml`), so if the component keeps checking `== 422` the alert will
+  **silently never render** and US1-scenario-2 ("clear failure state on bad credentials") regresses
+  with no test obviously failing. The rewired `currentUserSlice` sign-in thunk and `PublicHome` MUST
+  key the failure UI on the better-auth failure status (401), and a `PublicHome` unit test MUST assert
+  the alert appears on a 401 rejection so the contract drift cannot silently regress. This is also a
+  plan↔contract congruence point: the contract says 401, so the UI must follow the contract.
+- **`/api/tStrings` stays access-code-gated, NOT user-session-gated (clarity)**: `POST /api/tStrings`
+  is authorized today by the per-translation **access code** (`storage.invalidCode(...)`, 401 on a
+  bad code), independent of any user session — it is the translator/desktop write path (US5). The
+  migration changes the *user-session* gate (`requireUser`→`requireAdmin` on `/api/admin/*`) and MUST
+  leave the access-code authorization on `/api/tStrings` untouched. The design MUST NOT (a) drop the
+  access-code check, nor (b) accidentally place `/api/tStrings` behind the new admin session gate
+  (which would break translator writes). Only `/api/admin/*` is user-session-gated.
+
 ### Test-Isolation Edge Cases (hardening research Decision 5)
 
 - The `afterEach` cleanup deletes `session`/`verification` and non-seed `user`/`account`. If a test
@@ -381,6 +400,16 @@ second-order leaks the functional spec did not call out:
   profile rather than silently exceeding the budget.
 - This ties directly to the rate-limit requirement above: throttling sign-in is also the throttle on
   Argon2id CPU/memory spend.
+- **Bound the password input length (NEW — Pass 2)**: the global `bodyParser.json({ limit: "2MB" })`
+  would otherwise let a single *allowed* sign-in attempt submit a multi-MB `password` that Argon2id
+  must hash, amplifying the per-attempt CPU/memory cost far beyond a normal password. better-auth
+  applies a default `maxPasswordLength` (≈128), but the design MUST **explicitly configure**
+  `emailAndPassword.maxPasswordLength` (and a sane `minPasswordLength`) rather than rely on an
+  unverified library default — better-auth is not yet installed, so the effective default cannot be
+  assumed. Over-length passwords MUST be rejected **before** the Argon2id hash runs, and the integration
+  test MUST assert an over-length password is rejected (so a future config change cannot silently remove
+  the cap). This complements the rate limit: rate-limit caps attempt *frequency*, the length cap caps
+  per-attempt *cost*.
 
 ### Query / Index Footprint
 

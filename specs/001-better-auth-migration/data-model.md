@@ -67,6 +67,10 @@ The stored credential for an account's email/password method. (Spec Key Entity: 
 
 - **Validation rules**: `password` is ALWAYS a one-way Argon2id hash, never plaintext (FR-001,
   SC-003). The seed and the runtime hasher produce byte-identical formats so verification succeeds.
+- **Input-length bound (red-team Pass 2)**: the *submitted* (pre-hash) password length is bounded by
+  an explicitly-configured `emailAndPassword.maxPasswordLength` (~128) so an over-length password
+  cannot ride the 2MB JSON body limit into the Argon2id hasher and amplify CPU/memory cost. The cap
+  applies before hashing; the stored hash length is fixed by the Argon2id format regardless.
 - **Maps to**: FR-001; US1.
 
 ### Entity: `session`
