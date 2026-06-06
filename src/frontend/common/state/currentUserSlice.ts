@@ -31,6 +31,7 @@ const currentUserSlice = createSlice({
     },
     logout: (state) => {
       state.user = null;
+      state.error = null;
     },
     setError: (state, action: PayloadAction<string>) => {
       state.error = action.payload;

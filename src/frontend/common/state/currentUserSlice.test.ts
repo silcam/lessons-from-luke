@@ -99,6 +99,26 @@ describe("currentUserSlice reducers", () => {
 
       expect(state.user).toBeNull();
     });
+
+    it("clears error so stale login-failed banner does not reappear", () => {
+      const stateWithError = {
+        ...initialState,
+        user: null,
+        error: "Invalid credentials",
+      };
+
+      const stateAfterError = currentUserSlice.reducer(
+        stateWithError,
+        currentUserSlice.actions.setError("Invalid credentials")
+      );
+
+      const state = currentUserSlice.reducer(
+        stateAfterError,
+        currentUserSlice.actions.logout()
+      );
+
+      expect(state.error).toBeNull();
+    });
   });
 
   describe("initial state", () => {
