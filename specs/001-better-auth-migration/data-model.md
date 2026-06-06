@@ -37,6 +37,11 @@ The authenticatable identity. (Spec Key Entity: **Account (User)**.)
 - **Validation rules**: `email` uniqueness enforced at the DB (FR-013); `admin` defaults false
   (input disabled via better-auth `additionalFields: { admin: { input: false } }` so it cannot be
   set through any public API — only the seed/raw SQL sets `admin: true`).
+- **Email normalization (red-team Pass 1)**: the seed MUST store `adminEmail` in the same
+  normalized form better-auth uses at login (lowercase). The UNIQUE constraint is on the stored
+  value, so a differently-cased seed could either fail to match at login or inconsistently dodge
+  the unique constraint. The `afterEach` test cleanup's "spare the seeded admin" filter MUST also
+  compare on the normalized email.
 - **Maps to**: FR-001, FR-004, FR-013; US1, US2, US4.
 
 ### Entity: `account`
@@ -82,8 +87,10 @@ A server-side session bound to an account. (Spec Key Entity: **Session**.)
 
 - **Lifecycle / state**: created on sign-in; `expiresAt = createdAt + expiresIn (30d)`; refreshed
   when older than `updateAge (1d)`; deleted on sign-out. An expired session is treated as
-  unauthenticated (FR-006). **Test isolation**: `session` rows are written on the auth `pg.Pool`,
-  outside the domain test transaction, so they are deleted in `afterEach` (research Decision 5).
+  unauthenticated (FR-006), compared against the server clock (never a client-supplied time).
+  **Test isolation**: `session` rows are written on the auth `pg.Pool`, outside the domain test
+  transaction, so they are deleted in `afterEach` alongside `verification` and `rateLimit`
+  (research Decision 5; red-team Pass 1).
 - **Maps to**: FR-005, FR-006, FR-010; US1, US3.
 
 ### Entity: `verification`
@@ -103,22 +110,47 @@ Short-lived token storage used internally by better-auth. (Spec Key Entity: **Ve
 - **Notes**: minimal in this cut (no email verification or reset flows enabled). Table exists
   because better-auth's schema expects it. Cleaned in `afterEach` alongside `session` for isolation.
 
+### Entity: `rateLimit` (red-team Pass 1)
+
+Backing store for better-auth's rate limiter when `rateLimit.storage = "database"`. Required by the
+red-team Security finding: the in-memory store is silently per-worker under the Passenger process
+model, so brute-force/DoS protection on `/sign-in/email` MUST be DB-backed to be effective. Owned by
+the auth `pg.Pool` (server-only infra, Principle VI exemption), created by the same DDL migration.
+Column names are dictated by better-auth and MUST NOT be renamed.
+
+| Field        | Type          | Constraints                 | Notes                                              |
+| ------------ | ------------- | --------------------------- | -------------------------------------------------- |
+| `id`         | `text`        | PRIMARY KEY                 |                                                    |
+| `key`        | `text`        | NOT NULL                    | rate-limit bucket key (IP + route)                 |
+| `count`      | `integer`     | NOT NULL                    | attempts in the current window                     |
+| `lastRequest`| `bigint`      | NOT NULL                    | epoch ms of last counted request                   |
+
+- **Notes**: confirm the exact column names/types against the installed `better-auth@1.6.14` schema
+  before writing the DDL (better-auth's generated schema is authoritative). Cleaned in `afterEach`
+  alongside `session`/`verification` so a test's throttle counters do not leak into the next test.
+- **Maps to**: red-team Security (rate limiting); supports FR-001/FR-007 hardening, SC-002.
+
 ### Relationships
 
 ```
 user (1) ──< (N) account     account.userId → user.id   ON DELETE CASCADE
 user (1) ──< (N) session     session.userId → user.id   ON DELETE CASCADE
 verification                 (no FK; identifier-keyed)
+rateLimit                    (no FK; key-keyed; red-team Pass 1)
 ```
 
 ### Migration DDL ordering
 
-- **`up`** (create): `user` → `session` → `account` → `verification` (FK targets first), then the
-  three indexes. Wrap in `sql.begin` for atomicity.
-- **`down`** (drop): reverse — `verification` → `account` → `session` → `user`.
+- **`up`** (create): `user` → `session` → `account` → `verification` → `rateLimit` (FK targets
+  first; `rateLimit` is standalone), then the indexes. Wrap in `sql.begin` for atomicity.
+- **`down`** (drop): reverse — `rateLimit` → `verification` → `account` → `session` → `user`.
 - **Seed migration** (separate file, runs after DDL): inserts one `user` (`admin:true`) + one
   `account` from `secrets.adminEmail`/`adminPassword`; idempotent (skip if email exists); throws if
-  `adminEmail` missing. (FR-003, US4.)
+  `adminEmail` missing. (FR-003, US4.) **Atomicity (red-team Pass 1)**: the `user` + `account`
+  inserts MUST happen in a single transaction, OR the idempotency check MUST confirm BOTH a `user`
+  AND a matching credential `account` exist before skipping — otherwise a seed that fails between the
+  two inserts leaves an un-loginable admin (user with no credential) that a re-run silently skips. The
+  migration MUST NOT log the plaintext `adminPassword` or echo `secrets.json` contents on error.
 
 ---
 

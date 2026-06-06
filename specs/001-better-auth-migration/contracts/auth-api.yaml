@@ -48,7 +48,22 @@ paths:
         "401":
           description: >
             Invalid credentials (wrong password OR unknown email — indistinguishable to the
-            caller; FR-007). No session created. (Spec US1 scenario 2.)
+            caller; FR-007). No session created. (Spec US1 scenario 2.) The status code, body
+            (AuthError), and headers MUST be byte-identical for "unknown email" and "wrong
+            password", and the response time MUST NOT distinguish them (no early-return for
+            unknown email) — closing the timing enumeration side-channel. (red-team Pass 1.)
+        "429":
+          description: >
+            Too Many Requests — sign-in is rate-limited (red-team Pass 1). better-auth's rate
+            limiter throttles repeated attempts to defend the single known admin account against
+            credential stuffing AND to cap Argon2id CPU/memory spend (DoS amplification). A
+            stricter custom rule applies to this route (~5–10 attempts/window per client IP, keyed
+            on the trusted-proxy-derived IP, not raw X-Forwarded-For). The limiter store is
+            DB-backed (auth pg.Pool) so limits are not silently per-worker under Passenger.
+          headers:
+            Retry-After:
+              description: Seconds until the caller may retry.
+              schema: { type: integer }
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AuthError" }
@@ -83,7 +98,10 @@ paths:
       description: >
         Returns the current user + session if the request carries a valid, unexpired session
         cookie; otherwise null. Expired sessions are treated as unauthenticated (FR-006).
-        Drives the frontend's loadCurrentUser.
+        Drives the frontend's loadCurrentUser. Fails CLOSED: if the auth session store is
+        unreachable (auth pg.Pool error), the resolved session is treated as null
+        (unauthenticated), never as authenticated, and the error is logged server-side without
+        leaking connection details. (red-team Pass 1.)
       responses:
         "200":
           description: Either the session envelope or null.
@@ -97,10 +115,13 @@ paths:
   /api/auth/sign-out:
     post:
       summary: Sign out (US3, FR-005)
-      description: Ends the current session and clears the session cookie.
+      description: >
+        Ends the current session and clears the session cookie. Idempotent: a sign-out with an
+        already-invalid, expired, or absent session cookie still returns 200 with a cleared
+        cookie and never 500. (red-team Pass 1.)
       responses:
         "200":
-          description: Session ended; cookie cleared.
+          description: Session ended (or already absent); cookie cleared.
           headers:
             Set-Cookie:
               description: Session cookie cleared (expired).
@@ -123,7 +144,10 @@ paths:
         "200":
           description: Authenticated AND admin. (US2 scenario 3.)
         "401":
-          description: No (valid) session — unauthenticated. (US2 scenario 1; US3 scenario 2.)
+          description: >
+            No (valid) session — unauthenticated. (US2 scenario 1; US3 scenario 2.) This is also
+            the FAIL-CLOSED outcome when the auth session store throws/errors: requireAdmin treats
+            a session-lookup failure as unauthenticated (401), never as a bypass. (red-team Pass 1.)
         "403":
           description: Authenticated but NOT an admin. (US2 scenario 2.)
 

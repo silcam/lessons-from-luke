@@ -243,6 +243,149 @@ and `src/desktop` is untouched.
 **Pipeline**: `specs/acceptance-specs/*.txt` → `acceptance/parse-specs.ts` →
 `acceptance/generate-tests.ts` → `generated-acceptance-tests/*.spec.ts`.
 
+## Security Considerations
+
+> Added by `/sp:04-red-team` Pass 1. These harden the auth surface against attacks the
+> functional design did not yet address. Items here are requirements, not suggestions.
+
+### Brute-force / Rate Limiting (NEW — Critical gap in prior design)
+
+The current server has **no** rate limiting (verified: no `cors`, no `rate-limit` package, no
+throttle middleware in `serverApp.ts`). An email+password sign-in endpoint with no throttling
+lets an attacker run unlimited credential-guessing against the single known admin account, and
+Argon2id's deliberate per-attempt cost (m=19456, t=2) also makes the endpoint a cheap CPU/memory
+**DoS amplifier** — each guess forces a memory-hard hash.
+
+- **MUST** enable better-auth's built-in rate limiter (`rateLimit: { enabled: true, ... }`) and
+  apply a **stricter custom rule** to `/sign-in/email` (e.g. max ~5–10 attempts per window per IP).
+  better-auth's rate-limit store MUST use a backing it can actually share across the process model
+  — in this Passenger/Capistrano deploy, prefer the **database** store (its own `pg.Pool`) over the
+  default in-memory store so limits are not silently per-worker.
+- **MUST NOT** let the rate limiter key solely on client-controlled `X-Forwarded-For`. With
+  `trust proxy` set, Express derives `req.ip` from the forwarded chain; behind Passenger only the
+  **front-most trusted proxy** hop may be trusted. Set `trust proxy` to the specific hop count (the
+  plan already uses `app.set("trust proxy", 1)`), not `true`, so a client cannot spoof its IP to
+  evade the limit by prepending `X-Forwarded-For` headers.
+- The integration test suite MUST include a case asserting repeated bad sign-ins are throttled
+  (so the protection cannot silently regress).
+
+### Account Enumeration & Response-Timing (hardening FR-007)
+
+FR-007 / US1-scenario-2 already require that failure not reveal whether an email exists. Two
+second-order leaks the functional spec did not call out:
+
+- **Timing side-channel**: a registered email runs the Argon2id verify (slow); an unknown email
+  may short-circuit (fast). The measurable timing delta re-introduces enumeration even with
+  identical response bodies. better-auth normalizes this, but the integration test MUST treat the
+  invariant as "indistinguishable" and the design MUST NOT add any pre-check that returns early for
+  unknown emails.
+- **Error-shape consistency**: the `AuthError` body, status code (401), and headers MUST be
+  byte-identical for "unknown email" and "wrong password". Documented in `contracts/auth-api.yaml`.
+
+### Secret & Credential Exposure (NEW)
+
+- The seed migration hashes `secrets.adminPassword`; the **plaintext admin password MUST NOT be
+  logged** by the migration runner, and the migration MUST NOT echo `secrets.json` contents on
+  error. Failures print only which field was missing, never its value.
+- `secrets.json` MUST remain git-ignored (verify it is). The new `adminEmail` and the ≥32-char
+  `cookieSecret` are deployment secrets, not committed defaults — `defaultSecrets`/`sampleSecrets`
+  carry only non-production placeholders, and the ≥32-char fail-fast (Decision 7) ensures the weak
+  26-char placeholder cannot be used to boot a production server.
+- The session token and `cookieSecret` MUST never appear in request logs. The existing
+  `res.on("finish")` logger prints only `method path => status`; new auth wiring MUST NOT widen it
+  to log headers, cookies, or bodies.
+
+### CSRF / Cookie Posture (hardening FR-010)
+
+- Session cookies MUST be `HttpOnly` + `SameSite=Lax` (better-auth default) and, in production,
+  `Secure` + `__Host-` prefixed (already in the contract). `SameSite=Lax` plus the JSON-only
+  content type (better-auth rejects form-encoded cross-site posts) is the CSRF defense for state-
+  changing auth routes; the design MUST NOT relax `SameSite` to `None` (no cross-site embedding is
+  required in this cut).
+- `/api/admin/*` is read/write behind the session cookie; because there is no CORS allowlist today,
+  the design MUST NOT add a permissive `Access-Control-Allow-Origin: *` with credentials. Same-
+  origin is the posture; keep it.
+
+### Authorization Invariants (hardening FR-004)
+
+- The `admin` capability MUST be resolved **server-side per request** from the session-backed user
+  (Decision 4 `getSession`), never from a client-sent flag or a value cached in a JWT the client
+  could tamper with. `admin` is `input:false` (data-model) so it cannot be set via any public API.
+- `requireAdmin` MUST `return` after sending 401/403 (no fall-through to `next()`), and MUST default
+  to deny if `getSession` throws (treat a session-store error as unauthenticated, not as a bypass).
+
+## Edge Cases & Error Handling
+
+> Added by `/sp:04-red-team` Pass 1.
+
+### Auth Store / Dependency Failures (NEW)
+
+- **Auth `pg.Pool` unreachable** (DB down, pool exhausted, connection refused): `getSession` and
+  sign-in will reject. The design MUST fail **closed** — `requireAdmin`/`requireUser` treat a thrown
+  session lookup as unauthenticated (401), and sign-in returns a generic failure, rather than 500-ing
+  with a stack trace or, worse, allowing the request through. Errors are logged server-side without
+  leaking connection strings.
+- **Pool sizing / exhaustion**: the new auth `pg.Pool` is a *second* pool against the same Postgres
+  instance as the domain porsager driver. Its `max` MUST be bounded so the two pools combined stay
+  under Postgres `max_connections`; an unbounded auth pool under a sign-in flood could starve the
+  domain driver and take down unrelated endpoints. Document the chosen `max`.
+
+### Bootstrap / Migration Edge Cases (hardening FR-003)
+
+- **Partial seed failure**: the seed inserts a `user` then an `account`. If it fails between the two,
+  a later re-run's idempotency check (`skip if user with adminEmail exists`) would see the user and
+  skip — leaving an admin with **no credential** (un-loginable). The seed MUST be atomic (single
+  transaction inserting both rows) OR its idempotency check MUST verify *both* the `user` and a
+  matching `credential` `account` exist before skipping.
+- **Email casing**: better-auth treats emails case-insensitively for login but the `UNIQUE`
+  constraint is on the stored value. The seed MUST insert `adminEmail` in the **normalized** form
+  better-auth uses at login (lowercase), or a correctly-cased login could fail to match, or a second
+  differently-cased seed could violate/avoid the unique constraint inconsistently.
+- **Migration driver choice** (research Decision 10): if the seed uses the porsager helper for DDL
+  but the runtime uses `pg.Pool`, both MUST agree on column types/casing; a `text` vs `varchar` or
+  camelCase-vs-snake_case mismatch would make better-auth's Kysely queries miss the seeded row.
+
+### Session Lifecycle Edge Cases (hardening FR-006)
+
+- **Clock skew / expiry boundary**: an expired session MUST be treated as anonymous (401), and the
+  `expiresAt` comparison MUST be server-clock based, not client-supplied.
+- **Sign-out idempotency**: signing out with an already-invalid/absent session cookie MUST still
+  return success (200) and a cleared cookie, never 500.
+- **Stale frontend state**: after server-side expiry, the SPA still holds `user={...}` until its next
+  `get-session`. A protected call will 401; `MainRouter`/`currentUserSlice` MUST map a 401 from any
+  admin call back to `setUser(null)` so the UI does not present admin affordances that no longer work.
+
+### Test-Isolation Edge Cases (hardening research Decision 5)
+
+- The `afterEach` cleanup deletes `session`/`verification` and non-seed `user`/`account`. If a test
+  creates a non-admin user with an email differing only by case, the "spare the seeded admin" filter
+  MUST match on normalized email so it neither deletes the admin nor leaks the test user. The cleanup
+  MUST also run even when the test body throws (use `afterEach`, not inline teardown).
+
+## Performance Considerations
+
+> Added by `/sp:04-red-team` Pass 1.
+
+### Argon2id Cost vs. SC-001 (NEW)
+
+- Pure-JS `@noble/hashes` Argon2id at m=19456 KiB, t=2 is **single-threaded JS** and noticeably
+  slower than the native addon. A single verify must comfortably fit inside SC-001's < 5s sign-in
+  budget on the deploy host — but **concurrent** sign-ins serialize on the event loop and each holds
+  ~19 MiB. The chosen `m`/`t`/`p` parameters MUST be validated on the actual Passenger host so a
+  burst of sign-ins (or the rate-limited brute-force ceiling) cannot blow the SC-001 budget or the
+  process memory. If native-addon-free cost is too high, lower `m`/`t` to a still-safe Argon2id
+  profile rather than silently exceeding the budget.
+- This ties directly to the rate-limit requirement above: throttling sign-in is also the throttle on
+  Argon2id CPU/memory spend.
+
+### Query / Index Footprint
+
+- The data-model already specifies `idx_account_userId`, `idx_session_userId`,
+  `idx_verification_identifier`, and a UNIQUE on `session.token` and `user.email`. Per-request
+  `getSession` looks up by session **token** — confirm better-auth's query hits the unique `token`
+  index (not a scan), since this runs on **every** `/api/admin/*` request. No N+1 is expected (one
+  session row → one user row), but the design MUST NOT add a per-request full-table user scan.
+
 ## Applied Learnings
 
 No prior `.specify/solutions/` entries are relevant to this auth-migration design (the existing
