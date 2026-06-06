@@ -1,9 +1,9 @@
 import express from "express";
-import usersController from "./controllers/usersController";
 import bodyParser from "body-parser";
+import { toNodeHandler } from "better-auth/node";
 import languagesController from "./controllers/languagesController";
 import lessonsController from "./controllers/lessonsController";
-import requireUser from "./middle/requireUser";
+import requireAdmin from "./middle/requireUser";
 import tStringsController from "./controllers/tStringsController";
 import testController from "./controllers/testController";
 import documentsController from "./controllers/documentsController";
@@ -11,6 +11,7 @@ import PGStorage, { PGTestStorage, PGDevStorage } from "./storage/PGStorage";
 import { Persistence } from "../core/interfaces/Persistence";
 import docStorage from "./storage/docStorage";
 import syncController from "./controllers/syncController";
+import { getAuth } from "./auth/auth";
 
 const PRODUCTION = process.env.NODE_ENV == "production";
 
@@ -29,8 +30,10 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
     console.log(`[serverApp] NODE_ENV=${process.env.NODE_ENV} storage=${cls}`);
   }
 
+  app.set("trust proxy", 1);
+  app.all("/api/auth/*", toNodeHandler(getAuth()) as any);
   app.use(bodyParser.json({ limit: "2MB" }) as any);
-  app.use("/api/admin", requireUser);
+  app.use("/api/admin", requireAdmin);
 
   if (PRODUCTION) {
     app.use(express.static("dist/frontend"));
@@ -52,7 +55,6 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
     });
   }
 
-  usersController(app);
   languagesController(app, storage);
   lessonsController(app, storage);
   tStringsController(app, storage);
