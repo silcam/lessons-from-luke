@@ -3,7 +3,7 @@ import bodyParser from "body-parser";
 import { toNodeHandler } from "better-auth/node";
 import languagesController from "./controllers/languagesController";
 import lessonsController from "./controllers/lessonsController";
-import requireAdmin from "./middle/requireUser";
+import { requireAdmin } from "./middle/requireUser";
 import tStringsController from "./controllers/tStringsController";
 import testController from "./controllers/testController";
 import documentsController from "./controllers/documentsController";
