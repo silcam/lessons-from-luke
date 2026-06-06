@@ -79,6 +79,16 @@ if (secrets.adminPassword.length < 12) {
   );
 }
 
+if (
+  process.env.NODE_ENV === "production" &&
+  secrets.adminPassword === defaultSecrets.adminPassword
+) {
+  throw new Error(
+    "Invalid configuration: adminPassword must not be the built-in default in production. " +
+      "Set a strong, unique adminPassword in your secrets.json."
+  );
+}
+
 if (process.env.NODE_ENV === "production" && !secrets.adminEmail) {
   throw new Error(
     "Invalid configuration: adminEmail is required in production. " +

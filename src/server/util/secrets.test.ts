@@ -390,6 +390,70 @@ describe("secrets — FR-011 fail-fast validation", () => {
     expect(errorMessage).toMatch(/adminPassword/i);
   });
 
+  test("throws when NODE_ENV=production and adminPassword is the built-in default", () => {
+    process.env.NODE_ENV = "production";
+    process.env.BETTER_AUTH_URL = "https://example.com";
+
+    const defaultPasswordSecrets = {
+      ...validSecrets,
+      adminPassword: "dev-password-1", // the defaultSecrets value from secrets.ts
+    };
+    fs.writeFileSync(
+      secretsJsonPath,
+      JSON.stringify(defaultPasswordSecrets),
+      "utf8"
+    );
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).toThrow(/adminPassword/i);
+  });
+
+  test("error message for default adminPassword in production does not expose the password value", () => {
+    process.env.NODE_ENV = "production";
+    process.env.BETTER_AUTH_URL = "https://example.com";
+
+    const defaultPasswordSecrets = {
+      ...validSecrets,
+      adminPassword: "dev-password-1",
+    };
+    fs.writeFileSync(
+      secretsJsonPath,
+      JSON.stringify(defaultPasswordSecrets),
+      "utf8"
+    );
+
+    jest.resetModules();
+
+    let errorMessage = "";
+    try {
+      require("./secrets");
+    } catch (e) {
+      errorMessage = (e as Error).message;
+    }
+
+    expect(errorMessage).not.toContain("dev-password-1");
+    expect(errorMessage).toMatch(/adminPassword/i);
+  });
+
+  test("does not throw when adminPassword is the built-in default outside production", () => {
+    process.env.NODE_ENV = "test";
+
+    const defaultPasswordSecrets = {
+      ...validSecrets,
+      adminPassword: "dev-password-1",
+    };
+    fs.writeFileSync(
+      secretsJsonPath,
+      JSON.stringify(defaultPasswordSecrets),
+      "utf8"
+    );
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).not.toThrow();
+  });
+
   test("does not throw when cookieSecret is the built-in default outside production", () => {
     process.env.NODE_ENV = "test";
 
