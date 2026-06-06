@@ -1,4 +1,5 @@
 import express from "express";
+import helmet from "helmet";
 import bodyParser from "body-parser";
 import { toNodeHandler } from "better-auth/node";
 import languagesController from "./controllers/languagesController";
@@ -31,6 +32,36 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   }
 
   app.set("trust proxy", 1);
+
+  // HTTP security headers — helmet must be registered before any route handlers.
+  // Cast required: helmet v8 types use Node IncomingMessage/ServerResponse while
+  // Express app.use() expects its own RequestHandler type.
+  app.use(
+    helmet({
+      // HSTS: production only (avoids breaking plain-HTTP dev/test environments)
+      hsts: PRODUCTION
+        ? { maxAge: 31536000, includeSubDomains: true }
+        : false,
+      // Prevent clickjacking: deny framing from other origins
+      frameguard: { action: "sameorigin" },
+      // Prevent MIME-type sniffing
+      noSniff: true,
+      // Baseline Content-Security-Policy scoped to the SPA
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", "data:", "blob:"],
+          connectSrc: ["'self'"],
+          fontSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          frameAncestors: ["'self'"],
+        },
+      },
+    }) as any
+  );
+
   app.all("/api/auth/*", toNodeHandler(getAuth()) as any);
   app.use(bodyParser.json({ limit: "2MB" }) as any);
   app.use("/api/admin", requireAdmin);

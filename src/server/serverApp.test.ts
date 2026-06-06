@@ -5,6 +5,42 @@ import serverApp from "./serverApp";
 import path from "path";
 import fs from "fs";
 
+// ─── Security headers ─────────────────────────────────────────────────────────
+
+describe("HTTP security headers", () => {
+  test("X-Content-Type-Options: nosniff is set on all responses", async () => {
+    const app = serverApp({ silent: true });
+    const response = await request(app).get("/api/languages");
+    expect(response.header["x-content-type-options"]).toBe("nosniff");
+  });
+
+  test("X-Frame-Options is set to prevent clickjacking", async () => {
+    const app = serverApp({ silent: true });
+    const response = await request(app).get("/api/languages");
+    // helmet frameguard sets SAMEORIGIN; CSP frame-ancestors is an alternative
+    const xfo = (response.header["x-frame-options"] ?? "") as string;
+    const csp = (response.header["content-security-policy"] ?? "") as string;
+    const frameProtected =
+      xfo.toLowerCase().includes("sameorigin") ||
+      csp.toLowerCase().includes("frame-ancestors");
+    expect(frameProtected).toBe(true);
+  });
+
+  test("Content-Security-Policy header is present", async () => {
+    const app = serverApp({ silent: true });
+    const response = await request(app).get("/api/languages");
+    expect(response.header["content-security-policy"]).toBeDefined();
+  });
+
+  test("Strict-Transport-Security is NOT set outside production", async () => {
+    // In non-production NODE_ENV (test/development), HSTS must be absent
+    // because the server may be accessed over plain HTTP
+    const app = serverApp({ silent: true });
+    const response = await request(app).get("/api/languages");
+    expect(response.header["strict-transport-security"]).toBeUndefined();
+  });
+});
+
 test("serverApp can be called with no arguments (default opts)", () => {
   // Exercises the default parameter branch: opts = {}
   const app = serverApp();
