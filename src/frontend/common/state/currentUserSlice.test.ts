@@ -1,5 +1,34 @@
-import currentUserSlice, { loadCurrentUser, pushLogin, pushLogout } from "./currentUserSlice";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const sliceModule = require("./currentUserSlice");
+const currentUserSlice = sliceModule.default;
+// The new thunks will have new signatures; we import via require to avoid TS compile errors on old sigs
+const { loadCurrentUser, pushLogin, pushLogout } = sliceModule as {
+  loadCurrentUser: () => (dispatch: jest.Mock) => Promise<void>;
+  pushLogin: (login: { email: string; password: string }) => (dispatch: jest.Mock) => Promise<void>;
+  pushLogout: () => (dispatch: jest.Mock) => Promise<void>;
+};
 import { User } from "../../../core/models/User";
+
+jest.mock(
+  "../../../web/auth/authClient",
+  () => ({
+    authClient: {
+      getSession: jest.fn(),
+      signIn: { email: jest.fn() },
+      signOut: jest.fn(),
+    },
+  }),
+  { virtual: true }
+);
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { authClient } = require("../../../web/auth/authClient") as {
+  authClient: {
+    getSession: jest.Mock;
+    signIn: { email: jest.Mock };
+    signOut: jest.Mock;
+  };
+};
 
 function makeUser(overrides: Partial<User> = {}): User {
   return {
@@ -45,7 +74,11 @@ describe("currentUserSlice reducers", () => {
     });
 
     it("does not change locale when user is set", () => {
-      const stateWithUser = { ...initialState, user: makeUser(), locale: "en" as const };
+      const stateWithUser = {
+        ...initialState,
+        user: makeUser(),
+        locale: "en" as const,
+      };
 
       const state = currentUserSlice.reducer(
         stateWithUser,
@@ -60,7 +93,10 @@ describe("currentUserSlice reducers", () => {
     it("sets the user and marks loaded as true", () => {
       const user = makeUser({ id: "u5", admin: true });
 
-      const state = currentUserSlice.reducer(initialState, currentUserSlice.actions.setUser(user));
+      const state = currentUserSlice.reducer(
+        initialState,
+        currentUserSlice.actions.setUser(user)
+      );
 
       expect(state.user).toEqual(user);
       expect(state.loaded).toBe(true);
@@ -69,7 +105,10 @@ describe("currentUserSlice reducers", () => {
     it("sets user to null and marks loaded as true", () => {
       const stateWithUser = { ...initialState, user: makeUser() };
 
-      const state = currentUserSlice.reducer(stateWithUser, currentUserSlice.actions.setUser(null));
+      const state = currentUserSlice.reducer(
+        stateWithUser,
+        currentUserSlice.actions.setUser(null)
+      );
 
       expect(state.user).toBeNull();
       expect(state.loaded).toBe(true);
@@ -80,69 +119,154 @@ describe("currentUserSlice reducers", () => {
     it("clears the user", () => {
       const stateWithUser = { ...initialState, user: makeUser(), loaded: true };
 
-      const state = currentUserSlice.reducer(stateWithUser, currentUserSlice.actions.logout());
+      const state = currentUserSlice.reducer(
+        stateWithUser,
+        currentUserSlice.actions.logout()
+      );
 
       expect(state.user).toBeNull();
+    });
+  });
+
+  describe("initial state", () => {
+    it("has user null and loaded false", () => {
+      const state = currentUserSlice.reducer(undefined, { type: "@@INIT" });
+
+      expect(state.user).toBeNull();
+      expect(state.loaded).toBe(false);
+    });
+
+    it("after setUser with a user, has user set and loaded true", () => {
+      const user = makeUser({ id: "u1", admin: true });
+
+      const state = currentUserSlice.reducer(
+        undefined,
+        currentUserSlice.actions.setUser(user)
+      );
+
+      expect(state.user).toEqual({ id: "u1", admin: true });
+      expect(state.loaded).toBe(true);
     });
   });
 });
 
 describe("currentUserSlice thunks", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   describe("loadCurrentUser", () => {
-    it("calls GET /api/users/current and dispatches setUser", async () => {
-      const user = makeUser({ id: "u1", admin: false });
-      const get = jest.fn().mockResolvedValue(user);
+    it("calls authClient.getSession and dispatches setUser with user when session exists", async () => {
+      (authClient.getSession as jest.Mock).mockResolvedValue({
+        data: { user: { id: "u1", email: "user@example.com" } },
+      });
       const dispatch = jest.fn();
 
-      await loadCurrentUser(get)(dispatch);
+      await loadCurrentUser()(dispatch);
 
-      expect(get).toHaveBeenCalledWith("/api/users/current", {});
-      expect(dispatch).toHaveBeenCalledWith(currentUserSlice.actions.setUser(user));
+      expect(authClient.getSession).toHaveBeenCalled();
+      expect(dispatch).toHaveBeenCalledWith(
+        currentUserSlice.actions.setUser(expect.objectContaining({ id: "u1" }))
+      );
     });
 
-    it("dispatches setUser(null) even if GET returns null (to mark loaded)", async () => {
-      const get = jest.fn().mockResolvedValue(null);
+    it("calls authClient.getSession and dispatches setUser(null) when no session", async () => {
+      (authClient.getSession as jest.Mock).mockResolvedValue({ data: null });
       const dispatch = jest.fn();
 
-      await loadCurrentUser(get)(dispatch);
+      await loadCurrentUser()(dispatch);
 
+      expect(authClient.getSession).toHaveBeenCalled();
       expect(dispatch).toHaveBeenCalledWith(currentUserSlice.actions.setUser(null));
     });
   });
 
   describe("pushLogin", () => {
-    it("posts login and dispatches setUser", async () => {
-      const user = makeUser({ id: "u2", admin: true });
+    it("calls authClient.signIn.email with email, password, and callbackURL '/'", async () => {
       const login = { email: "admin@example.com", password: "secret" };
-      const post = jest.fn().mockResolvedValue(user);
+      (authClient.signIn.email as jest.Mock).mockResolvedValue({
+        data: { user: { id: "u1", email: "admin@example.com" } },
+        error: null,
+      });
       const dispatch = jest.fn();
 
-      await pushLogin(login)(post, dispatch);
+      await pushLogin(login)(dispatch);
 
-      expect(post).toHaveBeenCalledWith("/api/users/login", {}, login);
-      expect(dispatch).toHaveBeenCalledWith(currentUserSlice.actions.setUser(user));
+      expect(authClient.signIn.email).toHaveBeenCalledWith({
+        email: "admin@example.com",
+        password: "secret",
+        callbackURL: "/",
+      });
     });
 
-    it("dispatches setUser(null) if post returns null", async () => {
-      const login = { email: "wrong@example.com", password: "wrong" };
-      const post = jest.fn().mockResolvedValue(null);
+    it("on success, dispatches setUser with id:string and admin:true from response", async () => {
+      const login = { email: "admin@example.com", password: "secret" };
+      (authClient.signIn.email as jest.Mock).mockResolvedValue({
+        data: { user: { id: "u1", email: "admin@example.com" } },
+        error: null,
+      });
       const dispatch = jest.fn();
 
-      await pushLogin(login)(post, dispatch);
+      await pushLogin(login)(dispatch);
 
-      expect(dispatch).toHaveBeenCalledWith(currentUserSlice.actions.setUser(null));
+      expect(dispatch).toHaveBeenCalledWith(
+        currentUserSlice.actions.setUser(expect.objectContaining({ id: "u1", admin: true }))
+      );
+    });
+
+    it("on 401 failure, does NOT dispatch setUser with a user", async () => {
+      const login = { email: "wrong@example.com", password: "wrong" };
+      (authClient.signIn.email as jest.Mock).mockResolvedValue({
+        data: null,
+        error: { status: 401, message: "Invalid credentials" },
+      });
+      const dispatch = jest.fn();
+
+      await pushLogin(login)(dispatch);
+
+      const setUserWithUserCalls = dispatch.mock.calls.filter(
+        ([action]) =>
+          action.type === "currentUser/setUser" && action.payload !== null
+      );
+      expect(setUserWithUserCalls).toHaveLength(0);
+    });
+
+    it("on failure, dispatches something to handle the error state", async () => {
+      const login = { email: "wrong@example.com", password: "wrong" };
+      (authClient.signIn.email as jest.Mock).mockResolvedValue({
+        data: null,
+        error: { status: 401, message: "Invalid credentials" },
+      });
+      const dispatch = jest.fn();
+
+      await pushLogin(login)(dispatch);
+
+      expect(dispatch).toHaveBeenCalled();
     });
   });
 
   describe("pushLogout", () => {
-    it("posts logout and dispatches logout action", async () => {
-      const post = jest.fn().mockResolvedValue({});
+    it("calls authClient.signOut", async () => {
+      (authClient.signOut as jest.Mock).mockResolvedValue({});
       const dispatch = jest.fn();
 
-      await pushLogout()(post, dispatch);
+      await pushLogout()(dispatch);
 
-      expect(post).toHaveBeenCalledWith("/api/users/logout", {}, null);
-      expect(dispatch).toHaveBeenCalledWith(currentUserSlice.actions.logout());
+      expect(authClient.signOut).toHaveBeenCalled();
+    });
+
+    it("dispatches setUser(null) or logout() after sign out", async () => {
+      (authClient.signOut as jest.Mock).mockResolvedValue({});
+      const dispatch = jest.fn();
+
+      await pushLogout()(dispatch);
+
+      const logoutCalls = dispatch.mock.calls.filter(
+        ([action]) =>
+          action.type === "currentUser/logout" ||
+          (action.type === "currentUser/setUser" && action.payload === null)
+      );
+      expect(logoutCalls.length).toBeGreaterThan(0);
     });
   });
 });
