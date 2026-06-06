@@ -3,6 +3,10 @@ node_modules
 /docs
 /strings
 
+# Transient sp:08-harden orchestration artifacts
+/.sp-harden-findings.json
+/.sp-harden-state.json
+
 /.migrate
 /.migrate-dev
 /.migrate-prod
