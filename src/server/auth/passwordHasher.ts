@@ -32,7 +32,12 @@ const { argon2Sync } = require("crypto") as {
  *
  * The returned string encodes all parameters needed to verify the password
  * later, in the format:
- *   argon2id$<m>$<t>$<p>$<saltHex>$<hashHex>
+ *   argon2id$<m>$<t>$<p>$<l>$<saltHex>$<hashHex>
+ *
+ * The tag length `<l>` is encoded explicitly so that {@link verify} can
+ * round-trip any hash regardless of the current TAG_LENGTH constant value.
+ * This means changing TAG_LENGTH in the future will not silently break
+ * verification of credentials that were hashed under a different value.
  *
  * @param password - The plaintext password to hash.
  * @returns A promise resolving to the encoded hash string.
@@ -47,11 +52,19 @@ export async function hash(password: string): Promise<string> {
     parallelism: PARALLELISM,
     tagLength: TAG_LENGTH,
   });
-  return `${ALGO}$${MEMORY}$${ITERATIONS}$${PARALLELISM}$${nonce.toString("hex")}$${hashBuf.toString("hex")}`;
+  return `${ALGO}$${MEMORY}$${ITERATIONS}$${PARALLELISM}$${TAG_LENGTH}$${nonce.toString("hex")}$${hashBuf.toString("hex")}`;
 }
 
 /**
  * Verifies a plaintext password against a stored Argon2id hash string.
+ *
+ * Supports two formats:
+ * - New 7-field: `argon2id$<m>$<t>$<p>$<l>$<saltHex>$<hashHex>` — tag length
+ *   is read from the stored `<l>` field, so verification is independent of the
+ *   current TAG_LENGTH constant.
+ * - Legacy 6-field: `argon2id$<m>$<t>$<p>$<saltHex>$<hashHex>` — tag length
+ *   falls back to the TAG_LENGTH constant (32) for backward compatibility with
+ *   hashes produced before the tag-length field was introduced.
  *
  * Returns `false` (without throwing) if the stored hash is malformed or if
  * the password does not match.
@@ -66,13 +79,37 @@ export async function verify(
 ): Promise<boolean> {
   try {
     const parts = storedHash.split("$");
-    if (parts.length !== 6 || parts[0] !== ALGO) {
+    if (parts[0] !== ALGO) {
       return false;
     }
-    const [, mStr, tStr, pStr, nonceHex, expectedHashHex] = parts;
-    const m = parseInt(mStr, 10);
-    const t = parseInt(tStr, 10);
-    const p = parseInt(pStr, 10);
+
+    let m: number, t: number, p: number, tagLength: number, nonceHex: string, expectedHashHex: string;
+
+    if (parts.length === 7) {
+      // New format: argon2id$m$t$p$l$saltHex$hashHex
+      const [, mStr, tStr, pStr, lStr, nHex, eHex] = parts;
+      m = parseInt(mStr, 10);
+      t = parseInt(tStr, 10);
+      p = parseInt(pStr, 10);
+      tagLength = parseInt(lStr, 10);
+      nonceHex = nHex;
+      expectedHashHex = eHex;
+      if (isNaN(tagLength) || tagLength <= 0) {
+        return false;
+      }
+    } else if (parts.length === 6) {
+      // Legacy format: argon2id$m$t$p$saltHex$hashHex
+      const [, mStr, tStr, pStr, nHex, eHex] = parts;
+      m = parseInt(mStr, 10);
+      t = parseInt(tStr, 10);
+      p = parseInt(pStr, 10);
+      tagLength = TAG_LENGTH;
+      nonceHex = nHex;
+      expectedHashHex = eHex;
+    } else {
+      return false;
+    }
+
     if (isNaN(m) || isNaN(t) || isNaN(p)) {
       return false;
     }
@@ -86,7 +123,7 @@ export async function verify(
       passes: t,
       memory: m,
       parallelism: p,
-      tagLength: TAG_LENGTH,
+      tagLength,
     });
     const expectedHashBuf = Buffer.from(expectedHashHex, "hex");
     if (actualHashBuf.length !== expectedHashBuf.length) {

@@ -53,8 +53,9 @@ describe("passwordHasher", () => {
 
   it("hash(password) returns a string matching the argon2id format", async () => {
     const result = await hash(password);
+    // 7-field format: argon2id$m$t$p$l$saltHex$hashHex
     expect(result).toMatch(
-      /^argon2id\$[0-9]+\$[0-9]+\$[0-9]+\$[0-9a-f]+\$[0-9a-f]+$/
+      /^argon2id\$[0-9]+\$[0-9]+\$[0-9]+\$[0-9]+\$[0-9a-f]+\$[0-9a-f]+$/
     );
   });
 
@@ -109,5 +110,57 @@ describe("passwordHasher", () => {
       verify(h, p);
     const result = await betterAuthVerifyAdapter({ hash: hashed, password: wrongPassword });
     expect(result).toBe(false);
+  });
+
+  // ------------------------------------------------------------------ tag-length encoding
+
+  // New 7-field format: argon2id$m$t$p$l$saltHex$hashHex
+  // verify() must derive tag length from the stored hash, not from TAG_LENGTH constant,
+  // so that changing TAG_LENGTH in the future does not silently break existing credentials.
+
+  it("hash(password) produces a string matching the new 7-field format argon2id$m$t$p$l$saltHex$hashHex", async () => {
+    const result = await hash(password);
+    expect(result).toMatch(
+      /^argon2id\$[0-9]+\$[0-9]+\$[0-9]+\$[0-9]+\$[0-9a-f]+\$[0-9a-f]+$/
+    );
+    expect(result.split("$")).toHaveLength(7);
+  });
+
+  it("verify() round-trips a manually constructed hash with a non-default tag length (64 bytes)", async () => {
+    // Build a valid hash string using tagLength=64, bypassing hash() which uses TAG_LENGTH.
+    // This simulates a future environment where TAG_LENGTH=64 and proves verify() reads
+    // tag length from the stored hash rather than from the TAG_LENGTH constant.
+    const customTagLength = 64;
+    const nonce = randomBytes(16);
+    const hashBuf = argon2Sync(ALGO, {
+      message: Buffer.from(password, "utf8"),
+      nonce,
+      passes: ITERATIONS,
+      memory: MEMORY,
+      parallelism: PARALLELISM,
+      tagLength: customTagLength,
+    });
+    // 7-field format with l=64
+    const stored = `${ALGO}$${MEMORY}$${ITERATIONS}$${PARALLELISM}$${customTagLength}$${nonce.toString("hex")}$${hashBuf.toString("hex")}`;
+    const result = await verify(stored, password);
+    expect(result).toBe(true);
+  });
+
+  it("verify() still returns true for old 6-field hashes (backward compatibility)", async () => {
+    // Old format: argon2id$m$t$p$saltHex$hashHex (no tag-length field).
+    // verify() must fall back to TAG_LENGTH (32) for these so existing credentials keep working.
+    const nonce = randomBytes(16);
+    const hashBuf = argon2Sync(ALGO, {
+      message: Buffer.from(password, "utf8"),
+      nonce,
+      passes: ITERATIONS,
+      memory: MEMORY,
+      parallelism: PARALLELISM,
+      tagLength: TAG_LENGTH, // 32 — matches the fallback constant
+    });
+    // 6-field format (no l field)
+    const stored = `${ALGO}$${MEMORY}$${ITERATIONS}$${PARALLELISM}$${nonce.toString("hex")}$${hashBuf.toString("hex")}`;
+    const result = await verify(stored, password);
+    expect(result).toBe(true);
   });
 });
