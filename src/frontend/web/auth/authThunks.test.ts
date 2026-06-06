@@ -141,6 +141,65 @@ describe("auth thunks (web/auth/authThunks)", () => {
 
       expect(dispatch).toHaveBeenCalled();
     });
+
+    it("on 400 error, dispatches setError with a fallback message", async () => {
+      const login = { email: "bad@example.com", password: "bad" };
+      (authClient.signIn.email as jest.Mock).mockResolvedValue({
+        data: null,
+        error: { status: 400, message: "Bad request" },
+      });
+      const dispatch = jest.fn();
+
+      await pushLogin(login)(dispatch);
+
+      expect(dispatch).toHaveBeenCalledWith(
+        currentUserSlice.actions.setError(expect.any(String))
+      );
+    });
+
+    it("on 500 error, dispatches setError with a fallback message", async () => {
+      const login = { email: "user@example.com", password: "pass" };
+      (authClient.signIn.email as jest.Mock).mockResolvedValue({
+        data: null,
+        error: { status: 500, message: "Internal server error" },
+      });
+      const dispatch = jest.fn();
+
+      await pushLogin(login)(dispatch);
+
+      expect(dispatch).toHaveBeenCalledWith(
+        currentUserSlice.actions.setError(expect.any(String))
+      );
+    });
+
+    it("on 429 error, dispatches setError with a fallback message", async () => {
+      const login = { email: "user@example.com", password: "pass" };
+      (authClient.signIn.email as jest.Mock).mockResolvedValue({
+        data: null,
+        error: { status: 429, message: "Too many requests" },
+      });
+      const dispatch = jest.fn();
+
+      await pushLogin(login)(dispatch);
+
+      expect(dispatch).toHaveBeenCalledWith(
+        currentUserSlice.actions.setError(expect.any(String))
+      );
+    });
+
+    it("on network rejection (thrown error), dispatches setError with a fallback message", async () => {
+      const login = { email: "user@example.com", password: "pass" };
+      (authClient.signIn.email as jest.Mock).mockRejectedValue(
+        new Error("Network failure")
+      );
+      const dispatch = jest.fn();
+
+      await pushLogin(login)(dispatch);
+
+      expect(dispatch).toHaveBeenCalledWith(
+        currentUserSlice.actions.setError(expect.any(String))
+      );
+    });
   });
 
   describe("pushLogout", () => {

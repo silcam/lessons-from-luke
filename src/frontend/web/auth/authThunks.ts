@@ -16,20 +16,33 @@ export function loadCurrentUser() {
 
 export function pushLogin(login: { email: string; password: string }) {
   return async (dispatch: AppDispatch) => {
-    const result = await authClient.signIn.email({
-      email: login.email,
-      password: login.password,
-      callbackURL: "/",
-    });
-    if (result.error && result.error.status === 401) {
+    try {
+      const result = await authClient.signIn.email({
+        email: login.email,
+        password: login.password,
+        callbackURL: "/",
+      });
+      if (result.error) {
+        dispatch(
+          currentUserSlice.actions.setError(
+            result.error.message ?? "An error occurred. Please try again."
+          )
+        );
+      } else if (result.data?.user) {
+        const { id, admin } = result.data.user as {
+          id: string;
+          admin?: boolean;
+        };
+        dispatch(
+          currentUserSlice.actions.setUser({ id, admin: Boolean(admin) })
+        );
+      }
+    } catch {
       dispatch(
         currentUserSlice.actions.setError(
-          result.error.message ?? "Invalid credentials"
+          "An error occurred. Please try again."
         )
       );
-    } else if (result.data?.user) {
-      const { id, admin } = result.data.user as { id: string; admin?: boolean };
-      dispatch(currentUserSlice.actions.setUser({ id, admin: Boolean(admin) }));
     }
   };
 }
