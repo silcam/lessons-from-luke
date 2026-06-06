@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { Pool } from "pg";
 import secrets from "../util/secrets";
+import * as passwordHasher from "./passwordHasher";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let authInstance: ReturnType<typeof betterAuth<any>> | null = null;
@@ -47,6 +48,15 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> { // eslint-disabl
       minPasswordLength: 8,
       // Explicitly cap password length — not relying on unverified library default (red-team Pass 2)
       maxPasswordLength: 128,
+      // Wire Argon2id hasher — overrides better-auth's default scrypt so runtime
+      // verification matches the seeded credential format (FR-001, spec §SC-003).
+      // better-auth passes { hash, password } to verify; passwordHasher.verify takes
+      // (storedHash, password), so we destructure to map the signatures.
+      password: {
+        hash: (password: string) => passwordHasher.hash(password),
+        verify: ({ hash, password }: { hash: string; password: string }) =>
+          passwordHasher.verify(hash, password),
+      },
     },
     rateLimit: {
       enabled: true,

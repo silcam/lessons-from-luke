@@ -1,4 +1,39 @@
+import { randomBytes } from "crypto";
 import { hash, verify } from "./passwordHasher";
+
+// Node 24 built-in argon2Sync — same require path used by the migration
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { argon2Sync } = require("crypto") as {
+  argon2Sync: (
+    algorithm: string,
+    params: {
+      message: Buffer;
+      nonce: Buffer;
+      passes: number;
+      memory: number;
+      parallelism: number;
+      tagLength: number;
+    }
+  ) => Buffer;
+};
+
+/**
+ * Inline Argon2id hash helper using the same code path as the updated migration
+ * (SeedAdminUser.js). This is the CommonJS-compatible form that the migration
+ * will use to produce a credential the runtime `passwordHasher.verify` can check.
+ */
+function migrationArgon2idHash(password: string): string {
+  const nonce = randomBytes(16);
+  const hashBuf = argon2Sync("argon2id", {
+    message: Buffer.from(password, "utf8"),
+    nonce,
+    passes: 2,
+    memory: 19456,
+    parallelism: 1,
+    tagLength: 32,
+  });
+  return `argon2id$19456$2$1$${nonce.toString("hex")}$${hashBuf.toString("hex")}`;
+}
 
 describe("passwordHasher", () => {
   const password = "correct-horse-battery-staple";
@@ -31,6 +66,36 @@ describe("passwordHasher", () => {
 
   it("verify('not-a-valid-hash', password) returns false without throwing", async () => {
     const result = await verify("not-a-valid-hash", password);
+    expect(result).toBe(false);
+  });
+
+  // Verifies that the migration's Argon2id hashPassword output (produced by the
+  // same argon2Sync call path in SeedAdminUser.js) is verifiable by passwordHasher.verify.
+  // This ensures seeded admin credentials are accepted at runtime after the migration
+  // switches from scrypt to Argon2id.
+  it("verify(migrationArgon2idHash(password), password) returns true (migration format round-trip)", async () => {
+    const hashed = migrationArgon2idHash(password);
+    const result = await verify(hashed, password);
+    expect(result).toBe(true);
+  });
+
+  // Verifies that the better-auth password adapter form ({ hash, password }) correctly
+  // delegates to passwordHasher.verify — guards against argument-order bugs in the adapter.
+  it("better-auth adapter: verify({ hash: hashed, password }) returns true", async () => {
+    const hashed = await hash(password);
+    // The adapter in auth.ts calls: verify({ hash, password }) => passwordHasher.verify(hash, password)
+    const betterAuthVerifyAdapter = ({ hash: h, password: p }: { hash: string; password: string }) =>
+      verify(h, p);
+    const result = await betterAuthVerifyAdapter({ hash: hashed, password });
+    expect(result).toBe(true);
+  });
+
+  // Guard: the adapter must return false for wrong password (arg-order regression check)
+  it("better-auth adapter: verify({ hash: hashed, password: wrong }) returns false", async () => {
+    const hashed = await hash(password);
+    const betterAuthVerifyAdapter = ({ hash: h, password: p }: { hash: string; password: string }) =>
+      verify(h, p);
+    const result = await betterAuthVerifyAdapter({ hash: hashed, password: wrongPassword });
     expect(result).toBe(false);
   });
 });

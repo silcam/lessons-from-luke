@@ -17,6 +17,7 @@ import request from "supertest";
 import { Pool } from "pg";
 import crypto from "crypto";
 import secrets from "../util/secrets";
+import { hash as argon2idHash } from "./passwordHasher";
 
 // ------------------------------------------------------------------
 // Server connection
@@ -48,28 +49,16 @@ const { username: testDbUser, ...restTestDb } = secrets.testDb as typeof secrets
 const authPool = new Pool({ ...restTestDb, user: testDbUser, max: 2 });
 
 /**
- * Hash a password using better-auth's internal scrypt format.
- * Format: "${saltHex}:${keyHex}" — matches @better-auth/utils/dist/password.node.mjs
+ * Hash a password using the Argon2id format required by the wired passwordHasher.
  *
- * This is needed for insertNonAdminUser() because sign-up is disabled and
- * we must create users directly via SQL with the correct hash format so
- * better-auth can verify passwords at sign-in time.
+ * better-auth now uses the passwordHasher (src/server/auth/passwordHasher.ts) rather
+ * than its default scrypt verifier. Test users inserted directly via SQL must use
+ * the same Argon2id format so better-auth can verify passwords at sign-in time.
+ *
+ * Format: "argon2id$<m>$<t>$<p>$<saltHex>$<hashHex>" — matches passwordHasher.hash()
  */
 function hashPasswordForBetterAuth(password: string): Promise<string> {
-  const salt = crypto.randomBytes(16);
-  const saltHex = salt.toString("hex");
-  return new Promise((resolve, reject) => {
-    crypto.scrypt(
-      password,
-      saltHex,
-      64,
-      { N: 16384, r: 16, p: 1, maxmem: 128 * 16384 * 16 * 2 },
-      (err, derivedKey) => {
-        if (err) reject(err);
-        else resolve(`${saltHex}:${derivedKey.toString("hex")}`);
-      }
-    );
-  });
+  return argon2idHash(password);
 }
 
 async function signedInAdminAgent() {
@@ -83,7 +72,7 @@ async function signedInAdminAgent() {
 
 // Insert a non-admin user directly on the auth pool (sign-up is disabled).
 async function insertNonAdminUser(email: string, password: string): Promise<string> {
-  // Must use better-auth's scrypt format, not the domain Argon2id hasher
+  // Must use Argon2id format — matches the wired passwordHasher in better-auth config
   const passwordHash = await hashPasswordForBetterAuth(password);
   const now = new Date();
   const userId = crypto.randomUUID();

@@ -50,37 +50,39 @@ clarifications (own isolated driver; no Drizzle). Each supersession is recorded 
     `kysely` direct dependency and ceremony for no benefit over passing the `pg.Pool`. Rejected
     for simplicity (KISS, Principle VII).
 - **Resulting dependency delta** (resolves "new auth-only DB dependency" from spec Dependencies):
-  - **Add**: `better-auth@^1.6.14`, `pg@^8.21.0`, `@types/pg@^8.20.0`, `@noble/hashes@^2.2.0`.
+  - **Add**: `better-auth@^1.6.14`, `pg@^8.21.0`, `@types/pg@^8.20.0`.
   - **Remove**: `cookie-session@^2.1.0`, `@types/cookie-session@^2.0.37`.
-  - **Not added** (supersedes reference plan): `drizzle-orm`.
+  - **Not added** (supersedes reference plan): `drizzle-orm`, `@noble/hashes` (Node 24 built-in supersedes).
   - **Untouched**: `postgres@^1.0.2` (domain driver) stays at v1.
 
-## Decision 2 — Password hashing: `@noble/hashes@2` Argon2id with corrected import paths
+## Decision 2 — Password hashing: Node 24 built-in `crypto.argon2Sync` (supersedes `@noble/hashes` plan)
 
-- **Decision**: Implement `argon2id` hashing in pure JS via `@noble/hashes@^2.2.0`, importing from
-  the **`.js`-suffixed** subpaths: `import { argon2id } from "@noble/hashes/argon2.js"` and
-  `import { randomBytes } from "@noble/hashes/utils.js"`. Generate the salt with `randomBytes(16)`
-  (replacing the reference plan's Workers-style `crypto.getRandomValues`). Hash string format:
-  `argon2id$<m>$<t>$<p>$<saltHex>$<hashHex>` — identical between the runtime hasher
-  (`passwordHasher.ts`) and the migration's inline helper, so the seeded credential verifies.
+- **Decision**: Implement Argon2id hashing via Node 24's built-in `crypto.argon2Sync` (available
+  since Node 22.13 / 24.x). The `passwordHasher.ts` runtime module uses
+  `require("crypto").argon2Sync` with parameters `{ passes: 2, memory: 19456, parallelism: 1, tagLength: 32 }`.
+  The migration's inline `hashPassword` helper uses the identical call path in CommonJS. Hash string
+  format: `argon2id$<m>$<t>$<p>$<saltHex>$<hashHex>` — identical between the runtime hasher and
+  the migration, so the seeded credential verifies at sign-in time.
+  The `passwordHasher` is wired into better-auth via
+  `emailAndPassword.password = { hash, verify: ({ hash, password }) => passwordHasher.verify(hash, password) }`.
 - **Rationale / drift correction**:
-  - **Verified**: `@noble/hashes@2.2.0` changed its `package.json` `exports` map. Subpaths are now
-    declared **with** the `.js` suffix only: `"./argon2.js"`, `"./utils.js"`. The reference plan's
-    v1-style imports (`@noble/hashes/argon2`, `@noble/hashes/utils`) raise
-    `ERR_PACKAGE_PATH_NOT_EXPORTED` under Node's ESM/CJS resolver. This is a concrete, repo-blocking
-    drift that the reference plan (written against `@noble/hashes@^1.5.0`) does not anticipate.
-  - **Verified working** under Node 24:
-    `argon2id("pw", randomBytes(16), { t: 2, m: 19456, p: 1, dkLen: 32 })` returns a 32-byte hash.
+  - **Original plan** (this document, before implementation) selected `@noble/hashes@^2.2.0`. During
+    implementation it was discovered that Node 24 already ships `crypto.argon2Sync` natively,
+    removing the need for a third-party dependency entirely. `@noble/hashes` was **not added** to
+    `package.json`.
+  - **Verified working** under Node 24: `crypto.argon2Sync("argon2id", { message, nonce, passes: 2, memory: 19456, parallelism: 1, tagLength: 32 })` returns a 32-byte `Buffer`.
   - Argon2id (memory-hard) directly satisfies FR-001 / SC-003 (one-way hash, never plaintext).
+  - `@types/node@20` does not yet declare `argon2Sync`; `passwordHasher.ts` uses a `require`-time
+    cast to supply the type annotation without blocking compilation.
 - **Alternatives considered**:
-  - _`argon2` native addon_: rejected — native build adds CI/Docker/electron-builder friction; the
-    pure-JS noble implementation has no build step and runs identically in the `migrate` CommonJS
-    runner and the TS server.
+  - _`@noble/hashes@^2.2.0` (original plan)_: pure-JS, no build step. Superseded by the Node 24
+    built-in; no third-party dependency needed.
+  - _`argon2` native addon_: rejected — native build adds CI/Docker/electron-builder friction.
   - _better-auth's default scrypt hasher_: rejected — spec mandates Argon2id specifically (FR-001),
     and a shared format is required between the migration seed and runtime verify.
-- **Constraint carried to design**: the migration runner is plain CommonJS (`migrations/*.js`), so
-  the inline helper must `require("@noble/hashes/argon2.js")` / `require("@noble/hashes/utils.js")`
-  with the same suffix.
+- **Constraint carried to design**: the migration runner is plain CommonJS (`migrations/*.js`);
+  `crypto.argon2Sync` is available on the global `require("crypto")` object in Node 24 without any
+  ESM/CJS conflict, so no special import gymnastics are needed.
 
 ## Decision 3 — `better-auth` server wiring & middleware order
 
