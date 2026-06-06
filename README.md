@@ -1,6 +1,18 @@
-# Lessons from Luke
+<p align="center">
+  <img src="art/logo.svg" alt="Lessons from Luke logo" width="120" />
+</p>
 
-> Sunday School curriculum for every language.
+<h1 align="center">Lessons from Luke</h1>
+
+<p align="center"><em>Sunday School curriculum for every language.</em></p>
+
+<p align="center">
+  <a href="https://github.com/silcam/lessons-from-luke/actions/workflows/build.yml"><img src="https://github.com/silcam/lessons-from-luke/actions/workflows/build.yml/badge.svg" alt="Build and Test"></a>
+  <img src="https://img.shields.io/badge/version-2.2.5-blue" alt="Version 2.2.5">
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT">
+  <img src="https://img.shields.io/badge/node-24-339933?logo=node.js&logoColor=white" alt="Node 24">
+  <img src="https://img.shields.io/badge/TypeScript-React%2016%20·%20Express%20·%20PostgreSQL-3178C6?logo=typescript&logoColor=white" alt="Tech stack">
+</p>
 
 **Lessons from Luke** is a translation and publishing tool that turns a single set of
 English Sunday School lessons (based on the Gospel of Luke and Acts) into finished,
@@ -59,6 +71,18 @@ Lessons from Luke solves three problems at once:
 
 ---
 
+## The translation experience
+
+<!-- TODO: capture and commit art/screenshots/translate-view.png, then uncomment the image below. -->
+<!-- ![Translator view: source text on the left, live lesson preview on the right](art/screenshots/translate-view.png) -->
+
+Translators work **one string at a time**, with the source text and a **live preview** of
+the real lesson document side by side. Every edit auto-saves with full revision history,
+and a per-lesson progress bar shows how much is left. Mother-tongue languages only see the
+strings they actually need to translate.
+
+---
+
 ## Who uses it
 
 | Role | Where | What they do |
@@ -97,44 +121,38 @@ Lessons from Luke solves three problems at once:
 
 ## Development
 
-> The steps below are the quick path. For the full setup — including the Docker
-> dev environment, the three isolated environments (production / development / test),
-> migrations, and the architecture overview — see [`CLAUDE.md`](./CLAUDE.md).
+> This is the quick path. For the full picture — the Docker dev environment, the three
+> isolated environments (production / development / test), database setup, and the
+> architecture overview — see [`CLAUDE.md`](./CLAUDE.md).
 
-0. Pre-reqs
+**Prerequisites:** [Node 24](./.nvmrc) (`nvm use`), [Yarn](https://yarnpkg.com/), and
+PostgreSQL. The fastest way to get a working database + secrets is the Docker
+environment described in [`CLAUDE.md`](./CLAUDE.md).
 
-   You need yarn.
-   You need node (v12 or greater).
+```bash
+git clone https://github.com/silcam/lessons-from-luke.git
+cd lessons-from-luke
+yarn install
+```
 
-1. Clone the repository and set up necessary files
+Create a `secrets.json` in the repo root with your PostgreSQL connection details (the
+Docker environment generates one automatically; see [`CLAUDE.md`](./CLAUDE.md) for the
+expected shape). Then run migrations and start the dev server:
 
-   ```
-   git clone https://github.com/silcam/lessons-from-luke.git
-   cd lessons-from-luke
-   yarn install
-   mkdir strings
-   mkdir strings/src
-   mkdir strings/translations
-   echo "[]" > strings/projects.json
-   echo "[]" > strings/sources.json
-   cp src/server/util/sampleSecrets.ts src/server/util/secrets.ts
-   ```
+```bash
+yarn migrate      # set up the database schema
+yarn dev-web      # webpack-dev-server + TypeScript watch + Express
+```
 
-2. Compile the TypeScript and start the server.
+To also run the Electron desktop client (requires `dev-web` to be running):
 
-   ```
-   yarn dev-web
-   ```
-
-   If you want the desktop client, run this as well (you must also have run `dev-web`):
-
-   ```
-   yarn dev-desktop
-   ```
+```bash
+yarn dev-desktop
+```
 
 ## Test
 
-```
-yarn test        # watch mode
-yarn test-watch  # alias
+```bash
+yarn test         # Jest in watch mode
+yarn test-watch   # alias
 ```
