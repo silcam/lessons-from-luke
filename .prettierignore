@@ -9,3 +9,6 @@ log
 art
 src/desktop/localFixtures
 **/*.odt
+
+# Beads task-tracker workspace — managed by `br`, not Prettier
+.beads
