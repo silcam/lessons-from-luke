@@ -28,7 +28,7 @@ const defaultSecrets: Secrets = {
   cookieSecret: "dev-only-secret-replace-in-production-xx",
   adminEmail: "admin@example.com",
   adminUsername: "chris",
-  adminPassword: "yo",
+  adminPassword: "dev-password-1",
   db: {
     database: "lessons-from-luke",
     username: "lessons-from-luke",
@@ -67,6 +67,15 @@ if (
   throw new Error(
     "Invalid configuration: cookieSecret must not be the built-in default in production. " +
       "Set a strong, unique cookieSecret in your secrets.json."
+  );
+}
+
+// FR-011: adminPassword must meet the same 12-char NIST/OWASP minimum enforced by better-auth.
+// Fail fast here so a misconfigured secrets.json is caught at startup, not at sign-in.
+if (secrets.adminPassword.length < 12) {
+  throw new Error(
+    "Invalid configuration: adminPassword must be at least 12 characters long. " +
+      "Update your secrets.json to set a stronger adminPassword."
   );
 }
 

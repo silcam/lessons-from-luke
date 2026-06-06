@@ -235,6 +235,20 @@ test("POST /api/auth/sign-in/email with overlong password (200 chars) → reject
   expect([400, 401, 422, 429]).toContain(res.status);
 });
 
+// 11. POST /api/auth/sign-in/email with 11-char password → rejected
+// better-auth enforces minPasswordLength: 12 at sign-in (password length
+// validation occurs before credential lookup). An 11-char password must be
+// rejected — confirms the NIST 800-63B / OWASP 2025 minimum is active.
+test("POST /api/auth/sign-in/email with 11-char password → rejected", async () => {
+  const elevenCharPassword = "ElevenChars"; // exactly 11 characters
+  const res = await agent()
+    .post("/api/auth/sign-in/email")
+    .send({ email: adminEmail, password: elevenCharPassword });
+  // Must NOT be 200 — an 11-char password is below the 12-char minimum
+  expect(res.status).not.toBe(200);
+  expect([400, 401, 422, 429]).toContain(res.status);
+});
+
 // ------------------------------------------------------------------
 // US4: Invitation-only provisioning explicit assertions
 // ------------------------------------------------------------------

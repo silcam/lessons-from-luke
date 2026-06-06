@@ -34,7 +34,7 @@ const validSecrets = {
   cookieSecret: "a-strong-unique-cookie-secret-for-testing!!",
   adminEmail: "admin@example.com",
   adminUsername: "admin",
-  adminPassword: "hunter2",
+  adminPassword: "hunter2-secure",
   db: {
     database: "my-db",
     username: "my-user",
@@ -110,7 +110,7 @@ describe("secrets — file-based branch (line 21 true path)", () => {
     );
     expect(freshSecrets.adminEmail).toBe("admin@example.com");
     expect(freshSecrets.adminUsername).toBe("admin");
-    expect(freshSecrets.adminPassword).toBe("hunter2");
+    expect(freshSecrets.adminPassword).toBe("hunter2-secure");
     expect(freshSecrets.db.database).toBe("my-db");
     expect(freshSecrets.testDb.database).toBe("my-test-db");
     expect(freshSecrets.devDb.database).toBe("my-dev-db");
@@ -322,6 +322,72 @@ describe("secrets — FR-011 fail-fast validation", () => {
     jest.resetModules();
 
     expect(() => require("./secrets")).toThrow(/cookieSecret/i);
+  });
+
+  test("throws when adminPassword is shorter than 12 characters", () => {
+    process.env.NODE_ENV = "test";
+
+    const shortPasswordSecrets = {
+      ...validSecrets,
+      adminPassword: "short", // 5 chars — below 12-char NIST/OWASP minimum
+    };
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(shortPasswordSecrets), "utf8");
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).toThrow(/adminPassword/i);
+  });
+
+  test("throws when adminPassword is exactly 11 characters (one below minimum)", () => {
+    process.env.NODE_ENV = "test";
+
+    const elevenCharSecrets = {
+      ...validSecrets,
+      adminPassword: "eleven-char", // exactly 11 chars
+    };
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(elevenCharSecrets), "utf8");
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).toThrow(/adminPassword/i);
+  });
+
+  test("does not throw when adminPassword is exactly 12 characters (the minimum)", () => {
+    process.env.NODE_ENV = "test";
+
+    const twelveCharSecrets = {
+      ...validSecrets,
+      adminPassword: "twelve-chars!", // exactly 13 chars — use 12
+    };
+    // Use precisely 12 chars
+    twelveCharSecrets.adminPassword = "TwelveChars!";
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(twelveCharSecrets), "utf8");
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).not.toThrow();
+  });
+
+  test("error message for short adminPassword does not expose the password value", () => {
+    process.env.NODE_ENV = "test";
+
+    const shortPasswordSecrets = {
+      ...validSecrets,
+      adminPassword: "my-short-pw", // 11 chars — one below minimum
+    };
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(shortPasswordSecrets), "utf8");
+
+    jest.resetModules();
+
+    let errorMessage = "";
+    try {
+      require("./secrets");
+    } catch (e) {
+      errorMessage = (e as Error).message;
+    }
+
+    expect(errorMessage).not.toContain("my-short-pw");
+    expect(errorMessage).toMatch(/adminPassword/i);
   });
 
   test("does not throw when cookieSecret is the built-in default outside production", () => {

@@ -49,6 +49,12 @@ module.exports.up = async () => {
         "SeedAdminUser: missing required field 'adminPassword' in secrets.json"
       );
     }
+    if (secrets.adminPassword.length < 12) {
+      throw new Error(
+        "SeedAdminUser: adminPassword in secrets.json must be at least 12 characters " +
+          "(NIST 800-63B / OWASP 2025 minimum). Update secrets.json before running migrations."
+      );
+    }
 
     const email = secrets.adminEmail.toLowerCase();
 

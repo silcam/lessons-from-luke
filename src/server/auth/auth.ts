@@ -45,7 +45,7 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> { // eslint-disabl
     emailAndPassword: {
       enabled: true,
       disableSignUp: true,
-      minPasswordLength: 8,
+      minPasswordLength: 12,
       // Explicitly cap password length — not relying on unverified library default (red-team Pass 2)
       maxPasswordLength: 128,
       // Wire Argon2id hasher — overrides better-auth's default scrypt so runtime
