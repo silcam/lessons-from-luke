@@ -1,27 +1,35 @@
 "use strict";
-const crypto = require("crypto");
+// crypto is available as a built-in global in Node 22+; require() provides
+// the same module object and is needed for compatibility with the ESLint
+// CommonJS config that expects explicit imports in migration files.
+// eslint-disable-next-line no-redeclare
+var crypto = require("crypto");
 const fs = require("fs");
 const { makeDbConnect } = require("./_helpers");
 
-const ALGO = "argon2id";
-const MEMORY = 19456;
-const ITERATIONS = 2;
-const PARALLELISM = 1;
-const TAG_LENGTH = 32;
-
-const { argon2Sync } = crypto;
-
+/**
+ * Hash a password using the same algorithm as better-auth's built-in password
+ * hasher (@better-auth/utils/password). better-auth uses scrypt (Node's native
+ * crypto.scrypt) with the format: "${saltHex}:${keyHex}"
+ *
+ * Parameters match @better-auth/utils/dist/password.node.mjs:
+ *   N=16384, r=16, p=1, dkLen=64
+ */
 function hashPassword(password) {
-  const nonce = crypto.randomBytes(16);
-  const hashBuf = argon2Sync(ALGO, {
-    message: Buffer.from(password, "utf8"),
-    nonce,
-    passes: ITERATIONS,
-    memory: MEMORY,
-    parallelism: PARALLELISM,
-    tagLength: TAG_LENGTH,
+  const salt = crypto.randomBytes(16);
+  const saltHex = salt.toString("hex");
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(
+      password,
+      saltHex,
+      64,
+      { N: 16384, r: 16, p: 1, maxmem: 128 * 16384 * 16 * 2 },
+      (err, derivedKey) => {
+        if (err) reject(err);
+        else resolve(`${saltHex}:${derivedKey.toString("hex")}`);
+      }
+    );
   });
-  return `${ALGO}$${MEMORY}$${ITERATIONS}$${PARALLELISM}$${nonce.toString("hex")}$${hashBuf.toString("hex")}`;
 }
 
 const dbConnect = makeDbConnect();
@@ -64,7 +72,7 @@ module.exports.up = async () => {
     const now = new Date();
     const userId = crypto.randomUUID();
     const accountId = crypto.randomUUID();
-    const passwordHash = hashPassword(secrets.adminPassword);
+    const passwordHash = await hashPassword(secrets.adminPassword);
 
     await sql`
       INSERT INTO "user" (
