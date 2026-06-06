@@ -2,8 +2,31 @@ import fs from "fs";
 
 const secretsJson = "secrets.json";
 
-const defaultSecrets = {
-  cookieSecret: "fuerabgui4pab5m32;tkqipn84",
+export interface Secrets {
+  cookieSecret: string;
+  adminEmail?: string;
+  adminUsername: string;
+  adminPassword: string;
+  db: {
+    database: string;
+    username: string;
+    password: string;
+  };
+  testDb: {
+    database: string;
+    username: string;
+    password: string;
+  };
+  devDb: {
+    database: string;
+    username: string;
+    password: string;
+  };
+}
+
+const defaultSecrets: Secrets = {
+  cookieSecret: "dev-only-secret-replace-in-production-xx",
+  adminEmail: "admin@example.com",
   adminUsername: "chris",
   adminPassword: "yo",
   db: {
@@ -23,8 +46,25 @@ const defaultSecrets = {
   },
 };
 
-const secrets: typeof defaultSecrets = fs.existsSync(secretsJson)
+const secrets: Secrets = fs.existsSync(secretsJson)
   ? JSON.parse(fs.readFileSync(secretsJson).toString())
   : defaultSecrets;
+
+// FR-011: Fail fast at startup if required auth configuration is missing or too weak.
+// Never log the value of secrets fields — only log which field is invalid.
+
+if (secrets.cookieSecret.length < 32) {
+  throw new Error(
+    "Invalid configuration: cookieSecret must be at least 32 characters long. " +
+      "Update your secrets.json or environment configuration."
+  );
+}
+
+if (process.env.NODE_ENV === "production" && !secrets.adminEmail) {
+  throw new Error(
+    "Invalid configuration: adminEmail is required in production. " +
+      "Set adminEmail in your secrets.json or environment configuration."
+  );
+}
 
 export default secrets;

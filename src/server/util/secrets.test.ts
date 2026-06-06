@@ -17,6 +17,11 @@
  *   2. Using `jest.resetModules()` + `require()` to force a fresh evaluation
  *      of the module so the `fs.existsSync` check runs again.
  *   3. Deleting the temp file and resetting modules afterwards.
+ *
+ * FR-011 validation tests confirm the module throws on:
+ *   - cookieSecret shorter than 32 characters
+ *   - adminEmail absent when NODE_ENV=production
+ * and succeeds with a valid configuration.
  */
 
 import fs from "fs";
@@ -24,8 +29,32 @@ import path from "path";
 
 const secretsJsonPath = path.join(process.cwd(), "secrets.json");
 
+/** A valid secrets object that satisfies all validation rules. */
+const validSecrets = {
+  cookieSecret: "dev-only-secret-replace-in-production-xx",
+  adminEmail: "admin@example.com",
+  adminUsername: "admin",
+  adminPassword: "hunter2",
+  db: {
+    database: "my-db",
+    username: "my-user",
+    password: "my-pass",
+  },
+  testDb: {
+    database: "my-test-db",
+    username: "my-user",
+    password: "my-pass",
+  },
+  devDb: {
+    database: "my-dev-db",
+    username: "my-user",
+    password: "my-pass",
+  },
+};
+
 describe("secrets — file-based branch (line 21 true path)", () => {
   let originalContent: string | null = null;
+  let originalNodeEnv: string | undefined;
 
   beforeAll(() => {
     // Snapshot the original file (if present) so we can restore it after each
@@ -37,7 +66,18 @@ describe("secrets — file-based branch (line 21 true path)", () => {
     }
   });
 
+  beforeEach(() => {
+    originalNodeEnv = process.env.NODE_ENV;
+  });
+
   afterEach(() => {
+    // Restore NODE_ENV
+    if (originalNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
+
     // Restore (or remove) secrets.json to exactly its pre-test state.
     if (originalContent !== null) {
       fs.writeFileSync(secretsJsonPath, originalContent, "utf8");
@@ -50,41 +90,25 @@ describe("secrets — file-based branch (line 21 true path)", () => {
   });
 
   test("reads values from secrets.json when the file exists", () => {
-    const customSecrets = {
-      cookieSecret: "custom-cookie-secret",
-      adminUsername: "admin",
-      adminPassword: "hunter2",
-      db: {
-        database: "my-db",
-        username: "my-user",
-        password: "my-pass",
-      },
-      testDb: {
-        database: "my-test-db",
-        username: "my-user",
-        password: "my-pass",
-      },
-      devDb: {
-        database: "my-dev-db",
-        username: "my-user",
-        password: "my-pass",
-      },
-    };
-
     // Write a temporary secrets.json at cwd so the module finds it
-    fs.writeFileSync(secretsJsonPath, JSON.stringify(customSecrets), "utf8");
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(validSecrets), "utf8");
 
     // Verify the file is there before resetting modules
     expect(fs.existsSync(secretsJsonPath)).toBe(true);
     const onDisk = JSON.parse(fs.readFileSync(secretsJsonPath, "utf8"));
-    expect(onDisk.cookieSecret).toBe("custom-cookie-secret");
+    expect(onDisk.cookieSecret).toBe(
+      "dev-only-secret-replace-in-production-xx"
+    );
 
     // Re-require the module so it re-evaluates from scratch
     jest.resetModules();
 
     const freshSecrets = require("./secrets").default;
 
-    expect(freshSecrets.cookieSecret).toBe("custom-cookie-secret");
+    expect(freshSecrets.cookieSecret).toBe(
+      "dev-only-secret-replace-in-production-xx"
+    );
+    expect(freshSecrets.adminEmail).toBe("admin@example.com");
     expect(freshSecrets.adminUsername).toBe("admin");
     expect(freshSecrets.adminPassword).toBe("hunter2");
     expect(freshSecrets.db.database).toBe("my-db");
@@ -100,11 +124,122 @@ describe("secrets — file-based branch (line 21 true path)", () => {
 
     const freshSecrets = require("./secrets").default;
 
-    // Default values from the source
-    expect(freshSecrets.cookieSecret).toBe("fuerabgui4pab5m32;tkqipn84");
+    // Default values from the source (cookieSecret must be >= 32 chars)
+    expect(freshSecrets.cookieSecret.length).toBeGreaterThanOrEqual(32);
+    expect(freshSecrets.adminEmail).toBeDefined();
     expect(freshSecrets.adminUsername).toBe("chris");
     expect(freshSecrets.db.database).toBe("lessons-from-luke");
     expect(freshSecrets.testDb.database).toBe("lessons-from-luke-test");
     expect(freshSecrets.devDb.database).toBe("lessons-from-luke-dev");
+  });
+});
+
+describe("secrets — FR-011 fail-fast validation", () => {
+  let originalContent: string | null = null;
+  let originalNodeEnv: string | undefined;
+
+  beforeAll(() => {
+    if (fs.existsSync(secretsJsonPath)) {
+      originalContent = fs.readFileSync(secretsJsonPath, "utf8");
+    }
+  });
+
+  beforeEach(() => {
+    originalNodeEnv = process.env.NODE_ENV;
+  });
+
+  afterEach(() => {
+    // Restore NODE_ENV
+    if (originalNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
+
+    if (originalContent !== null) {
+      fs.writeFileSync(secretsJsonPath, originalContent, "utf8");
+    } else if (fs.existsSync(secretsJsonPath)) {
+      fs.unlinkSync(secretsJsonPath);
+    }
+    jest.resetModules();
+  });
+
+  test("throws when cookieSecret is shorter than 32 characters", () => {
+    process.env.NODE_ENV = "test";
+
+    const shortSecrets = {
+      ...validSecrets,
+      cookieSecret: "short", // 5 chars — too short
+    };
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(shortSecrets), "utf8");
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).toThrow(/cookieSecret/i);
+  });
+
+  test("error message for short cookieSecret does not contain the secret value", () => {
+    process.env.NODE_ENV = "test";
+
+    const shortSecrets = {
+      ...validSecrets,
+      cookieSecret: "short-secret-value", // 18 chars — too short
+    };
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(shortSecrets), "utf8");
+
+    jest.resetModules();
+
+    let errorMessage = "";
+    try {
+      require("./secrets");
+    } catch (e) {
+      errorMessage = (e as Error).message;
+    }
+
+    expect(errorMessage).not.toContain("short-secret-value");
+  });
+
+  test("throws when NODE_ENV=production and adminEmail is absent", () => {
+    process.env.NODE_ENV = "production";
+
+    const noEmailSecrets = { ...validSecrets };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (noEmailSecrets as any).adminEmail;
+
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(noEmailSecrets), "utf8");
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).toThrow(/adminEmail/i);
+  });
+
+  test("does not throw when adminEmail is absent outside production", () => {
+    process.env.NODE_ENV = "test";
+
+    const noEmailSecrets = { ...validSecrets };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (noEmailSecrets as any).adminEmail;
+
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(noEmailSecrets), "utf8");
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).not.toThrow();
+  });
+
+  test("succeeds with a valid configuration (cookieSecret >= 32 chars, adminEmail present)", () => {
+    process.env.NODE_ENV = "production";
+
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(validSecrets), "utf8");
+
+    jest.resetModules();
+
+    let freshSecrets: ReturnType<typeof require> | null = null;
+    expect(() => {
+      freshSecrets = require("./secrets").default;
+    }).not.toThrow();
+
+    expect(freshSecrets).not.toBeNull();
+    expect(freshSecrets.adminEmail).toBe("admin@example.com");
   });
 });
