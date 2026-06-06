@@ -48,7 +48,10 @@ paths:
               description: >
                 Session cookie. Name is `better-auth.session_token` on plain-HTTP localhost,
                 `__Host-better-auth.session_token` (Secure; HttpOnly; SameSite=Lax; Path=/) in
-                production (FR-010).
+                production (FR-010). The production `Secure` + `__Host-` attributes depend on the
+                server seeing the request as HTTPS behind the Passenger TLS-terminating proxy, which
+                requires `app.set("trust proxy", 1)` in serverApp.ts (red-team Pass 3) — without it
+                the cookie can be emitted without `Secure` in production.
               schema: { type: string }
           content:
             application/json:
@@ -79,8 +82,10 @@ paths:
             limiter throttles repeated attempts to defend the single known admin account against
             credential stuffing AND to cap Argon2id CPU/memory spend (DoS amplification). A
             stricter custom rule applies to this route (~5–10 attempts/window per client IP, keyed
-            on the trusted-proxy-derived IP, not raw X-Forwarded-For). The limiter store is
-            DB-backed (auth pg.Pool) so limits are not silently per-worker under Passenger.
+            on the trusted-proxy-derived IP, not raw X-Forwarded-For). The trusted-proxy-derived IP
+            requires `app.set("trust proxy", 1)` in serverApp.ts (red-team Pass 3); without it the
+            limiter keys on a spoofable or wrong IP. The limiter store is DB-backed (auth pg.Pool) so
+            limits are not silently per-worker under Passenger.
           headers:
             Retry-After:
               description: Seconds until the caller may retry.

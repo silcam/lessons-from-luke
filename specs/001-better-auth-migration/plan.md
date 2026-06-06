@@ -92,8 +92,9 @@ boolean `admin`; self-service invitation or user-management UI; any desktop auth
   `additionalField`. (research D1)
 - `@noble/hashes` import drift → v2 requires **`.js`-suffixed** subpaths
   (`@noble/hashes/argon2.js`, `@noble/hashes/utils.js`); v1 paths fail. (research D2)
-- Test session-row leakage → `afterEach` `DELETE FROM "session"`/`"verification"` on the auth pool;
-  spare the seeded admin. (research D5)
+- Test session-row leakage → `afterEach` `DELETE FROM "session"`/`"verification"`/`"rateLimit"` on
+  the auth pool; spare the seeded admin. (research D5; `rateLimit` added red-team Pass 1, see
+  Test-Isolation Edge Cases.)
 - Coverage strategy for glue files → real unit/integration tests for behavior; justified
   `collectCoverageFrom` exclusions only for `auth.ts` config glue + web `authClient.ts`. (research D6)
 - `BETTER_AUTH_URL`/cookie-origin → `baseURL` env-driven, defaults `:8081`; webpack proxies `/api`;
@@ -176,7 +177,7 @@ specs/001-better-auth-migration/
 ```text
 migrations/
 ├── _helpers.js                                  # UNCHANGED (porsager helper; reused for DDL only)
-├── <unix-ms>-AddBetterAuthTables.js             # NEW  — DDL for user/session/account/verification (+indexes)
+├── <unix-ms>-AddBetterAuthTables.js             # NEW  — DDL for user/session/account/verification/rateLimit (+indexes); see data-model.md DDL ordering
 └── <unix-ms+1>-SeedAdminUser.js                 # NEW  — idempotent Argon2id admin seed from secrets
 
 src/core/
@@ -197,9 +198,9 @@ src/server/
 │   ├── secrets.test.ts                           # NEW  — fail-fast branch coverage
 │   └── sampleSecrets.ts                          # MODIFY — adminEmail + ≥32-char cookieSecret
 ├── controllers/usersController.ts                # DELETE (+ usersController.test.ts)
-├── serverApp.ts                                  # MODIFY — toNodeHandler before bodyParser; requireAdmin; drop cookie-session/usersController
+├── serverApp.ts                                  # MODIFY — app.set("trust proxy", 1) (rate-limit IP-keying + prod Secure cookie); toNodeHandler before bodyParser; requireAdmin; drop cookie-session/usersController
 ├── testHelper.ts                                 # MODIFY — loggedInAgent() POSTs /api/auth/sign-in/email
-└── jestSetupAfterEnv.ts                          # MODIFY — afterEach cleanup of session/verification rows
+└── jestSetupAfterEnv.ts                          # MODIFY — afterEach cleanup of session/verification/rateLimit rows + non-seed user/account
 
 src/frontend/
 ├── web/auth/authClient.ts                        # NEW  — better-auth/react client + inferAdditionalFields<admin>
@@ -263,9 +264,16 @@ Argon2id's deliberate per-attempt cost (m=19456, t=2) also makes the endpoint a 
   default in-memory store so limits are not silently per-worker.
 - **MUST NOT** let the rate limiter key solely on client-controlled `X-Forwarded-For`. With
   `trust proxy` set, Express derives `req.ip` from the forwarded chain; behind Passenger only the
-  **front-most trusted proxy** hop may be trusted. Set `trust proxy` to the specific hop count (the
-  plan already uses `app.set("trust proxy", 1)`), not `true`, so a client cannot spoof its IP to
-  evade the limit by prepending `X-Forwarded-For` headers.
+  **front-most trusted proxy** hop may be trusted. `serverApp.ts` MUST call
+  `app.set("trust proxy", 1)` (the specific hop count, **not** `true`) so a client cannot spoof its
+  IP to evade the limit by prepending `X-Forwarded-For` headers. **This is a required wiring step,
+  not an existing one** — the current `serverApp.ts` sets no `trust proxy` at all (verified), so the
+  `serverApp.ts` modification task MUST add it. The same `trust proxy` setting is what lets Express /
+  better-auth see the request as HTTPS behind the Passenger TLS-terminating proxy, which the
+  production `Secure` + `__Host-` cookie attributes (FR-010, see "CSRF / Cookie Posture") also depend
+  on — without it the production session cookie can fail to carry `Secure`. The `requireAdmin`
+  integration test asserting throttling (above) MUST exercise the IP-keyed path so a missing/relaxed
+  `trust proxy` cannot silently regress the limiter into a spoofable or per-worker state.
 - The integration test suite MUST include a case asserting repeated bad sign-ins are throttled
   (so the protection cannot silently regress).
 
@@ -380,10 +388,21 @@ second-order leaks the functional spec did not call out:
 
 ### Test-Isolation Edge Cases (hardening research Decision 5)
 
-- The `afterEach` cleanup deletes `session`/`verification` and non-seed `user`/`account`. If a test
-  creates a non-admin user with an email differing only by case, the "spare the seeded admin" filter
-  MUST match on normalized email so it neither deletes the admin nor leaks the test user. The cleanup
-  MUST also run even when the test body throws (use `afterEach`, not inline teardown).
+- The `afterEach` cleanup deletes `session`/`verification`/`rateLimit` and non-seed `user`/`account`.
+  If a test creates a non-admin user with an email differing only by case, the "spare the seeded
+  admin" filter MUST match on normalized email so it neither deletes the admin nor leaks the test
+  user. The cleanup MUST also run even when the test body throws (use `afterEach`, not inline
+  teardown).
+- **`rateLimit` must be in the cleanup set (NEW — Pass 3)**: because Pass 1 made the rate limiter
+  **DB-backed** (`rateLimit.storage = "database"`) and mandated an integration test asserting repeated
+  bad sign-ins are throttled, the per-test throttle `count`/`lastRequest` rows now persist on the auth
+  `pg.Pool` outside the domain test transaction. If `afterEach` does not also `DELETE FROM "rateLimit"`,
+  one test's accumulated attempt counts bleed into the next, so whether a later sign-in test sees 200
+  or 429 becomes **order-dependent and flaky**, and the throttling assertion itself can pass or fail
+  depending on suite ordering. The cleanup MUST delete `rateLimit` alongside `session`/`verification`.
+  (This is a direct second-order effect of the Pass 1 DB-backed-limiter decision; the `rateLimit`
+  entity was added to data-model.md in Pass 1 but its `afterEach` deletion was not yet reflected in the
+  `jestSetupAfterEnv.ts` work item.)
 
 ## Performance Considerations
 
