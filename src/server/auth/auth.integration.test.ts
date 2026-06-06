@@ -249,6 +249,23 @@ test("POST /api/auth/sign-in/email with 11-char password → rejected", async ()
   expect([400, 401, 422, 429]).toContain(res.status);
 });
 
+// 12. POST /api/auth/sign-in/email with foreign Origin header → 403
+// betterAuth's formCsrfMiddleware calls validateOrigin when the request includes a
+// Cookie header. If the Origin does not match trustedOrigins (baseURL origin +
+// explicit BETTER_AUTH_URL entries), it throws INVALID_ORIGIN → 403.
+// This verifies that the trustedOrigins config prevents cross-origin CSRF attacks.
+test("POST /api/auth/sign-in/email with foreign Origin header and cookie → 403", async () => {
+  const res = await agent()
+    .post("/api/auth/sign-in/email")
+    // A Cookie header causes formCsrfMiddleware to run validateOrigin
+    .set("Cookie", "dummy=1")
+    // Foreign origin that should not be in trustedOrigins
+    .set("Origin", "https://evil.example.com")
+    .send({ email: adminEmail, password: adminPassword });
+  // better-auth returns 403 FORBIDDEN for INVALID_ORIGIN
+  expect(res.status).toBe(403);
+});
+
 // ------------------------------------------------------------------
 // US4: Invitation-only provisioning explicit assertions
 // ------------------------------------------------------------------

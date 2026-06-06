@@ -36,6 +36,10 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> { // eslint-disabl
     database: pool,
     secret: secrets.cookieSecret,
     baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:8081",
+    // Pin trusted origins to the explicit public URL so better-auth's
+    // origin/CSRF checks are never silently widened by a misconfigured proxy.
+    // Falls back to an empty array in local dev (baseURL default is used).
+    trustedOrigins: process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : [],
     advanced: {
       // Explicitly enforce Secure cookies in production regardless of
       // baseURL scheme detection, so a misconfigured proxy can't silently
