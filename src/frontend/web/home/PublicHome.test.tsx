@@ -65,9 +65,9 @@ describe("PublicHome", () => {
       error: { status: 401, message: "Invalid credentials" },
     });
 
-    const { container } = renderWithProviders(<PublicHome />, {
+    const { container, getByText } = renderWithProviders(<PublicHome />, {
       syncState: defaultSyncState,
-      currentUser: { user: null, locale: "en", loaded: false },
+      currentUser: { user: null, locale: "en", loaded: false, error: null },
     });
 
     const loginButton = container.querySelector("button");
@@ -75,8 +75,7 @@ describe("PublicHome", () => {
       fireEvent.click(loginButton!);
     });
 
-    // Component renders without crashing; error state is in Redux
-    expect(container).toBeTruthy();
+    expect(getByText(/log.?in failed/i)).toBeTruthy();
   });
 
   it("calls authClient.signIn.email when login button is clicked", async () => {
