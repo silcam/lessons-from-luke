@@ -25,8 +25,7 @@ if [ ! -f /workspace/secrets.json ]; then
 {
   "cookieSecret": "dev-only-secret-replace-in-production-xx",
   "adminEmail": "admin@example.com",
-  "adminUsername": "chris",
-  "adminPassword": "yo",
+  "adminPassword": "dev-password-1",
   "db": {
     "database": "lessons-from-luke",
     "username": "lessons-from-luke",
