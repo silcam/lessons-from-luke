@@ -55,9 +55,9 @@ jobs:
         run: |
           cat > secrets.json << 'EOF'
           {
-            "cookieSecret": "ci-test-secret",
-            "adminUsername": "admin",
-            "adminPassword": "admin",
+            "cookieSecret": "ci-test-cookie-secret-min-32-characters-long",
+            "adminEmail": "admin@example.com",
+            "adminPassword": "ci-test-password-1234",
             "db": {
               "host": "postgres",
               "database": "lessons-from-luke",
@@ -120,9 +120,9 @@ jobs:
         run: |
           cat > secrets.json << 'EOF'
           {
-            "cookieSecret": "ci-test-secret",
-            "adminUsername": "admin",
-            "adminPassword": "admin",
+            "cookieSecret": "ci-test-cookie-secret-min-32-characters-long",
+            "adminEmail": "admin@example.com",
+            "adminPassword": "ci-test-password-1234",
             "db": {
               "host": "postgres",
               "database": "lessons-from-luke",
@@ -183,9 +183,9 @@ jobs:
         run: |
           cat > secrets.json << 'EOF'
           {
-            "cookieSecret": "ci-test-secret",
-            "adminUsername": "chris",
-            "adminPassword": "yo",
+            "cookieSecret": "ci-test-cookie-secret-min-32-characters-long",
+            "adminEmail": "admin@example.com",
+            "adminPassword": "ci-test-password-1234",
             "db": {
               "host": "localhost",
               "database": "lessons-from-luke",
@@ -270,9 +270,9 @@ jobs:
         run: |
           cat > secrets.json << 'EOF'
           {
-            "cookieSecret": "ci-test-secret",
-            "adminUsername": "chris",
-            "adminPassword": "yo",
+            "cookieSecret": "ci-test-cookie-secret-min-32-characters-long",
+            "adminEmail": "admin@example.com",
+            "adminPassword": "ci-test-password-1234",
             "db": {
               "host": "localhost",
               "database": "lessons-from-luke",
