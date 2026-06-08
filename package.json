@@ -69,7 +69,11 @@
       "prettier --write",
       "bash -c 'NODE_ENV=test npx jest --findRelatedTests --bail --passWithNoTests --runInBand \"$@\"' --"
     ],
-    "*.{js,json,md,yml,yaml}": [
+    "**/*.{js,cjs,mjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
       "prettier --write"
     ]
   },
