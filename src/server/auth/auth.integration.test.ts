@@ -155,8 +155,10 @@ test("POST /api/auth/sign-out clears session", async () => {
   const sessionBefore = await a.get("/api/auth/get-session").expect(200);
   expect(sessionBefore.body).not.toBeNull();
 
-  // Sign out
-  await a.post("/api/auth/sign-out").expect(200);
+  // Sign out. Origin enforcement is on in the integration server
+  // (BETTER_AUTH_ENFORCE_ORIGIN), so this cookie-bearing POST must carry a
+  // same-origin Origin header (matching trustedOrigins = BETTER_AUTH_URL).
+  await a.post("/api/auth/sign-out").set("Origin", serverUrl).expect(200);
 
   // Confirm session gone
   const sessionAfter = await a.get("/api/auth/get-session").expect(200);

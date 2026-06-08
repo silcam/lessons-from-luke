@@ -46,6 +46,13 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> {
       // baseURL scheme detection, so a misconfigured proxy can't silently
       // downgrade cookie security.
       useSecureCookies: process.env.NODE_ENV === "production",
+      // better-auth auto-skips origin/CSRF enforcement under NODE_ENV=test. The
+      // integration server (which must run NODE_ENV=test for PGTestStorage) sets
+      // BETTER_AUTH_ENFORCE_ORIGIN=1 so the integration suite can exercise the
+      // production trustedOrigins enforcement that test mode would otherwise skip.
+      // Left undefined elsewhere → better-auth's env default (enforced in
+      // production, skipped in test/dev so cross-origin dev login still works).
+      disableOriginCheck: process.env.BETTER_AUTH_ENFORCE_ORIGIN === "1" ? false : undefined,
     },
     emailAndPassword: {
       enabled: true,
@@ -64,7 +71,12 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> {
       },
     },
     rateLimit: {
-      enabled: true,
+      // On in production and dev (a sign-in brute-force safeguard, red-team Pass 1).
+      // Off under NODE_ENV=test so the Cypress e2e suite's many cy.login() calls
+      // aren't throttled (429) — EXCEPT the integration server, which sets
+      // BETTER_AUTH_ENFORCE_RATE_LIMIT=1 so its ">10 attempts → 429" test still runs.
+      enabled:
+        process.env.NODE_ENV !== "test" || process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT === "1",
       // DB-backed so limits are shared across workers under Passenger (red-team Pass 1)
       storage: "database",
       customRules: {
