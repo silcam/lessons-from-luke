@@ -12,7 +12,6 @@
  */
 "use strict";
 
-
 /**
  * Converts Node.js IncomingHttpHeaders to the web-standard Headers object.
  * Mirrors the logic in better-auth/dist/integrations/node.mjs.

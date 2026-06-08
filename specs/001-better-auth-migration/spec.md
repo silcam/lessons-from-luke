@@ -224,7 +224,7 @@ experience.
 ## Assumptions
 
 - **Constitution prerequisite satisfied**: Principle VI was amended to v1.1.0 (domain-scoped Persistence
-  + server-only auth-infra exemption) before this spec was finalized; the auth design is conformant.
+  - server-only auth-infra exemption) before this spec was finalized; the auth design is conformant.
 - **Identity type change**: account identifiers become opaque **strings** (from the current numeric
   user id). The full ripple across core/server/frontend/desktop and test fixtures MUST land cohesively
   so the per-commit full-project typecheck stays green. _(Inventory + sequencing deferred to planning.)_

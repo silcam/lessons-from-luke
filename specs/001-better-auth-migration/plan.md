@@ -116,10 +116,10 @@ only its dispatch wiring changes. All other work is backend/auth infrastructure.
 
 ### UI Decisions
 
-| Screen / Component                | User Story | Approach                                                                                          | Design Skills |
-| --------------------------------- | ---------- | ------------------------------------------------------------------------------------------------- | ------------- |
+| Screen / Component                 | User Story | Approach                                                                                                                                                                                                                                                                                | Design Skills |
+| ---------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
 | Public sign-in form (`PublicHome`) | US1        | Rename `username` state → `email`; placeholder `t("Username")` → `t("Email")`; **rewire the failure check from `appError.status == 422` to the better-auth failure status (401)** — see Edge Cases "Login-failure status drift"; keep `Log_in_failed` alert and no-enumeration behavior | —             |
-| Admin log-out button (`AdminHome`) | US3        | Existing button; switch `usePush(pushLogout)` → plain thunk dispatch (no visual change)            | —             |
+| Admin log-out button (`AdminHome`) | US3        | Existing button; switch `usePush(pushLogout)` → plain thunk dispatch (no visual change)                                                                                                                                                                                                 | —             |
 
 No DaisyUI, onboarding, or adaptive-layout work applies — this repo uses styled base-components and
 the change is a single field rename plus a new `Email` i18n key (`en.ts`, `fr.ts`).
@@ -135,16 +135,16 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
 Evaluated against constitution **v1.1.0**.
 
-| Principle                                         | Status   | Notes                                                                                                                                                                                                              |
-| ------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **0. Fidelity to Reality**                        | ✅ PASS  | Research verified every decision against actually-published packages and the real codebase, not the older reference plan. Drift (noble v2 paths, missing kysely export, 26-char secret) caught and corrected.       |
-| **I. Test-First (TDD)**                           | ✅ PASS  | Unit tests precede impl for `passwordHasher`, `requireUser`/`requireAdmin`, `secrets` fail-fast, slice thunks, `PublicHome`. Integration test (`auth.integration.test.ts`) covers the DB-touching auth flows; Cypress covers the login flow. |
-| **II. Type Safety & Static Analysis**             | ✅ PASS  | Explicit return types, no `any` (cast on better-auth handler only where the existing pattern already casts middleware — minimize, justify). Whole-project strict typecheck is the cohesion gate for the id change. |
-| **III. Code Quality Standards**                   | ✅ PASS  | JSDoc on new public functions/types; import ordering; Prettier; conventional commits.                                                                                                                              |
-| **IV. Pre-commit Quality Gates**                  | ✅ PASS  | `yarn typecheck` (whole project) + `lint-staged` (eslint/prettier/jest related). The `User.id` ripple is sequenced to land in one commit so typecheck never goes red. Never `--no-verify`.                          |
-| **V. Warning & Deprecation Policy**               | ✅ PASS  | Removing `cookie-session` removes its surface; new deps resolved clean; address any deprecation/audit immediately.                                                                                                  |
-| **VI. Layered Architecture & Dual Targets**       | ✅ PASS  | **Direct application of the v1.1.0 exemption**: auth is server-only, owns its tables via its own `pg.Pool`, never enters `core`/desktop, stores no domain data. Domain `Persistence`/`PGStorage`/porsager driver untouched. Desktop unchanged (US5). |
-| **VII. Simplicity & Maintainability**             | ✅ PASS  | Dropping Drizzle (vs. reference plan) and using a bare `pg.Pool` is the simpler path (KISS/YAGNI). No speculative roles/UI.                                                                                          |
+| Principle                                   | Status  | Notes                                                                                                                                                                                                                                                |
+| ------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **0. Fidelity to Reality**                  | ✅ PASS | Research verified every decision against actually-published packages and the real codebase, not the older reference plan. Drift (noble v2 paths, missing kysely export, 26-char secret) caught and corrected.                                        |
+| **I. Test-First (TDD)**                     | ✅ PASS | Unit tests precede impl for `passwordHasher`, `requireUser`/`requireAdmin`, `secrets` fail-fast, slice thunks, `PublicHome`. Integration test (`auth.integration.test.ts`) covers the DB-touching auth flows; Cypress covers the login flow.         |
+| **II. Type Safety & Static Analysis**       | ✅ PASS | Explicit return types, no `any` (cast on better-auth handler only where the existing pattern already casts middleware — minimize, justify). Whole-project strict typecheck is the cohesion gate for the id change.                                   |
+| **III. Code Quality Standards**             | ✅ PASS | JSDoc on new public functions/types; import ordering; Prettier; conventional commits.                                                                                                                                                                |
+| **IV. Pre-commit Quality Gates**            | ✅ PASS | `yarn typecheck` (whole project) + `lint-staged` (eslint/prettier/jest related). The `User.id` ripple is sequenced to land in one commit so typecheck never goes red. Never `--no-verify`.                                                           |
+| **V. Warning & Deprecation Policy**         | ✅ PASS | Removing `cookie-session` removes its surface; new deps resolved clean; address any deprecation/audit immediately.                                                                                                                                   |
+| **VI. Layered Architecture & Dual Targets** | ✅ PASS | **Direct application of the v1.1.0 exemption**: auth is server-only, owns its tables via its own `pg.Pool`, never enters `core`/desktop, stores no domain data. Domain `Persistence`/`PGStorage`/porsager driver untouched. Desktop unchanged (US5). |
+| **VII. Simplicity & Maintainability**       | ✅ PASS | Dropping Drizzle (vs. reference plan) and using a bare `pg.Pool` is the simpler path (KISS/YAGNI). No speculative roles/UI.                                                                                                                          |
 
 **Initial gate: PASS — no violations. Complexity Tracking is empty (omitted).**
 
@@ -233,13 +233,13 @@ and `src/desktop` is untouched.
 > file created during `sp:05-tasks`, in `specs/acceptance-specs/`, in the GWT format consumed by the
 > acceptance pipeline.
 
-| User Story                                  | Acceptance Spec File                                     | Scenarios |
-| ------------------------------------------- | -------------------------------------------------------- | --------- |
-| US1: Administrator signs in securely        | `specs/acceptance-specs/US01-admin-signs-in.txt`         | 3         |
-| US2: Admin-only areas are protected         | `specs/acceptance-specs/US02-admin-areas-protected.txt`  | 3         |
-| US3: Administrator signs out                | `specs/acceptance-specs/US03-admin-signs-out.txt`        | 2         |
-| US4: Invitation-only provisioning           | `specs/acceptance-specs/US04-invitation-provisioning.txt`| 4         |
-| US5: Desktop translation is unaffected      | `specs/acceptance-specs/US05-desktop-unaffected.txt`     | 2         |
+| User Story                             | Acceptance Spec File                                      | Scenarios |
+| -------------------------------------- | --------------------------------------------------------- | --------- |
+| US1: Administrator signs in securely   | `specs/acceptance-specs/US01-admin-signs-in.txt`          | 3         |
+| US2: Admin-only areas are protected    | `specs/acceptance-specs/US02-admin-areas-protected.txt`   | 3         |
+| US3: Administrator signs out           | `specs/acceptance-specs/US03-admin-signs-out.txt`         | 2         |
+| US4: Invitation-only provisioning      | `specs/acceptance-specs/US04-invitation-provisioning.txt` | 4         |
+| US5: Desktop translation is unaffected | `specs/acceptance-specs/US05-desktop-unaffected.txt`      | 2         |
 
 **Pipeline**: `specs/acceptance-specs/*.txt` → `acceptance/parse-specs.ts` →
 `acceptance/generate-tests.ts` → `generated-acceptance-tests/*.spec.ts`.
@@ -333,7 +333,7 @@ second-order leaks the functional spec did not call out:
   session lookup as unauthenticated (401), and sign-in returns a generic failure, rather than 500-ing
   with a stack trace or, worse, allowing the request through. Errors are logged server-side without
   leaking connection strings.
-- **Pool sizing / exhaustion**: the new auth `pg.Pool` is a *second* pool against the same Postgres
+- **Pool sizing / exhaustion**: the new auth `pg.Pool` is a _second_ pool against the same Postgres
   instance as the domain porsager driver. Its `max` MUST be bounded so the two pools combined stay
   under Postgres `max_connections`; an unbounded auth pool under a sign-in flood could starve the
   domain driver and take down unrelated endpoints. **Chosen `max: 5`** — the porsager driver defaults
@@ -347,7 +347,7 @@ second-order leaks the functional spec did not call out:
 - **Partial seed failure**: the seed inserts a `user` then an `account`. If it fails between the two,
   a later re-run's idempotency check (`skip if user with adminEmail exists`) would see the user and
   skip — leaving an admin with **no credential** (un-loginable). The seed MUST be atomic (single
-  transaction inserting both rows) OR its idempotency check MUST verify *both* the `user` and a
+  transaction inserting both rows) OR its idempotency check MUST verify _both_ the `user` and a
   matching `credential` `account` exist before skipping.
 - **Email casing**: better-auth treats emails case-insensitively for login but the `UNIQUE`
   constraint is on the stored value. The seed MUST insert `adminEmail` in the **normalized** form
@@ -381,7 +381,7 @@ second-order leaks the functional spec did not call out:
 - **`/api/tStrings` stays access-code-gated, NOT user-session-gated (clarity)**: `POST /api/tStrings`
   is authorized today by the per-translation **access code** (`storage.invalidCode(...)`, 401 on a
   bad code), independent of any user session — it is the translator/desktop write path (US5). The
-  migration changes the *user-session* gate (`requireUser`→`requireAdmin` on `/api/admin/*`) and MUST
+  migration changes the _user-session_ gate (`requireUser`→`requireAdmin` on `/api/admin/*`) and MUST
   leave the access-code authorization on `/api/tStrings` untouched. The design MUST NOT (a) drop the
   access-code check, nor (b) accidentally place `/api/tStrings` behind the new admin session gate
   (which would break translator writes). Only `/api/admin/*` is user-session-gated.
@@ -420,15 +420,15 @@ second-order leaks the functional spec did not call out:
 - This ties directly to the rate-limit requirement above: throttling sign-in is also the throttle on
   Argon2id CPU/memory spend.
 - **Bound the password input length (NEW — Pass 2)**: the global `bodyParser.json({ limit: "2MB" })`
-  would otherwise let a single *allowed* sign-in attempt submit a multi-MB `password` that Argon2id
+  would otherwise let a single _allowed_ sign-in attempt submit a multi-MB `password` that Argon2id
   must hash, amplifying the per-attempt CPU/memory cost far beyond a normal password. better-auth
   applies a default `maxPasswordLength` (≈128), but the design MUST **explicitly configure**
   `emailAndPassword.maxPasswordLength` (and a sane `minPasswordLength`) rather than rely on an
   unverified library default — better-auth is not yet installed, so the effective default cannot be
   assumed. Over-length passwords MUST be rejected **before** the Argon2id hash runs, and the integration
   test MUST assert an over-length password is rejected (so a future config change cannot silently remove
-  the cap). This complements the rate limit: rate-limit caps attempt *frequency*, the length cap caps
-  per-attempt *cost*.
+  the cap). This complements the rate limit: rate-limit caps attempt _frequency_, the length cap caps
+  per-attempt _cost_.
 
 ### Query / Index Footprint
 

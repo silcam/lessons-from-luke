@@ -15,7 +15,8 @@ let authInstance: ReturnType<typeof betterAuth<any>> | null = null;
  *
  * FR-001, FR-002, FR-006, FR-010, FR-012
  */
-export function getAuth(): ReturnType<typeof betterAuth<any>> { // eslint-disable-line @typescript-eslint/no-explicit-any
+export function getAuth(): ReturnType<typeof betterAuth<any>> {
+  // eslint-disable-line @typescript-eslint/no-explicit-any
   if (authInstance) {
     return authInstance;
   }

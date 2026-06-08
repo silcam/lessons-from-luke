@@ -21,13 +21,14 @@ const { argon2Sync } = require("crypto") as {
 // Importing here ensures the test exercises the same parameter values that
 // migrations/_argon2Params.js exports, so any param drift is caught immediately.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { ALGO, MEMORY, ITERATIONS, PARALLELISM, TAG_LENGTH } = require("../../../migrations/_argon2Params") as {
-  ALGO: string;
-  MEMORY: number;
-  ITERATIONS: number;
-  PARALLELISM: number;
-  TAG_LENGTH: number;
-};
+const { ALGO, MEMORY, ITERATIONS, PARALLELISM, TAG_LENGTH } =
+  require("../../../migrations/_argon2Params") as {
+    ALGO: string;
+    MEMORY: number;
+    ITERATIONS: number;
+    PARALLELISM: number;
+    TAG_LENGTH: number;
+  };
 
 /**
  * Inline Argon2id hash helper using the same code path as the SeedAdminUser
@@ -54,9 +55,7 @@ describe("passwordHasher", () => {
   it("hash(password) returns a string matching the argon2id format", async () => {
     const result = await hash(password);
     // 7-field format: argon2id$m$t$p$l$saltHex$hashHex
-    expect(result).toMatch(
-      /^argon2id\$[0-9]+\$[0-9]+\$[0-9]+\$[0-9]+\$[0-9a-f]+\$[0-9a-f]+$/
-    );
+    expect(result).toMatch(/^argon2id\$[0-9]+\$[0-9]+\$[0-9]+\$[0-9]+\$[0-9a-f]+\$[0-9a-f]+$/);
   });
 
   it("hash(password) produces different values on repeated calls (salt randomness)", async () => {
@@ -97,8 +96,13 @@ describe("passwordHasher", () => {
   it("better-auth adapter: verify({ hash: hashed, password }) returns true", async () => {
     const hashed = await hash(password);
     // The adapter in auth.ts calls: verify({ hash, password }) => passwordHasher.verify(hash, password)
-    const betterAuthVerifyAdapter = ({ hash: h, password: p }: { hash: string; password: string }) =>
-      verify(h, p);
+    const betterAuthVerifyAdapter = ({
+      hash: h,
+      password: p,
+    }: {
+      hash: string;
+      password: string;
+    }) => verify(h, p);
     const result = await betterAuthVerifyAdapter({ hash: hashed, password });
     expect(result).toBe(true);
   });
@@ -106,8 +110,13 @@ describe("passwordHasher", () => {
   // Guard: the adapter must return false for wrong password (arg-order regression check)
   it("better-auth adapter: verify({ hash: hashed, password: wrong }) returns false", async () => {
     const hashed = await hash(password);
-    const betterAuthVerifyAdapter = ({ hash: h, password: p }: { hash: string; password: string }) =>
-      verify(h, p);
+    const betterAuthVerifyAdapter = ({
+      hash: h,
+      password: p,
+    }: {
+      hash: string;
+      password: string;
+    }) => verify(h, p);
     const result = await betterAuthVerifyAdapter({ hash: hashed, password: wrongPassword });
     expect(result).toBe(false);
   });
@@ -120,9 +129,7 @@ describe("passwordHasher", () => {
 
   it("hash(password) produces a string matching the new 7-field format argon2id$m$t$p$l$saltHex$hashHex", async () => {
     const result = await hash(password);
-    expect(result).toMatch(
-      /^argon2id\$[0-9]+\$[0-9]+\$[0-9]+\$[0-9]+\$[0-9a-f]+\$[0-9a-f]+$/
-    );
+    expect(result).toMatch(/^argon2id\$[0-9]+\$[0-9]+\$[0-9]+\$[0-9]+\$[0-9a-f]+\$[0-9a-f]+$/);
     expect(result.split("$")).toHaveLength(7);
   });
 

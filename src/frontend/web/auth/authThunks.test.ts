@@ -123,8 +123,7 @@ describe("auth thunks (web/auth/authThunks)", () => {
       await pushLogin(login)(dispatch);
 
       const setUserWithUserCalls = dispatch.mock.calls.filter(
-        ([action]) =>
-          action.type === "currentUser/setUser" && action.payload !== null
+        ([action]) => action.type === "currentUser/setUser" && action.payload !== null
       );
       expect(setUserWithUserCalls).toHaveLength(0);
     });
@@ -152,9 +151,7 @@ describe("auth thunks (web/auth/authThunks)", () => {
 
       await pushLogin(login)(dispatch);
 
-      expect(dispatch).toHaveBeenCalledWith(
-        currentUserSlice.actions.setError(expect.any(String))
-      );
+      expect(dispatch).toHaveBeenCalledWith(currentUserSlice.actions.setError(expect.any(String)));
     });
 
     it("on 500 error, dispatches setError with a fallback message", async () => {
@@ -167,9 +164,7 @@ describe("auth thunks (web/auth/authThunks)", () => {
 
       await pushLogin(login)(dispatch);
 
-      expect(dispatch).toHaveBeenCalledWith(
-        currentUserSlice.actions.setError(expect.any(String))
-      );
+      expect(dispatch).toHaveBeenCalledWith(currentUserSlice.actions.setError(expect.any(String)));
     });
 
     it("on 429 error, dispatches setError with a fallback message", async () => {
@@ -182,23 +177,17 @@ describe("auth thunks (web/auth/authThunks)", () => {
 
       await pushLogin(login)(dispatch);
 
-      expect(dispatch).toHaveBeenCalledWith(
-        currentUserSlice.actions.setError(expect.any(String))
-      );
+      expect(dispatch).toHaveBeenCalledWith(currentUserSlice.actions.setError(expect.any(String)));
     });
 
     it("on network rejection (thrown error), dispatches setError with a fallback message", async () => {
       const login = { email: "user@example.com", password: "pass" };
-      (authClient.signIn.email as jest.Mock).mockRejectedValue(
-        new Error("Network failure")
-      );
+      (authClient.signIn.email as jest.Mock).mockRejectedValue(new Error("Network failure"));
       const dispatch = jest.fn();
 
       await pushLogin(login)(dispatch);
 
-      expect(dispatch).toHaveBeenCalledWith(
-        currentUserSlice.actions.setError(expect.any(String))
-      );
+      expect(dispatch).toHaveBeenCalledWith(currentUserSlice.actions.setError(expect.any(String)));
     });
   });
 

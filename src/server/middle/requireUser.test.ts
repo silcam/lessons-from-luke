@@ -62,9 +62,7 @@ describe("requireUser middleware", () => {
   });
 
   test("calls next() when req.user is set (valid session)", async () => {
-    mockGetAuth.mockReturnValue(
-      makeMockAuth(async () => ({ user: { id: "u1", admin: false } }))
-    );
+    mockGetAuth.mockReturnValue(makeMockAuth(async () => ({ user: { id: "u1", admin: false } })));
 
     const req = mockReq();
     const res = mockRes();
@@ -113,9 +111,7 @@ describe("requireAdmin middleware", () => {
   });
 
   test("calls next() when req.user exists and admin is true", async () => {
-    mockGetAuth.mockReturnValue(
-      makeMockAuth(async () => ({ user: { id: "u1", admin: true } }))
-    );
+    mockGetAuth.mockReturnValue(makeMockAuth(async () => ({ user: { id: "u1", admin: true } })));
 
     const req = mockReq();
     const res = mockRes();
@@ -141,9 +137,7 @@ describe("requireAdmin middleware", () => {
   });
 
   test("responds 403 and does NOT call next() when user exists but admin is false", async () => {
-    mockGetAuth.mockReturnValue(
-      makeMockAuth(async () => ({ user: { id: "u1", admin: false } }))
-    );
+    mockGetAuth.mockReturnValue(makeMockAuth(async () => ({ user: { id: "u1", admin: false } })));
 
     const req = mockReq();
     const res = mockRes();

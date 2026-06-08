@@ -23,9 +23,9 @@ E2E). Run from repo root unless noted.
      "cookieSecret": "<at least 32 characters — fail-fast rejects shorter>",
      "adminEmail": "admin@example.com",
      "adminPassword": "<strong password, >= minPasswordLength>",
-     "db":     { "database": "lessons-from-luke",      "username": "...", "password": "..." },
-     "testDb": { "database": "lessons-from-luke-test",  "username": "...", "password": "..." },
-     "devDb":  { "database": "lessons-from-luke-dev",   "username": "...", "password": "..." }
+     "db": { "database": "lessons-from-luke", "username": "...", "password": "..." },
+     "testDb": { "database": "lessons-from-luke-test", "username": "...", "password": "..." },
+     "devDb": { "database": "lessons-from-luke-dev", "username": "...", "password": "..." },
    }
    ```
 

@@ -43,6 +43,6 @@
   **Dependencies** sections, where they record decisions and constraints for `/sp:03-plan` rather than
   prescribing implementation in the requirements themselves.
 - The numeric→string account-identifier change and all adapter/wiring specifics are intentionally
-  deferred to planning; the spec states the *what* (opaque string identity, isolated auth driver) and
-  leaves the *how* to `/sp:03-plan`.
+  deferred to planning; the spec states the _what_ (opaque string identity, isolated auth driver) and
+  leaves the _how_ to `/sp:03-plan`.
 - All items pass. Specification is ready for `/sp:03-plan`.

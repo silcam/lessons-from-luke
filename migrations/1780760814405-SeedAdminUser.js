@@ -41,14 +41,10 @@ module.exports.up = async () => {
     const secrets = JSON.parse(fs.readFileSync("secrets.json"));
 
     if (!secrets.adminEmail) {
-      throw new Error(
-        "SeedAdminUser: missing required field 'adminEmail' in secrets.json"
-      );
+      throw new Error("SeedAdminUser: missing required field 'adminEmail' in secrets.json");
     }
     if (!secrets.adminPassword) {
-      throw new Error(
-        "SeedAdminUser: missing required field 'adminPassword' in secrets.json"
-      );
+      throw new Error("SeedAdminUser: missing required field 'adminPassword' in secrets.json");
     }
     if (secrets.adminPassword.length < 12) {
       throw new Error(
@@ -114,9 +110,7 @@ module.exports.down = async () => {
 
     const secrets = JSON.parse(fs.readFileSync("secrets.json"));
     if (!secrets.adminEmail) {
-      console.log(
-        "No adminEmail in secrets.json, nothing to remove from 'user'."
-      );
+      console.log("No adminEmail in secrets.json, nothing to remove from 'user'.");
       return;
     }
 

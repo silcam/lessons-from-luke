@@ -39,9 +39,7 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   app.use(
     helmet({
       // HSTS: production only (avoids breaking plain-HTTP dev/test environments)
-      hsts: PRODUCTION
-        ? { maxAge: 31536000, includeSubDomains: true }
-        : false,
+      hsts: PRODUCTION ? { maxAge: 31536000, includeSubDomains: true } : false,
       // Prevent clickjacking: deny framing from other origins
       frameguard: { action: "sameorigin" },
       // Prevent MIME-type sniffing

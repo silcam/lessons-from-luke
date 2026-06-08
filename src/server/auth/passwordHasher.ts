@@ -73,17 +73,19 @@ export async function hash(password: string): Promise<string> {
  * @param password - The plaintext password to check.
  * @returns A promise resolving to `true` if the password matches, `false` otherwise.
  */
-export async function verify(
-  storedHash: string,
-  password: string
-): Promise<boolean> {
+export async function verify(storedHash: string, password: string): Promise<boolean> {
   try {
     const parts = storedHash.split("$");
     if (parts[0] !== ALGO) {
       return false;
     }
 
-    let m: number, t: number, p: number, tagLength: number, nonceHex: string, expectedHashHex: string;
+    let m: number,
+      t: number,
+      p: number,
+      tagLength: number,
+      nonceHex: string,
+      expectedHashHex: string;
 
     if (parts.length === 7) {
       // New format: argon2id$m$t$p$l$saltHex$hashHex

@@ -21,8 +21,7 @@ describe("HTTP security headers", () => {
     const xfo = (response.header["x-frame-options"] ?? "") as string;
     const csp = (response.header["content-security-policy"] ?? "") as string;
     const frameProtected =
-      xfo.toLowerCase().includes("sameorigin") ||
-      csp.toLowerCase().includes("frame-ancestors");
+      xfo.toLowerCase().includes("sameorigin") || csp.toLowerCase().includes("frame-ancestors");
     expect(frameProtected).toBe(true);
   });
 

@@ -96,18 +96,14 @@ describe("secrets — file-based branch (line 21 true path)", () => {
     // Verify the file is there before resetting modules
     expect(fs.existsSync(secretsJsonPath)).toBe(true);
     const onDisk = JSON.parse(fs.readFileSync(secretsJsonPath, "utf8"));
-    expect(onDisk.cookieSecret).toBe(
-      "a-strong-unique-cookie-secret-for-testing!!"
-    );
+    expect(onDisk.cookieSecret).toBe("a-strong-unique-cookie-secret-for-testing!!");
 
     // Re-require the module so it re-evaluates from scratch
     jest.resetModules();
 
     const freshSecrets = require("./secrets").default;
 
-    expect(freshSecrets.cookieSecret).toBe(
-      "a-strong-unique-cookie-secret-for-testing!!"
-    );
+    expect(freshSecrets.cookieSecret).toBe("a-strong-unique-cookie-secret-for-testing!!");
     expect(freshSecrets.adminEmail).toBe("admin@example.com");
     expect(freshSecrets.adminUsername).toBe("admin");
     expect(freshSecrets.adminPassword).toBe("hunter2-secure");
@@ -313,11 +309,7 @@ describe("secrets — FR-011 fail-fast validation", () => {
       ...validSecrets,
       cookieSecret: "dev-only-secret-replace-in-production-xx",
     };
-    fs.writeFileSync(
-      secretsJsonPath,
-      JSON.stringify(defaultCookieSecretSecrets),
-      "utf8"
-    );
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(defaultCookieSecretSecrets), "utf8");
 
     jest.resetModules();
 
@@ -398,11 +390,7 @@ describe("secrets — FR-011 fail-fast validation", () => {
       ...validSecrets,
       adminPassword: "dev-password-1", // the defaultSecrets value from secrets.ts
     };
-    fs.writeFileSync(
-      secretsJsonPath,
-      JSON.stringify(defaultPasswordSecrets),
-      "utf8"
-    );
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(defaultPasswordSecrets), "utf8");
 
     jest.resetModules();
 
@@ -417,11 +405,7 @@ describe("secrets — FR-011 fail-fast validation", () => {
       ...validSecrets,
       adminPassword: "dev-password-1",
     };
-    fs.writeFileSync(
-      secretsJsonPath,
-      JSON.stringify(defaultPasswordSecrets),
-      "utf8"
-    );
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(defaultPasswordSecrets), "utf8");
 
     jest.resetModules();
 
@@ -443,11 +427,7 @@ describe("secrets — FR-011 fail-fast validation", () => {
       ...validSecrets,
       adminPassword: "dev-password-1",
     };
-    fs.writeFileSync(
-      secretsJsonPath,
-      JSON.stringify(defaultPasswordSecrets),
-      "utf8"
-    );
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(defaultPasswordSecrets), "utf8");
 
     jest.resetModules();
 
@@ -461,11 +441,7 @@ describe("secrets — FR-011 fail-fast validation", () => {
       ...validSecrets,
       cookieSecret: "dev-only-secret-replace-in-production-xx",
     };
-    fs.writeFileSync(
-      secretsJsonPath,
-      JSON.stringify(defaultCookieSecretSecrets),
-      "utf8"
-    );
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(defaultCookieSecretSecrets), "utf8");
 
     jest.resetModules();
 
@@ -480,11 +456,7 @@ describe("secrets — FR-011 fail-fast validation", () => {
       ...validSecrets,
       cookieSecret: "dev-only-secret-replace-in-production-xx",
     };
-    fs.writeFileSync(
-      secretsJsonPath,
-      JSON.stringify(defaultCookieSecretSecrets),
-      "utf8"
-    );
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(defaultCookieSecretSecrets), "utf8");
 
     jest.resetModules();
 

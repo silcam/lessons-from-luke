@@ -33,16 +33,10 @@ export function pushLogin(login: { email: string; password: string }) {
           id: string;
           admin?: boolean;
         };
-        dispatch(
-          currentUserSlice.actions.setUser({ id, admin: Boolean(admin) })
-        );
+        dispatch(currentUserSlice.actions.setUser({ id, admin: Boolean(admin) }));
       }
     } catch {
-      dispatch(
-        currentUserSlice.actions.setError(
-          "An error occurred. Please try again."
-        )
-      );
+      dispatch(currentUserSlice.actions.setError("An error occurred. Please try again."));
     }
   };
 }

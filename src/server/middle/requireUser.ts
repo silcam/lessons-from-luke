@@ -89,11 +89,7 @@ export default async function requireUser(
  * @param next - Express NextFunction
  * @returns Promise<void>
  */
-export async function requireAdmin(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
+export async function requireAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
   await loadSession(req);
   if (!req.user) {
     res.status(401).json({ error: "Unauthorized" });

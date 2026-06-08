@@ -23,16 +23,16 @@ Two model surfaces are described:
 
 The authenticatable identity. (Spec Key Entity: **Account (User)**.)
 
-| Field           | Type          | Constraints                                  | Notes                                   |
-| --------------- | ------------- | -------------------------------------------- | --------------------------------------- |
-| `id`            | `text`        | PRIMARY KEY                                  | better-auth-generated opaque string     |
-| `name`          | `text`        | NOT NULL; `char_length <= 255`               | display name                            |
-| `email`         | `text`        | NOT NULL, **UNIQUE**; `char_length <= 254`   | login identifier (FR-013 uniqueness)    |
-| `emailVerified` | `boolean`     | NOT NULL DEFAULT false                       | unused in this cut (no verify flow)     |
-| `image`         | `text`        | nullable                                     | unused                                  |
-| `admin`         | `boolean`     | NOT NULL DEFAULT false                       | **additionalField**; the capability gate |
-| `createdAt`     | `timestamptz` | NOT NULL                                     |                                         |
-| `updatedAt`     | `timestamptz` | NOT NULL                                     |                                         |
+| Field           | Type          | Constraints                                | Notes                                    |
+| --------------- | ------------- | ------------------------------------------ | ---------------------------------------- |
+| `id`            | `text`        | PRIMARY KEY                                | better-auth-generated opaque string      |
+| `name`          | `text`        | NOT NULL; `char_length <= 255`             | display name                             |
+| `email`         | `text`        | NOT NULL, **UNIQUE**; `char_length <= 254` | login identifier (FR-013 uniqueness)     |
+| `emailVerified` | `boolean`     | NOT NULL DEFAULT false                     | unused in this cut (no verify flow)      |
+| `image`         | `text`        | nullable                                   | unused                                   |
+| `admin`         | `boolean`     | NOT NULL DEFAULT false                     | **additionalField**; the capability gate |
+| `createdAt`     | `timestamptz` | NOT NULL                                   |                                          |
+| `updatedAt`     | `timestamptz` | NOT NULL                                   |                                          |
 
 - **Validation rules**: `email` uniqueness enforced at the DB (FR-013); `admin` defaults false
   (input disabled via better-auth `additionalFields: { admin: { input: false } }` so it cannot be
@@ -48,26 +48,26 @@ The authenticatable identity. (Spec Key Entity: **Account (User)**.)
 
 The stored credential for an account's email/password method. (Spec Key Entity: **Credential**.)
 
-| Field                   | Type          | Constraints                                  | Notes                                     |
-| ----------------------- | ------------- | -------------------------------------------- | ----------------------------------------- |
-| `id`                    | `text`        | PRIMARY KEY                                  |                                           |
-| `userId`                | `text`        | NOT NULL, FK → `user(id)` ON DELETE CASCADE  |                                           |
-| `accountId`             | `text`        | NOT NULL                                     | equals `user.id` for credential provider  |
-| `providerId`            | `text`        | NOT NULL                                     | `'credential'` for email/password         |
-| `accessToken`           | `text`        | nullable                                     | unused (no OAuth)                         |
-| `refreshToken`          | `text`        | nullable                                     | unused                                    |
-| `idToken`               | `text`        | nullable                                     | unused                                    |
-| `accessTokenExpiresAt`  | `timestamptz` | nullable                                     | unused                                    |
-| `refreshTokenExpiresAt` | `timestamptz` | nullable                                     | unused                                    |
-| `scope`                 | `text`        | nullable                                     | unused                                    |
-| `password`              | `text`        | nullable                                     | **Argon2id hash** (`argon2id$m$t$p$salt$hash`) |
-| `createdAt`             | `timestamptz` | NOT NULL                                     |                                           |
-| `updatedAt`             | `timestamptz` | NOT NULL                                     |                                           |
-| _index_                 |               | `idx_account_userId` on `(userId)`           |                                           |
+| Field                   | Type          | Constraints                                 | Notes                                          |
+| ----------------------- | ------------- | ------------------------------------------- | ---------------------------------------------- |
+| `id`                    | `text`        | PRIMARY KEY                                 |                                                |
+| `userId`                | `text`        | NOT NULL, FK → `user(id)` ON DELETE CASCADE |                                                |
+| `accountId`             | `text`        | NOT NULL                                    | equals `user.id` for credential provider       |
+| `providerId`            | `text`        | NOT NULL                                    | `'credential'` for email/password              |
+| `accessToken`           | `text`        | nullable                                    | unused (no OAuth)                              |
+| `refreshToken`          | `text`        | nullable                                    | unused                                         |
+| `idToken`               | `text`        | nullable                                    | unused                                         |
+| `accessTokenExpiresAt`  | `timestamptz` | nullable                                    | unused                                         |
+| `refreshTokenExpiresAt` | `timestamptz` | nullable                                    | unused                                         |
+| `scope`                 | `text`        | nullable                                    | unused                                         |
+| `password`              | `text`        | nullable                                    | **Argon2id hash** (`argon2id$m$t$p$salt$hash`) |
+| `createdAt`             | `timestamptz` | NOT NULL                                    |                                                |
+| `updatedAt`             | `timestamptz` | NOT NULL                                    |                                                |
+| _index_                 |               | `idx_account_userId` on `(userId)`          |                                                |
 
 - **Validation rules**: `password` is ALWAYS a one-way Argon2id hash, never plaintext (FR-001,
   SC-003). The seed and the runtime hasher produce byte-identical formats so verification succeeds.
-- **Input-length bound (red-team Pass 2)**: the *submitted* (pre-hash) password length is bounded by
+- **Input-length bound (red-team Pass 2)**: the _submitted_ (pre-hash) password length is bounded by
   an explicitly-configured `emailAndPassword.maxPasswordLength` (~128) so an over-length password
   cannot ride the 2MB JSON body limit into the Argon2id hasher and amplify CPU/memory cost. The cap
   applies before hashing; the stored hash length is fixed by the Argon2id format regardless.
@@ -77,17 +77,17 @@ The stored credential for an account's email/password method. (Spec Key Entity: 
 
 A server-side session bound to an account. (Spec Key Entity: **Session**.)
 
-| Field        | Type          | Constraints                                  | Notes                                |
-| ------------ | ------------- | -------------------------------------------- | ------------------------------------ |
-| `id`         | `text`        | PRIMARY KEY                                  |                                      |
-| `userId`     | `text`        | NOT NULL, FK → `user(id)` ON DELETE CASCADE  |                                      |
-| `token`      | `text`        | NOT NULL, UNIQUE; `char_length <= 64`        | session token (cookie value source)  |
-| `expiresAt`  | `timestamptz` | NOT NULL                                     | bounded lifetime (FR-006)            |
-| `ipAddress`  | `text`        | nullable                                     | from `X-Forwarded-For`               |
-| `userAgent`  | `text`        | nullable                                     |                                      |
-| `createdAt`  | `timestamptz` | NOT NULL                                     |                                      |
-| `updatedAt`  | `timestamptz` | NOT NULL                                     | refreshed on `updateAge`             |
-| _index_      |               | `idx_session_userId` on `(userId)`           |                                      |
+| Field       | Type          | Constraints                                 | Notes                               |
+| ----------- | ------------- | ------------------------------------------- | ----------------------------------- |
+| `id`        | `text`        | PRIMARY KEY                                 |                                     |
+| `userId`    | `text`        | NOT NULL, FK → `user(id)` ON DELETE CASCADE |                                     |
+| `token`     | `text`        | NOT NULL, UNIQUE; `char_length <= 64`       | session token (cookie value source) |
+| `expiresAt` | `timestamptz` | NOT NULL                                    | bounded lifetime (FR-006)           |
+| `ipAddress` | `text`        | nullable                                    | from `X-Forwarded-For`              |
+| `userAgent` | `text`        | nullable                                    |                                     |
+| `createdAt` | `timestamptz` | NOT NULL                                    |                                     |
+| `updatedAt` | `timestamptz` | NOT NULL                                    | refreshed on `updateAge`            |
+| _index_     |               | `idx_session_userId` on `(userId)`          |                                     |
 
 - **Lifecycle / state**: created on sign-in; `expiresAt = createdAt + expiresIn (30d)`; refreshed
   when older than `updateAge (1d)`; deleted on sign-out. An expired session is treated as
@@ -101,15 +101,15 @@ A server-side session bound to an account. (Spec Key Entity: **Session**.)
 
 Short-lived token storage used internally by better-auth. (Spec Key Entity: **Verification token**.)
 
-| Field        | Type          | Constraints                                  | Notes                          |
-| ------------ | ------------- | -------------------------------------------- | ------------------------------ |
-| `id`         | `text`        | PRIMARY KEY                                  |                                |
-| `identifier` | `text`        | NOT NULL; `char_length <= 255`               |                                |
-| `value`      | `text`        | NOT NULL                                     |                                |
-| `expiresAt`  | `timestamptz` | NOT NULL                                     |                                |
-| `createdAt`  | `timestamptz` | nullable                                     |                                |
-| `updatedAt`  | `timestamptz` | nullable                                     |                                |
-| _index_      |               | `idx_verification_identifier` on `(identifier)` |                             |
+| Field        | Type          | Constraints                                     | Notes |
+| ------------ | ------------- | ----------------------------------------------- | ----- |
+| `id`         | `text`        | PRIMARY KEY                                     |       |
+| `identifier` | `text`        | NOT NULL; `char_length <= 255`                  |       |
+| `value`      | `text`        | NOT NULL                                        |       |
+| `expiresAt`  | `timestamptz` | NOT NULL                                        |       |
+| `createdAt`  | `timestamptz` | nullable                                        |       |
+| `updatedAt`  | `timestamptz` | nullable                                        |       |
+| _index_      |               | `idx_verification_identifier` on `(identifier)` |       |
 
 - **Notes**: minimal in this cut (no email verification or reset flows enabled). Table exists
   because better-auth's schema expects it. Cleaned in `afterEach` alongside `session` for isolation.
@@ -122,12 +122,12 @@ model, so brute-force/DoS protection on `/sign-in/email` MUST be DB-backed to be
 the auth `pg.Pool` (server-only infra, Principle VI exemption), created by the same DDL migration.
 Column names are dictated by better-auth and MUST NOT be renamed.
 
-| Field        | Type          | Constraints                 | Notes                                              |
-| ------------ | ------------- | --------------------------- | -------------------------------------------------- |
-| `id`         | `text`        | PRIMARY KEY                 |                                                    |
-| `key`        | `text`        | NOT NULL                    | rate-limit bucket key (IP + route)                 |
-| `count`      | `integer`     | NOT NULL                    | attempts in the current window                     |
-| `lastRequest`| `bigint`      | NOT NULL                    | epoch ms of last counted request                   |
+| Field         | Type      | Constraints | Notes                              |
+| ------------- | --------- | ----------- | ---------------------------------- |
+| `id`          | `text`    | PRIMARY KEY |                                    |
+| `key`         | `text`    | NOT NULL    | rate-limit bucket key (IP + route) |
+| `count`       | `integer` | NOT NULL    | attempts in the current window     |
+| `lastRequest` | `bigint`  | NOT NULL    | epoch ms of last counted request   |
 
 - **Notes**: confirm the exact column names/types against the installed `better-auth@1.6.14` schema
   before writing the DDL (better-auth's generated schema is authoritative). Cleaned in `afterEach`

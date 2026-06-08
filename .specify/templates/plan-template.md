@@ -43,10 +43,10 @@
   to generate presentation layer sub-tasks with the right design-* skills.
 -->
 
-| Screen / Component        | User Story | Approach                              | Design Skills |
-| ------------------------- | ---------- | ------------------------------------- | ------------- |
-| [e.g., 404 error page]    | US1        | [React form + styled-components]      | [—]           |
-| [e.g., Onboarding wizard] | US2        | [Multi-step React wizard, empty state]| [—]           |
+| Screen / Component        | User Story | Approach                               | Design Skills |
+| ------------------------- | ---------- | -------------------------------------- | ------------- |
+| [e.g., 404 error page]    | US1        | [React form + styled-components]       | [—]           |
+| [e.g., Onboarding wizard] | US2        | [Multi-step React wizard, empty state] | [—]           |
 
 ### Quality Pass
 

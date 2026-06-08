@@ -199,8 +199,8 @@ clarifications (own isolated driver; no Drizzle). Each supersession is recorded 
     `usePush`/`useLoad` custom signatures to plain thunk dispatch (thunks change shape).
   - `src/server/controllers/usersController.ts` (+ `.test.ts`) — **deleted** (legacy admin).
   - `src/server/middle/requireUser.ts` (+ `.test.ts`) — rewritten.
-  - **`src/desktop/**` — zero references** to `User.id`, `currentUser`, `/api/users`, `cookie-session`,
-    `better-auth`, or `authClient` (verified by grep — empty result). US5 / SC-005 hold by
+  - **`src/desktop/**`— zero references** to`User.id`, `currentUser`, `/api/users`, `cookie-session`,
+`better-auth`, or `authClient` (verified by grep — empty result). US5 / SC-005 hold by
     construction; no desktop file changes.
   - `src/core/interfaces/Api.ts` — defines `/api/admin/*` routes (unaffected by the id type; admin
     gating is enforced by middleware, not the route map). The legacy `/api/users/*` map entries (if
@@ -237,13 +237,13 @@ clarifications (own isolated driver; no Drizzle). Each supersession is recorded 
 
 ## Summary of supersessions vs. the reference plan
 
-| Reference plan said                              | This plan does (per spec clarifications)                          |
-| ------------------------------------------------ | ----------------------------------------------------------------- |
-| Drizzle + `drizzle-orm/postgres-js` adapter      | Native `pg.Pool` passed to better-auth `database` (no Drizzle)    |
-| Possibly bump domain `postgres@1 → 3`            | Domain `postgres@1.0.2` untouched; auth gets isolated `pg`        |
-| `authSchema.ts` (Drizzle schema)                 | Deleted/never created — DDL migration is the single schema source |
-| `@noble/hashes/argon2` / `/utils` (v1 paths)     | `@noble/hashes/argon2.js` / `/utils.js` (v2 export map)           |
-| `@noble/hashes@^1.5.0`                           | `@noble/hashes@^2.2.0`                                            |
-| target branch `feature/node-24-migration`        | target `master` (node-24 already merged)                          |
+| Reference plan said                          | This plan does (per spec clarifications)                          |
+| -------------------------------------------- | ----------------------------------------------------------------- |
+| Drizzle + `drizzle-orm/postgres-js` adapter  | Native `pg.Pool` passed to better-auth `database` (no Drizzle)    |
+| Possibly bump domain `postgres@1 → 3`        | Domain `postgres@1.0.2` untouched; auth gets isolated `pg`        |
+| `authSchema.ts` (Drizzle schema)             | Deleted/never created — DDL migration is the single schema source |
+| `@noble/hashes/argon2` / `/utils` (v1 paths) | `@noble/hashes/argon2.js` / `/utils.js` (v2 export map)           |
+| `@noble/hashes@^1.5.0`                       | `@noble/hashes@^2.2.0`                                            |
+| target branch `feature/node-24-migration`    | target `master` (node-24 already merged)                          |
 
 All "Deferred to Planning" items from the spec are now resolved. No open NEEDS CLARIFICATION remain.
