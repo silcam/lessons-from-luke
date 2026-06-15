@@ -39,8 +39,17 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> {
     baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:8081",
     // Pin trusted origins to the explicit public URL so better-auth's
     // origin/CSRF checks are never silently widened by a misconfigured proxy.
-    // Falls back to an empty array in local dev (baseURL default is used).
-    trustedOrigins: process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : [],
+    // In production the SPA is served from the same origin as BETTER_AUTH_URL,
+    // so that single origin is all we trust. In local dev the webpack dev server
+    // (yarn dev-web :8080, yarn dev-desktop :8082) is a DIFFERENT origin from the
+    // API (:8081) and proxies /api to it, so the browser's Origin is :8080/:8082;
+    // trust those (plus the API origin) so cross-origin dev login isn't rejected
+    // with "Invalid origin". NODE_ENV=test skips origin checks entirely.
+    trustedOrigins: process.env.BETTER_AUTH_URL
+      ? [process.env.BETTER_AUTH_URL]
+      : process.env.NODE_ENV === "development"
+        ? ["http://localhost:8080", "http://localhost:8081", "http://localhost:8082"]
+        : [],
     advanced: {
       // Explicitly enforce Secure cookies in production regardless of
       // baseURL scheme detection, so a misconfigured proxy can't silently
