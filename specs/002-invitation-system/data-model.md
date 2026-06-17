@@ -102,23 +102,49 @@ Transition rules:
 
 ## Rate-limit storage for the anonymous invitation routes (red-team Pass 2)
 
-The anonymous `GET /api/auth/invitation/:token` and `POST /api/auth/invitation/accept` routes are
-plain Express handlers and do **not** pass through better-auth's internal rate limiter, so they need
-their own DB-backed, cross-worker counter store. Two options — **the chosen one is a design input to
-`/sp:05-tasks` and may add a migration**:
+**Decision**: Option (a) — a new **auth-owned `invitationRateLimit` table** on the isolated
+`pg.Pool` (Principle VI server-only). This avoids any coupling to better-auth's internal
+`rateLimit` schema and keeps the feature fully self-contained.
 
-- **(a) New auth-owned `invitationRateLimit` table + migration** (preferred): mirrors the
-  `rateLimit` shape (`key text`, `count int`, `lastRequest bigint`), on the isolated `pg.Pool`
-  (Principle VI server-only). Cleanest — no coupling to better-auth's internal schema. If chosen,
-  add an `AddInvitationRateLimitTable` migration (or fold it into `AddInvitationTable`) and a
-  matching `DELETE FROM "invitationRateLimit"` in the `jestSetupAfterEnv.ts` `afterEach`.
-- **(b) Reuse the existing `rateLimit` table** by writing rows directly on the isolated pool with a
-  distinct key prefix (e.g. `invitation:<ip>`). No new migration, but couples this feature to a
-  table better-auth owns.
+### Entity: `invitationRateLimit` (NEW — auth-owned)
 
-Whichever is chosen, the limiter MUST key on `req.ip` (honoring `trust proxy = 1`), be disabled
-under `NODE_ENV=test` except when the integration server opts in via an env flag, and emit the
-contract's `429`.
+Mirrors the shape of better-auth's own `rateLimit` table (`key`, `count`, `lastRequest`) but is
+owned by this feature and lives in the same isolated `pg.Pool`.
+
+| Field         | Type      | Constraints / Notes                                                  |
+| ------------- | --------- | -------------------------------------------------------------------- |
+| `key`         | `text`    | PRIMARY KEY. Format: `invitation:<ip>` (e.g. `invitation:1.2.3.4`). |
+| `count`       | `integer` | NOT NULL. Request count within the current window.                   |
+| `lastRequest` | `bigint`  | NOT NULL. Unix ms timestamp of the most recent request.              |
+
+Window: ≤ 10 requests per 60 seconds per IP. Keyed on `req.ip` (which honors
+`app.set("trust proxy", 1)` and the `X-Forwarded-For` hop from Passenger).
+
+**Migration**: `migrations/<timestamp>-AddInvitationRateLimitTable.js` — a separate migration
+file (not folded into `AddInvitationTable`) so each migration is a single-concern, independently
+rollable unit. Follows the existing `makeDbConnect()` pattern with `up`/`down`.
+
+**DDL** (up migration):
+
+```sql
+CREATE TABLE "invitationRateLimit" (
+  "key"         text    PRIMARY KEY,
+  "count"       integer NOT NULL,
+  "lastRequest" bigint  NOT NULL
+);
+```
+
+**Test isolation**: `DELETE FROM "invitationRateLimit"` added to the `afterEach` in
+`jestSetupAfterEnv.ts`. Because `invitationRateLimit` has no foreign keys, it may be deleted at
+any point in the cleanup order (e.g. alongside `rateLimit`, before `invitation`).
+
+**Disabled in test** (consistent with better-auth's own `rateLimit`): the rate-limit middleware
+skips enforcement when `NODE_ENV=test`, except when the integration server opts in via
+`INVITATION_RATE_LIMIT_ENFORCE=1` — so the 429 path is still reachable from an integration test.
+
+Rationale for option (a) over (b): no coupling to better-auth's internal `rateLimit` schema
+(which better-auth owns and may migrate), consistent with Principle VI server-only isolation, and
+gives a clear ownership boundary for cleanup and migration management.
 
 ---
 

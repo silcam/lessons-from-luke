@@ -162,7 +162,8 @@ specs/002-invitation-system/
 
 ```text
 migrations/
-└── <timestamp>-AddInvitationTable.js     # NEW — invitation table + indexes (mirrors AddBetterAuthTables.js)
+├── <timestamp>-AddInvitationTable.js          # NEW — invitation table + indexes (mirrors AddBetterAuthTables.js)
+└── <timestamp>-AddInvitationRateLimitTable.js  # NEW — invitationRateLimit table for anonymous-route per-IP limiting
 
 src/server/
 ├── auth/
@@ -175,7 +176,7 @@ src/server/
 │   ├── invitationController.ts           # NEW — /api/admin/invitations* + /api/auth/invitation/*
 │   └── invitationController.test.ts      # NEW — 401/403/201/409/410 controller tests
 ├── serverApp.ts                          # EDIT — mount invitationController (anon routes BEFORE /api/auth/* catch-all)
-└── jestSetupAfterEnv.ts                  # EDIT — add DELETE FROM "invitation" to afterEach
+└── jestSetupAfterEnv.ts                  # EDIT — add DELETE FROM "invitationRateLimit" (any order) and DELETE FROM "invitation" (before user delete) to afterEach
 
 src/frontend/web/
 ├── invitations/                          # NEW — admin create form + management list
@@ -299,14 +300,15 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   non-GET fetch/XHR), using `Referer` only as a fallback. A request with **no `Origin` and no
   `Referer`** (e.g. a non-browser client) MUST be rejected `403` rather than allowed, so the absence
   of a header is never a bypass.
-- **Rate-limit counter storage must be decided, and may add a data artifact.** Pass 1 says the
-  custom limiter is "DB-backed, shared across Passenger workers," but better-auth's own `rateLimit`
-  table is owned and managed by better-auth — the custom Express routes cannot invoke better-auth's
-  internal limiter. Decide explicitly: either (a) a tiny **new auth-owned table + migration** for
-  the invitation route counters (consistent with Principle VI, mirrors the `rateLimit` shape), or
-  (b) reuse the existing `rateLimit` table by writing rows directly on the isolated `pg.Pool` with a
-  distinct key prefix. Option (a) is cleaner (no coupling to better-auth's internal schema); record
-  the choice in research.md and, if (a), add the migration to the data model / project structure.
+- **Rate-limit counter storage: resolved — option (a), new `invitationRateLimit` table.**
+  Better-auth's own `rateLimit` table is owned and managed by better-auth; the custom Express
+  routes cannot invoke better-auth's internal limiter. A dedicated auth-owned
+  **`invitationRateLimit`** table on the isolated `pg.Pool` avoids coupling to better-auth's
+  internal schema (Principle VI). The table has the same shape as `rateLimit` (`key text PK`,
+  `count int`, `lastRequest bigint`), keyed `invitation:<ip>`. A separate migration
+  `AddInvitationRateLimitTable.js` is added (single-concern, independently rollable); a matching
+  `DELETE FROM "invitationRateLimit"` is added to the `afterEach` cleanup in
+  `jestSetupAfterEnv.ts`. See data-model.md for the full DDL and test-isolation note.
 - **Client IP must come from `req.ip` under `trust proxy`.** `serverApp.ts` sets
   `app.set("trust proxy", 1)`. The per-IP rate limit MUST derive the client address from `req.ip`
   (which honors the single trusted proxy hop / `X-Forwarded-For`), NOT from the raw socket address —

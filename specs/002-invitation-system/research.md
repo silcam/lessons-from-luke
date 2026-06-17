@@ -247,6 +247,39 @@ UPDATE may run when the list is loaded, keeping stored state and displayed state
 
 ---
 
+## Decision 6 — Rate-limit storage for anonymous invitation routes (red-team Pass 2)
+
+**Decision**: A new **auth-owned `invitationRateLimit` table** on the isolated `pg.Pool` (option
+a). The table mirrors better-auth's `rateLimit` shape (`key text PK`, `count integer`,
+`lastRequest bigint`) but is owned by this feature. Keys are prefixed `invitation:<ip>`.
+Window: ≤ 10 requests / 60 s per IP, keyed on `req.ip` (honoring `trust proxy = 1`).
+
+**Rationale**: Better-auth's own `rateLimit` table is an internal implementation detail it manages
+and may migrate independently. Writing to it from the invitation routes would couple this feature to
+an external schema (violating Principle VI's spirit of isolation). A dedicated table is a clean
+ownership boundary, supports independent rollback, and is consistent with how better-auth isolates
+its own rate-limit storage. Cleanup in `jestSetupAfterEnv.ts` is a single `DELETE FROM
+"invitationRateLimit"` added alongside the existing `rateLimit` delete.
+
+**Migration**: `AddInvitationRateLimitTable.js` — a separate file from `AddInvitationTable.js`
+(single-concern per migration; each rolls back independently). Both follow the existing
+`makeDbConnect()` pattern from `migrations/_helpers.js`.
+
+**Disabled in test** (consistent with the existing `rateLimit` middleware): enforcement is skipped
+when `NODE_ENV=test` unless `INVITATION_RATE_LIMIT_ENFORCE=1` is set, so integration tests can
+exercise the 429 path without affecting the rest of the test suite.
+
+**Alternatives considered**:
+
+- **Reuse `rateLimit` table with a key prefix** (option b): rejected — better-auth owns that table;
+  coupling this feature to its schema risks breakage on better-auth upgrades and muddles ownership.
+- **In-memory counter per worker process**: rejected — Passenger runs multiple worker processes;
+  an in-memory counter is per-process and cannot enforce the limit across workers.
+- **Redis**: rejected — no Redis in the stack; adding it for a low-volume admin tool violates YAGNI
+  (Principle VII).
+
+---
+
 ## Cross-cutting: Routing and admin gating
 
 - **Admin endpoints** live under `/api/admin/invitations*` so they inherit the existing
