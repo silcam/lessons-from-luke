@@ -115,7 +115,7 @@ paths:
         history). Never returns tokens. Returns an empty array (not an error) when none exist.
       responses:
         "200":
-          description: Invitation list (possibly empty).
+          description: Invitation list (empty array when none exist; never an error).
           content:
             application/json:
               schema:
