@@ -120,6 +120,34 @@ owned by this feature and lives in the same isolated `pg.Pool`.
 Window: ≤ 10 requests per 60 seconds per IP. Keyed on `req.ip` (which honors
 `app.set("trust proxy", 1)` and the `X-Forwarded-For` hop from Passenger).
 
+### Concurrency-safe increment + pruning (red-team Pass 3)
+
+- **Atomic increment (no TOCTOU).** A "SELECT count → compare → UPDATE" sequence races: two
+  concurrent requests can both read `count = max-1` and both pass. The limiter MUST increment and
+  read back in a **single atomic statement** and decide on the **returned** post-increment count:
+
+  ```sql
+  INSERT INTO "invitationRateLimit" ("key", "count", "lastRequest")
+  VALUES ($key, 1, $now)
+  ON CONFLICT ("key") DO UPDATE SET
+    "count"       = CASE WHEN "invitationRateLimit"."lastRequest" < $windowStart
+                         THEN 1
+                         ELSE "invitationRateLimit"."count" + 1 END,
+    "lastRequest" = $now
+  RETURNING "count";
+  ```
+
+  `$windowStart = $now - 60_000` (ms). If `RETURNING "count" > 10`, respond `429`. This makes the
+  per-IP limit a true invariant under concurrent requests across Passenger workers (the row is the
+  shared state), mirroring how the partial-unique-pending index makes the one-pending-invite rule a
+  DB invariant rather than a check-then-act race.
+- **Pruning (bounded growth).** Unlike `invitation` rows, `invitationRateLimit` rows have **no audit
+  value**, so FR-019's retain-forever does NOT apply. Without pruning the table grows one row per
+  distinct client IP forever (a slow resource leak). Prune opportunistically with no cron: on each
+  limiter write also run (or fold into the same path) `DELETE FROM "invitationRateLimit" WHERE
+  "lastRequest" < $windowStart` — cheap, bounded, and keeps the table to roughly the set of IPs
+  active within the last window.
+
 **Migration**: `migrations/<timestamp>-AddInvitationRateLimitTable.js` — a separate migration
 file (not folded into `AddInvitationTable`) so each migration is a single-concern, independently
 rollable unit. Follows the existing `makeDbConnect()` pattern with `up`/`down`.

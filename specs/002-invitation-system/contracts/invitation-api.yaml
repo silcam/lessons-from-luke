@@ -180,13 +180,15 @@ paths:
         - { name: token, in: path, required: true, schema: { type: string } }
       responses:
         "200":
-          description: Valid pending invitation.
-          headers:
-            Referrer-Policy:
-              schema: { type: string, enum: [no-referrer, same-origin] }
-              description: >
-                Set so the token in the URL is not leaked via the Referer header (red-team Pass 1).
-                The server access log MUST also redact the token path segment.
+          description: >
+            Valid pending invitation. NOTE (red-team Pass 3): Referer-based token leakage is already
+            prevented globally by the existing `helmet()` default `Referrer-Policy: no-referrer`,
+            which applies to every response including the SPA HTML redemption page (the actual Referer
+            source). No bespoke per-response Referrer-Policy header is set on this JSON endpoint — the
+            earlier per-route header was redundant/ineffective for the real leak vector. The token also
+            travels in the URL path, so the in-app logger must never write it; the residual proxy/
+            Passenger access-log exposure is a documented deployment note (see plan.md Pass 3), not an
+            app-level header.
           content:
             application/json:
               schema:

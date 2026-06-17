@@ -261,13 +261,18 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   `GET /api/auth/invitation/:token`). The existing request logger in `serverApp.ts` logs
   `req.path`, which would write live tokens into server logs; and the recipient's browser sends the
   full URL in the `Referer` header to any third-party sub-resource the redemption page loads.
-- **Mitigation**: (1) Ensure the request logger **redacts the token segment** for
+- **Mitigation**: (1) Ensure no in-app request logger writes the raw token for
   `/api/auth/invitation/:token` (and the SPA `/invitation/:token` route) — log a placeholder, never
-  the raw token. (2) Set `Referrer-Policy: no-referrer` (or `same-origin`) on the redemption page
-  response so the token is not leaked via `Referer`. (3) The redemption page MUST load only
-  same-origin sub-resources (already enforced by the existing CSP `default-src 'self'`), so no
-  cross-origin Referer leak path exists. Production `BETTER_AUTH_URL` is https-only (existing
-  `secrets.ts` guard), keeping the token off the wire in plaintext.
+  the raw token. **(Refined in Pass 3:** the existing `serverApp.ts` logger at line 79 runs *after*
+  the better-auth catch-all and so never fires for the anonymous invitation routes, which short-circuit
+  earlier; the real residual risk is the upstream proxy/Passenger access log. See the Pass 3 note
+  below.) (2) `Referrer-Policy: no-referrer` is **already applied globally** by the existing
+  `helmet()` config's default — it covers the SPA HTML redemption page (the actual Referer source),
+  so no bespoke per-route header is needed. **(Corrected in Pass 3** — the per-API-response
+  `Referrer-Policy` originally implied here is redundant; see the Pass 3 note.) (3) The redemption
+  page MUST load only same-origin sub-resources (already enforced by the existing CSP
+  `default-src 'self'`), so no cross-origin Referer leak path exists. Production `BETTER_AUTH_URL` is
+  https-only (existing `secrets.ts` guard), keeping the token off the wire in plaintext.
 
 ### `tokenEnc` at-rest encryption details (AES-256-GCM)
 
@@ -319,6 +324,64 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   volume and the abuse/DoS upside, keep the limit but size the window generously (the
   `≤10 / 60s` shape is fine) and surface a clear 429 message; no per-account/per-token limiting is
   needed beyond per-IP for MVP.
+
+### Pass 3 — second-order effects of the Pass 1/Pass 2 mitigations
+
+- **The in-app request logger never runs for the anonymous invitation routes — fix the actual
+  log-leak vector.** Pass 1 mandated "ensure the request logger redacts the token segment." Grounded
+  against `serverApp.ts`: the `res.on("finish")` request logger is registered at **line 79**,
+  *after* the better-auth catch-all (line 63). The anonymous invitation routes MUST be registered
+  *before* the catch-all (Decision 1 / routing), and their handlers end the response with
+  `res.json(...)` without calling `next()`, so **the line-79 logger never executes for
+  `GET /api/auth/invitation/:token` or `POST .../accept`** — the Pass 1 redaction target is a no-op
+  for the very routes that carry the token. Two corrections:
+  1. The token segment is **not** written to the in-app log at all by the current logger (the routes
+     short-circuit before it), so no in-app redaction code is required for them — **but do not add a
+     logger ahead of these routes that would reintroduce the leak.** If any future logging is added
+     in front of the catch-all, it MUST redact the `/:token` segment.
+  2. The **real** residual token-in-logs risk is the **upstream reverse proxy / Passenger access
+     log** (nginx/Apache/Passenger log the full request line `GET /api/auth/invitation/<token>`),
+     which is outside this Express app's control. Document this as a deployment note: the token lives
+     in the URL path, so operators should treat invitation URLs in proxy access logs as secrets
+     (short log retention, or a proxy-side path rewrite/redaction for `/api/auth/invitation/` and
+     `/invitation/`). This is a known, accepted residual for a low-volume admin tool, recorded so it
+     is not mistaken for an in-app bug.
+- **Token-Referer protection is already satisfied globally by helmet — the per-API-response
+  `Referrer-Policy` header is redundant and misdirected.** Pass 1 asked for `Referrer-Policy:
+  no-referrer` "on the redemption page response." Grounded against `serverApp.ts`: the app already
+  mounts `helmet({...})` without disabling `referrerPolicy`, and helmet's **default emits
+  `Referrer-Policy: no-referrer` on every response** (verified). The actual Referer leak vector is
+  the **SPA HTML document** at `/invitation/:token` (the browser sends `Referer` based on the page
+  the user is *on*, i.e. the URL bar, not the JSON API URL); that HTML response is served by the
+  existing `app.get("*", ...)` SPA fallback and already carries helmet's global `no-referrer`. So:
+  no new per-route header is needed, and the `Referrer-Policy` header declared in the contract on the
+  **JSON** `GET /api/auth/invitation/:token` response is ineffective for the real leak path. The
+  contract is corrected (Pass 3) to note helmet's global `no-referrer` as the mechanism rather than a
+  bespoke per-API header. Combined with `default-src 'self'` (same-origin sub-resources only), there
+  is no cross-origin Referer path regardless.
+- **`invitationRateLimit` increments MUST be concurrency-safe, and the table MUST be pruned.** Pass 2
+  introduced the new `invitationRateLimit` table but left its read-modify-write unspecified. Two
+  second-order gaps:
+  1. **Atomic increment.** A naive "SELECT count → if < max → UPDATE count+1" has a TOCTOU race: two
+     concurrent requests both read `count = max-1` and both proceed, exceeding the limit (the same
+     class of bug the partial-unique-pending index avoids for invitations). The increment MUST be a
+     single atomic statement — an `INSERT ... ON CONFLICT (key) DO UPDATE SET count = CASE WHEN
+     lastRequest < window-start THEN 1 ELSE invitationRateLimit.count + 1 END, lastRequest = $now
+     RETURNING count` — and the limit decision MUST read the **returned** post-increment `count`, so
+     the check and the increment are one round-trip with no gap.
+  2. **Pruning.** The table grows one row per distinct client IP and never shrinks (unlike the
+     invitation table, these rows have **no audit value**, so FR-019's retain-forever does not apply).
+     Prune opportunistically inside the same statement path — e.g. on each write also
+     `DELETE FROM "invitationRateLimit" WHERE lastRequest < $window-start` (cheap, bounded, no cron) —
+     so the table stays small. See data-model.md for the DDL note.
+- **`req.ip` rate-limit key is spoofable if the app is reachable directly (accepted, documented).**
+  With `app.set("trust proxy", 1)`, `req.ip` is derived from the last `X-Forwarded-For` hop. If an
+  attacker can reach the Express app **directly** (bypassing the nginx/Apache/Passenger front), they
+  control `X-Forwarded-For` and can rotate the rate-limit key per request, evading the per-IP limit.
+  In the deployed topology the app is only reachable through the single trusted proxy, so this
+  requires a network-level misconfiguration; accepted for MVP and recorded so it is not mistaken for a
+  silent bypass. (Mitigation if ever needed: bind the app to localhost only and rely on the proxy, or
+  add the Argon2id-cost guards from Pass 1 which already cap the per-request work regardless of key.)
 
 ## Edge Cases & Error Handling
 
