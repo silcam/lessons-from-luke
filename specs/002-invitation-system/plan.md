@@ -247,7 +247,7 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   **deliberately CPU-expensive Argon2id hash** on every request that passes validation, so an
   attacker can amplify a small request stream into heavy CPU load (resource-exhaustion DoS) under
   Passenger's worker pool. `GET /api/auth/invitation/:token` is a cheap token-validity oracle that
-  could be hammered.
+  is trivially hammerable without a rate limit.
 - **Mitigation**: Add an explicit, DB-backed (shared across Passenger workers) rate limit on both
   anonymous invitation routes — a small per-IP window (e.g. ≤10 requests / 60s, matching the
   existing `/sign-in/email` rule shape). **Validate the token and the password length bounds
@@ -320,7 +320,7 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   otherwise every request appears to originate from the proxy and the limit becomes global,
   throttling all recipients at once.
 - **Shared-NAT lockout trade-off (accepted).** A strict per-IP limit on `GET /api/auth/invitation/:token`
-  could deny legitimate recipients behind a shared egress IP (office/NAT). Given the low invitation
+  will lock out legitimate recipients behind a shared egress IP (office/NAT). Given the low invitation
   volume and the abuse/DoS upside, keep the limit but size the window generously (the
   `≤10 / 60s` shape is fine) and surface a clear 429 message; no per-account/per-token limiting is
   needed beyond per-IP for MVP.
@@ -445,8 +445,8 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   produce two accounts. The bound email already comes from the invitation row (stored lowercased),
   so this holds as long as the insert does not re-introduce mixed case from anywhere.
 - **Catch the `user.email` unique violation inside the accept transaction.** Even though only one
-  pending invite per email can exist, an account for the bound email could be created by a different
-  redemption between this request's token lookup and its user insert. The accept transaction MUST
+  pending invite per email can exist, an account for the bound email is creatable by a different
+  redemption racing between this request's token lookup and its user insert. The accept transaction MUST
   catch a `23505` on the `user` insert and map it to the contract's `409` ("account already
   exists"), rolling back so no orphaned `account` row or half-accepted invitation remains. This is
   the implementation backstop behind SC-003 (at most one account per invitation) and the contract's
