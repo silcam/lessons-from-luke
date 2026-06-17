@@ -181,6 +181,12 @@ paths:
       responses:
         "200":
           description: Valid pending invitation.
+          headers:
+            Referrer-Policy:
+              schema: { type: string, enum: [no-referrer, same-origin] }
+              description: >
+                Set so the token in the URL is not leaked via the Referer header (red-team Pass 1).
+                The server access log MUST also redact the token path segment.
           content:
             application/json:
               schema:
@@ -197,6 +203,11 @@ paths:
             Invalid link — unknown, already accepted, retracted, or expired. Identical generic
             response regardless of which (FR-010, non-leaky).
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "429":
+          description: >
+            Rate limit exceeded (red-team Pass 1). The anonymous invitation routes do NOT pass
+            through better-auth's rate limiter, so they carry an explicit DB-backed per-IP limit.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
 
   /api/auth/invitation/accept:
     post:
@@ -209,6 +220,16 @@ paths:
         the invitation row, NOT the request body (prevents rebinding to a signed-in user). No
         session is established — the client is directed to sign in (FR-012). Account creation
         succeeds even though public sign-up is globally disabled (FR-011).
+
+        SECURITY (red-team Pass 1): this route is a plain Express handler and does NOT pass through
+        better-auth's `toNodeHandler`, so it inherits none of better-auth's origin/CSRF or
+        rate-limit protection. It MUST therefore (a) enforce its own Origin/Referer allow-list
+        against BETTER_AUTH_URL (403 on mismatch — account-creation CSRF defense), (b) carry an
+        explicit DB-backed per-IP rate limit (429), and (c) validate the token and password-length
+        bounds BEFORE invoking the Argon2id hasher so invalid requests never pay the hash cost.
+        The handler also needs a parsed JSON body: because the better-auth catch-all is registered
+        before the global bodyParser in serverApp.ts, JSON parsing MUST be supplied to this route
+        explicitly (route-scoped bodyParser, or move bodyParser ahead of both registrations).
       requestBody:
         required: true
         content:
@@ -246,6 +267,11 @@ paths:
         "400":
           description: Missing/short/long password or empty/over-long name (validation, before hashing).
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "403":
+          description: >
+            Origin/Referer not in the BETTER_AUTH_URL allow-list (red-team Pass 1). Defends against
+            cross-origin account-creation CSRF, since this route bypasses better-auth's origin check.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
         "409":
           description: >
             Race-loser on concurrent double-redemption (single-use enforced) OR an account already
@@ -255,4 +281,9 @@ paths:
           description: >
             Invalid link — unknown, already accepted, retracted, or expired (incl. retraction or
             expiry while the form was open). Generic non-leaky message (FR-010). No account created.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "429":
+          description: >
+            Rate limit exceeded (red-team Pass 1). Explicit DB-backed per-IP limit guards against
+            Argon2id resource-exhaustion DoS, since this route is outside better-auth's rate limiter.
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }

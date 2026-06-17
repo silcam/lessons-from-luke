@@ -20,7 +20,7 @@ An administrator-issued, single-use authorization to create exactly one account.
 | `role`       | `text`        | NOT NULL. Enum: `'admin'` \| `'standard'`. Maps to `user.admin` at accept.          | FR-002, FR-008     |
 | `status`     | `text`        | NOT NULL DEFAULT `'pending'`. Enum: `pending` \| `accepted` \| `expired` \| `retracted`. | FR-014        |
 | `tokenHash`  | `text`        | NOT NULL **UNIQUE**. `sha256(token)` hex. Lookup key. Plaintext never stored here.  | FR-009 (single-use)|
-| `tokenEnc`   | `text`        | NOT NULL. AES-256-GCM(token) keyed off `cookieSecret`. Read only by admin re-copy.  | FR-016             |
+| `tokenEnc`   | `text`        | NOT NULL. AES-256-GCM(token), encoded `iv:authTag:ciphertext` (base64). Per-row random 12-byte IV; key = KDF(`cookieSecret`). Read only by admin re-copy. | FR-016 |
 | `invitedBy`  | `text`        | NOT NULL. FK → `"user"("id")`. Creating administrator (audit).                      | FR-017             |
 | `createdAt`  | `timestamptz` | NOT NULL.                                                                           | FR-013             |
 | `expiresAt`  | `timestamptz` | NOT NULL. `createdAt + 14 days` (system-wide default, configurable).                | FR-018             |
@@ -70,6 +70,34 @@ Transition rules:
   by the partial unique index + caught `23505` mapped to a friendly 409.
 - `token` (transient, not a column): 256-bit `randomBytes(32).base64url`.
 
+### `tokenEnc` encryption rules (red-team Pass 1)
+
+- AES-256-GCM with a **fresh random 12-byte IV per row** (never a static/zero IV — GCM IV reuse is
+  catastrophic). Persist `iv`, `authTag`, and ciphertext together in the single `tokenEnc` column,
+  e.g. `base64(iv):base64(authTag):base64(ciphertext)`.
+- Key = 32 bytes derived from `cookieSecret` via a KDF (`scrypt`/HKDF with a fixed feature-scoped
+  salt), not the raw secret bytes.
+- On re-copy, verify the GCM auth tag; a decrypt/auth failure (e.g. after a `cookieSecret` rotation)
+  maps to a `409`/"link unavailable", not a 500. Link redemption still works via `tokenHash`, so a
+  failed `tokenEnc` decrypt degrades gracefully (re-copy unavailable, link still valid).
+
+### Accept transaction & lazy-expire concurrency (red-team Pass 1)
+
+- The accept status flip MUST be **conditional and atomic**:
+  `UPDATE "invitation" SET status='accepted', "acceptedAt"=now() WHERE id=$1 AND status='pending'
+  AND "expiresAt" > now()` inside the same transaction that inserts `user`+`account`; a 0-row result
+  means "invalid link" → `410` and the transaction rolls back (no account created). This conditional
+  update — not the lazy-expire UPDATE — is the single source of truth for single-use + expiry under
+  concurrency.
+- The lazy `pending → expired` UPDATE run on the **create** and **list** paths is only a
+  display/uniqueness convenience (keeps the partial-unique-pending index from falsely blocking a
+  re-invite and keeps the list honest); it is never authoritative for redemption validity.
+
+### Management-list query (red-team Pass 1)
+
+- The list query MUST `SELECT` an explicit column list that **excludes `tokenHash` and `tokenEnc`**
+  so secrets never reach the response, and order `createdAt DESC` (newest first per the contract).
+
 ---
 
 ## Entity: User / Account (EXISTING — `user`, `account` tables; unchanged schema)
@@ -105,6 +133,12 @@ No new `secrets.json` field is required (reuses `cookieSecret`, `BETTER_AUTH_URL
 ## Test-isolation note
 
 `invitation` rows are written on the isolated `pg.Pool`, outside `TransactionalTestStorage`. The
-`afterEach` in `src/server/jestSetupAfterEnv.ts` MUST `DELETE FROM "invitation"` (before the
-`user` delete, due to the `invitedBy` FK), alongside the existing `rateLimit`/`session`/
+`afterEach` in `src/server/jestSetupAfterEnv.ts` MUST `DELETE FROM "invitation"` **before** the
+`user` delete (the `invitedBy` FK is NOT NULL; a leftover invitation referencing a deleted
+non-admin user raises `23503` and breaks isolation), alongside the existing `rateLimit`/`session`/
 `verification`/`account`/`user` cleanup (research Decision 3).
+
+The `invitedBy` FK is a plain `REFERENCES "user"("id")` with **no `ON DELETE CASCADE`** (red-team
+Pass 1): audit history (FR-019) must never be silently destroyed by a future user deletion, and
+account/admin deletion is Out of Scope. This makes "delete an admin who has issued invitations" a
+documented latent constraint, not a supported operation.
