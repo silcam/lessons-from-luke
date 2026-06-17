@@ -290,6 +290,34 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   distinct, clear messages. Accepted as-is; no change. Recorded so a later reviewer does not
   mistake it for a leak — it is intentional and access-controlled.
 
+### Pass 2 — second-order effects of the Pass 1 mitigations
+
+- **Prefer `Origin` over `Referer` for the CSRF allow-list.** Pass 1 mandates both an
+  Origin/Referer allow-list on the accept route **and** `Referrer-Policy: no-referrer` on the
+  redemption page. Those interact: `no-referrer` suppresses the `Referer` header, so the CSRF check
+  MUST key on the **`Origin`** header (browsers always send `Origin` on cross-origin and same-origin
+  non-GET fetch/XHR), using `Referer` only as a fallback. A request with **no `Origin` and no
+  `Referer`** (e.g. a non-browser client) MUST be rejected `403` rather than allowed, so the absence
+  of a header is never a bypass.
+- **Rate-limit counter storage must be decided, and may add a data artifact.** Pass 1 says the
+  custom limiter is "DB-backed, shared across Passenger workers," but better-auth's own `rateLimit`
+  table is owned and managed by better-auth — the custom Express routes cannot invoke better-auth's
+  internal limiter. Decide explicitly: either (a) a tiny **new auth-owned table + migration** for
+  the invitation route counters (consistent with Principle VI, mirrors the `rateLimit` shape), or
+  (b) reuse the existing `rateLimit` table by writing rows directly on the isolated `pg.Pool` with a
+  distinct key prefix. Option (a) is cleaner (no coupling to better-auth's internal schema); record
+  the choice in research.md and, if (a), add the migration to the data model / project structure.
+- **Client IP must come from `req.ip` under `trust proxy`.** `serverApp.ts` sets
+  `app.set("trust proxy", 1)`. The per-IP rate limit MUST derive the client address from `req.ip`
+  (which honors the single trusted proxy hop / `X-Forwarded-For`), NOT from the raw socket address —
+  otherwise every request appears to originate from the proxy and the limit becomes global,
+  throttling all recipients at once.
+- **Shared-NAT lockout trade-off (accepted).** A strict per-IP limit on `GET /api/auth/invitation/:token`
+  could deny legitimate recipients behind a shared egress IP (office/NAT). Given the low invitation
+  volume and the abuse/DoS upside, keep the limit but size the window generously (the
+  `≤10 / 60s` shape is fine) and surface a clear 429 message; no per-account/per-token limiting is
+  needed beyond per-IP for MVP.
+
 ## Edge Cases & Error Handling
 
 > Added by `/sp:04-red-team` (Pass 1).
@@ -342,6 +370,22 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   role **only** from the invitation row (already in research Decision 4). Add an explicit test:
   redeem while carrying a valid admin session cookie and assert the new account uses the bound
   email and the invitation's role, not the signed-in user's identity.
+
+### Pass 2 — case-normalization on every write, and the account-already-exists race
+
+- **Lowercase the email on the accept insert, not just on the create check.** `user.email` carries
+  better-auth's plain (case-sensitive) UNIQUE constraint; the feature's account-existence guarantees
+  rely on **always** comparing/storing `LOWER(email)`. The accept transaction MUST insert
+  `user.email` lowercased (matching `SeedAdminUser`), so that `Foo@x.com` and `foo@x.com` can never
+  produce two accounts. The bound email already comes from the invitation row (stored lowercased),
+  so this holds as long as the insert does not re-introduce mixed case from anywhere.
+- **Catch the `user.email` unique violation inside the accept transaction.** Even though only one
+  pending invite per email can exist, an account for the bound email could be created by a different
+  redemption between this request's token lookup and its user insert. The accept transaction MUST
+  catch a `23505` on the `user` insert and map it to the contract's `409` ("account already
+  exists"), rolling back so no orphaned `account` row or half-accepted invitation remains. This is
+  the implementation backstop behind SC-003 (at most one account per invitation) and the contract's
+  accept `409`.
 
 ## Performance Considerations
 
