@@ -68,6 +68,13 @@ paths:
         the link and is otherwise stored only as a hash (+ encrypted for re-copy). Rejects an
         email that already has an account (FR-004) or that already has an active pending invite
         (FR-005). Permits re-invite when the prior invite is terminal and no account exists (FR-006).
+
+        SECURITY (red-team Pass 4): this is a plain Express handler behind `requireAdmin`, NOT routed
+        through better-auth's `toNodeHandler`, so it inherits none of better-auth's Origin/CSRF
+        enforcement. Because it is a cookie-authenticated, state-changing POST that can mint an
+        admin-role invitation, it MUST enforce the same Origin/Referer allow-list against
+        BETTER_AUTH_URL as the anonymous accept route (403 on mismatch or on a request with neither
+        header), defending against cross-origin account-/invitation-creation CSRF.
       requestBody:
         required: true
         content:
@@ -102,7 +109,11 @@ paths:
         "401":
           description: Not signed in (requireAdmin).
         "403":
-          description: Signed in but not an administrator (requireAdmin).
+          description: >
+            Signed in but not an administrator (requireAdmin) OR the request's Origin/Referer is not
+            in the BETTER_AUTH_URL allow-list (red-team Pass 4 — cross-origin CSRF defense on this
+            state-changing admin POST, which bypasses better-auth's origin check).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
         "409":
           description: >
             Email already has an account (FR-004) OR an active pending invitation already exists
@@ -130,6 +141,10 @@ paths:
       description: >
         Transitions a Pending invitation to Retracted; its link stops working immediately (SC-004).
         Retracting a non-pending invitation is rejected.
+
+        SECURITY (red-team Pass 4): like the create POST, this state-changing admin route bypasses
+        better-auth's `toNodeHandler` and so MUST enforce the same Origin/Referer allow-list against
+        BETTER_AUTH_URL (403 on mismatch or neither header) — CSRF defense.
       parameters:
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:
@@ -137,7 +152,11 @@ paths:
           description: Retracted.
           content: { application/json: { schema: { $ref: "#/components/schemas/InvitationSummary" } } }
         "401": { description: Not signed in. }
-        "403": { description: Not an administrator. }
+        "403":
+          description: >
+            Not an administrator (requireAdmin) OR Origin/Referer not in the BETTER_AUTH_URL
+            allow-list (red-team Pass 4 — CSRF defense on this state-changing admin POST).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
         "404": { description: No such invitation. }
         "409":
           description: Invitation is not Pending (already accepted/expired/retracted).

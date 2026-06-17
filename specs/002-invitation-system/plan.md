@@ -383,6 +383,39 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   silent bypass. (Mitigation if ever needed: bind the app to localhost only and rely on the proxy, or
   add the Argon2id-cost guards from Pass 1 which already cap the per-request work regardless of key.)
 
+### Pass 4 — the admin state-changing routes also bypass better-auth's CSRF check
+
+- **Threat (the Pass 1 Origin mitigation was applied to the wrong half of the surface).** Pass 1
+  added an application-level Origin/Referer allow-list to the **anonymous** `accept` route, reasoning
+  that any route outside `toNodeHandler` inherits none of better-auth's origin/CSRF enforcement. That
+  reasoning applies **equally to the admin routes** — `POST /api/admin/invitations` and
+  `POST /api/admin/invitations/{id}/retract` are plain Express handlers behind `requireAdmin`
+  (cookie-session auth), registered at/after `app.use("/api/admin", requireAdmin)` (line 65),
+  **not** through `toNodeHandler`. So they too perform **no application-level Origin/CSRF check**.
+  Their *only* CSRF barrier is the better-auth session cookie's `sameSite` attribute. Grounded
+  against `auth.ts`: the cookie `sameSite` is **not explicitly set** (better-auth's default is
+  `lax`), so the protection is implicit and undocumented. A cross-origin `POST` is the higher-value
+  CSRF target here than the anonymous accept route: an attacker who lands a signed-in admin on a
+  malicious page could forge `POST /api/admin/invitations {email: attacker@evil, role: admin}`,
+  minting an **admin-role** invitation bound to an address the attacker controls — a full privilege
+  path — and the admin sees nothing. The retract POST is a lesser CSRF (nuisance: kill a pending
+  invite). The asymmetry (anonymous route hardened, cookie-authenticated state-changing admin routes
+  not) is the gap.
+- **Mitigation**: Apply the **same Origin/Referer allow-list** that Pass 1/Pass 2 defined for the
+  accept route to the **state-changing admin invitation routes** (`POST /api/admin/invitations` and
+  `POST /api/admin/invitations/{id}/retract`), with the identical mechanics: prefer the `Origin`
+  header (key off `Origin`, fall back to `Referer`), allow-list against `BETTER_AUTH_URL` (mirroring
+  `auth.ts`'s `trustedOrigins`, including the dev `:8080/:8081/:8082` relaxation and the
+  `NODE_ENV=test` skip unless `BETTER_AUTH_ENFORCE_ORIGIN=1`), reject mismatch / missing-both-headers
+  with `403`. Factor the Pass 1 check into a small shared middleware so the anonymous accept route and
+  the admin POST routes share one implementation rather than diverging. The GET admin routes
+  (`list`, re-copy `link`) are read-only and need no Origin check, but the re-copy `link` route
+  **returns a working secret link**, so confirm it stays a `GET` (no state change, lax cookie does not
+  authorize a cross-site read of the JSON body under the existing `default-src 'self'` / same-origin
+  fetch posture) — do not convert it to a POST that would then also need the check. As a defense in
+  depth, also document that the better-auth session cookie's effective `sameSite` is the implicit
+  backstop, so a future change to better-auth cookie config must not loosen it to `none`.
+
 ## Edge Cases & Error Handling
 
 > Added by `/sp:04-red-team` (Pass 1).
