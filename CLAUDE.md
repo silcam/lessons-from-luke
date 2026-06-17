@@ -230,10 +230,11 @@ Helper scripts:
 Use subagents liberally and aggressively to conserve the main context window. Avoid performing tasks directly: instead, orchestrate subagents.
 
 ## Active Technologies
-
 - TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) — isomorphic four-layer architecture (`core` / `server` / `frontend` / `desktop`).
 - PostgreSQL with **two isolated drivers**: domain data via porsager `postgres@1.0.2` (`PGStorage`, through the `Persistence` interface); server-only authentication via better-auth on its own `pg` (node-postgres) `Pool`. (001-better-auth-migration)
+- New auth-owned `invitation` table on the same isolated `pg.Pool` (server-only, constitution Principle VI exemption); Node `crypto` for token generation (randomBytes), SHA-256 hash lookup, and AES-256-GCM at-rest token encryption. (002-invitation-system)
 
 ## Recent Changes
 
+- 002-invitation-system: admin-issued single-use, email-bound sign-up links. New auth-owned `invitation` table on the isolated `pg.Pool`; admin endpoints under `/api/admin/invitations*` (reusing `requireAdmin`) and anonymous redemption under `/api/auth/invitation/*` (registered before the better-auth catch-all). Accept creates `user`+`account` via direct SQL with `passwordHasher.hash` (Argon2id) while `disableSignUp: true` stays global; `jestSetupAfterEnv.ts` afterEach now also `DELETE FROM "invitation"`. Web-only; desktop and the domain driver untouched.
 - 001-better-auth-migration: better-auth email+password (Argon2id) replaces the plaintext hardcoded admin and `cookie-session`. Auth owns its `user`/`session`/`account`/`verification` tables through an isolated `pg.Pool` (constitution Principle VI v1.1.0 server-only exemption); the domain `postgres@1` driver is untouched. New `secrets.json` field `adminEmail`; new env var `BETTER_AUTH_URL`; `cookieSecret` must be ≥ 32 chars; new `/api/auth/*` routes; legacy `/api/users/*` removed; desktop access-code auth unchanged.

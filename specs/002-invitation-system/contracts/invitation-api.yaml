@@ -1,0 +1,258 @@
+openapi: 3.0.3
+info:
+  title: Invitation System — Admin-Issued Single-Use Sign-Up Links
+  version: 1.0.0
+  description: >
+    Server-only invitation surface for feature 002-invitation-system. Admin-only management
+    endpoints live under /api/admin/invitations* and inherit the existing
+    `app.use("/api/admin", requireAdmin)` gate (401 unauthenticated, 403 non-admin). The
+    recipient redemption endpoints live under /api/auth/invitation/* and are anonymous —
+    authorization is the single-use token itself. They are registered BEFORE the better-auth
+    catch-all `app.all("/api/auth/*", ...)` so Express matches the specific routes first, and
+    AFTER bodyParser for the POST. Account creation bypasses better-auth's disabled public
+    sign-up by inserting user+account rows directly on the isolated pg.Pool (research Decision 1).
+    Invitation data is auth-owned (constitution Principle VI); the domain driver is untouched.
+    The desktop access-code path is OUT OF SCOPE and unchanged (FR-021).
+
+servers:
+  - url: http://localhost:8081
+    description: Local API (dev / test)
+
+components:
+  schemas:
+    Role:
+      type: string
+      enum: [admin, standard]
+      description: Role the invitation grants (FR-002).
+    InvitationStatus:
+      type: string
+      enum: [pending, accepted, expired, retracted]
+      description: Exactly one of these (FR-014). Expired may be derived from a past-expiry pending row.
+    InvitationSummary:
+      type: object
+      description: An invitation as shown in the admin management list (FR-013). Never includes the token.
+      required: [id, email, role, status, createdAt]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        role: { $ref: "#/components/schemas/Role" }
+        status: { $ref: "#/components/schemas/InvitationStatus" }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        acceptedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Present only when status is accepted (FR-013).
+        invitedByEmail:
+          type: string
+          format: email
+          description: Email of the administrator who created it (FR-017 audit).
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: >
+            Human-readable, non-leaky message. Invalid-link responses MUST NOT reveal which
+            of unknown/accepted/retracted/expired applies (FR-010).
+
+paths:
+  /api/admin/invitations:
+    post:
+      summary: Create an invitation (admin-only) — US1, FR-001..FR-006
+      description: >
+        Creates a single-use, email-bound, role-scoped invitation and returns a copy-pasteable
+        link. The system sends no email (FR-003). The plaintext token is returned exactly once in
+        the link and is otherwise stored only as a hash (+ encrypted for re-copy). Rejects an
+        email that already has an account (FR-004) or that already has an active pending invite
+        (FR-005). Permits re-invite when the prior invite is terminal and no account exists (FR-006).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, role]
+              properties:
+                email: { type: string, format: email }
+                role: { $ref: "#/components/schemas/Role" }
+      responses:
+        "201":
+          description: Invitation created (Pending).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, email, role, status, link, expiresAt]
+                properties:
+                  id: { type: string }
+                  email: { type: string, format: email }
+                  role: { $ref: "#/components/schemas/Role" }
+                  status: { $ref: "#/components/schemas/InvitationStatus" }
+                  link:
+                    type: string
+                    format: uri
+                    description: ${BETTER_AUTH_URL}/invitation/<token> — copy-pasteable (FR-003).
+                  expiresAt: { type: string, format: date-time }
+        "400":
+          description: Malformed email or invalid role (validation).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "401":
+          description: Not signed in (requireAdmin).
+        "403":
+          description: Signed in but not an administrator (requireAdmin).
+        "409":
+          description: >
+            Email already has an account (FR-004) OR an active pending invitation already exists
+            (FR-005). Distinct, clear messages; no invitation recorded.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    get:
+      summary: List all invitations (admin-only) — US3, FR-013, FR-014
+      description: >
+        Returns every invitation in any state, newest first, for review/audit (FR-019 retained
+        history). Never returns tokens. Returns an empty array (not an error) when none exist.
+      responses:
+        "200":
+          description: Invitation list (possibly empty).
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/InvitationSummary" }
+        "401": { description: Not signed in. }
+        "403": { description: Not an administrator. }
+
+  /api/admin/invitations/{id}/retract:
+    post:
+      summary: Retract a Pending invitation (admin-only) — US3, FR-015
+      description: >
+        Transitions a Pending invitation to Retracted; its link stops working immediately (SC-004).
+        Retracting a non-pending invitation is rejected.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Retracted.
+          content: { application/json: { schema: { $ref: "#/components/schemas/InvitationSummary" } } }
+        "401": { description: Not signed in. }
+        "403": { description: Not an administrator. }
+        "404": { description: No such invitation. }
+        "409":
+          description: Invitation is not Pending (already accepted/expired/retracted).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /api/admin/invitations/{id}/link:
+    get:
+      summary: Re-copy a Pending invitation's link (admin-only) — US3, FR-016
+      description: >
+        Returns the SAME original link for a Pending invitation (no rotation; spec assumption),
+        by decrypting the stored tokenEnc. Only valid while Pending.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: The original link.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [link]
+                properties:
+                  link: { type: string, format: uri }
+        "401": { description: Not signed in. }
+        "403": { description: Not an administrator. }
+        "404": { description: No such invitation. }
+        "409":
+          description: Invitation is not Pending (no working link).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /api/auth/invitation/{token}:
+    get:
+      summary: Look up an invitation by token to render the redemption form (anonymous) — US2, FR-007, FR-010
+      description: >
+        Returns the bound email (to pre-fill, non-editable) for a VALID (pending, non-expired)
+        token. For any invalid token (unknown, accepted, retracted, expired) returns a single
+        generic 410 with a non-leaky message (FR-010). Registered before the better-auth
+        catch-all so Express matches it first.
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Valid pending invitation.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [email, role]
+                properties:
+                  email:
+                    type: string
+                    format: email
+                    description: Bound recipient email to pre-fill and lock (FR-007).
+                  role: { $ref: "#/components/schemas/Role" }
+        "410":
+          description: >
+            Invalid link — unknown, already accepted, retracted, or expired. Identical generic
+            response regardless of which (FR-010, non-leaky).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /api/auth/invitation/accept:
+    post:
+      summary: Redeem an invitation and create the account (anonymous) — US2, FR-008..FR-012
+      description: >
+        Validates the token (pending, non-expired) and, in a single transaction, creates the
+        user+credential account with the invitation's role and flips the invitation to Accepted
+        (single-use, FR-009). Password is hashed with the existing Argon2id passwordHasher and
+        bounded by the same 12..128 length policy better-auth enforces. The email is taken from
+        the invitation row, NOT the request body (prevents rebinding to a signed-in user). No
+        session is established — the client is directed to sign in (FR-012). Account creation
+        succeeds even though public sign-up is globally disabled (FR-011).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password, name]
+              properties:
+                token:
+                  type: string
+                  description: The single-use token from the link.
+                password:
+                  type: string
+                  minLength: 12
+                  maxLength: 128
+                  description: Bounded by the same policy as sign-in (auth.ts minPasswordLength/maxPasswordLength).
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  description: Recipient-chosen display name → user.name (FR-008).
+      responses:
+        "200":
+          description: Account created. No session set; client redirects to sign-in (FR-012).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [email]
+                properties:
+                  email:
+                    type: string
+                    format: email
+                    description: The email the recipient should now sign in with.
+        "400":
+          description: Missing/short/long password or empty/over-long name (validation, before hashing).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "409":
+          description: >
+            Race-loser on concurrent double-redemption (single-use enforced) OR an account already
+            exists for the bound email. At most one account is ever created (SC-003, Edge Case).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "410":
+          description: >
+            Invalid link — unknown, already accepted, retracted, or expired (incl. retraction or
+            expiry while the form was open). Generic non-leaky message (FR-010). No account created.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
