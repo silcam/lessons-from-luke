@@ -91,10 +91,8 @@ const en = {
   Invitation_copy_success: "Invitation link copied to clipboard",
   Invitation_error_malformed_email: "Please enter a valid email address.",
   Invitation_error_invalid_role: "Please select a valid role.",
-  Invitation_error_account_exists:
-    "An account already exists for this email address.",
-  Invitation_error_active_pending:
-    "An active invitation already exists for this email address.",
+  Invitation_error_account_exists: "An account already exists for this email address.",
+  Invitation_error_active_pending: "An active invitation already exists for this email address.",
 
   // Invitation feature — Redeem Invitation form (US2)
   Invitation_email_locked_label: "Email (pre-filled, not editable)",
@@ -105,8 +103,7 @@ const en = {
     "Your account has been created. Please sign in with your new credentials.",
   Invitation_error_invalid_link:
     "This invitation link is no longer valid. Please contact your administrator.",
-  Invitation_error_rate_limited:
-    "Too many attempts. Please wait a moment and try again.",
+  Invitation_error_rate_limited: "Too many attempts. Please wait a moment and try again.",
   Invitation_error_generic: "Something went wrong. Please try again.",
 
   // Invitation feature — Invitations management list (US3)
@@ -123,7 +120,7 @@ const en = {
   Invitations_status_retracted: "Retracted",
   Invitations_action_recopy: "Re-copy Link",
   Invitations_action_retract: "Retract",
-  Invitations_empty_state: "No invitations yet. Create one above.",
+  Invitations_empty_state: "No invitations yet.",
 };
 
 export type I18nStrings = typeof en;
