@@ -380,11 +380,18 @@ export function registerAnonymousInvitationRoutes(app: Express, pool: Pool): voi
  * uses — passed in from serverApp.ts so this module stays free of singletons).
  */
 export default function invitationController(app: Express, pool: Pool): void {
+  // Per-IP rate limiter for the admin create route (security: 9c7.12).
+  // The admin create endpoint exposes an account-enumeration oracle because it
+  // returns a distinct 409 ACCOUNT_EXISTS code. Rate-limiting bounds enumeration
+  // speed even for authenticated admins or compromised admin sessions.
+  const adminCreateRateLimiter = invitationRateLimit(pool);
+
   // POST /api/admin/invitations — create an invitation
   // requireAdmin is already applied via app.use('/api/admin', requireAdmin)
   // in serverApp.ts before this controller is mounted.
   app.post(
     "/api/admin/invitations",
+    adminCreateRateLimiter,
     requireSameOrigin,
     async (req: Request, res: Response): Promise<void> => {
       const { email, role } = req.body as { email?: unknown; role?: unknown };

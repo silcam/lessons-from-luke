@@ -294,13 +294,17 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   pre-rotation pending invites) — but the link itself still works because lookup uses `tokenHash`,
   so this degrades gracefully and is acceptable for a low-volume admin tool.
 
-### Account-existence oracle on create (accepted, scoped to admins)
+### Account-existence oracle on create (rate-limited, scoped to admins)
 
 - **Note**: The create endpoint returns a *distinct* 409 message for "account already exists"
   (FR-004) vs "active pending invite exists" (FR-005). This is an account-enumeration oracle, but
-  it is reachable **only** behind `requireAdmin` (a trusted actor), and the spec requires the
-  distinct, clear messages. Accepted as-is; no change. Recorded so a later reviewer does not
-  mistake it for a leak — it is intentional and access-controlled.
+  it is reachable **only** behind `requireAdmin`. The spec requires distinct, clear messages so
+  admins can diagnose conflicts (FR-004, FR-005). **Remediated in security task 9c7.12** by adding
+  the existing `invitationRateLimit` middleware to `POST /api/admin/invitations`. The same IP-based
+  10-req/60s window that protects the anonymous routes now applies to the admin create route,
+  bounding enumeration speed even for authenticated admins or compromised admin sessions.
+  The distinct error codes (`ACCOUNT_EXISTS`, `PENDING_INVITE_EXISTS`) are preserved for admin
+  usability but are no longer practical for bulk enumeration.
 
 ### Pass 2 — second-order effects of the Pass 1 mitigations
 

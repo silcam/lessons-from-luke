@@ -266,6 +266,37 @@ describe("POST /api/admin/invitations", () => {
     expect(second.status).toBe(409);
     expect(second.body).toMatchObject({ error: expect.any(String), code: "PENDING_INVITE_EXISTS" });
   });
+
+  // -------------------------------------------------------------------------
+  // 10. 429 — admin create route is rate-limited (security remediation: 9c7.12)
+  //     The admin create endpoint exposes an account-enumeration oracle because
+  //     it returns a distinct 409 ACCOUNT_EXISTS code for emails that already
+  //     have accounts. Rate-limiting the route bounds enumeration speed.
+  //     (BETTER_AUTH_ENFORCE_RATE_LIMIT=1 activates enforcement in test mode)
+  // -------------------------------------------------------------------------
+  it("429: per-IP rate limit exceeded after >10 admin create requests in 60s", async () => {
+    const savedEnv = process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT;
+    process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT = "1";
+
+    try {
+      const agent = await loggedInAgent();
+
+      let lastStatus = 0;
+      // Make 12 requests — should hit the 429 limit (threshold ≤10)
+      for (let i = 0; i < 12; i++) {
+        const email = `rate-limit-admin-${crypto.randomUUID()}@example.com`;
+        const res = await agent
+          .post("/api/admin/invitations")
+          .send({ email, role: "standard" });
+        lastStatus = res.status;
+        if (lastStatus === 429) break;
+      }
+
+      expect(lastStatus).toBe(429);
+    } finally {
+      process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT = savedEnv;
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
