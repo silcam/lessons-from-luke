@@ -1,11 +1,14 @@
 /**
  * invitationController.ts — Admin invitation create route + anonymous lookup/accept + rate limiter
  *
- * Spec: specs/002-invitation-system/spec.md §FR-001..FR-012, §FR-020
+ * Spec: specs/002-invitation-system/spec.md §FR-001..FR-012, §FR-013..FR-019, §FR-020
  * Plan: plan.md §Security Considerations (Pass 1/2/3 rate-limit, Pass 4/6 CSRF,
- *       Pass 5/6 logger, Pass 8 body parser, Pass 12 rate-limit flag),
+ *       Pass 5/6 logger, Pass 8 body parser, Pass 10/11 list/retract Cache-Control,
+ *       Pass 12 rate-limit flag),
  *       plan.md §Edge Cases (Route registration ordering),
  *       contracts/invitation-api.yaml §/api/admin/invitations POST,
+ *       §/api/admin/invitations GET, §/api/admin/invitations/{id}/retract POST,
+ *       §/api/admin/invitations/{id}/link GET,
  *       §/api/auth/invitation/{token} GET, §/api/auth/invitation/accept POST
  */
 
@@ -14,6 +17,9 @@ import bodyParser from "body-parser";
 import { Pool } from "pg";
 import {
   createInvitation,
+  listInvitations,
+  retractInvitation,
+  getInvitationLink,
   lookupInvitation,
   acceptInvitation,
   AccountExistsError,
@@ -21,6 +27,9 @@ import {
   ValidationError,
   InvalidLinkError,
   AccountAlreadyExistsError,
+  NotFoundError,
+  NotPendingError,
+  DecryptError,
 } from "../auth/invitationStore";
 import secrets from "../util/secrets";
 
@@ -375,6 +384,105 @@ export default function invitationController(app: Express, pool: Pool): void {
         link: result.link,
         expiresAt: result.expiresAt.toISOString(),
       });
+    }
+  );
+
+  // GET /api/admin/invitations — list all invitations (FR-013, FR-014)
+  // No CSRF check needed — read-only GET (plan.md Pass 4 note)
+  app.get(
+    "/api/admin/invitations",
+    async (req: Request, res: Response): Promise<void> => {
+      const summaries = await listInvitations(pool);
+
+      // Set Cache-Control: no-store (plan.md Pass 10 — largest PII surface)
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("Pragma", "no-cache");
+      res.json(
+        summaries.map((s) => ({
+          id: s.id,
+          email: s.email,
+          role: s.role,
+          status: s.status,
+          createdAt: s.createdAt.toISOString(),
+          expiresAt: s.expiresAt.toISOString(),
+          acceptedAt: s.acceptedAt ? s.acceptedAt.toISOString() : null,
+          invitedByEmail: s.invitedByEmail,
+        }))
+      );
+    }
+  );
+
+  // POST /api/admin/invitations/:id/retract — retract a pending invitation (FR-015)
+  // Apply CSRF middleware (state-changing POST — plan.md Pass 4)
+  app.post(
+    "/api/admin/invitations/:id/retract",
+    requireSameOrigin,
+    async (req: Request, res: Response): Promise<void> => {
+      const { id } = req.params;
+
+      let summary;
+      try {
+        summary = await retractInvitation(pool, id);
+      } catch (err) {
+        if (err instanceof NotFoundError) {
+          res.status(404).json({ error: "Invitation not found" });
+          return;
+        }
+        if (err instanceof NotPendingError) {
+          res.status(409).json({ error: "Invitation is not pending" });
+          return;
+        }
+        throw err;
+      }
+
+      // Set Cache-Control: no-store (plan.md Pass 11)
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("Pragma", "no-cache");
+      res.json({
+        id: summary.id,
+        email: summary.email,
+        role: summary.role,
+        status: summary.status,
+        createdAt: summary.createdAt.toISOString(),
+        expiresAt: summary.expiresAt.toISOString(),
+        acceptedAt: summary.acceptedAt ? summary.acceptedAt.toISOString() : null,
+        invitedByEmail: summary.invitedByEmail,
+      });
+    }
+  );
+
+  // GET /api/admin/invitations/:id/link — re-copy a pending invitation's link (FR-016)
+  // No CSRF check — read-only GET; same-origin fetch prevents cross-origin body reads
+  // (plan.md Pass 4)
+  app.get(
+    "/api/admin/invitations/:id/link",
+    async (req: Request, res: Response): Promise<void> => {
+      const { id } = req.params;
+      const baseUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:8081";
+
+      let link;
+      try {
+        link = await getInvitationLink(pool, id, baseUrl, secrets.cookieSecret);
+      } catch (err) {
+        if (err instanceof NotFoundError) {
+          res.status(404).json({ error: "Invitation not found" });
+          return;
+        }
+        if (err instanceof NotPendingError) {
+          res.status(409).json({ error: "Invitation is not pending" });
+          return;
+        }
+        if (err instanceof DecryptError) {
+          res.status(409).json({ error: "Link unavailable" });
+          return;
+        }
+        throw err;
+      }
+
+      // Set Cache-Control: no-store (plan.md Pass 7)
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("Pragma", "no-cache");
+      res.json({ link });
     }
   );
 }
