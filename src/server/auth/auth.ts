@@ -5,20 +5,20 @@ import * as passwordHasher from "./passwordHasher";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let authInstance: ReturnType<typeof betterAuth<any>> | null = null;
+let authPoolInstance: Pool | null = null;
 
 /**
- * Returns the singleton better-auth instance, creating it on first call.
+ * Returns the singleton pg.Pool used by better-auth and invitation routes.
  *
- * The pg.Pool is isolated from the domain porsager driver. Pool size is
- * capped at 5 so the combined ceiling stays well under postgres
- * max_connections=100 (porsager defaults to os.cpus() ≤4 on this VPS).
- *
- * FR-001, FR-002, FR-006, FR-010, FR-012
+ * The pool is isolated from the domain porsager driver. Pool size is capped at
+ * 5 so the combined ceiling stays well under postgres max_connections=100.
+ * Sharing a single Pool between better-auth and invitation routes means only
+ * one pool exists for auth-database operations at runtime (FR-001 architecture
+ * requirement).
  */
-export function getAuth(): ReturnType<typeof betterAuth<any>> {
-  // eslint-disable-line @typescript-eslint/no-explicit-any
-  if (authInstance) {
-    return authInstance;
+export function getAuthPool(): Pool {
+  if (authPoolInstance) {
+    return authPoolInstance;
   }
 
   const dbConfig =
@@ -31,7 +31,25 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> {
   // porsager/postgres uses "username" but pg/Pool (used by better-auth) uses "user".
   // Remap so the pool connects with the correct credentials.
   const { username, ...restDbConfig } = dbConfig as typeof dbConfig & { username?: string };
-  const pool = new Pool({ ...restDbConfig, user: username, max: 5 });
+  authPoolInstance = new Pool({ ...restDbConfig, user: username, max: 5 });
+  return authPoolInstance;
+}
+
+/**
+ * Returns the singleton better-auth instance, creating it on first call.
+ *
+ * Uses getAuthPool() so better-auth and invitation routes share a single
+ * pg.Pool instance for all auth-database operations.
+ *
+ * FR-001, FR-002, FR-006, FR-010, FR-012
+ */
+export function getAuth(): ReturnType<typeof betterAuth<any>> {
+  // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (authInstance) {
+    return authInstance;
+  }
+
+  const pool = getAuthPool();
 
   authInstance = betterAuth({
     database: pool,
@@ -109,9 +127,10 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> {
 }
 
 /**
- * Nulls out the singleton so the next getAuth() call creates a fresh instance
- * with a new pool. Used for test isolation only.
+ * Nulls out the singletons so the next getAuth()/getAuthPool() call creates a
+ * fresh instance with a new pool. Used for test isolation only.
  */
 export function resetAuth(): void {
   authInstance = null;
+  authPoolInstance = null;
 }

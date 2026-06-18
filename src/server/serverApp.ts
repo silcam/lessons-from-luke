@@ -1,7 +1,6 @@
 import express from "express";
 import helmet from "helmet";
 import bodyParser from "body-parser";
-import { Pool } from "pg";
 import { toNodeHandler } from "better-auth/node";
 import languagesController from "./controllers/languagesController";
 import lessonsController from "./controllers/lessonsController";
@@ -16,24 +15,9 @@ import PGStorage, { PGTestStorage, PGDevStorage } from "./storage/PGStorage";
 import { Persistence } from "../core/interfaces/Persistence";
 import docStorage from "./storage/docStorage";
 import syncController from "./controllers/syncController";
-import { getAuth } from "./auth/auth";
-import secrets from "./util/secrets";
+import { getAuth, getAuthPool } from "./auth/auth";
 
 const PRODUCTION = process.env.NODE_ENV == "production";
-
-// Auth-owned pg.Pool for invitation routes — mirrors auth.ts's pool setup so
-// the invitation controller can call createInvitation() without importing auth.ts.
-// Pool size is small (max 3) to stay within the combined max_connections budget.
-const authDbConfig =
-  process.env.NODE_ENV === "test"
-    ? secrets.testDb
-    : process.env.NODE_ENV === "development"
-      ? secrets.devDb
-      : secrets.db;
-const { username: authDbUser, ...restAuthDbConfig } = authDbConfig as typeof authDbConfig & {
-  username?: string;
-};
-const authPool = new Pool({ ...restAuthDbConfig, user: authDbUser, max: 3 });
 
 function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   const app = express();
@@ -83,7 +67,7 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   // BEFORE the better-auth catch-all, so they are not swallowed by it.
   // The admin route (/api/admin/invitations POST) is mounted below (after bodyParser)
   // and inherits requireAdmin from app.use('/api/admin', requireAdmin) below.
-  registerAnonymousInvitationRoutes(app, authPool);
+  registerAnonymousInvitationRoutes(app, getAuthPool());
   app.all("/api/auth/*", toNodeHandler(getAuth()) as any);
   app.use(bodyParser.json({ limit: "2MB" }) as any);
   app.use("/api/admin", requireAdmin);
@@ -121,7 +105,7 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   tStringsController(app, storage);
   documentsController(app, storage);
   syncController(app, storage);
-  invitationController(app, authPool);
+  invitationController(app, getAuthPool());
 
   if (process.env.NODE_ENV === "test") {
     testController(app, storage as PGTestStorage);
