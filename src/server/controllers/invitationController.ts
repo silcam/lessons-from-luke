@@ -111,7 +111,9 @@ export function registerAnonymousInvitationRoutes(app: Express, pool: Pool): voi
       }
 
       if (!result) {
-        res.status(410).json({ error: "This invitation link is invalid, expired, or has already been used." });
+        res
+          .status(410)
+          .json({ error: "This invitation link is invalid, expired, or has already been used." });
         return;
       }
 
@@ -156,7 +158,9 @@ export function registerAnonymousInvitationRoutes(app: Express, pool: Pool): voi
           return;
         }
         if (err instanceof InvalidLinkError) {
-          res.status(410).json({ error: "This invitation link is invalid, expired, or has already been used." });
+          res
+            .status(410)
+            .json({ error: "This invitation link is invalid, expired, or has already been used." });
           return;
         }
         if (err instanceof AccountCreatedConcurrentlyError) {
@@ -323,35 +327,35 @@ export default function invitationController(app: Express, pool: Pool): void {
   // GET /api/admin/invitations/:id/link — re-copy a pending invitation's link (FR-016)
   // No CSRF check — read-only GET; same-origin fetch prevents cross-origin body reads
   // (plan.md Pass 4)
-  app.get(
-    "/api/admin/invitations/:id/link",
-    async (req: Request, res: Response): Promise<void> => {
-      const { id } = req.params;
-      const baseUrl = process.env.BETTER_AUTH_URL ?? DEFAULT_BASE_URL;
+  app.get("/api/admin/invitations/:id/link", async (req: Request, res: Response): Promise<void> => {
+    const { id } = req.params;
+    const baseUrl = process.env.BETTER_AUTH_URL ?? DEFAULT_BASE_URL;
 
-      let link;
-      try {
-        link = await getInvitationLink(pool, id, baseUrl, secrets.cookieSecret);
-      } catch (err) {
-        if (err instanceof NotFoundError) {
-          res.status(404).json({ error: "Invitation not found" });
-          return;
-        }
-        if (err instanceof NotPendingError) {
-          res.status(409).json({ error: "Invitation is not pending" });
-          return;
-        }
-        if (err instanceof DecryptError) {
-          res.status(409).json({ error: "Link unavailable" });
-          return;
-        }
-        throw err;
+    let link: string;
+    try {
+      // getInvitationLink returns { link: string }; destructure so the
+      // response is a single-level { link } rather than a double-wrapped
+      // { link: { link } } (which serialised to "[object Object]" client-side).
+      ({ link } = await getInvitationLink(pool, id, baseUrl, secrets.cookieSecret));
+    } catch (err) {
+      if (err instanceof NotFoundError) {
+        res.status(404).json({ error: "Invitation not found" });
+        return;
       }
-
-      // Set Cache-Control: no-store (plan.md Pass 7)
-      res.setHeader("Cache-Control", "no-store");
-      res.setHeader("Pragma", "no-cache");
-      res.json({ link });
+      if (err instanceof NotPendingError) {
+        res.status(409).json({ error: "Invitation is not pending" });
+        return;
+      }
+      if (err instanceof DecryptError) {
+        res.status(409).json({ error: "Link unavailable" });
+        return;
+      }
+      throw err;
     }
-  );
+
+    // Set Cache-Control: no-store (plan.md Pass 7)
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Pragma", "no-cache");
+    res.json({ link });
+  });
 }
