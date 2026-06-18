@@ -15,6 +15,7 @@ import DocStringsPage from "./lessons/DocStringsPage";
 import UpdateIssuesPage from "./lessons/UpdateIssuesPage";
 import { useClearBannersOnNavigation } from "../common/banners/useClearBannersOnNavigation";
 import CreateInvitation from "./invitations/CreateInvitation";
+import InvitationsList from "./invitations/InvitationsList";
 import RedeemInvitation from "./auth/RedeemInvitation";
 
 function TranslateRouteWrapper() {
@@ -72,6 +73,9 @@ export default function MainRouter() {
           <Route path="/invitation/:token" element={<RedeemInvitationWrapper />} />
           {user?.admin && (
             <Route path="/admin/invitations/new" element={<CreateInvitation />} />
+          )}
+          {user?.admin && (
+            <Route path="/admin/invitations" element={<InvitationsList />} />
           )}
           <Route path="*" element={user ? <AdminHome /> : <PublicHome />} />
         </Routes>
