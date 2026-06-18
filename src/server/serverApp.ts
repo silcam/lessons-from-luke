@@ -34,6 +34,27 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
     console.log(`[serverApp] NODE_ENV=${process.env.NODE_ENV} storage=${cls}`);
   }
 
+  // trust proxy = 1: Express derives req.ip from the left-most X-Forwarded-For entry
+  // added by exactly one trusted proxy hop (Passenger/nginx in production).
+  //
+  // DEPLOYMENT CONTRACT — the per-IP invitation rate limiter depends on this:
+  //   The reverse proxy MUST strip or overwrite any client-supplied X-Forwarded-For
+  //   header before forwarding the request to Express. If the proxy appends instead of
+  //   overwrites, an attacker who can reach the proxy can forge X-Forwarded-For and
+  //   rotate their apparent IP per request, bypassing the per-IP rate limit.
+  //
+  //   Passenger/nginx default behaviour: nginx's proxy_pass does NOT forward the
+  //   client's X-Forwarded-For unless explicitly configured to do so; it sets the
+  //   header to the connecting IP. Passenger similarly sets X-Forwarded-For to the
+  //   client IP from the TCP socket, discarding any client-supplied value.
+  //   This means the deployed topology satisfies the contract: req.ip is the real
+  //   client IP as seen by the proxy, not a client-controlled value.
+  //
+  //   If the proxy configuration is ever changed to `proxy_set_header X-Forwarded-For
+  //   $proxy_add_x_forwarded_for` (which APPENDS), change this setting to either:
+  //     - The exact number of trusted hop counts, or
+  //     - A trusted subnet string (e.g. '10.0.0.0/8')
+  //   rather than the integer 1, which trusts the left-most entry regardless of source.
   app.set("trust proxy", 1);
 
   // HTTP security headers — helmet must be registered before any route handlers.

@@ -12,6 +12,7 @@
  *       §/api/auth/invitation/{token} GET, §/api/auth/invitation/accept POST
  */
 
+import crypto from "crypto";
 import { Express, Request, Response, NextFunction } from "express";
 import bodyParser from "body-parser";
 import { Pool } from "pg";
@@ -135,7 +136,24 @@ export function requireSameOrigin(req: Request, res: Response, next: NextFunctio
 //   Returns count; if count > RATE_LIMIT_MAX → 429
 //
 // Enforced when: NODE_ENV !== 'test' || BETTER_AUTH_ENFORCE_RATE_LIMIT === '1'
-// Key = 'invitation:' + req.ip (trust proxy=1 is set in serverApp.ts)
+//
+// KEY TRUST MODEL
+// ---------------
+// The primary rate-limit key is 'invitation:' + req.ip. Express derives req.ip
+// from X-Forwarded-For under app.set('trust proxy', 1) (serverApp.ts). This is
+// safe in the deployed topology because the Passenger/nginx reverse proxy
+// overwrites (not appends) X-Forwarded-For to the real client TCP-socket IP
+// before passing the request to Express. See serverApp.ts for the full
+// DEPLOYMENT CONTRACT comment and the conditions under which this guarantee
+// holds.
+//
+// SECONDARY (TOKEN-SCOPED) KEY — graceful degradation
+// ----------------------------------------------------
+// For the GET /api/auth/invitation/:token lookup endpoint the caller can
+// also pass a secondary key (e.g. the SHA-256 hex of the token). When present,
+// BOTH keys are checked and the stricter limit applies. This means even if
+// req.ip were unreliable (proxy misconfiguration), each unique token still has
+// its own rate-limit bucket and cannot be brute-forced at unbounded rate.
 // ---------------------------------------------------------------------------
 
 const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 60 seconds
@@ -147,8 +165,13 @@ const RATE_LIMIT_MAX = 10;
  *
  * Skipped when NODE_ENV=test AND BETTER_AUTH_ENFORCE_RATE_LIMIT !== '1',
  * mirroring the existing BETTER_AUTH_ENFORCE_RATE_LIMIT flag (plan.md Pass 12).
+ *
+ * @param secondaryKeyFn  Optional function to derive a secondary rate-limit key
+ *                        from the request (e.g. SHA-256 of the token path param).
+ *                        When provided, BOTH the IP-key and the secondary key are
+ *                        checked; the first to exceed the limit wins with 429.
  */
-export function invitationRateLimit(pool: Pool) {
+export function invitationRateLimit(pool: Pool, secondaryKeyFn?: (req: Request) => string) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     // Skip in test mode unless enforcement flag is set
     if (
@@ -161,7 +184,8 @@ export function invitationRateLimit(pool: Pool) {
 
     const nowMs = Date.now();
     const windowStart = nowMs - RATE_LIMIT_WINDOW_MS;
-    const key = `invitation:${req.ip ?? "unknown"}`;
+    const ipKey = `invitation:${req.ip ?? "unknown"}`;
+    const secondaryKey = secondaryKeyFn ? secondaryKeyFn(req) : undefined;
 
     const client = await pool.connect();
     try {
@@ -171,25 +195,38 @@ export function invitationRateLimit(pool: Pool) {
         [windowStart]
       );
 
-      // Atomic UPSERT: insert or increment, resetting count if the window has reset
-      const result = await client.query<{ count: number }>(
-        `INSERT INTO "invitationRateLimit" (key, count, "lastRequest")
-         VALUES ($1, 1, $2)
-         ON CONFLICT (key) DO UPDATE SET
-           count = CASE
-             WHEN "invitationRateLimit"."lastRequest" < $3 THEN 1
-             ELSE "invitationRateLimit".count + 1
-           END,
-           "lastRequest" = $2
-         RETURNING count`,
-        [key, nowMs, windowStart]
-      );
+      // Atomic UPSERT helper: returns the post-increment count for a key
+      const upsertCount = async (k: string): Promise<number> => {
+        const r = await client.query<{ count: number }>(
+          `INSERT INTO "invitationRateLimit" (key, count, "lastRequest")
+           VALUES ($1, 1, $2)
+           ON CONFLICT (key) DO UPDATE SET
+             count = CASE
+               WHEN "invitationRateLimit"."lastRequest" < $3 THEN 1
+               ELSE "invitationRateLimit".count + 1
+             END,
+             "lastRequest" = $2
+           RETURNING count`,
+          [k, nowMs, windowStart]
+        );
+        return r.rows[0]?.count ?? 1;
+      };
 
-      const count = result.rows[0]?.count ?? 1;
-
-      if (count > RATE_LIMIT_MAX) {
+      // Check primary (IP-based) key
+      const ipCount = await upsertCount(ipKey);
+      if (ipCount > RATE_LIMIT_MAX) {
         res.status(429).json({ error: "Too many requests. Please try again later." });
         return;
+      }
+
+      // Check secondary (token-scoped) key when present — graceful degradation
+      // if req.ip is unreliable due to proxy misconfiguration (see header comment).
+      if (secondaryKey !== undefined) {
+        const secondaryCount = await upsertCount(secondaryKey);
+        if (secondaryCount > RATE_LIMIT_MAX) {
+          res.status(429).json({ error: "Too many requests. Please try again later." });
+          return;
+        }
       }
 
       next();
@@ -242,12 +279,22 @@ function acceptBodyParserErrorHandler(
  * The `pool` argument is the auth-owned pg.Pool passed from serverApp.ts.
  */
 export function registerAnonymousInvitationRoutes(app: Express, pool: Pool): void {
+  // IP-only rate limiter for the accept endpoint (no token available in body at
+  // middleware time — the body parser runs after the rate limiter).
   const rateLimiter = invitationRateLimit(pool);
+
+  // Token-scoped secondary rate limiter for the lookup endpoint: keys on
+  // SHA-256(token) so each unique token has its own bucket as a graceful
+  // degradation if req.ip is ever unreliable (see rate-limit header comment).
+  const tokenRateLimiter = invitationRateLimit(pool, (req: Request) => {
+    const token = req.params.token ?? "";
+    return `invitation-token:${crypto.createHash("sha256").update(token).digest("hex")}`;
+  });
 
   // GET /api/auth/invitation/:token — look up a pending invitation by token
   app.get(
     "/api/auth/invitation/:token",
-    rateLimiter,
+    tokenRateLimiter,
     requireSameOrigin,
     async (req: Request, res: Response, next: NextFunction): Promise<void> => {
       const { token } = req.params;
