@@ -400,7 +400,7 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   against `auth.ts`: the cookie `sameSite` is **not explicitly set** (better-auth's default is
   `lax`), so the protection is implicit and undocumented. A cross-origin `POST` is the higher-value
   CSRF target here than the anonymous accept route: an attacker who lands a signed-in admin on a
-  malicious page could forge `POST /api/admin/invitations {email: attacker@evil, role: admin}`,
+  malicious page forges `POST /api/admin/invitations {email: attacker@evil, role: admin}`,
   minting an **admin-role** invitation bound to an address the attacker controls — a full privilege
   path — and the admin sees nothing. The retract POST is a lesser CSRF (nuisance: kill a pending
   invite). The asymmetry (anonymous route hardened, cookie-authenticated state-changing admin routes
