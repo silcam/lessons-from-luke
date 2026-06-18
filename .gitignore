@@ -37,3 +37,5 @@ src/**/*.js.map
 !.yarn/sdks
 !.yarn/versions
 .pnp.*
+
+.sp-harden-findings.json
