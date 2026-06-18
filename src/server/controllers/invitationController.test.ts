@@ -1,10 +1,13 @@
 /**
  * Controller tests for POST /api/admin/invitations, GET /api/auth/invitation/:token,
- * and POST /api/auth/invitation/accept.
+ * POST /api/auth/invitation/accept, GET /api/admin/invitations (list),
+ * POST /api/admin/invitations/:id/retract, and GET /api/admin/invitations/:id/link.
  *
- * Spec: specs/002-invitation-system/spec.md §FR-001..FR-012, §FR-020
+ * Spec: specs/002-invitation-system/spec.md §FR-001..FR-012, §FR-013..FR-019, §FR-020
  * Plan: plan.md §Security Considerations (Pass 4 CSRF, Pass 1/2/12 rate-limit),
  *       contracts/invitation-api.yaml §/api/admin/invitations POST,
+ *       §/api/admin/invitations GET, §/api/admin/invitations/{id}/retract POST,
+ *       §/api/admin/invitations/{id}/link GET,
  *       §/api/auth/invitation/{token} GET, §/api/auth/invitation/accept POST
  *
  * These tests use the real test database via loggedInAgent() / plainAgent() from
@@ -12,6 +15,8 @@
  *
  * RED: the anonymous invitation routes (GET /api/auth/invitation/:token and
  * POST /api/auth/invitation/accept) do not yet exist — those tests should fail.
+ * RED (US3): the admin list/retract/recopy routes do not yet exist — those tests
+ * should also fail.
  */
 
 /// <reference types="jest" />
@@ -575,5 +580,310 @@ describe("POST /api/auth/invitation/accept", () => {
     } finally {
       process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT = savedEnv;
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/admin/invitations — list all invitations (US3, FR-013, FR-014)
+// ---------------------------------------------------------------------------
+
+describe("GET /api/admin/invitations", () => {
+  // -------------------------------------------------------------------------
+  // 1. 200 — authenticated admin → array of InvitationSummary; Cache-Control: no-store
+  // -------------------------------------------------------------------------
+  it("200: authenticated admin gets array of InvitationSummary with Cache-Control: no-store", async () => {
+    const agent = await loggedInAgent();
+    const email = `list-test-${crypto.randomUUID()}@example.com`;
+
+    // Create an invitation so the list is non-empty
+    await agent
+      .post("/api/admin/invitations")
+      .send({ email, role: "standard" });
+
+    const res = await agent.get("/api/admin/invitations");
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    // At least the one we just created
+    expect(res.body.length).toBeGreaterThanOrEqual(1);
+    // Each item should have InvitationSummary fields
+    const found = (res.body as Array<Record<string, unknown>>).find(
+      (item) => item.email === email.toLowerCase()
+    );
+    expect(found).toBeDefined();
+    expect(found).toMatchObject({
+      email: email.toLowerCase(),
+      role: "standard",
+      status: "pending",
+    });
+    expect(typeof found!.id).toBe("string");
+    expect(typeof found!.createdAt).toBe("string");
+    expect(typeof found!.invitedByEmail).toBe("string");
+    // Cache-Control: no-store required (red-team Pass 10)
+    expect(res.header["cache-control"]).toBe("no-store");
+  });
+
+  // -------------------------------------------------------------------------
+  // 2. 401 — unauthenticated
+  // -------------------------------------------------------------------------
+  it("401: unauthenticated request is rejected", async () => {
+    const agent = plainAgent();
+
+    const res = await agent.get("/api/admin/invitations");
+
+    expect(res.status).toBe(401);
+  });
+
+  // -------------------------------------------------------------------------
+  // 3. 403 — non-admin
+  // -------------------------------------------------------------------------
+  it("403: non-admin session is rejected", async () => {
+    const agent = await nonAdminAgent();
+
+    const res = await agent.get("/api/admin/invitations");
+
+    expect(res.status).toBe(403);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/admin/invitations/:id/retract — retract a pending invitation (US3, FR-015)
+// ---------------------------------------------------------------------------
+
+describe("POST /api/admin/invitations/:id/retract", () => {
+  // -------------------------------------------------------------------------
+  // 1. 200 — authenticated admin, pending invitation → Retracted, InvitationSummary; Cache-Control: no-store
+  // -------------------------------------------------------------------------
+  it("200: admin retracts pending invitation, returns InvitationSummary with Cache-Control: no-store", async () => {
+    const agent = await loggedInAgent();
+    const email = `retract-happy-${crypto.randomUUID()}@example.com`;
+
+    // Create a pending invitation
+    const createRes = await agent
+      .post("/api/admin/invitations")
+      .send({ email, role: "standard" });
+    expect(createRes.status).toBe(201);
+    const invitationId = createRes.body.id as string;
+
+    // Retract it
+    const res = await agent.post(`/api/admin/invitations/${invitationId}/retract`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      id: invitationId,
+      email: email.toLowerCase(),
+      role: "standard",
+      status: "retracted",
+    });
+    expect(typeof res.body.invitedByEmail).toBe("string");
+    // Cache-Control: no-store required (red-team Pass 11)
+    expect(res.header["cache-control"]).toBe("no-store");
+  });
+
+  // -------------------------------------------------------------------------
+  // 2. 401 — unauthenticated
+  // -------------------------------------------------------------------------
+  it("401: unauthenticated request is rejected", async () => {
+    const agent = plainAgent();
+    const fakeId = crypto.randomUUID();
+
+    const res = await agent.post(`/api/admin/invitations/${fakeId}/retract`);
+
+    expect(res.status).toBe(401);
+  });
+
+  // -------------------------------------------------------------------------
+  // 3. 403 — non-admin
+  // -------------------------------------------------------------------------
+  it("403: non-admin session is rejected", async () => {
+    const agent = await nonAdminAgent();
+    const fakeId = crypto.randomUUID();
+
+    const res = await agent.post(`/api/admin/invitations/${fakeId}/retract`);
+
+    expect(res.status).toBe(403);
+  });
+
+  // -------------------------------------------------------------------------
+  // 4. 403 — valid admin + Origin not in allow-list (CSRF defense, Pass 4)
+  // -------------------------------------------------------------------------
+  it("403: admin session with foreign Origin is rejected (CSRF defense)", async () => {
+    const savedEnv = process.env.BETTER_AUTH_ENFORCE_ORIGIN;
+    process.env.BETTER_AUTH_ENFORCE_ORIGIN = "1";
+
+    try {
+      const agent = await loggedInAgent();
+      const fakeId = crypto.randomUUID();
+
+      const res = await agent
+        .post(`/api/admin/invitations/${fakeId}/retract`)
+        .set("Origin", "https://attacker.example.com");
+
+      expect(res.status).toBe(403);
+    } finally {
+      process.env.BETTER_AUTH_ENFORCE_ORIGIN = savedEnv;
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // 5. 404 — invitation id not found
+  // -------------------------------------------------------------------------
+  it("404: unknown invitation id returns 404", async () => {
+    const agent = await loggedInAgent();
+    const nonExistentId = crypto.randomUUID();
+
+    const res = await agent.post(`/api/admin/invitations/${nonExistentId}/retract`);
+
+    expect(res.status).toBe(404);
+  });
+
+  // -------------------------------------------------------------------------
+  // 6. 409 — invitation not pending (already accepted/retracted)
+  // -------------------------------------------------------------------------
+  it("409: retracting an already-retracted invitation returns 409", async () => {
+    const agent = await loggedInAgent();
+    const email = `retract-409-${crypto.randomUUID()}@example.com`;
+
+    // Create a pending invitation
+    const createRes = await agent
+      .post("/api/admin/invitations")
+      .send({ email, role: "standard" });
+    expect(createRes.status).toBe(201);
+    const invitationId = createRes.body.id as string;
+
+    // Retract it the first time — should succeed
+    const firstRetract = await agent.post(`/api/admin/invitations/${invitationId}/retract`);
+    expect(firstRetract.status).toBe(200);
+
+    // Retract it again — should be 409 (not pending anymore)
+    const secondRetract = await agent.post(`/api/admin/invitations/${invitationId}/retract`);
+
+    expect(secondRetract.status).toBe(409);
+    expect(secondRetract.body).toMatchObject({ error: expect.any(String) });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/admin/invitations/:id/link — re-copy a pending invitation's link (US3, FR-016)
+// ---------------------------------------------------------------------------
+
+describe("GET /api/admin/invitations/:id/link", () => {
+  // -------------------------------------------------------------------------
+  // 1. 200 — authenticated admin, pending invitation → { link }; Cache-Control: no-store
+  // -------------------------------------------------------------------------
+  it("200: admin re-copies pending invitation link with Cache-Control: no-store", async () => {
+    const agent = await loggedInAgent();
+    const email = `link-happy-${crypto.randomUUID()}@example.com`;
+
+    // Create a pending invitation
+    const createRes = await agent
+      .post("/api/admin/invitations")
+      .send({ email, role: "standard" });
+    expect(createRes.status).toBe(201);
+    const invitationId = createRes.body.id as string;
+    const originalLink = createRes.body.link as string;
+
+    // Re-copy the link
+    const res = await agent.get(`/api/admin/invitations/${invitationId}/link`);
+
+    expect(res.status).toBe(200);
+    expect(typeof res.body.link).toBe("string");
+    // Re-copy MUST return the SAME original link (no rotation — FR-016)
+    expect(res.body.link).toBe(originalLink);
+    // Cache-Control: no-store required (red-team Pass 7)
+    expect(res.header["cache-control"]).toBe("no-store");
+  });
+
+  // -------------------------------------------------------------------------
+  // 2. 401 — unauthenticated
+  // -------------------------------------------------------------------------
+  it("401: unauthenticated request is rejected", async () => {
+    const agent = plainAgent();
+    const fakeId = crypto.randomUUID();
+
+    const res = await agent.get(`/api/admin/invitations/${fakeId}/link`);
+
+    expect(res.status).toBe(401);
+  });
+
+  // -------------------------------------------------------------------------
+  // 3. 403 — non-admin
+  // -------------------------------------------------------------------------
+  it("403: non-admin session is rejected", async () => {
+    const agent = await nonAdminAgent();
+    const fakeId = crypto.randomUUID();
+
+    const res = await agent.get(`/api/admin/invitations/${fakeId}/link`);
+
+    expect(res.status).toBe(403);
+  });
+
+  // -------------------------------------------------------------------------
+  // 4. 404 — invitation not found
+  // -------------------------------------------------------------------------
+  it("404: unknown invitation id returns 404", async () => {
+    const agent = await loggedInAgent();
+    const nonExistentId = crypto.randomUUID();
+
+    const res = await agent.get(`/api/admin/invitations/${nonExistentId}/link`);
+
+    expect(res.status).toBe(404);
+  });
+
+  // -------------------------------------------------------------------------
+  // 5. 409 — invitation not pending (no link available)
+  // -------------------------------------------------------------------------
+  it("409: re-copying a retracted invitation's link returns 409", async () => {
+    const agent = await loggedInAgent();
+    const email = `link-409-${crypto.randomUUID()}@example.com`;
+
+    // Create and then retract an invitation
+    const createRes = await agent
+      .post("/api/admin/invitations")
+      .send({ email, role: "standard" });
+    expect(createRes.status).toBe(201);
+    const invitationId = createRes.body.id as string;
+
+    const retractRes = await agent.post(`/api/admin/invitations/${invitationId}/retract`);
+    expect(retractRes.status).toBe(200);
+
+    // Try to re-copy the link — should be 409 (not pending)
+    const res = await agent.get(`/api/admin/invitations/${invitationId}/link`);
+
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  // -------------------------------------------------------------------------
+  // 6. 409 — tokenEnc decrypt failure (wrong secret) → link unavailable, not 500
+  // -------------------------------------------------------------------------
+  it("409: decrypt failure (wrong cookieSecret) returns 409, not 500", async () => {
+    // Insert a pending invitation directly with a garbage tokenEnc that will
+    // fail decryption, to simulate a wrong-secret scenario.
+    const adminEmail = (secrets.adminEmail ?? "admin@example.com").toLowerCase();
+    const adminRow = await authPool.query<{ id: string }>(
+      `SELECT id FROM "user" WHERE LOWER(email) = $1 AND admin = true LIMIT 1`,
+      [adminEmail]
+    );
+    const invitedBy = adminRow.rows[0]?.id ?? "unknown";
+
+    const invitationId = crypto.randomUUID();
+    const email = `link-decrypt-fail-${crypto.randomUUID()}@example.com`;
+    const tokenHash = crypto.randomBytes(32).toString("hex");
+    const garbageTokenEnc = "bad:garbage:notbase64:invalid";
+    const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+
+    await authPool.query(
+      `INSERT INTO "invitation" (id, email, role, status, "tokenHash", "tokenEnc", "invitedBy", "expiresAt")
+       VALUES ($1, $2, 'standard', 'pending', $3, $4, $5, $6)`,
+      [invitationId, email, tokenHash, garbageTokenEnc, invitedBy, expiresAt]
+    );
+
+    const agent = await loggedInAgent();
+    const res = await agent.get(`/api/admin/invitations/${invitationId}/link`);
+
+    // Should return 409 (link unavailable due to decrypt error), NOT 500
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
   });
 });
