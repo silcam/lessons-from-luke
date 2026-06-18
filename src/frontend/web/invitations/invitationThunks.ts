@@ -45,7 +45,7 @@ export const createInvitation = createAsyncThunk<
     return (await response.json()) as InvitationResult;
   }
 
-  let body: { error?: string } = {};
+  let body: { error?: string; code?: string } = {};
   try {
     body = await response.json();
   } catch {
@@ -55,10 +55,10 @@ export const createInvitation = createAsyncThunk<
   const errorText = body.error ?? "";
 
   if (response.status === 409) {
-    if (errorText.startsWith("account_exists")) {
+    if (body.code === "ACCOUNT_EXISTS") {
       return rejectWithValue({ code: "account_exists", message: errorText });
     }
-    if (errorText.startsWith("active_pending")) {
+    if (body.code === "PENDING_INVITE_EXISTS") {
       return rejectWithValue({ code: "active_pending", message: errorText });
     }
     // Unknown 409 variant — treat as generic

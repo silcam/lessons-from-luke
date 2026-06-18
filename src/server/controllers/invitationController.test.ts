@@ -242,7 +242,7 @@ describe("POST /api/admin/invitations", () => {
       .send({ email: existingEmail, role: "standard" });
 
     expect(res.status).toBe(409);
-    expect(res.body).toMatchObject({ error: expect.any(String) });
+    expect(res.body).toMatchObject({ error: expect.any(String), code: "ACCOUNT_EXISTS" });
   });
 
   // -------------------------------------------------------------------------
@@ -264,7 +264,7 @@ describe("POST /api/admin/invitations", () => {
       .send({ email, role: "admin" });
 
     expect(second.status).toBe(409);
-    expect(second.body).toMatchObject({ error: expect.any(String) });
+    expect(second.body).toMatchObject({ error: expect.any(String), code: "PENDING_INVITE_EXISTS" });
   });
 });
 

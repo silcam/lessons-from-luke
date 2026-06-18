@@ -77,7 +77,7 @@ describe("invitationThunks", () => {
       mockFetch.mockResolvedValue({
         ok: false,
         status: 409,
-        json: async () => ({ error: "account_exists: An account already exists." }),
+        json: async () => ({ error: "An account already exists for taken@example.com", code: "ACCOUNT_EXISTS" }),
       });
 
       const dispatch = jest.fn();
@@ -100,7 +100,7 @@ describe("invitationThunks", () => {
       mockFetch.mockResolvedValue({
         ok: false,
         status: 409,
-        json: async () => ({ error: "active_pending: An active invitation already exists." }),
+        json: async () => ({ error: "An active pending invitation already exists for pending@example.com", code: "PENDING_INVITE_EXISTS" }),
       });
 
       const dispatch = jest.fn();

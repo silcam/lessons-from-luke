@@ -354,11 +354,11 @@ export default function invitationController(app: Express, pool: Pool): void {
         });
       } catch (err) {
         if (err instanceof AccountExistsError) {
-          res.status(409).json({ error: err.message });
+          res.status(409).json({ error: err.message, code: err.code });
           return;
         }
         if (err instanceof ActivePendingError) {
-          res.status(409).json({ error: err.message });
+          res.status(409).json({ error: err.message, code: err.code });
           return;
         }
         // Validation errors from createInvitation (InvalidEmailError, InvalidRoleError)
