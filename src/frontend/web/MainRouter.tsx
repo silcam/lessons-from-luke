@@ -14,6 +14,7 @@ import UsfmImportResultPage from "./languages/UsfmImportResultPage";
 import DocStringsPage from "./lessons/DocStringsPage";
 import UpdateIssuesPage from "./lessons/UpdateIssuesPage";
 import { useClearBannersOnNavigation } from "../common/banners/useClearBannersOnNavigation";
+import CreateInvitation from "./invitations/CreateInvitation";
 
 function TranslateRouteWrapper() {
   const { code } = useParams<{ code: string }>();
@@ -61,6 +62,9 @@ export default function MainRouter() {
             element={<DocStringsPageWrapper />}
           />
           <Route path="/update-issues/:lessonId" element={<UpdateIssuesPageWrapper />} />
+          {user?.admin && (
+            <Route path="/admin/invitations/new" element={<CreateInvitation />} />
+          )}
           <Route path="*" element={user ? <AdminHome /> : <PublicHome />} />
         </Routes>
       ) : (
