@@ -175,7 +175,7 @@ src/server/
 ├── controllers/
 │   ├── invitationController.ts           # NEW — /api/admin/invitations* + /api/auth/invitation/*
 │   └── invitationController.test.ts      # NEW — 401/403/201/409/410 controller tests
-├── serverApp.ts                          # EDIT — mount invitationController (anon routes BEFORE /api/auth/* catch-all)
+├── serverApp.ts                          # EDIT — mount invitationController (anon routes BEFORE /api/auth/* catch-all); redact the raw token in the request logger for /api/auth/invitation/:token and /invitation/:token (red-team Pass 5)
 └── jestSetupAfterEnv.ts                  # EDIT — add DELETE FROM "invitationRateLimit" (any order) and DELETE FROM "invitation" (before user delete) to afterEach
 
 src/frontend/web/
@@ -328,15 +328,19 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
 ### Pass 3 — second-order effects of the Pass 1/Pass 2 mitigations
 
 - **The in-app request logger never runs for the anonymous invitation routes — fix the actual
-  log-leak vector.** Pass 1 mandated "ensure the request logger redacts the token segment." Grounded
+  log-leak vector. (SUPERSEDED BY PASS 5 — this conclusion is wrong; see the Pass 5 section above.
+  The logger DOES run for these routes and DOES log the raw token; the in-app redaction is required.
+  The deployment-note point below still stands as an additive residual.)** Pass 1 mandated "ensure
+  the request logger redacts the token segment." Grounded
   against `serverApp.ts`: the `res.on("finish")` request logger is registered at **line 79**,
   *after* the better-auth catch-all (line 63). The anonymous invitation routes MUST be registered
   *before* the catch-all (Decision 1 / routing), and their handlers end the response with
   `res.json(...)` without calling `next()`, so **the line-79 logger never executes for
   `GET /api/auth/invitation/:token` or `POST .../accept`** — the Pass 1 redaction target is a no-op
   for the very routes that carry the token. Two corrections:
-  1. The token segment is **not** written to the in-app log at all by the current logger (the routes
-     short-circuit before it), so no in-app redaction code is required for them — **but do not add a
+  1. ~~The token segment is **not** written to the in-app log at all by the current logger (the routes
+     short-circuit before it), so no in-app redaction code is required for them~~ **(WRONG — superseded
+     by Pass 5: the logger does run and does write the token; in-app redaction IS required.)** — **but do not add a
      logger ahead of these routes that would reintroduce the leak.** If any future logging is added
      in front of the catch-all, it MUST redact the `/:token` segment.
   2. The **real** residual token-in-logs risk is the **upstream reverse proxy / Passenger access
@@ -415,6 +419,52 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   fetch posture) — do not convert it to a POST that would then also need the check. As a defense in
   depth, also document that the better-auth session cookie's effective `sameSite` is the implicit
   backstop, so a future change to better-auth cookie config must not loosen it to `none`.
+
+### Pass 5 — the in-app request logger DOES leak the raw token (Pass 3's claim was wrong against the real serverApp.ts)
+
+- **CRITICAL correction to the Pass 3 log-leak analysis.** Pass 3 asserted the `res.on("finish")`
+  request logger "never executes for `GET /api/auth/invitation/:token`" because the route handlers
+  "short-circuit before it" by ending the response without `next()`. **Grounded against the actual
+  `src/server/serverApp.ts`, that reasoning is incorrect and the leak is real.** The path-less
+  logger middleware is registered with `app.use((req, res, next) => { res.on("finish", ...); next() })`
+  at the block ending the response-logging setup, and the feature's controllers (`languagesController`,
+  …, and the **to-be-added `invitationController`**) are mounted *after* it. A path-less `app.use`
+  logger that precedes a route runs **on every request that reaches that route** — the request first
+  passes through the logger (which attaches the `finish` listener and calls `next()`), *then* reaches
+  the invitation handler. The handler ending the response with `res.json(...)` and not calling
+  `next()` does **not** un-register the already-attached `finish` listener — `finish` fires when the
+  response completes, logging `${req.method} ${req.path} => [${res.statusCode}]`. Since
+  `req.path` for the lookup route is `/api/auth/invitation/<raw-token>`, **the raw single-use token is
+  written to the in-app server log on every redemption-form load.** This is exactly the in-app leak
+  Pass 1 set out to prevent and Pass 3 wrongly declared a no-op.
+- **Mitigation (supersedes the Pass 3 "no in-app redaction required" conclusion):**
+  1. The in-app request logger MUST redact the token. Either (a) register the `invitationController`
+     (or at least the anonymous `/api/auth/invitation/*` routes) **before** the logger middleware so
+     they never pass through it, **or** (b) make the logger redact the `:token` path segment — e.g.
+     log a fixed placeholder for any path matching `^/api/auth/invitation/[^/]+$` and for the SPA
+     `/invitation/:token` route, never `req.path` verbatim. Option (b) is more robust because it also
+     covers the SPA HTML route (`GET /invitation/<token>`) which the production `app.get("*", ...)`
+     fallback serves and which currently would also be logged verbatim.
+  2. The Pass 3 deployment note about the upstream proxy/Passenger access log still stands as the
+     remaining out-of-app residual; it is **additive** to this in-app fix, not a replacement for it.
+  3. Add a test asserting the in-app logger output for a redemption-form load does **not** contain the
+     token (e.g. spy on `console.log` and assert the logged line for `GET /api/auth/invitation/:token`
+     carries the placeholder, not the raw token), so the redaction cannot silently regress.
+- **Origin allow-list dev/test relaxation must mirror `auth.ts`'s *actual* `trustedOrigins`, which is
+  conditional on `BETTER_AUTH_URL`.** Pass 4 said the shared Origin middleware should allow-list
+  "against `BETTER_AUTH_URL` … including the dev `:8080/:8081/:8082` relaxation." Grounded against
+  `auth.ts`: `trustedOrigins` is `[BETTER_AUTH_URL]` **when `BETTER_AUTH_URL` is set**, and falls back
+  to the `:8080/:8081/:8082` list **only when `BETTER_AUTH_URL` is unset** (and only in
+  `development`). The two are mutually exclusive — the dev ports are *not* added on top of
+  `BETTER_AUTH_URL`. The shared invitation Origin middleware MUST reproduce this exact precedence: if
+  `BETTER_AUTH_URL` is set, allow only that origin; else if `NODE_ENV=development`, allow the three
+  dev ports; else allow nothing (and rely on the `NODE_ENV=test` skip unless
+  `BETTER_AUTH_ENFORCE_ORIGIN=1`). If the middleware instead always unioned the dev ports, a
+  `BETTER_AUTH_URL`-configured deployment would wrongly trust `localhost:8080/8081/8082`; if it
+  *never* included them, `yarn dev-web` (browser origin `:8080`, API `:8081`) would get `403` on every
+  admin create/retract and the anonymous accept. Factor this into the **same** shared helper that
+  produces better-auth's `trustedOrigins` (or a function that reads it) so the two cannot drift —
+  rather than re-deriving the allow-list independently in the invitation middleware.
 
 ## Edge Cases & Error Handling
 

@@ -205,9 +205,12 @@ paths:
             which applies to every response including the SPA HTML redemption page (the actual Referer
             source). No bespoke per-response Referrer-Policy header is set on this JSON endpoint — the
             earlier per-route header was redundant/ineffective for the real leak vector. The token also
-            travels in the URL path, so the in-app logger must never write it; the residual proxy/
-            Passenger access-log exposure is a documented deployment note (see plan.md Pass 3), not an
-            app-level header.
+            travels in the URL path. NOTE (red-team Pass 5, correcting Pass 3): the in-app
+            `res.on("finish")` request logger in serverApp.ts DOES run for this route and would log the
+            raw token in `req.path`, so the logger MUST redact the `/api/auth/invitation/:token`
+            segment (and the SPA `/invitation/:token` route) — emit a placeholder, never the raw token.
+            The residual upstream proxy/Passenger access-log exposure remains an additive documented
+            deployment note (see plan.md Pass 3/Pass 5), not an app-level header.
           content:
             application/json:
               schema:
