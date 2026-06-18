@@ -586,6 +586,36 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   `Cache-Control: no-store`, so the cache hardening cannot silently regress when these handlers are
   refactored (mirrors the Pass 5/6/7 stance that secret-handling invariants get an explicit guard test).
 
+### Pass 10 — Pass 7/8 declared the cache hardening "complete and symmetric" but missed the management LIST response, which carries the largest PII surface of all
+
+- **Threat: the admin management list `GET /api/admin/invitations` `200` returns the bound recipient
+  email AND the creating-admin email for EVERY invitation, yet it is the one PII-bearing JSON
+  response on the surface that Pass 7/8 left WITHOUT `Cache-Control: no-store`.** Pass 7 introduced
+  cache hardening with the explicit rationale that the single bound email on the anonymous lookup is
+  "token→PII … that should not persist in intermediary caches," grounded on the fact that "neither
+  helmet nor the app sets cache headers" (verified again here against `serverApp.ts`: lines 39-61
+  configure `helmet()` with no cache directive, and no route sets one). Pass 8 then declared the set
+  of `no-store` responses "complete and symmetric … a reviewer cannot find a link-bearing response
+  that is still cacheable." But Pass 7/8 scoped themselves to *link-bearing* and *single-email*
+  responses and never considered the **list**, whose body (`InvitationSummary[]`) discloses, per the
+  contract, `email` (every invited person's address) and `invitedByEmail` (every administrator's
+  address) — a **strictly larger PII set** than the single bound email Pass 7 judged worth
+  protecting. The identical vector Pass 7 cited applies a fortiori: a shared/forward proxy or the
+  admin's browser disk cache can retain the full invitee/admin roster, and anyone who later reads
+  that cache obtains the whole directory. The asymmetry (one bound email is `no-store`, but the bulk
+  list of all bound emails plus all admin emails is cacheable) is the gap — and it is exactly the
+  class of omission Pass 8 set out to close on the create-`201` path, here on the list path.
+- **Mitigation**: Set `Cache-Control: no-store` (and defensively `Pragma: no-cache`) on the
+  `GET /api/admin/invitations` `200` list response, so the PII-bearing list is hardened to the same
+  standard as the single-email lookup (Pass 7) and the link-bearing responses (Pass 7/8). With this,
+  the `no-store` set covers **every** invitation response whose body carries an email or a link —
+  create `201`, list `200`, re-copy `link` `200`, anonymous lookup `200`, accept `200` — and the
+  set is now genuinely complete (no PII- or secret-bearing JSON response remains cacheable). The
+  contract is updated to declare `Cache-Control: no-store` on the list `200`. Extend the Pass 8 cache
+  guard test to also assert the list `200` carries `Cache-Control: no-store`. (The two read-only admin
+  routes that return no body PII — there are none here, since both remaining admin GETs return either
+  a link or the list — so nothing else needs the header.)
+
 ## Edge Cases & Error Handling
 
 > Added by `/sp:04-red-team` (Pass 1).
@@ -771,12 +801,21 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   Token validation and the FR-004 account-existence check (both single indexed lookups on
   `tokenHash` / `LOWER(email)`) are negligible by comparison; ensure they run **before** the hash so
   rejected requests never pay the Argon2id cost.
-- **Management list** is an unbounded `SELECT *` ordered newest-first. Given FR-019 retains all
+- **Management list** is an unbounded `SELECT` ordered newest-first. Given FR-019 retains all
   terminal invitations forever and the spec scopes this to a low-volume internal admin tool, no
   pagination is required for MVP; but the query MUST be backed by an index usable for the ordering
   (e.g. `createdAt DESC`) and MUST `SELECT` an explicit column list that **excludes `tokenHash` and
   `tokenEnc`** so secrets never reach the list response (contract already omits them — enforce in
   the query, not just the serializer).
+- **`invitedByEmail` requires a JOIN, not a bare column (Pass 10 congruence).** The contract's
+  `InvitationSummary` returns `invitedByEmail` (the creating admin's email, FR-017 audit), but
+  `data-model.md` stores only `invitation.invitedBy` = the admin's `user.id`. So the list query is
+  **not** a single-table select of invitation columns — it MUST `JOIN "user" ON "user"."id" =
+  "invitation"."invitedBy"` (an inner join is safe: `invitedBy` is `NOT NULL` with a plain FK and is
+  never hard-deleted, per the FK-lifecycle note) and project `"user"."email" AS "invitedByEmail"`.
+  This is recorded so `/sp:05-tasks` generates a list-query task that resolves the email rather than
+  returning a raw `invitedBy` id the contract does not declare. The same explicit column list still
+  excludes `tokenHash`/`tokenEnc` and (from the `user` side) selects only `email`.
 
 ## Accessibility Requirements
 

@@ -142,7 +142,19 @@ paths:
         history). Never returns tokens. Returns an empty array (not an error) when none exist.
       responses:
         "200":
-          description: Invitation list (empty array when none exist; never an error).
+          description: >
+            Invitation list (empty array when none exist; never an error). SECURITY (red-team
+            Pass 10): each InvitationSummary carries `email` (every invited person) and
+            `invitedByEmail` (every administrator), so this is the largest PII-bearing response on the
+            surface. Pass 7/8 hardened the single-email and link-bearing responses to no-store but
+            declared closure without this bulk-PII list; the handler MUST set `Cache-Control: no-store`
+            (and defensively `Pragma: no-cache`) so a shared/forward proxy or the admin's browser disk
+            cache cannot retain the full invitee/admin roster. NOTE: `invitedByEmail` is resolved by a
+            JOIN to "user" on invitedBy (the row stores the admin's user.id, not their email).
+          headers:
+            Cache-Control:
+              schema: { type: string, enum: ["no-store"] }
+              description: Prevents caching of the bulk invitee/admin email roster (red-team Pass 10).
           content:
             application/json:
               schema:

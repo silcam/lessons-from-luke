@@ -95,10 +95,24 @@ Transition rules:
   display/uniqueness convenience (keeps the partial-unique-pending index from falsely blocking a
   re-invite and keeps the list honest); it is never authoritative for redemption validity.
 
-### Management-list query (red-team Pass 1)
+### Management-list query (red-team Pass 1, Pass 10)
 
 - The list query MUST `SELECT` an explicit column list that **excludes `tokenHash` and `tokenEnc`**
   so secrets never reach the response, and order `createdAt DESC` (newest first per the contract).
+- **`invitedByEmail` is a JOIN, not a column (red-team Pass 10).** The contract's `InvitationSummary`
+  returns `invitedByEmail`, but this table stores only `invitedBy` = the creating admin's `user.id`.
+  The list query MUST `JOIN "user" ON "user"."id" = "invitation"."invitedBy"` and project
+  `"user"."email" AS "invitedByEmail"`. An **inner** join is correct: `invitedBy` is `NOT NULL`, the
+  FK is plain (never `ON DELETE CASCADE`), and the inviting admin is never hard-deleted while rows
+  reference them (see the `invitedBy` FK-lifecycle note below), so the joined `user` row always
+  exists. Select only `"user"."email"` from the joined side — no other `user` columns reach the
+  response.
+- **Cache-Control (red-team Pass 10).** The list `200` body carries every invited person's `email`
+  plus every admin's `invitedByEmail` — the largest PII surface on the feature. The handler MUST set
+  `Cache-Control: no-store` (with defensive `Pragma: no-cache`), matching the single-email lookup
+  (Pass 7) and link-bearing responses (Pass 7/8), so the bulk roster is never retained by a
+  proxy/browser cache. This completes the `no-store` set across all email-/link-bearing invitation
+  responses.
 
 ---
 
