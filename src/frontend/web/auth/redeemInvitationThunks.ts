@@ -13,14 +13,10 @@
  */
 
 import { createAsyncThunk } from "@reduxjs/toolkit";
+import type { APIGet, APIPost } from "../../../core/interfaces/Api";
 
-export interface RedemptionLookupResult {
-  email: string;
-}
-
-export interface RedemptionAcceptResult {
-  email: string;
-}
+export type RedemptionLookupResult = APIGet["/api/auth/invitation/:token"][1];
+export type RedemptionAcceptResult = APIPost["/api/auth/invitation/accept"][2];
 
 export interface RedemptionError {
   code: "invalid_link" | "rate_limited" | "validation_error" | "network_error";

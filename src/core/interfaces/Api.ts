@@ -9,6 +9,32 @@ import { TSub } from "../models/TSub";
 
 export type Params = { [key: string]: string | number };
 
+// ---------------------------------------------------------------------------
+// Invitation response shapes — shared between server and frontend thunks
+// ---------------------------------------------------------------------------
+
+/** Response from POST /api/admin/invitations (newly created invitation). */
+export interface InvitationResult {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
+  link: string;
+  expiresAt: string;
+}
+
+/** Row returned by GET /api/admin/invitations and POST /api/admin/invitations/:id/retract. */
+export interface InvitationSummaryRow {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
+  createdAt: string;
+  expiresAt: string;
+  acceptedAt: string | null;
+  invitedByEmail: string;
+}
+
 export interface APIGet {
   // Both
   "/api/languages": [Record<string, never>, PublicLanguage[]];
@@ -34,6 +60,9 @@ export interface APIGet {
     ContinuousSyncPackage,
   ];
   "/api/admin/lessons/:lessonId/lessonUpdateIssues": [{ lessonId: number }, TSub[]];
+  "/api/admin/invitations": [Record<string, never>, InvitationSummaryRow[]];
+  "/api/admin/invitations/:id/link": [{ id: string }, { link: string }];
+  "/api/auth/invitation/:token": [{ token: string }, { email: string }];
 
   // Desktop Only
   "/api/syncState": [Record<string, never>, SyncState];
@@ -60,6 +89,13 @@ export interface APIPost {
     { lessonId: number },
     DocString[],
     { lesson: Lesson; tStrings: TString[] },
+  ];
+  "/api/admin/invitations": [Record<string, never>, { email: string; role: string }, InvitationResult];
+  "/api/admin/invitations/:id/retract": [{ id: string }, Record<string, never>, InvitationSummaryRow];
+  "/api/auth/invitation/accept": [
+    Record<string, never>,
+    { token: string; password: string; name: string },
+    { email: string },
   ];
 
   // Desktop Only

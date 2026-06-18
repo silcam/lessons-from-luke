@@ -10,17 +10,9 @@
  */
 
 import { createAsyncThunk } from "@reduxjs/toolkit";
+import { InvitationSummaryRow } from "../../../core/interfaces/Api";
 
-export interface InvitationSummaryRow {
-  id: string;
-  email: string;
-  role: string;
-  status: string;
-  createdAt: string;
-  expiresAt: string;
-  acceptedAt: string | null;
-  invitedByEmail: string;
-}
+export type { InvitationSummaryRow };
 
 export interface InvitationsListError {
   code: "not_found" | "not_pending" | "link_unavailable" | "network_error" | "unknown_error";

@@ -10,15 +10,9 @@
  */
 
 import { createAsyncThunk } from "@reduxjs/toolkit";
+import { InvitationResult } from "../../../core/interfaces/Api";
 
-export interface InvitationResult {
-  id: string;
-  email: string;
-  role: string;
-  status: string;
-  link: string;
-  expiresAt: string;
-}
+export type { InvitationResult };
 
 export interface InvitationError {
   code: "account_exists" | "active_pending" | "validation_error" | "network_error";
