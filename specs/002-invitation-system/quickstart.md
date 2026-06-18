@@ -53,7 +53,9 @@ Equivalent API:
 ```bash
 # Render-the-form lookup (anonymous):
 curl http://localhost:8081/api/auth/invitation/<token>
-# → 200 { "email":"newperson@example.com", "role":"standard" }   (valid, pending)
+# → 200 { "email":"newperson@example.com" }   (valid, pending; role is NOT returned —
+#         removed from the anonymous lookup in red-team Pass 7, since the recipient form
+#         needs only the bound email and the granted role is applied server-side at accept)
 # → 410 { "error":"This invitation is no longer valid." }        (any invalid case)
 
 # Accept (anonymous; email comes from the invitation, not the body):

@@ -111,7 +111,7 @@ public `/invitation/:token` route.
 | ---------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------- | ------------------ |
 | Create-invitation form (email + role + copy-link result) | US1        | React form using `base-components` (TextInput, role select, Button); shows the generated link with a copy affordance; inline validation/error via `Alert` | `/design-clarify`  |
 | Invitations management list (admin)      | US3        | Table/list of invitations with status, dates, creator; per-row Re-copy / Retract for Pending; empty state when none | `/design-onboard` (empty state), `/design-clarify` |
-| Recipient redemption form (`/invitation/:token`) | US2        | Public page: pre-filled, locked email + password + display-name fields; submit → success → redirect to sign-in; generic non-leaky error for invalid links | `/design-clarify`, `/design-onboard` (first-run feel) |
+| Recipient redemption form (`/invitation/:token`) | US2        | Public page: pre-filled, locked email + password + display-name fields; submit → success → redirect to sign-in. Error handling branches on lookup/accept status (red-team Pass 9): `410` → terminal non-leaky "no longer valid" (FR-010); `429` → distinct **transient** "too many attempts, reload shortly" (a valid link must not read as dead); other non-200 → generic "try again" | `/design-clarify`, `/design-onboard` (first-run feel) |
 
 ### Quality Pass
 
@@ -713,6 +713,36 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   exists"), rolling back so no orphaned `account` row or half-accepted invitation remains. This is
   the implementation backstop behind SC-003 (at most one account per invitation) and the contract's
   accept `409`.
+
+### Pass 9 — the recipient redemption form must distinguish 429 (rate-limited) from 410 (invalid) on the lookup, or a valid link reads as "no longer valid"
+
+- **Second-order effect of the Pass 1 rate limit on the Pass 7 lookup, on the critical redemption
+  path.** `GET /api/auth/invitation/{token}` now returns three meaningful statuses: `200` (valid
+  pending → render the form with the bound email), `410` (invalid — unknown/accepted/retracted/
+  expired → FR-010 non-leaky "no longer valid"), and `429` (per-IP rate limit, Pass 1). The plan and
+  contract specify all three on the server, but the **recipient SPA's documented behavior only
+  covers the 200/410 split** (Presentation Design: "generic non-leaky error for invalid links"). If
+  the redemption page treats *any* non-200 as the invalid-link state, a `429` — which is entirely
+  plausible for a legitimate recipient behind a shared egress IP (office/NAT), the exact trade-off
+  Pass 2 accepted — renders the FR-010 "This invitation is no longer valid" message for a link that
+  is actually **valid and still redeemable**. That is a false-negative on the single most important
+  conversion step (SC-002): the recipient is wrongly told their good link is dead and has no path
+  forward (re-loading only burns more of the rate-limit budget). The 410 message is deliberately
+  non-leaky and terminal-sounding, so it is the *worst* copy to show for a transient throttle.
+- **Mitigation**: The `RedeemInvitation` page MUST branch on the lookup status, not collapse all
+  failures into the invalid-link state: `410` → the existing non-leaky "no longer valid" terminal
+  message (no retry affordance, FR-010); `429` → a **distinct, transient** "too many attempts, please
+  wait a moment and reload" message that does **not** imply the link is dead and that invites a retry
+  after the window; any other non-200 (e.g. `500`/network) → a generic "try again" error, also
+  distinct from the terminal invalid-link copy. The same three-way branch applies to the **accept**
+  `POST` (which also returns `410` vs `429` vs `409`): a `429` on submit must not be surfaced as
+  "invalid link," and a `409`/`410` on submit (retracted/expired/already-accepted while the form was
+  open — the spec's "retraction/expiry during redemption" edge cases) is the genuine terminal case.
+  This is a **frontend-only** finding (no contract or data-model change — the server statuses already
+  exist and are correct); it closes the gap between the server's status vocabulary and the SPA's
+  documented two-state error handling. Add a `RedeemInvitation` test asserting a stubbed `429` lookup
+  renders the transient/retry copy, not the terminal invalid-link copy, so the distinction cannot
+  silently regress into a false-negative.
 
 ### Pass 6 — `name` is the only attacker-controlled field crossing from anonymous input into stored data
 
