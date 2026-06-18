@@ -1,6 +1,7 @@
 import express from "express";
 import helmet from "helmet";
 import bodyParser from "body-parser";
+import { Pool } from "pg";
 import { toNodeHandler } from "better-auth/node";
 import languagesController from "./controllers/languagesController";
 import lessonsController from "./controllers/lessonsController";
@@ -8,13 +9,29 @@ import { requireAdmin } from "./middle/requireUser";
 import tStringsController from "./controllers/tStringsController";
 import testController from "./controllers/testController";
 import documentsController from "./controllers/documentsController";
+import invitationController from "./controllers/invitationController";
 import PGStorage, { PGTestStorage, PGDevStorage } from "./storage/PGStorage";
 import { Persistence } from "../core/interfaces/Persistence";
 import docStorage from "./storage/docStorage";
 import syncController from "./controllers/syncController";
 import { getAuth } from "./auth/auth";
+import secrets from "./util/secrets";
 
 const PRODUCTION = process.env.NODE_ENV == "production";
+
+// Auth-owned pg.Pool for invitation routes — mirrors auth.ts's pool setup so
+// the invitation controller can call createInvitation() without importing auth.ts.
+// Pool size is small (max 3) to stay within the combined max_connections budget.
+const authDbConfig =
+  process.env.NODE_ENV === "test"
+    ? secrets.testDb
+    : process.env.NODE_ENV === "development"
+      ? secrets.devDb
+      : secrets.db;
+const { username: authDbUser, ...restAuthDbConfig } = authDbConfig as typeof authDbConfig & {
+  username?: string;
+};
+const authPool = new Pool({ ...restAuthDbConfig, user: authDbUser, max: 3 });
 
 function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   const app = express();
@@ -60,6 +77,10 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
     }) as any
   );
 
+  // FUTURE: anonymous invitation routes (/api/auth/invitation/*) from US2 will be
+  // registered HERE (before this catch-all) so they are not swallowed by it.
+  // The admin route (/api/admin/invitations POST) is mounted below (after bodyParser)
+  // and inherits requireAdmin from app.use('/api/admin', requireAdmin) below.
   app.all("/api/auth/*", toNodeHandler(getAuth()) as any);
   app.use(bodyParser.json({ limit: "2MB" }) as any);
   app.use("/api/admin", requireAdmin);
@@ -76,9 +97,17 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   // });
 
   if (!opts.silent) {
+    // Logger redaction (plan.md Pass 5/6): the production SPA catch-all
+    // app.get("*") logs GET /invitation/<raw-token>, leaking the token.
+    // Defensively also redact /api/auth/invitation/<token> in case a future
+    // refactor moves those routes after the logger.
+    const TOKEN_PATH_REDACT = /^\/(api\/auth\/)?invitation\/[^/]+$/;
     app.use((req, res, next) => {
       res.on("finish", () => {
-        console.log(`${req.method} ${req.path} => [${res.statusCode}]`);
+        const logPath = TOKEN_PATH_REDACT.test(req.path)
+          ? req.path.replace(/\/[^/]+$/, "/[redacted]")
+          : req.path;
+        console.log(`${req.method} ${logPath} => [${res.statusCode}]`);
       });
       next();
     });
@@ -89,6 +118,7 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   tStringsController(app, storage);
   documentsController(app, storage);
   syncController(app, storage);
+  invitationController(app, authPool);
 
   if (process.env.NODE_ENV === "test") {
     testController(app, storage as PGTestStorage);
