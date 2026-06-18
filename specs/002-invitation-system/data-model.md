@@ -63,7 +63,9 @@ Transition rules:
 ### Validation rules
 
 - `email`: valid email format at **creation** (FR: malformed email rejected); lowercased before
-  store/compare.
+  store/compare; **capped at 254 chars** (RFC 5321 max addressable length, red-team Pass 6) and
+  rejected (`400`) before any DB write so an unbounded value cannot bloat the row or the
+  `idx_invitation_email` / `uq_invitation_one_pending_email` / `user.email` indexes.
 - `role`: exactly one of `'admin'` | `'standard'`; rejected otherwise.
 - Creation rejected if an account already exists for `LOWER(email)` (FR-004).
 - Creation rejected if an active `pending` row already exists for `LOWER(email)` (FR-005), enforced
@@ -184,7 +186,7 @@ Created by the accept flow via direct SQL (research Decision 1), mirroring `Seed
 | ------------------- | ------------------------------------------------------------------------------- | ----------- |
 | `user.id`           | `crypto.randomUUID()`                                                            | —           |
 | `user.email`        | invitation `email` (lowercased, bound — NOT from request body)                  | FR-007      |
-| `user.name`         | recipient-supplied display name (NOT NULL column)                               | FR-008      |
+| `user.name`         | recipient-supplied display name (NOT NULL column); the **only** attacker-controlled field persisted from the anonymous accept route — `trim()`, reject empty-after-trim, reject ASCII control chars/newlines, all **before** the Argon2id hash (red-team Pass 6). Rendered only via React auto-escaping. | FR-008      |
 | `user.admin`        | `invitation.role === 'admin'` → `true`, else `false` (set via direct SQL only)  | FR-008      |
 | `user.emailVerified`| `false` (consistent with seed)                                                  | —           |
 | `account.providerId`| `'credential'`                                                                  | —           |

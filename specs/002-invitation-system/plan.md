@@ -450,6 +450,50 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   3. Add a test asserting the in-app logger output for a redemption-form load does **not** contain the
      token (e.g. spy on `console.log` and assert the logged line for `GET /api/auth/invitation/:token`
      carries the placeholder, not the raw token), so the redaction cannot silently regress.
+
+### Pass 6 — reconcile the Pass 3 vs Pass 5 logger dispute against the real `serverApp.ts` route order (both passes are partly wrong)
+
+- **The Pass 3 ⇄ Pass 5 contradiction is unresolved and self-contradictory as written, and an
+  implementer cannot act on it.** Pass 3 says the `res.on("finish")` logger "never executes" for the
+  anonymous invitation routes; Pass 5 reverses this to "the logger DOES run … in-app redaction IS
+  required" and marks Pass 3 "WRONG." Grounded against the **actual** `src/server/serverApp.ts`, the
+  truth is narrower than *either* pass and depends on **which** route is in question, because the
+  logger's position relative to each route is fixed by the existing file:
+  1. The logger middleware is registered at **lines 78-85**, which is **after** the better-auth
+     catch-all `app.all("/api/auth/*", ...)` at **line 63** and after `app.use("/api/admin", requireAdmin)`
+     at line 65.
+  2. The plan's own routing decision (Decision 1 / Edge Cases "Route registration vs body parsing")
+     requires the **anonymous** `/api/auth/invitation/*` routes to be registered **before** the line-63
+     catch-all — therefore **before** the line-78 logger. Express runs middleware in registration
+     order, so a request to `GET /api/auth/invitation/:token` is matched by the invitation handler
+     (registered < line 63) and that handler ends the response with `res.json(...)` **without calling
+     `next()`**; the line-78 logger is never reached. **For the anonymous JSON token routes, the
+     line-78 logger genuinely does NOT run — Pass 3's mechanism was correct and Pass 5's blanket
+     reversal is wrong for these specific routes.** (Pass 5's general claim that "a path-less `app.use`
+     logger preceding a route runs on every request" is true only when the logger precedes the route in
+     registration order; here it follows the anonymous routes, so it does not.)
+  3. The route that the line-78 logger **does** see with a raw token is the **production SPA HTML
+     fallback** `app.get("*", ...)` at **line 99**, which serves `index.html` for
+     `GET /invitation/<token>` and is registered **after** the logger. So in production the logger logs
+     `GET /invitation/<raw-token> => [200]`. **This** is the real in-app leak — not the JSON API route
+     Pass 5 fixated on.
+- **Net correct conclusion (supersedes the conflicting parts of Pass 3 and Pass 5):**
+  1. The in-app log leak is real but its surface is the **SPA HTML route** `GET /invitation/:token`
+     (served by the line-99 `app.get("*")` fallback, which is after the logger), **not** the anonymous
+     JSON `/api/auth/invitation/:token` route (which short-circuits before the logger). Pass 5's
+     mitigation option (a) — "register the invitation controller before the logger" — is therefore a
+     **no-op for the leak**, because the leaking path is the catch-all SPA route, which cannot be moved
+     before the logger without breaking SPA serving.
+  2. The correct fix is Pass 5's option (b) **scoped to the SPA route**: make the logger redact any
+     path matching `^/invitation/[^/]+$` (and, defensively, `^/api/auth/invitation/[^/]+$` in case a
+     future refactor moves those routes after the logger), emitting a fixed placeholder instead of
+     `req.path`. This is a logger-level change, independent of where the invitation controller mounts.
+  3. The regression test (Pass 5 item 3) MUST target the **SPA route**: assert that a
+     `GET /invitation/<token>` request's logged line carries the placeholder, not the raw token
+     (the prior Pass 5 test targeted the JSON route, which does not exercise the actual leak).
+  4. The upstream proxy/Passenger access-log residual (Pass 3 item 2 / Pass 5 item 2) is unaffected by
+     this reconciliation and still stands as an additive deployment note for **both** the `/invitation/`
+     and `/api/auth/invitation/` path prefixes.
 - **Origin allow-list dev/test relaxation must mirror `auth.ts`'s *actual* `trustedOrigins`, which is
   conditional on `BETTER_AUTH_URL`.** Pass 4 said the shared Origin middleware should allow-list
   "against `BETTER_AUTH_URL` … including the dev `:8080/:8081/:8082` relaxation." Grounded against
@@ -519,6 +563,19 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   redeem while carrying a valid admin session cookie and assert the new account uses the bound
   email and the invitation's role, not the signed-in user's identity.
 
+### Pass 6 — bound the `email` length on the create path
+
+- **The `email` field has length bounds on neither the contract nor the column.** `password` (`12..128`)
+  and `name` (`1..100`) are bounded, but `email` carries only `format: email` in the contract and is
+  `text` (unbounded) on both `invitation.email` and `user.email`. A permissive email regex can accept a
+  very long local-part/domain, so an unbounded `email` bloats the row, the `idx_invitation_email`
+  /`uq_invitation_one_pending_email` indexes, and the eventual `user.email` UNIQUE index, and lands
+  inside the redemption link's surrounding flow. Although create is `requireAdmin`-gated (trusted actor),
+  the bound is cheap correctness/robustness: the create handler MUST reject (`400`) an `email` longer than
+  a sane cap (use `254`, the RFC 5321 maximum addressable length) **before** any DB write or existence
+  check. Apply the cap to the **lowercased** form so it is consistent with how the email is stored and
+  compared. This is the create path only; the accept path never takes an email from the body.
+
 ### Pass 2 — case-normalization on every write, and the account-already-exists race
 
 - **Lowercase the email on the accept insert, not just on the create check.** `user.email` carries
@@ -534,6 +591,25 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   exists"), rolling back so no orphaned `account` row or half-accepted invitation remains. This is
   the implementation backstop behind SC-003 (at most one account per invitation) and the contract's
   accept `409`.
+
+### Pass 6 — `name` is the only attacker-controlled field crossing from anonymous input into stored data
+
+- **Harden and normalize the recipient-supplied `name` at the accept boundary.** Of the two anonymous
+  accept inputs, `password` is hashed (never rendered) and `email` is sourced from the invitation row
+  (not the request body), so the recipient-supplied **`name` is the sole attacker-controlled value that
+  is persisted verbatim** (→ `user.name`, NOT NULL) and later **rendered** in the app UI for the signed-in
+  account. The contract already bounds it to `1..100` chars, but length alone is insufficient:
+  1. **Trim and reject empty-after-trim.** A `name` of all whitespace passes `minLength: 1` but yields a
+     blank display name. The accept handler MUST `trim()` and reject (`400`) a name that is empty after
+     trimming, so `user.name` is never effectively blank.
+  2. **Reject control characters / newlines.** Strip or reject ASCII control characters (incl. `\r`/`\n`)
+     so a crafted name cannot inject line breaks into log output or admin-side rendering. (XSS itself is
+     mitigated by React's default escaping — this app renders through React — so this is defense-in-depth
+     for non-React surfaces like logs, not a primary XSS fix; note explicitly that the protection is
+     React auto-escaping so no `dangerouslySetInnerHTML` is ever introduced for `user.name`.)
+  3. **Validate before the Argon2id hash** (consistent with the Pass 1 ordering rule): the cheap `name`
+     normalization/validation MUST run before `passwordHasher.hash`, so a malformed name never pays the
+     hash cost.
 
 ## Performance Considerations
 

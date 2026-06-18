@@ -83,7 +83,13 @@ paths:
               type: object
               required: [email, role]
               properties:
-                email: { type: string, format: email }
+                email:
+                  type: string
+                  format: email
+                  maxLength: 254
+                  description: >
+                    Bound recipient email. Capped at 254 chars (RFC 5321 max addressable length,
+                    red-team Pass 6) and rejected with 400 before any DB write; stored lowercased.
                 role: { $ref: "#/components/schemas/Role" }
       responses:
         "201":
@@ -274,7 +280,12 @@ paths:
                   type: string
                   minLength: 1
                   maxLength: 100
-                  description: Recipient-chosen display name → user.name (FR-008).
+                  description: >
+                    Recipient-chosen display name → user.name (FR-008). Sole attacker-controlled
+                    field persisted from the anonymous accept route (red-team Pass 6): the handler
+                    MUST trim() and reject (400) empty-after-trim, and reject ASCII control chars /
+                    newlines, before invoking the Argon2id hasher. Rendered only through React
+                    auto-escaping (never dangerouslySetInnerHTML).
       responses:
         "200":
           description: Account created. No session set; client redirects to sign-in (FR-012).
@@ -289,7 +300,9 @@ paths:
                     format: email
                     description: The email the recipient should now sign in with.
         "400":
-          description: Missing/short/long password or empty/over-long name (validation, before hashing).
+          description: >
+            Missing/short/long password, or an invalid name — empty, over-long, empty-after-trim, or
+            containing ASCII control chars/newlines (red-team Pass 6). All validation runs before hashing.
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
         "403":
           description: >
