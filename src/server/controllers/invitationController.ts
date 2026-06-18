@@ -23,6 +23,8 @@ import {
   getInvitationLink,
   lookupInvitation,
   acceptInvitation,
+} from "../auth/invitationStore";
+import {
   AccountAlreadyRegisteredError,
   ActivePendingError,
   ValidationError,
@@ -31,7 +33,7 @@ import {
   NotFoundError,
   NotPendingError,
   DecryptError,
-} from "../auth/invitationStore";
+} from "../auth/invitationValidation";
 import secrets from "../util/secrets";
 import { DEFAULT_BASE_URL } from "../auth/trustedOrigins";
 import { requireSameOrigin } from "../middle/requireSameOrigin";
