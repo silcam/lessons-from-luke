@@ -10,6 +10,7 @@ import {
   generateToken,
   hashToken,
   encryptToken,
+  decryptToken,
   buildInvitationLink,
 } from "./invitationTokens";
 import * as passwordHasher from "./passwordHasher";
@@ -175,7 +176,7 @@ function validateRole(role: string): asserts role is InvitationRole {
  */
 export async function createInvitation(
   pool: Pool,
-  input: CreateInvitationInput,
+  input: CreateInvitationInput
 ): Promise<CreateInvitationResult> {
   const { role, invitedBy, baseUrl, cookieSecret } = input;
 
@@ -191,13 +192,13 @@ export async function createInvitation(
     await client.query(
       `UPDATE "invitation" SET status='expired'
        WHERE LOWER(email) = $1 AND status = 'pending' AND "expiresAt" <= now()`,
-      [email],
+      [email]
     );
 
     // 3. Check for existing user account
     const userCheck = await client.query<{ id: string }>(
       `SELECT 1 FROM "user" WHERE LOWER(email) = $1 LIMIT 1`,
-      [email],
+      [email]
     );
     if (userCheck.rows.length > 0) {
       throw new AccountExistsError(email);
@@ -232,7 +233,7 @@ interface AttemptInsertParams {
 
 async function attemptInsert(
   client: import("pg").PoolClient,
-  params: AttemptInsertParams,
+  params: AttemptInsertParams
 ): Promise<CreateInvitationResult> {
   const { email, role, invitedBy, baseUrl, cookieSecret, isRetry } = params;
 
@@ -248,7 +249,7 @@ async function attemptInsert(
       `INSERT INTO "invitation"
          ("id","email","role","status","tokenHash","tokenEnc","invitedBy","createdAt","expiresAt")
        VALUES ($1,$2,$3,'pending',$4,$5,$6,$7,$8)`,
-      [id, email, role, tokenHash, tokenEnc, invitedBy, now, expiresAt],
+      [id, email, role, tokenHash, tokenEnc, invitedBy, now, expiresAt]
     );
   } catch (err: unknown) {
     if (isPgUniqueViolation(err)) {
@@ -259,16 +260,14 @@ async function attemptInsert(
       if (
         constraint === "idx_invitation_tokenHash" ||
         constraint === "invitation_tokenhash_key" ||
-        (typeof constraint === "string" &&
-          constraint.toLowerCase().includes("tokenhash"))
+        (typeof constraint === "string" && constraint.toLowerCase().includes("tokenhash"))
       ) {
         if (isRetry) {
           // Two consecutive collisions is astronomically unlikely -- surface as
           // generic error rather than infinite loop
-          throw new Error(
-            `tokenHash collision on retry -- cannot insert invitation for ${email}`,
-            { cause: err },
-          );
+          throw new Error(`tokenHash collision on retry -- cannot insert invitation for ${email}`, {
+            cause: err,
+          });
         }
         return attemptInsert(client, { ...params, isRetry: true });
       }
@@ -292,11 +291,7 @@ interface PgError {
 }
 
 function isPgUniqueViolation(err: unknown): err is PgError {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    (err as PgError).code === "23505"
-  );
+  return typeof err === "object" && err !== null && (err as PgError).code === "23505";
 }
 
 function getConstraintName(err: PgError): string | undefined {
@@ -317,7 +312,7 @@ function getConstraintName(err: PgError): string | undefined {
  */
 export async function lookupInvitation(
   pool: Pool,
-  token: string,
+  token: string
 ): Promise<{ email: string } | null> {
   const tokenHash = hashToken(token);
 
@@ -328,10 +323,9 @@ export async function lookupInvitation(
       email: string;
       status: string;
       expiresAt: Date;
-    }>(
-      `SELECT id, email, status, "expiresAt" FROM "invitation" WHERE "tokenHash" = $1 LIMIT 1`,
-      [tokenHash],
-    );
+    }>(`SELECT id, email, status, "expiresAt" FROM "invitation" WHERE "tokenHash" = $1 LIMIT 1`, [
+      tokenHash,
+    ]);
 
     if (result.rows.length === 0) {
       return null;
@@ -396,7 +390,7 @@ export async function acceptInvitation(
   token: string,
   password: string,
   name: string,
-  _cookieSecret: string,
+  _cookieSecret: string
 ): Promise<{ email: string }> {
   // 1. Validate password length
   if (password.length < 12) {
@@ -412,9 +406,7 @@ export async function acceptInvitation(
     throw new ValidationError("Name must not be empty");
   }
   if (hasControlChars(trimmedName)) {
-    throw new ValidationError(
-      "Name must not contain control characters or newlines",
-    );
+    throw new ValidationError("Name must not contain control characters or newlines");
   }
   if (trimmedName.length > 100) {
     throw new ValidationError("Name must be at most 100 characters");
@@ -429,10 +421,7 @@ export async function acceptInvitation(
       id: string;
       email: string;
       role: string;
-    }>(
-      `SELECT id, email, role FROM "invitation" WHERE "tokenHash" = $1 LIMIT 1`,
-      [tokenHash],
-    );
+    }>(`SELECT id, email, role FROM "invitation" WHERE "tokenHash" = $1 LIMIT 1`, [tokenHash]);
 
     if (invitationResult.rows.length === 0) {
       throw new InvalidLinkError();
@@ -450,7 +439,7 @@ export async function acceptInvitation(
          SET status = 'accepted', "acceptedAt" = now()
          WHERE id = $1 AND status = 'pending' AND "expiresAt" > now()
          RETURNING id`,
-        [invitation.id],
+        [invitation.id]
       );
 
       // 4b. If 0 rows updated, the invitation is no longer valid OR was just
@@ -461,7 +450,7 @@ export async function acceptInvitation(
       if (updateResult.rows.length === 0) {
         const accountCheck = await client.query<{ id: string }>(
           `SELECT 1 FROM "user" WHERE LOWER(email) = LOWER($1) LIMIT 1`,
-          [invitation.email],
+          [invitation.email]
         );
         await client.query("ROLLBACK");
         if (accountCheck.rows.length > 0) {
@@ -482,7 +471,7 @@ export async function acceptInvitation(
         await client.query(
           `INSERT INTO "user" ("id","email","name","admin","emailVerified","createdAt","updatedAt")
            VALUES ($1, LOWER($2), $3, $4, false, $5, $5)`,
-          [userId, invitation.email, trimmedName, isAdmin, now],
+          [userId, invitation.email, trimmedName, isAdmin, now]
         );
       } catch (userInsertErr: unknown) {
         if (isPgUniqueViolation(userInsertErr)) {
@@ -497,7 +486,7 @@ export async function acceptInvitation(
       await client.query(
         `INSERT INTO "account" ("id","userId","accountId","providerId","password","createdAt","updatedAt")
          VALUES ($1, $2, $2, 'credential', $3, $4, $4)`,
-        [accountId, userId, hashedPassword, now],
+        [accountId, userId, hashedPassword, now]
       );
 
       // 4g. COMMIT
@@ -521,25 +510,78 @@ export async function acceptInvitation(
 }
 
 // ---------------------------------------------------------------------------
-// listInvitations — STUB (RED: not yet implemented)
+// Shared row-mapper for InvitationSummary
+// ---------------------------------------------------------------------------
+
+interface InvitationRow {
+  id: string;
+  email: string;
+  role: InvitationRole;
+  status: InvitationStatus;
+  createdAt: Date;
+  expiresAt: Date;
+  acceptedAt: Date | null;
+  invitedByEmail: string;
+}
+
+function mapInvitationRow(row: InvitationRow): InvitationSummary {
+  return {
+    id: row.id,
+    email: row.email,
+    role: row.role,
+    status: row.status,
+    createdAt: row.createdAt,
+    expiresAt: row.expiresAt,
+    acceptedAt: row.acceptedAt,
+    invitedByEmail: row.invitedByEmail,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// listInvitations
 // ---------------------------------------------------------------------------
 
 /**
  * Lists all invitations ordered newest-first.
+ * Lazy-expires any pending rows with past expiresAt before fetching.
  * Resolves invitedByEmail via JOIN to the user table.
  * Never returns tokenHash or tokenEnc.
  *
  * Spec: specs/002-invitation-system/spec.md §FR-013..FR-019
  * Data model: data-model.md §Management-list query
- *
- * NOT YET IMPLEMENTED — stub exists only so the RED test file compiles.
  */
-export async function listInvitations(_pool: Pool): Promise<InvitationSummary[]> {
-  throw new Error("listInvitations: not yet implemented");
+export async function listInvitations(pool: Pool): Promise<InvitationSummary[]> {
+  const client = await pool.connect();
+  try {
+    // Lazy-expire: flip any pending rows with past expiresAt to 'expired'
+    await client.query(
+      `UPDATE "invitation" SET status='expired'
+       WHERE status='pending' AND "expiresAt" <= now()`
+    );
+
+    const result = await client.query<InvitationRow>(
+      `SELECT
+         invitation.id,
+         invitation.email,
+         invitation.role,
+         invitation.status,
+         invitation."createdAt",
+         invitation."expiresAt",
+         invitation."acceptedAt",
+         "user".email AS "invitedByEmail"
+       FROM "invitation"
+       INNER JOIN "user" ON "user".id = invitation."invitedBy"
+       ORDER BY invitation."createdAt" DESC`
+    );
+
+    return result.rows.map(mapInvitationRow);
+  } finally {
+    client.release();
+  }
 }
 
 // ---------------------------------------------------------------------------
-// retractInvitation — STUB (RED: not yet implemented)
+// retractInvitation
 // ---------------------------------------------------------------------------
 
 /**
@@ -552,15 +594,56 @@ export async function listInvitations(_pool: Pool): Promise<InvitationSummary[]>
  *
  * Spec: specs/002-invitation-system/spec.md §FR-015
  * Data model: data-model.md §State machine (retract conditional UPDATE — plan.md Pass 11)
- *
- * NOT YET IMPLEMENTED — stub exists only so the RED test file compiles.
  */
-export async function retractInvitation(_pool: Pool, _id: string): Promise<InvitationSummary> {
-  throw new Error("retractInvitation: not yet implemented");
+export async function retractInvitation(pool: Pool, id: string): Promise<InvitationSummary> {
+  const client = await pool.connect();
+  try {
+    // Atomic conditional UPDATE: only retract if currently pending
+    const updateResult = await client.query<{ id: string }>(
+      `UPDATE "invitation" SET status='retracted'
+       WHERE id=$1 AND status='pending'
+       RETURNING id`,
+      [id]
+    );
+
+    if (updateResult.rows.length === 0) {
+      // Check whether the row exists at all
+      const existsResult = await client.query<{ id: string }>(
+        `SELECT 1 FROM "invitation" WHERE id=$1 LIMIT 1`,
+        [id]
+      );
+      if (existsResult.rows.length === 0) {
+        throw new NotFoundError(id);
+      }
+      throw new NotPendingError(id);
+    }
+
+    // Fetch the full summary with invitedByEmail via JOIN
+    const summaryResult = await client.query<InvitationRow>(
+      `SELECT
+         invitation.id,
+         invitation.email,
+         invitation.role,
+         invitation.status,
+         invitation."createdAt",
+         invitation."expiresAt",
+         invitation."acceptedAt",
+         "user".email AS "invitedByEmail"
+       FROM "invitation"
+       INNER JOIN "user" ON "user".id = invitation."invitedBy"
+       WHERE invitation.id = $1
+       LIMIT 1`,
+      [id]
+    );
+
+    return mapInvitationRow(summaryResult.rows[0]);
+  } finally {
+    client.release();
+  }
 }
 
 // ---------------------------------------------------------------------------
-// getInvitationLink — STUB (RED: not yet implemented)
+// getInvitationLink
 // ---------------------------------------------------------------------------
 
 /**
@@ -573,13 +656,38 @@ export async function retractInvitation(_pool: Pool, _id: string): Promise<Invit
  *
  * Spec: specs/002-invitation-system/spec.md §FR-016
  * Data model: data-model.md §tokenEnc encryption rules
- *
- * NOT YET IMPLEMENTED — stub exists only so the RED test file compiles.
  */
 export async function getInvitationLink(
-  _pool: Pool,
-  _id: string,
-  _cookieSecret: string,
+  pool: Pool,
+  id: string,
+  baseUrl: string,
+  cookieSecret: string
 ): Promise<{ link: string }> {
-  throw new Error("getInvitationLink: not yet implemented");
+  const client = await pool.connect();
+  try {
+    const result = await client.query<{
+      id: string;
+      status: InvitationStatus;
+      tokenEnc: string;
+    }>(`SELECT id, status, "tokenEnc" FROM "invitation" WHERE id=$1 LIMIT 1`, [id]);
+
+    if (result.rows.length === 0) {
+      throw new NotFoundError(id);
+    }
+
+    const row = result.rows[0];
+
+    if (row.status !== "pending") {
+      throw new NotPendingError(id);
+    }
+
+    const token = decryptToken(row.tokenEnc, cookieSecret);
+    if (token === null) {
+      throw new DecryptError();
+    }
+
+    return { link: buildInvitationLink(token, baseUrl) };
+  } finally {
+    client.release();
+  }
 }

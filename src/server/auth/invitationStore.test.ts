@@ -1313,7 +1313,7 @@ describe("getInvitationLink(pool, id, cookieSecret)", () => {
       cookieSecret,
     });
 
-    const result = await getInvitationLink(pool, created.id, cookieSecret);
+    const result = await getInvitationLink(pool, created.id, baseUrl, cookieSecret);
     expect(result).toHaveProperty("link");
     expect(typeof result.link).toBe("string");
     // The returned link must match the original link (same token, re-derived from tokenEnc)
@@ -1326,7 +1326,9 @@ describe("getInvitationLink(pool, id, cookieSecret)", () => {
 
   it("throws NotFoundError for a non-existent id (→ 404)", async () => {
     const nonExistentId = crypto.randomUUID();
-    await expect(getInvitationLink(pool, nonExistentId, cookieSecret)).rejects.toMatchObject({
+    await expect(
+      getInvitationLink(pool, nonExistentId, baseUrl, cookieSecret)
+    ).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
   });
@@ -1355,7 +1357,7 @@ describe("getInvitationLink(pool, id, cookieSecret)", () => {
       client.release();
     }
 
-    await expect(getInvitationLink(pool, created.id, cookieSecret)).rejects.toMatchObject({
+    await expect(getInvitationLink(pool, created.id, baseUrl, cookieSecret)).rejects.toMatchObject({
       code: "NOT_PENDING",
     });
   });
@@ -1376,7 +1378,7 @@ describe("getInvitationLink(pool, id, cookieSecret)", () => {
 
     // Use a different (wrong) cookieSecret that is long enough to be valid but wrong
     const wrongSecret = "this-is-a-wrong-secret-32-chars!!";
-    await expect(getInvitationLink(pool, created.id, wrongSecret)).rejects.toMatchObject({
+    await expect(getInvitationLink(pool, created.id, baseUrl, wrongSecret)).rejects.toMatchObject({
       code: "DECRYPT_ERROR",
     });
   });
