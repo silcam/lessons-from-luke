@@ -684,10 +684,15 @@ describe("acceptInvitation(pool, token, password, name, cookieSecret)", () => {
   });
 
   // ------------------------------------------------------------------
-  // 5. Already-accepted link → throws InvalidLinkError (SC-003)
+  // 5. Already-accepted link → throws AccountAlreadyExistsError (SC-003)
+  //    When the invitation was already redeemed by a prior request, an account
+  //    exists for the bound email. The second attempt detects this and throws
+  //    AccountAlreadyExistsError (409) rather than the generic InvalidLinkError
+  //    (410), so callers can distinguish "already has an account" from
+  //    "link expired/retracted".
   // ------------------------------------------------------------------
 
-  it("throws InvalidLinkError for an already-accepted link (SC-003)", async () => {
+  it("throws AccountAlreadyExistsError for an already-accepted link (SC-003)", async () => {
     const email = "accept-reuse@example.com";
     const created = await createInvitation(pool, {
       email,
@@ -701,10 +706,11 @@ describe("acceptInvitation(pool, token, password, name, cookieSecret)", () => {
     // First accept should succeed
     await acceptInvitation(pool, token, "ValidPassword123!", "First Accept", cookieSecret);
 
-    // Second accept on the same token must fail
+    // Second accept on the same token must fail with AccountAlreadyExistsError
+    // because the first accept created a user for the bound email.
     await expect(
       acceptInvitation(pool, token, "ValidPassword123!", "Second Accept", cookieSecret)
-    ).rejects.toMatchObject({ code: "INVALID_LINK" });
+    ).rejects.toMatchObject({ code: "ACCOUNT_ALREADY_EXISTS" });
   });
 
   // ------------------------------------------------------------------
@@ -858,10 +864,12 @@ describe("acceptInvitation(pool, token, password, name, cookieSecret)", () => {
 
   // ------------------------------------------------------------------
   // 12. Concurrent double-redemption: exactly one account created, other
-  //     gets InvalidLinkError (SC-003, spec Edge Cases)
+  //     gets AccountAlreadyExistsError (SC-003, spec Edge Cases).
+  //     The losing request detects that an account was created by the winner and
+  //     returns AccountAlreadyExistsError (409) rather than InvalidLinkError (410).
   // ------------------------------------------------------------------
 
-  it("concurrent double-redemption: exactly one account created, the other gets InvalidLinkError (SC-003)", async () => {
+  it("concurrent double-redemption: exactly one account created, the other gets AccountAlreadyExistsError (SC-003)", async () => {
     const email = "accept-concurrent@example.com";
     const created = await createInvitation(pool, {
       email,
@@ -885,7 +893,7 @@ describe("acceptInvitation(pool, token, password, name, cookieSecret)", () => {
     expect(fulfilled.length).toBe(1);
     expect(rejected.length).toBe(1);
     expect((rejected[0] as PromiseRejectedResult).reason).toMatchObject({
-      code: "INVALID_LINK",
+      code: "ACCOUNT_ALREADY_EXISTS",
     });
 
     // Exactly one user row was created

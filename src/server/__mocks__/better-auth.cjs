@@ -10,18 +10,40 @@
  * Integration tests use the real better-auth via a compiled child-process server
  * (see jestIntegrationGlobalSetup.ts) and do NOT use this shim.
  *
- * The simulated session returns an admin user so loggedInAgent() in testHelper.ts
- * works correctly in unit tests (controller tests, etc.).
+ * Sign-in uses the email from the request body to determine admin status:
+ * - The admin email from secrets.json → admin: true, id: "user-test-id"
+ * - Any other email → admin: false, id: "nonadmin-<email-hash>"
+ * This allows controller tests to distinguish admin vs non-admin sessions.
  */
 "use strict";
 
 // eslint-disable-next-line no-redeclare
 var crypto = require("crypto");
+var fs = require("fs");
+var path = require("path");
 
 // In-memory session store for unit test simulation
 const sessions = new Map();
 
 const COOKIE_NAME = "better-auth.session_token";
+
+// The fixed mock user ID used for the admin session — must match the row seeded
+// in jestSetupAfterEnv.ts so that invitation.invitedBy FK is satisfied.
+const ADMIN_MOCK_USER_ID = "user-test-id";
+
+// Load admin email from secrets.json to distinguish admin vs non-admin sign-ins.
+// Fall back gracefully if secrets.json is not readable (e.g., CI without secrets).
+function getAdminEmail() {
+  try {
+    const secretsPath = path.resolve(process.cwd(), "secrets.json");
+    const secrets = JSON.parse(fs.readFileSync(secretsPath, "utf8"));
+    return (secrets.adminEmail || "admin@example.com").toLowerCase();
+  } catch {
+    return "admin@example.com";
+  }
+}
+
+const ADMIN_EMAIL = getAdminEmail();
 
 function parseCookies(cookieHeader) {
   if (!cookieHeader) return {};
@@ -46,19 +68,41 @@ function betterAuth(config) {
 
       // POST /api/auth/sign-in/email → create a session
       if (path.endsWith("/sign-in/email") && request.method === "POST") {
-        // Any sign-in attempt in unit tests succeeds and returns an admin session
+        // Parse the email from the request body to determine admin status
+        let signingEmail = ADMIN_EMAIL; // default to admin
+        let isAdmin = true;
+        let userId = ADMIN_MOCK_USER_ID;
+
+        try {
+          const bodyText = await request.text();
+          const body = JSON.parse(bodyText);
+          if (body.email && typeof body.email === "string") {
+            signingEmail = body.email.toLowerCase();
+            isAdmin = signingEmail === ADMIN_EMAIL;
+            if (!isAdmin) {
+              // Deterministic non-admin user ID based on email so the same email
+              // always maps to the same "user" row in the mock.
+              userId =
+                "nonadmin-" +
+                crypto.createHash("sha256").update(signingEmail).digest("hex").slice(0, 16);
+            }
+          }
+        } catch {
+          // Body parse failure → fall back to admin mock
+        }
+
         const sessionToken = crypto.randomUUID();
         sessions.set(sessionToken, {
           session: {
             id: "sess-" + sessionToken.slice(0, 8),
-            userId: "user-test-id",
+            userId,
             expiresAt: new Date(Date.now() + 3600 * 1000).toISOString(),
           },
           user: {
-            id: "user-test-id",
-            email: "admin@example.com",
-            name: "Admin",
-            admin: true,
+            id: userId,
+            email: signingEmail,
+            name: isAdmin ? "Admin" : "Non-Admin",
+            admin: isAdmin,
             emailVerified: false,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),

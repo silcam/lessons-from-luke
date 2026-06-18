@@ -103,7 +103,7 @@ describe("POST /api/admin/invitations", () => {
     expect(res.body.link).toMatch(/\/invitation\//);
     expect(typeof res.body.expiresAt).toBe("string");
     // Cache-Control: no-store must be set (red-team Pass 8)
-    expect(res.headers["cache-control"]).toBe("no-store");
+    expect(res.header["cache-control"]).toBe("no-store");
   });
 
   // -------------------------------------------------------------------------
@@ -122,7 +122,7 @@ describe("POST /api/admin/invitations", () => {
       role: "admin",
       status: "pending",
     });
-    expect(res.headers["cache-control"]).toBe("no-store");
+    expect(res.header["cache-control"]).toBe("no-store");
   });
 
   // -------------------------------------------------------------------------
@@ -273,11 +273,20 @@ async function createPendingInvitation(
   email: string,
   role: "standard" | "admin" = "standard"
 ): Promise<string> {
+  // Look up the seeded admin user's ID — the migration creates it with a random
+  // UUID, so we must query rather than hardcode.
+  const adminEmail = (secrets.adminEmail ?? "admin@example.com").toLowerCase();
+  const adminRow = await pool.query<{ id: string }>(
+    `SELECT id FROM "user" WHERE LOWER(email) = $1 AND admin = true LIMIT 1`,
+    [adminEmail]
+  );
+  const invitedBy = adminRow.rows[0]?.id ?? "unknown";
+
   const baseUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:8081";
   const result = await createInvitation(pool, {
     email: email.toLowerCase(),
     role,
-    invitedBy: "test-admin",
+    invitedBy,
     baseUrl,
     cookieSecret: secrets.cookieSecret,
   });
@@ -307,7 +316,7 @@ describe("GET /api/auth/invitation/:token", () => {
     // role must NOT be in the response (dropped in Pass 7 — PII minimisation)
     expect(res.body).not.toHaveProperty("role");
     // Cache-Control: no-store (red-team Pass 7)
-    expect(res.headers["cache-control"]).toBe("no-store");
+    expect(res.header["cache-control"]).toBe("no-store");
   });
 
   // -------------------------------------------------------------------------
@@ -391,7 +400,7 @@ describe("POST /api/auth/invitation/accept", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ email: email.toLowerCase() });
-    expect(res.headers["cache-control"]).toBe("no-store");
+    expect(res.header["cache-control"]).toBe("no-store");
   });
 
   // -------------------------------------------------------------------------
@@ -474,7 +483,7 @@ describe("POST /api/auth/invitation/accept", () => {
 
     expect(res.status).toBe(400);
     // Must be JSON, not an HTML error page
-    expect(res.headers["content-type"]).toMatch(/application\/json/);
+    expect(res.header["content-type"]).toMatch(/application\/json/);
     expect(res.body).toMatchObject({ error: expect.any(String) });
   });
 

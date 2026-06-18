@@ -417,9 +417,20 @@ export async function acceptInvitation(
         [invitation.id],
       );
 
-      // 4b. If 0 rows updated, the invitation is no longer valid
+      // 4b. If 0 rows updated, the invitation is no longer valid OR was just
+      //     accepted concurrently (SC-003). Distinguish the cases by checking
+      //     whether an account now exists for this email. If it does, a concurrent
+      //     request beat us to it → AccountAlreadyExistsError (409). Otherwise
+      //     the invitation is expired/retracted → InvalidLinkError (410).
       if (updateResult.rows.length === 0) {
+        const accountCheck = await client.query<{ id: string }>(
+          `SELECT 1 FROM "user" WHERE LOWER(email) = LOWER($1) LIMIT 1`,
+          [invitation.email],
+        );
         await client.query("ROLLBACK");
+        if (accountCheck.rows.length > 0) {
+          throw new AccountAlreadyExistsError(invitation.email);
+        }
         throw new InvalidLinkError();
       }
 

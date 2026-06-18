@@ -1,15 +1,27 @@
 /**
- * invitationController.ts — Admin invitation create route + shared CSRF middleware
+ * invitationController.ts — Admin invitation create route + anonymous lookup/accept + rate limiter
  *
- * Spec: specs/002-invitation-system/spec.md §FR-001..FR-006, §FR-020
- * Plan: plan.md §Security Considerations (Pass 4/6 CSRF, Pass 5/6 logger),
- *       plan.md §Edge Cases (Route registration), contracts/invitation-api.yaml
- *       §POST /api/admin/invitations
+ * Spec: specs/002-invitation-system/spec.md §FR-001..FR-012, §FR-020
+ * Plan: plan.md §Security Considerations (Pass 1/2/3 rate-limit, Pass 4/6 CSRF,
+ *       Pass 5/6 logger, Pass 8 body parser, Pass 12 rate-limit flag),
+ *       plan.md §Edge Cases (Route registration ordering),
+ *       contracts/invitation-api.yaml §/api/admin/invitations POST,
+ *       §/api/auth/invitation/{token} GET, §/api/auth/invitation/accept POST
  */
 
 import { Express, Request, Response, NextFunction } from "express";
+import bodyParser from "body-parser";
 import { Pool } from "pg";
-import { createInvitation, AccountExistsError, ActivePendingError } from "../auth/invitationStore";
+import {
+  createInvitation,
+  lookupInvitation,
+  acceptInvitation,
+  AccountExistsError,
+  ActivePendingError,
+  ValidationError,
+  InvalidLinkError,
+  AccountAlreadyExistsError,
+} from "../auth/invitationStore";
 import secrets from "../util/secrets";
 
 // ---------------------------------------------------------------------------
@@ -103,7 +115,200 @@ export function requireSameOrigin(req: Request, res: Response, next: NextFunctio
 }
 
 // ---------------------------------------------------------------------------
-// Invitation controller
+// Rate limiter middleware (plan.md Pass 1/2/3/12)
+//
+// Stores per-IP request counts in the invitationRateLimit table:
+//   key text PK, count int, lastRequest bigint (milliseconds since epoch)
+//
+// Atomic UPSERT with window-based reset:
+//   If lastRequest < windowStart → reset count to 1 (new window)
+//   Otherwise → increment count
+//   Returns count; if count > RATE_LIMIT_MAX → 429
+//
+// Enforced when: NODE_ENV !== 'test' || BETTER_AUTH_ENFORCE_RATE_LIMIT === '1'
+// Key = 'invitation:' + req.ip (trust proxy=1 is set in serverApp.ts)
+// ---------------------------------------------------------------------------
+
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 60 seconds
+const RATE_LIMIT_MAX = 10;
+
+/**
+ * Creates an Express middleware that enforces a per-IP rate limit on invitation
+ * routes using the invitationRateLimit table.
+ *
+ * Skipped when NODE_ENV=test AND BETTER_AUTH_ENFORCE_RATE_LIMIT !== '1',
+ * mirroring the existing BETTER_AUTH_ENFORCE_RATE_LIMIT flag (plan.md Pass 12).
+ */
+export function invitationRateLimit(pool: Pool) {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    // Skip in test mode unless enforcement flag is set
+    if (
+      process.env.NODE_ENV === "test" &&
+      process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT !== "1"
+    ) {
+      next();
+      return;
+    }
+
+    const nowMs = Date.now();
+    const windowStart = nowMs - RATE_LIMIT_WINDOW_MS;
+    const key = `invitation:${req.ip ?? "unknown"}`;
+
+    const client = await pool.connect();
+    try {
+      // Prune stale entries from previous windows (same round-trip)
+      await client.query(
+        `DELETE FROM "invitationRateLimit" WHERE "lastRequest" < $1`,
+        [windowStart]
+      );
+
+      // Atomic UPSERT: insert or increment, resetting count if the window has reset
+      const result = await client.query<{ count: number }>(
+        `INSERT INTO "invitationRateLimit" (key, count, "lastRequest")
+         VALUES ($1, 1, $2)
+         ON CONFLICT (key) DO UPDATE SET
+           count = CASE
+             WHEN "invitationRateLimit"."lastRequest" < $3 THEN 1
+             ELSE "invitationRateLimit".count + 1
+           END,
+           "lastRequest" = $2
+         RETURNING count`,
+        [key, nowMs, windowStart]
+      );
+
+      const count = result.rows[0]?.count ?? 1;
+
+      if (count > RATE_LIMIT_MAX) {
+        res.status(429).json({ error: "Too many requests. Please try again later." });
+        return;
+      }
+
+      next();
+    } finally {
+      client.release();
+    }
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Body parser middleware for /api/auth/invitation/accept (plan.md Pass 8)
+//
+// Route-scoped bodyParser.json with 4kb limit, mapping parse errors to JSON 400
+// rather than HTML (which the global error handler would produce).
+// ---------------------------------------------------------------------------
+
+// Cast required: @types/connect's NextHandleFunction is incompatible with
+// @types/node's ServerResponse types (same pattern as documentsController.ts).
+const acceptJsonParser = bodyParser.json({ limit: "4kb" }) as any;
+
+/**
+ * Express error handler middleware: maps SyntaxError (malformed JSON) and
+ * PayloadTooLargeError to a JSON 400 response instead of HTML (Pass 8).
+ */
+function acceptBodyParserErrorHandler(
+  err: unknown,
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  if (
+    err instanceof SyntaxError ||
+    (typeof err === "object" && err !== null && (err as { status?: number }).status === 413)
+  ) {
+    res.status(400).json({ error: "Invalid or oversized request body" });
+    return;
+  }
+  next(err);
+}
+
+// ---------------------------------------------------------------------------
+// Invitation controller — anonymous routes (registered in serverApp.ts BEFORE
+// the better-auth catch-all app.all('/api/auth/*', ...))
+// ---------------------------------------------------------------------------
+
+/**
+ * Registers anonymous invitation routes on the Express app.
+ * MUST be called before app.all('/api/auth/*', toNodeHandler(...)) in serverApp.ts.
+ *
+ * The `pool` argument is the auth-owned pg.Pool passed from serverApp.ts.
+ */
+export function registerAnonymousInvitationRoutes(app: Express, pool: Pool): void {
+  const rateLimiter = invitationRateLimit(pool);
+
+  // GET /api/auth/invitation/:token — look up a pending invitation by token
+  app.get(
+    "/api/auth/invitation/:token",
+    rateLimiter,
+    requireSameOrigin,
+    async (req: Request, res: Response): Promise<void> => {
+      const { token } = req.params;
+
+      const result = await lookupInvitation(pool, token);
+
+      if (!result) {
+        res.status(410).json({ error: "This invitation link is invalid, expired, or has already been used." });
+        return;
+      }
+
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ email: result.email });
+    }
+  );
+
+  // POST /api/auth/invitation/accept — accept an invitation and create an account
+  app.post(
+    "/api/auth/invitation/accept",
+    rateLimiter,
+    requireSameOrigin,
+    acceptJsonParser,
+    acceptBodyParserErrorHandler,
+    async (req: Request, res: Response): Promise<void> => {
+      const { token, password, name } = req.body as {
+        token?: unknown;
+        password?: unknown;
+        name?: unknown;
+      };
+
+      if (typeof token !== "string" || !token) {
+        res.status(400).json({ error: "token is required" });
+        return;
+      }
+      if (typeof password !== "string") {
+        res.status(400).json({ error: "password is required" });
+        return;
+      }
+      if (typeof name !== "string") {
+        res.status(400).json({ error: "name is required" });
+        return;
+      }
+
+      let result;
+      try {
+        result = await acceptInvitation(pool, token, password, name, secrets.cookieSecret);
+      } catch (err) {
+        if (err instanceof ValidationError) {
+          res.status(400).json({ error: err.message });
+          return;
+        }
+        if (err instanceof InvalidLinkError) {
+          res.status(410).json({ error: "This invitation link is invalid, expired, or has already been used." });
+          return;
+        }
+        if (err instanceof AccountAlreadyExistsError) {
+          res.status(409).json({ error: err.message });
+          return;
+        }
+        throw err;
+      }
+
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ email: result.email });
+    }
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Invitation controller — admin routes
 // ---------------------------------------------------------------------------
 
 /**

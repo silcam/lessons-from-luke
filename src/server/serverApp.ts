@@ -9,7 +9,9 @@ import { requireAdmin } from "./middle/requireUser";
 import tStringsController from "./controllers/tStringsController";
 import testController from "./controllers/testController";
 import documentsController from "./controllers/documentsController";
-import invitationController from "./controllers/invitationController";
+import invitationController, {
+  registerAnonymousInvitationRoutes,
+} from "./controllers/invitationController";
 import PGStorage, { PGTestStorage, PGDevStorage } from "./storage/PGStorage";
 import { Persistence } from "../core/interfaces/Persistence";
 import docStorage from "./storage/docStorage";
@@ -77,10 +79,11 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
     }) as any
   );
 
-  // FUTURE: anonymous invitation routes (/api/auth/invitation/*) from US2 will be
-  // registered HERE (before this catch-all) so they are not swallowed by it.
+  // Anonymous invitation routes (/api/auth/invitation/*) are registered HERE,
+  // BEFORE the better-auth catch-all, so they are not swallowed by it.
   // The admin route (/api/admin/invitations POST) is mounted below (after bodyParser)
   // and inherits requireAdmin from app.use('/api/admin', requireAdmin) below.
+  registerAnonymousInvitationRoutes(app, authPool);
   app.all("/api/auth/*", toNodeHandler(getAuth()) as any);
   app.use(bodyParser.json({ limit: "2MB" }) as any);
   app.use("/api/admin", requireAdmin);
