@@ -350,6 +350,50 @@ describe("InvitationsList", () => {
       });
     });
 
+    it("clicking Re-copy Link a second time still announces copy success via aria-live", async () => {
+      listInvitations.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [pendingSummary], error: undefined })
+      );
+      getInvitationLink.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: { id: "inv-1", link: "https://example.com/invitation/tok123" },
+          error: undefined,
+        })
+      );
+
+      const { container } = renderWithProviders(<InvitationsList />, defaultInitialState);
+
+      await waitFor(() => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        expect(buttons.find((b) => /re-copy link/i.test(b.textContent || ""))).toBeTruthy();
+      });
+
+      // First click
+      await act(async () => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const recopyBtn = buttons.find((b) => /re-copy link/i.test(b.textContent || ""));
+        fireEvent.click(recopyBtn!);
+      });
+
+      await waitFor(() => {
+        const liveRegion = container.querySelector("[aria-live], [role='status'], [role='alert']");
+        expect(liveRegion!.textContent).toMatch(/copied/i);
+      });
+
+      // Second click — the aria-live region must still contain the announcement
+      await act(async () => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const recopyBtn = buttons.find((b) => /re-copy link/i.test(b.textContent || ""));
+        fireEvent.click(recopyBtn!);
+      });
+
+      await waitFor(() => {
+        const liveRegion = container.querySelector("[aria-live], [role='status'], [role='alert']");
+        expect(liveRegion!.textContent).toMatch(/copied/i);
+        expect(getInvitationLink).toHaveBeenCalledTimes(2);
+      });
+    });
+
     it("after retract, updates the row status to Retracted", async () => {
       listInvitations.mockReturnValue(
         jest.fn().mockResolvedValue({ payload: [pendingSummary], error: undefined })

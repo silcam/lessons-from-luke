@@ -66,6 +66,9 @@ export default function CreateInvitation() {
 
   const handleCopyLink = async () => {
     if (!result?.link) return;
+    // Reset before the async operation so React sees a state change on every
+    // successful copy, forcing the aria-live region to re-announce "Copied!".
+    setCopySuccess(false);
     try {
       await navigator.clipboard.writeText(result.link);
       setCopySuccess(true);

@@ -54,6 +54,11 @@ export default function InvitationsList() {
   };
 
   const handleRecopy = async (id: string) => {
+    // Reset before the async operation so React sees a state change on every
+    // successful copy, even if copySuccess was already true.  Without this the
+    // aria-live region receives the same text on re-copy and screen-readers
+    // silently skip the re-announcement.
+    setCopySuccess(false);
     const action = await dispatch(getInvitationLink(id));
     if (!(action as { error?: unknown }).error) {
       const { link } = (action as { payload: { id: string; link: string } }).payload;
