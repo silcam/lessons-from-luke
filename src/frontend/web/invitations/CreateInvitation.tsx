@@ -14,8 +14,13 @@
 
 import React, { useState } from "react";
 import { useDispatch } from "react-redux";
+import { Link } from "react-router-dom";
 import { AppDispatch } from "../../common/state/appState";
+import { pushLogout } from "../auth/authThunks";
 import { createInvitation, InvitationError, InvitationResult } from "./invitationThunks";
+import { StdHeaderBarPage } from "../../common/base-components/HeaderBar";
+import { FlexRow } from "../../common/base-components/Flex";
+import Div from "../../common/base-components/Div";
 import TextInput from "../../common/base-components/TextInput";
 import SelectInput from "../../common/base-components/SelectInput";
 import Button from "../../common/base-components/Button";
@@ -28,6 +33,7 @@ type SubmitError = InvitationError | null;
 export default function CreateInvitation() {
   const t = useTranslation();
   const dispatch = useDispatch<AppDispatch>();
+  const logOut = () => dispatch(pushLogout());
 
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"standard" | "admin">("standard");
@@ -92,57 +98,65 @@ export default function CreateInvitation() {
   const errMsg = errorMessage();
 
   return (
-    <div>
-      {!result ? (
-        <>
-          <Label text={t("Invitation_email_label")}>
-            <TextInput
-              value={email}
-              setValue={(v) => {
-                setEmail(v);
-                setSubmitError(null);
-              }}
-              placeholder={t("Email")}
-              autoFocus
-            />
-          </Label>
-
-          <Label text={t("Invitation_role_label")}>
-            <SelectInput
-              value={role}
-              setValue={(v) => setRole(v as "standard" | "admin")}
-              options={roleOptions}
-            />
-          </Label>
-
-          {errMsg && (
-            <div role="alert">
-              <Alert danger>{errMsg}</Alert>
-            </div>
-          )}
-
-          <Button
-            disabled={submitting}
-            onClick={handleSubmit}
-            text={t("Invitation_submit")}
-          />
-        </>
-      ) : (
-        <>
-          <p>{result.link}</p>
-
-          <Button
-            onClick={handleCopyLink}
-            text={t("Invitation_copy_link")}
-            aria-label={t("Invitation_copy_link")}
-          />
-
-          {/* Accessible live region — copy-success announcement */}
-          <div role="status" aria-live="polite">
-            {copySuccess ? t("Invitation_copy_success") : ""}
-          </div>
-        </>
+    <StdHeaderBarPage
+      title={t("Invitation_submit")}
+      renderRight={() => (
+        <FlexRow>
+          <Link to="/admin/invitations">
+            <Button text={t("Invitations_page_heading")} onClick={() => {}} />
+          </Link>
+          <Button text={t("Log_out")} onClick={logOut} />
+        </FlexRow>
       )}
-    </div>
+    >
+      <Div pad>
+        {!result ? (
+          <>
+            <Label text={t("Invitation_email_label")}>
+              <TextInput
+                value={email}
+                setValue={(v) => {
+                  setEmail(v);
+                  setSubmitError(null);
+                }}
+                placeholder={t("Email")}
+                autoFocus
+              />
+            </Label>
+
+            <Label text={t("Invitation_role_label")}>
+              <SelectInput
+                value={role}
+                setValue={(v) => setRole(v as "standard" | "admin")}
+                options={roleOptions}
+              />
+            </Label>
+
+            {errMsg && (
+              <div role="alert">
+                <Alert danger>{errMsg}</Alert>
+              </div>
+            )}
+
+            <Button disabled={submitting} onClick={handleSubmit} text={t("Invitation_submit")} />
+          </>
+        ) : (
+          <>
+            <p>{result.link}</p>
+
+            <Button
+              onClick={handleCopyLink}
+              text={t("Invitation_copy_link")}
+              aria-label={t("Invitation_copy_link")}
+            />
+
+            {/* Accessible live region — copy-success announcement */}
+            <div role="status" aria-live="polite">
+              {copySuccess ? t("Invitation_copy_success") : ""}
+            </div>
+          </>
+        )}
+      </Div>
+    </StdHeaderBarPage>
   );
 }

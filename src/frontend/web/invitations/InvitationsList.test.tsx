@@ -29,14 +29,12 @@ import React from "react";
 import { act, fireEvent, waitFor } from "@testing-library/react";
 import { renderWithProviders, defaultSyncState } from "../../common/testHelpers";
 import InvitationsList from "./InvitationsList";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { listInvitations, retractInvitation, getInvitationLink } = require(
-  "./invitationsListThunks"
-) as {
-  listInvitations: jest.Mock;
-  retractInvitation: jest.Mock;
-  getInvitationLink: jest.Mock;
-};
+const { listInvitations, retractInvitation, getInvitationLink } =
+  require("./invitationsListThunks") as {
+    listInvitations: jest.Mock;
+    retractInvitation: jest.Mock;
+    getInvitationLink: jest.Mock;
+  };
 
 const defaultInitialState = {
   syncState: defaultSyncState,
@@ -75,14 +73,6 @@ const retractedSummary = {
   acceptedAt: null,
   invitedByEmail: "admin@example.com",
 };
-
-function makeThunkResult(payload: unknown, rejected = false) {
-  return jest.fn().mockReturnValue(
-    jest.fn().mockResolvedValue(
-      rejected ? { error: { message: "rejected" }, payload } : { payload, error: undefined }
-    )
-  );
-}
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -130,6 +120,19 @@ describe("InvitationsList", () => {
         expect(text).toMatch(/invitation/i);
       });
     });
+
+    it("renders a 'Create Invitation' link to the create form in the toolbar", async () => {
+      listInvitations.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [], error: undefined })
+      );
+
+      const { container } = renderWithProviders(<InvitationsList />, defaultInitialState);
+      await waitFor(() => {
+        const createLink = container.querySelector('a[href="/admin/invitations/new"]');
+        expect(createLink).toBeTruthy();
+        expect(createLink!.textContent).toMatch(/create invitation/i);
+      });
+    });
   });
 
   describe("empty state", () => {
@@ -150,7 +153,9 @@ describe("InvitationsList", () => {
   describe("list display", () => {
     it("shows each invitation's email", async () => {
       listInvitations.mockReturnValue(
-        jest.fn().mockResolvedValue({ payload: [pendingSummary, acceptedSummary], error: undefined })
+        jest
+          .fn()
+          .mockResolvedValue({ payload: [pendingSummary, acceptedSummary], error: undefined })
       );
 
       const { container } = renderWithProviders(<InvitationsList />, defaultInitialState);
@@ -162,7 +167,9 @@ describe("InvitationsList", () => {
 
     it("shows each invitation's role", async () => {
       listInvitations.mockReturnValue(
-        jest.fn().mockResolvedValue({ payload: [pendingSummary, acceptedSummary], error: undefined })
+        jest
+          .fn()
+          .mockResolvedValue({ payload: [pendingSummary, acceptedSummary], error: undefined })
       );
 
       const { container } = renderWithProviders(<InvitationsList />, defaultInitialState);

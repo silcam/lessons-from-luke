@@ -14,20 +14,25 @@
 
 import React, { useEffect, useState } from "react";
 import { useDispatch } from "react-redux";
+import { Link } from "react-router-dom";
 import { AppDispatch } from "../../common/state/appState";
+import { pushLogout } from "../auth/authThunks";
 import {
   listInvitations,
   retractInvitation,
   getInvitationLink,
   InvitationSummaryRow,
 } from "./invitationsListThunks";
+import { StdHeaderBarPage } from "../../common/base-components/HeaderBar";
+import { FlexRow } from "../../common/base-components/Flex";
+import Div from "../../common/base-components/Div";
 import Button from "../../common/base-components/Button";
-import Heading from "../../common/base-components/Heading";
 import useTranslation from "../../common/util/useTranslation";
 
 export default function InvitationsList() {
   const t = useTranslation();
   const dispatch = useDispatch<AppDispatch>();
+  const logOut = () => dispatch(pushLogout());
 
   const [invitations, setInvitations] = useState<InvitationSummaryRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,58 +102,68 @@ export default function InvitationsList() {
   };
 
   return (
-    <div>
-      <Heading level={2} text={t("Invitations_page_heading")} />
-
-      {/* Accessible live region — copy-success announcement */}
-      <div role="status" aria-live="polite">
-        {copySuccess ? t("Invitation_copy_success") : ""}
-      </div>
-
-      {loading ? null : invitations.length === 0 ? (
-        <p>{t("Invitations_empty_state")}</p>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>{t("Invitations_column_email")}</th>
-              <th>{t("Invitations_column_role")}</th>
-              <th>{t("Invitations_column_status")}</th>
-              <th>{t("Invitations_column_created")}</th>
-              <th>{t("Invitations_column_accepted")}</th>
-              <th>{t("Invitations_column_created_by")}</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {invitations.map((inv) => (
-              <tr key={inv.id}>
-                <td>{inv.email}</td>
-                <td>{formatRole(inv.role)}</td>
-                <td>{formatStatus(inv.status)}</td>
-                <td>{formatDate(inv.createdAt)}</td>
-                <td>{formatDate(inv.acceptedAt)}</td>
-                <td>{inv.invitedByEmail}</td>
-                <td>
-                  {inv.status === "pending" && (
-                    <>
-                      <Button
-                        text={t("Invitations_action_recopy")}
-                        onClick={() => void handleRecopy(inv.id)}
-                      />
-                      <Button
-                        red
-                        text={t("Invitations_action_retract")}
-                        onClick={() => void handleRetract(inv.id)}
-                      />
-                    </>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <StdHeaderBarPage
+      title={t("Invitations_page_heading")}
+      renderRight={() => (
+        <FlexRow>
+          <Link to="/admin/invitations/new">
+            <Button text={t("Invitation_submit")} onClick={() => {}} />
+          </Link>
+          <Button text={t("Log_out")} onClick={logOut} />
+        </FlexRow>
       )}
-    </div>
+    >
+      <Div pad>
+        {/* Accessible live region — copy-success announcement */}
+        <div role="status" aria-live="polite">
+          {copySuccess ? t("Invitation_copy_success") : ""}
+        </div>
+
+        {loading ? null : invitations.length === 0 ? (
+          <p>{t("Invitations_empty_state")}</p>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>{t("Invitations_column_email")}</th>
+                <th>{t("Invitations_column_role")}</th>
+                <th>{t("Invitations_column_status")}</th>
+                <th>{t("Invitations_column_created")}</th>
+                <th>{t("Invitations_column_accepted")}</th>
+                <th>{t("Invitations_column_created_by")}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {invitations.map((inv) => (
+                <tr key={inv.id}>
+                  <td>{inv.email}</td>
+                  <td>{formatRole(inv.role)}</td>
+                  <td>{formatStatus(inv.status)}</td>
+                  <td>{formatDate(inv.createdAt)}</td>
+                  <td>{formatDate(inv.acceptedAt)}</td>
+                  <td>{inv.invitedByEmail}</td>
+                  <td>
+                    {inv.status === "pending" && (
+                      <>
+                        <Button
+                          text={t("Invitations_action_recopy")}
+                          onClick={() => void handleRecopy(inv.id)}
+                        />
+                        <Button
+                          red
+                          text={t("Invitations_action_retract")}
+                          onClick={() => void handleRetract(inv.id)}
+                        />
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Div>
+    </StdHeaderBarPage>
   );
 }

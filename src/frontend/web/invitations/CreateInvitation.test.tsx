@@ -25,30 +25,21 @@ jest.mock("./invitationThunks", () => ({
 }));
 
 import React from "react";
-import { act, fireEvent, waitFor } from "@testing-library/react";
+import { act, fireEvent, waitFor, screen } from "@testing-library/react";
 import { renderWithProviders, defaultSyncState } from "../../common/testHelpers";
 import CreateInvitation from "./CreateInvitation";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { createInvitation } = require("./invitationThunks") as {
   createInvitation: jest.Mock;
 };
+
+// The page header title and the submit button both read "Create Invitation",
+// so target the submit button by role to disambiguate from the heading.
+const createButton = () => screen.getByRole("button", { name: /create invitation/i });
 
 const defaultInitialState = {
   syncState: defaultSyncState,
   currentUser: { user: { id: "admin1", admin: true }, locale: "en", loaded: true },
 };
-
-function makeThunkResult(payload: unknown, rejected = false) {
-  // createAsyncThunk returns a thunk that dispatches and returns an action
-  // We simulate it by returning a thunk that dispatches the resolved/rejected action
-  return jest.fn().mockReturnValue(
-    jest.fn().mockResolvedValue(
-      rejected
-        ? { error: { message: "rejected" }, payload }
-        : { payload, error: undefined }
-    )
-  );
-}
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -84,8 +75,16 @@ describe("CreateInvitation", () => {
 
     it("renders a submit button labeled 'Create Invitation'", () => {
       createInvitation.mockReturnValue(jest.fn().mockResolvedValue({ payload: null }));
-      const { getByText } = renderWithProviders(<CreateInvitation />, defaultInitialState);
-      expect(getByText(/create invitation/i)).toBeTruthy();
+      renderWithProviders(<CreateInvitation />, defaultInitialState);
+      expect(createButton()).toBeTruthy();
+    });
+
+    it("renders an 'Invitations' link back to the list in the toolbar", () => {
+      createInvitation.mockReturnValue(jest.fn().mockResolvedValue({ payload: null }));
+      const { container } = renderWithProviders(<CreateInvitation />, defaultInitialState);
+      const backLink = container.querySelector('a[href="/admin/invitations"]');
+      expect(backLink).toBeTruthy();
+      expect(backLink!.textContent).toMatch(/invitations/i);
     });
   });
 
@@ -105,14 +104,10 @@ describe("CreateInvitation", () => {
         })
       );
 
-      const { container, getByText } = renderWithProviders(
-        <CreateInvitation />,
-        defaultInitialState
-      );
+      const { getByText } = renderWithProviders(<CreateInvitation />, defaultInitialState);
 
-      const submitButton = getByText(/create invitation/i);
       await act(async () => {
-        fireEvent.click(submitButton);
+        fireEvent.click(createButton());
       });
 
       await waitFor(() => {
@@ -138,7 +133,7 @@ describe("CreateInvitation", () => {
       const { getByText } = renderWithProviders(<CreateInvitation />, defaultInitialState);
 
       await act(async () => {
-        fireEvent.click(getByText(/create invitation/i));
+        fireEvent.click(createButton());
       });
 
       await waitFor(() => {
@@ -161,17 +156,13 @@ describe("CreateInvitation", () => {
         })
       );
 
-      const { container, getByText } = renderWithProviders(
-        <CreateInvitation />,
-        defaultInitialState
-      );
+      const { container } = renderWithProviders(<CreateInvitation />, defaultInitialState);
 
       await act(async () => {
-        fireEvent.click(getByText(/create invitation/i));
+        fireEvent.click(createButton());
       });
 
       await waitFor(() => {
-        const copyBtn = container.querySelector("button[aria-label], button");
         const buttons = Array.from(container.querySelectorAll("button"));
         const copyButton = buttons.find((b) => /copy link/i.test(b.textContent || ""));
         expect(copyButton).toBeTruthy();
@@ -204,7 +195,7 @@ describe("CreateInvitation", () => {
       );
 
       await act(async () => {
-        fireEvent.click(getByText(/create invitation/i));
+        fireEvent.click(createButton());
       });
 
       await waitFor(() => getByText(/copy link/i));
@@ -237,7 +228,7 @@ describe("CreateInvitation", () => {
       );
 
       await act(async () => {
-        fireEvent.click(getByText(/create invitation/i));
+        fireEvent.click(createButton());
       });
 
       await waitFor(() => {
@@ -269,7 +260,7 @@ describe("CreateInvitation", () => {
       );
 
       await act(async () => {
-        fireEvent.click(getByText(/create invitation/i));
+        fireEvent.click(createButton());
       });
 
       await waitFor(() => {
@@ -294,13 +285,13 @@ describe("CreateInvitation", () => {
         })
       );
 
-      const { getAllByText: getAllByText1, getByText: getByText1 } = renderWithProviders(
+      const { getByText: getByText1 } = renderWithProviders(
         <CreateInvitation />,
         defaultInitialState
       );
 
       await act(async () => {
-        const btns1 = getAllByText1(/create invitation/i);
+        const btns1 = screen.getAllByRole("button", { name: /create invitation/i });
         fireEvent.click(btns1[0]);
       });
 
@@ -322,13 +313,13 @@ describe("CreateInvitation", () => {
         })
       );
 
-      const { getAllByText: getAllByText2, getByText: getByText2 } = renderWithProviders(
+      const { getByText: getByText2 } = renderWithProviders(
         <CreateInvitation />,
         defaultInitialState
       );
 
       await act(async () => {
-        const btns2 = getAllByText2(/create invitation/i);
+        const btns2 = screen.getAllByRole("button", { name: /create invitation/i });
         // Click the last one (the newly rendered instance)
         fireEvent.click(btns2[btns2.length - 1]);
       });

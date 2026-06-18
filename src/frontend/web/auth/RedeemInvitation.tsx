@@ -18,15 +18,12 @@ import React, { useEffect, useState } from "react";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { AppDispatch } from "../../common/state/appState";
-import {
-  lookupInvitation,
-  acceptInvitation,
-  type RedemptionError,
-} from "./redeemInvitationThunks";
+import { lookupInvitation, acceptInvitation, type RedemptionError } from "./redeemInvitationThunks";
 import TextInput from "../../common/base-components/TextInput";
 import Button from "../../common/base-components/Button";
 import Alert from "../../common/base-components/Alert";
 import Label from "../../common/base-components/Label";
+import PDiv from "../../common/base-components/PDiv";
 import MiddleOfPage from "../../common/base-components/MiddleOfPage";
 import Heading from "../../common/base-components/Heading";
 import HandleKey from "../../common/base-components/HandleKey";
@@ -45,6 +42,7 @@ type SubmitState =
   | { phase: "submitting" }
   | { phase: "invalid_link" }
   | { phase: "rate_limited" }
+  | { phase: "validation_error"; message: string }
   | { phase: "error" }
   | { phase: "success" };
 
@@ -96,9 +94,7 @@ export default function RedeemInvitation({ token }: Props) {
     if (lookupState.phase !== "form") return;
     setSubmitState({ phase: "submitting" });
 
-    const action = await dispatch(
-      acceptInvitation({ token, password, name })
-    );
+    const action = await dispatch(acceptInvitation({ token, password, name }));
 
     if ((action as { error?: unknown }).error) {
       const err = (action as { payload: RedemptionError }).payload;
@@ -106,6 +102,10 @@ export default function RedeemInvitation({ token }: Props) {
         setSubmitState({ phase: "invalid_link" });
       } else if (err?.code === "rate_limited") {
         setSubmitState({ phase: "rate_limited" });
+      } else if (err?.code === "validation_error") {
+        // Surface the server's specific reason (e.g. "Password must be at
+        // least 12 characters") instead of an opaque generic error.
+        setSubmitState({ phase: "validation_error", message: err.message });
       } else {
         setSubmitState({ phase: "error" });
       }
@@ -187,6 +187,8 @@ export default function RedeemInvitation({ token }: Props) {
 
   const inlineErrorMessage = (): string | null => {
     if (submitState.phase === "rate_limited") return t("Invitation_error_rate_limited");
+    if (submitState.phase === "validation_error")
+      return submitState.message || t("Invitation_error_generic");
     if (submitState.phase === "error") return t("Invitation_error_generic");
     return null;
   };
@@ -196,41 +198,48 @@ export default function RedeemInvitation({ token }: Props) {
   return (
     <MiddleOfPage>
       <HandleKey onEnter={handleSubmit}>
-        <Heading level={1} text={t("Invitation_email_locked_label")} />
+        <Heading level={1} text="Lessons from Luke" />
+        <Heading level={3} text={t("Invitation_redeem_submit")} />
 
         {/* Locked email — pre-filled and not editable (FR-007) */}
-        <Label text={t("Invitation_email_locked_label")}>
-          <TextInput
-            value={email}
-            setValue={() => {
-              /* locked */
-            }}
-            disabled
-            aria-readonly="true"
-          />
-        </Label>
+        <PDiv>
+          <Label text={t("Invitation_email_locked_label")}>
+            <TextInput
+              value={email}
+              setValue={() => {
+                /* locked */
+              }}
+              disabled
+              aria-readonly="true"
+            />
+          </Label>
+        </PDiv>
 
-        <Label text={t("Invitation_password_label")}>
-          <TextInput
-            value={password}
-            setValue={(v) => {
-              setPassword(v);
-              setSubmitState({ phase: "idle" });
-            }}
-            password
-            autoFocus
-          />
-        </Label>
+        <PDiv>
+          <Label text={t("Invitation_password_label")}>
+            <TextInput
+              value={password}
+              setValue={(v) => {
+                setPassword(v);
+                setSubmitState({ phase: "idle" });
+              }}
+              password
+              autoFocus
+            />
+          </Label>
+        </PDiv>
 
-        <Label text={t("Invitation_display_name_label")}>
-          <TextInput
-            value={name}
-            setValue={(v) => {
-              setName(v);
-              setSubmitState({ phase: "idle" });
-            }}
-          />
-        </Label>
+        <PDiv>
+          <Label text={t("Invitation_display_name_label")}>
+            <TextInput
+              value={name}
+              setValue={(v) => {
+                setName(v);
+                setSubmitState({ phase: "idle" });
+              }}
+            />
+          </Label>
+        </PDiv>
 
         {inlineErr && (
           <div role="alert">
@@ -239,6 +248,7 @@ export default function RedeemInvitation({ token }: Props) {
         )}
 
         <Button
+          bigger
           disabled={submitting}
           onClick={handleSubmit}
           text={t("Invitation_redeem_submit")}

@@ -33,14 +33,18 @@ jest.mock("react-router-dom", () => ({
 }));
 
 import React from "react";
-import { act, fireEvent, waitFor } from "@testing-library/react";
+import { act, fireEvent, waitFor, screen } from "@testing-library/react";
 import { renderWithProviders, defaultSyncState } from "../../common/testHelpers";
 import RedeemInvitation from "./RedeemInvitation";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { lookupInvitation, acceptInvitation } = require("./redeemInvitationThunks") as {
   lookupInvitation: jest.Mock;
   acceptInvitation: jest.Mock;
 };
+
+// The "Create Account" subtitle heading and the submit button share the same
+// label (mirroring the login screen), so target the button by role to
+// disambiguate from the heading.
+const submitButton = () => screen.getByRole("button", { name: /create account/i });
 
 const defaultInitialState = {
   syncState: defaultSyncState,
@@ -48,16 +52,6 @@ const defaultInitialState = {
 };
 
 const TEST_TOKEN = "tok-abc123";
-
-function makeThunkResult(payload: unknown, rejected = false) {
-  return jest.fn().mockReturnValue(
-    jest.fn().mockResolvedValue(
-      rejected
-        ? { error: { message: "rejected" }, payload }
-        : { payload, error: undefined }
-    )
-  );
-}
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -95,9 +89,7 @@ describe("RedeemInvitation", () => {
       );
 
       await waitFor(() => {
-        expect(
-          getByText(/this invitation link is no longer valid/i)
-        ).toBeTruthy();
+        expect(getByText(/this invitation link is no longer valid/i)).toBeTruthy();
       });
     });
 
@@ -210,22 +202,46 @@ describe("RedeemInvitation", () => {
       await waitFor(() => {
         const inputs = Array.from(container.querySelectorAll("input"));
         // At least 2 text-type inputs (name + something else, or just name alongside disabled email)
-        const nonPasswordInputs = inputs.filter(
-          (i) => (i as HTMLInputElement).type !== "password"
-        );
+        const nonPasswordInputs = inputs.filter((i) => (i as HTMLInputElement).type !== "password");
         expect(nonPasswordInputs.length).toBeGreaterThanOrEqual(1);
       });
     });
 
     it("shows a 'Create Account' submit button", async () => {
+      renderWithProviders(<RedeemInvitation token={TEST_TOKEN} />, defaultInitialState);
+
+      await waitFor(() => {
+        expect(submitButton()).toBeTruthy();
+      });
+    });
+
+    it("shows the app title and 'Create Account' subtitle, matching the login screen", async () => {
       const { getByText } = renderWithProviders(
         <RedeemInvitation token={TEST_TOKEN} />,
         defaultInitialState
       );
 
-      await waitFor(() => {
-        expect(getByText(/create account/i)).toBeTruthy();
-      });
+      await waitFor(() => submitButton());
+
+      // App title present (like the login screen), and the H1 is the title —
+      // NOT the email-locked label as it was before.
+      expect(getByText("Lessons from Luke")).toBeTruthy();
+      const headings = Array.from(document.querySelectorAll("h1"));
+      expect(headings[0]?.textContent).toBe("Lessons from Luke");
+    });
+
+    it("renders the submit button with the bigger styling (matches the login button)", async () => {
+      renderWithProviders(<RedeemInvitation token={TEST_TOKEN} />, defaultInitialState);
+
+      await waitFor(() => submitButton());
+
+      // Button `bigger` injects a 1.3em font-size rule; the redeem form's only
+      // button is the submit, so its presence in the styled-components sheet
+      // confirms the submit button is `bigger` like the login button.
+      const css = Array.from(document.querySelectorAll("style"))
+        .map((s) => s.textContent || "")
+        .join("");
+      expect(css).toMatch(/font-size:\s*1\.3em/);
     });
   });
 
@@ -247,10 +263,10 @@ describe("RedeemInvitation", () => {
         defaultInitialState
       );
 
-      await waitFor(() => getByText(/create account/i));
+      await waitFor(() => submitButton());
 
       await act(async () => {
-        fireEvent.click(getByText(/create account/i));
+        fireEvent.click(submitButton());
       });
 
       await waitFor(() => {
@@ -278,10 +294,10 @@ describe("RedeemInvitation", () => {
         defaultInitialState
       );
 
-      await waitFor(() => getByText(/create account/i));
+      await waitFor(() => submitButton());
 
       await act(async () => {
-        fireEvent.click(getByText(/create account/i));
+        fireEvent.click(submitButton());
       });
 
       await waitFor(() => {
@@ -302,20 +318,20 @@ describe("RedeemInvitation", () => {
         })
       );
 
-      const { getByText, container } = renderWithProviders(
+      const { container } = renderWithProviders(
         <RedeemInvitation token={TEST_TOKEN} />,
         defaultInitialState
       );
 
-      await waitFor(() => getByText(/create account/i));
+      await waitFor(() => submitButton());
 
       await act(async () => {
-        fireEvent.click(getByText(/create account/i));
+        fireEvent.click(submitButton());
       });
 
       await waitFor(() => {
         // Submit button still present = form still usable
-        expect(getByText(/create account/i)).toBeTruthy();
+        expect(submitButton()).toBeTruthy();
         // Password input still present
         expect(container.querySelector("input[type='password']")).toBeTruthy();
       });
@@ -341,10 +357,10 @@ describe("RedeemInvitation", () => {
         defaultInitialState
       );
 
-      await waitFor(() => getByText(/create account/i));
+      await waitFor(() => submitButton());
 
       await act(async () => {
-        fireEvent.click(getByText(/create account/i));
+        fireEvent.click(submitButton());
       });
 
       await waitFor(() => {
@@ -353,8 +369,8 @@ describe("RedeemInvitation", () => {
     });
   });
 
-  describe("submit: validation error (400) — generic try-again, form remains", () => {
-    it("shows generic error on validation failure", async () => {
+  describe("submit: validation error (400) — surfaces server message, form remains", () => {
+    it("shows the server's validation message instead of the generic error", async () => {
       lookupInvitation.mockReturnValue(
         jest.fn().mockResolvedValue({
           payload: { email: "recipient@example.com" },
@@ -362,7 +378,41 @@ describe("RedeemInvitation", () => {
       );
       acceptInvitation.mockReturnValue(
         jest.fn().mockResolvedValue({
-          payload: { code: "validation_error", message: "Password too short." },
+          payload: {
+            code: "validation_error",
+            message: "Password must be at least 12 characters",
+          },
+          error: { message: "rejected" },
+        })
+      );
+
+      const { getByText, queryByText } = renderWithProviders(
+        <RedeemInvitation token={TEST_TOKEN} />,
+        defaultInitialState
+      );
+
+      await waitFor(() => submitButton());
+
+      await act(async () => {
+        fireEvent.click(submitButton());
+      });
+
+      await waitFor(() => {
+        expect(getByText(/password must be at least 12 characters/i)).toBeTruthy();
+      });
+      // The generic fallback must NOT be shown when the server gives a specific reason
+      expect(queryByText(/something went wrong/i)).toBeFalsy();
+    });
+
+    it("falls back to the generic message when the server sends no message", async () => {
+      lookupInvitation.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: { email: "recipient@example.com" },
+        })
+      );
+      acceptInvitation.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: { code: "validation_error", message: "" },
           error: { message: "rejected" },
         })
       );
@@ -372,14 +422,48 @@ describe("RedeemInvitation", () => {
         defaultInitialState
       );
 
-      await waitFor(() => getByText(/create account/i));
+      await waitFor(() => submitButton());
 
       await act(async () => {
-        fireEvent.click(getByText(/create account/i));
+        fireEvent.click(submitButton());
       });
 
       await waitFor(() => {
         expect(getByText(/something went wrong/i)).toBeTruthy();
+      });
+    });
+
+    it("keeps the form usable after a validation error (transient, not terminal)", async () => {
+      lookupInvitation.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: { email: "recipient@example.com" },
+        })
+      );
+      acceptInvitation.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: {
+            code: "validation_error",
+            message: "Password must be at least 12 characters",
+          },
+          error: { message: "rejected" },
+        })
+      );
+
+      const { container } = renderWithProviders(
+        <RedeemInvitation token={TEST_TOKEN} />,
+        defaultInitialState
+      );
+
+      await waitFor(() => submitButton());
+
+      await act(async () => {
+        fireEvent.click(submitButton());
+      });
+
+      await waitFor(() => {
+        // Form still usable: submit button + password input remain present
+        expect(submitButton()).toBeTruthy();
+        expect(container.querySelector("input[type='password']")).toBeTruthy();
       });
     });
   });
