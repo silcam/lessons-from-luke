@@ -149,7 +149,7 @@ export function registerAnonymousInvitationRoutes(app: Express, pool: Pool): voi
 
       let result;
       try {
-        result = await acceptInvitation(pool, token, password, name, secrets.cookieSecret);
+        result = await acceptInvitation(pool, token, password, name);
       } catch (err) {
         if (err instanceof ValidationError) {
           res.status(400).json({ error: err.message });

@@ -302,8 +302,7 @@ export async function acceptInvitation(
   pool: Pool,
   token: string,
   password: string,
-  name: string,
-  _cookieSecret: string
+  name: string
 ): Promise<{ email: string }> {
   // 1. Validate password length
   if (password.length < 12) {
