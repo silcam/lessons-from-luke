@@ -510,6 +510,54 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   produces better-auth's `trustedOrigins` (or a function that reads it) so the two cannot drift —
   rather than re-deriving the allow-list independently in the invitation middleware.
 
+### Pass 7 — secret-bearing responses are cacheable, and the role leaks to the anonymous lookup
+
+- **Threat: the two secret-bearing JSON responses and the SPA redemption HTML set no
+  `Cache-Control`, so the bound email and the working single-use link can be retained by a cache.**
+  Prior passes closed the token-in-URL leak for server logs (Pass 1/5/6) and the Referer (Pass 3),
+  but never the **cache** vector. Grounded against `serverApp.ts`: the app sets no cache headers and
+  the `helmet()` config emits none (helmet dropped its `noCache` middleware years ago — verified, no
+  `Cache-Control` is produced). Three responses carry secrets and are currently cacheable:
+  1. `GET /api/admin/invitations/{id}/link` returns the **working single-use redemption link** in its
+     body. With no `Cache-Control: no-store`, a shared/forward proxy or the admin's browser disk cache
+     can retain a live credential; anyone who later reads that cache obtains a usable invitation link.
+  2. `GET /api/auth/invitation/{token}` returns the **bound recipient email** for a pending invite —
+     a working token-to-PII oracle response that should not persist in intermediary caches.
+  3. The **SPA HTML redemption page** at `GET /invitation/{token}` (served by the production
+     `app.get("*", ...)` fallback) is reachable via the browser back-button / bfcache / disk cache
+     after redemption, re-presenting a stale form for an already-consumed token.
+- **Mitigation**: Set `Cache-Control: no-store` (and, defensively, `Pragma: no-cache`) on the two
+  secret-bearing JSON responses (`.../{id}/link` and `/api/auth/invitation/{token}`) and on the
+  accept response. For the SPA HTML route, rely on the redemption form re-validating the token on
+  load (the `GET /api/auth/invitation/{token}` call already gates the form), so a bfcache re-display
+  still cannot redeem a consumed link — but note this in the deployment residual alongside the proxy
+  access-log note (Pass 3/5/6), since the HTML is served by the shared `app.get("*")` fallback and a
+  per-route override there is impractical. The contract is updated to declare `Cache-Control: no-store`
+  on the two GET responses and the accept response.
+- **Note (corrects the Pass 5/6 regression-test target — the SPA-route log test only fires in
+  production builds).** Pass 5/6 concluded the real in-app token-in-log leak is the SPA HTML route
+  `GET /invitation/:token` served by `app.get("*", ...)`, and prescribed a regression test asserting
+  that route's logged line carries a placeholder. Grounded against `serverApp.ts` line 97: the
+  `app.get("*", ...)` SPA fallback is registered **only when `PRODUCTION`** (`NODE_ENV=production`).
+  The Jest/integration harness runs under `NODE_ENV=test`, where that route does **not exist** — so a
+  test that drives `GET /invitation/<token>` will hit no handler (or a 404), never exercising the
+  line-78 logger against the real leaking path. The redaction regression test MUST therefore either
+  (a) assert directly on the **logger middleware's redaction logic** as a unit (feed it a request
+  whose `path` is `/invitation/<token>` and assert the emitted line carries the placeholder), or
+  (b) construct the app with `PRODUCTION`-equivalent wiring so `app.get("*")` is mounted. A test that
+  simply requests the SPA route under `NODE_ENV=test` is a **false-green** — it passes without ever
+  rendering the leak. This does not change the Pass 6 fix (redact `^/invitation/[^/]+$` in the logger),
+  only how it is verified.
+- **The anonymous token lookup returns `role`, disclosing the pending account's privilege to the
+  token-holder (Low, accepted-or-trim).** `GET /api/auth/invitation/{token}` returns `{email, role}`.
+  The redemption form needs only the bound `email` to pre-fill/lock (FR-007); the granted role is
+  applied server-side from the invitation row at accept and is never chosen or confirmed by the
+  recipient. Returning `role` to the anonymous caller therefore discloses, to whoever holds the token,
+  whether the pending account will be `admin` — with no functional need. The token-holder is the
+  intended recipient, so impact is low, but the field is gratuitous: drop `role` from the lookup
+  response (keep it out of the anonymous surface entirely). The contract is updated to make the lookup
+  response `{email}` only.
+
 ## Edge Cases & Error Handling
 
 > Added by `/sp:04-red-team` (Pass 1).
