@@ -33,9 +33,11 @@ afterEach(async () => {
   // keeps working across tests.
   const client = await authCleanupPool.connect();
   try {
+    await client.query('DELETE FROM "invitationRateLimit"');
     await client.query('DELETE FROM "rateLimit"');
     await client.query('DELETE FROM "session"');
     await client.query('DELETE FROM "verification"');
+    await client.query('DELETE FROM "invitation"');
     await client.query(
       `DELETE FROM "account" WHERE "userId" IN (
          SELECT id FROM "user" WHERE LOWER(email) != $1
