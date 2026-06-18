@@ -249,10 +249,16 @@ export function registerAnonymousInvitationRoutes(app: Express, pool: Pool): voi
     "/api/auth/invitation/:token",
     rateLimiter,
     requireSameOrigin,
-    async (req: Request, res: Response): Promise<void> => {
+    async (req: Request, res: Response, next: NextFunction): Promise<void> => {
       const { token } = req.params;
 
-      const result = await lookupInvitation(pool, token);
+      let result;
+      try {
+        result = await lookupInvitation(pool, token);
+      } catch (err) {
+        next(err);
+        return;
+      }
 
       if (!result) {
         res.status(410).json({ error: "This invitation link is invalid, expired, or has already been used." });
@@ -391,8 +397,14 @@ export default function invitationController(app: Express, pool: Pool): void {
   // No CSRF check needed — read-only GET (plan.md Pass 4 note)
   app.get(
     "/api/admin/invitations",
-    async (req: Request, res: Response): Promise<void> => {
-      const summaries = await listInvitations(pool);
+    async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+      let summaries;
+      try {
+        summaries = await listInvitations(pool);
+      } catch (err) {
+        next(err);
+        return;
+      }
 
       // Set Cache-Control: no-store (plan.md Pass 10 — largest PII surface)
       res.setHeader("Cache-Control", "no-store");
