@@ -1,14 +1,17 @@
 /**
- * Controller tests for POST /api/admin/invitations.
+ * Controller tests for POST /api/admin/invitations, GET /api/auth/invitation/:token,
+ * and POST /api/auth/invitation/accept.
  *
- * Spec: specs/002-invitation-system/spec.md §FR-001..FR-006, §FR-020
- * Plan: plan.md §Security Considerations (Pass 4 CSRF), contracts/invitation-api.yaml
- *       §/api/admin/invitations POST
+ * Spec: specs/002-invitation-system/spec.md §FR-001..FR-012, §FR-020
+ * Plan: plan.md §Security Considerations (Pass 4 CSRF, Pass 1/2/12 rate-limit),
+ *       contracts/invitation-api.yaml §/api/admin/invitations POST,
+ *       §/api/auth/invitation/{token} GET, §/api/auth/invitation/accept POST
  *
  * These tests use the real test database via loggedInAgent() / plainAgent() from
  * testHelper.ts, consistent with existing controller tests.
  *
- * RED: the invitationController.ts module does not yet exist — all tests should fail.
+ * RED: the anonymous invitation routes (GET /api/auth/invitation/:token and
+ * POST /api/auth/invitation/accept) do not yet exist — those tests should fail.
  */
 
 /// <reference types="jest" />
@@ -17,6 +20,7 @@ import { Pool } from "pg";
 import crypto from "crypto";
 import { plainAgent, loggedInAgent } from "../testHelper";
 import secrets from "../util/secrets";
+import { createInvitation } from "../auth/invitationStore";
 
 // ---------------------------------------------------------------------------
 // Auth pool for inserting test users directly (sign-up is disabled globally).
@@ -256,5 +260,311 @@ describe("POST /api/admin/invitations", () => {
 
     expect(second.status).toBe(409);
     expect(second.body).toMatchObject({ error: expect.any(String) });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Helper: create a pending invitation in the DB and return the plaintext token.
+// Extracts the token from the link returned by createInvitation().
+// ---------------------------------------------------------------------------
+
+async function createPendingInvitation(
+  pool: Pool,
+  email: string,
+  role: "standard" | "admin" = "standard"
+): Promise<string> {
+  const baseUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:8081";
+  const result = await createInvitation(pool, {
+    email: email.toLowerCase(),
+    role,
+    invitedBy: "test-admin",
+    baseUrl,
+    cookieSecret: secrets.cookieSecret,
+  });
+  // The link is <baseUrl>/invitation/<token> — extract the token from the path
+  const url = new URL(result.link);
+  const parts = url.pathname.split("/");
+  return parts[parts.length - 1];
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/auth/invitation/:token — anonymous lookup
+// ---------------------------------------------------------------------------
+
+describe("GET /api/auth/invitation/:token", () => {
+  // -------------------------------------------------------------------------
+  // 1. 200 — valid pending token → { email }, Cache-Control: no-store
+  // -------------------------------------------------------------------------
+  it("200: valid pending token returns { email } with Cache-Control: no-store", async () => {
+    const agent = plainAgent();
+    const email = `lookup-valid-${crypto.randomUUID()}@example.com`;
+    const token = await createPendingInvitation(authPool, email);
+
+    const res = await agent.get(`/api/auth/invitation/${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ email: email.toLowerCase() });
+    // role must NOT be in the response (dropped in Pass 7 — PII minimisation)
+    expect(res.body).not.toHaveProperty("role");
+    // Cache-Control: no-store (red-team Pass 7)
+    expect(res.headers["cache-control"]).toBe("no-store");
+  });
+
+  // -------------------------------------------------------------------------
+  // 2. 410 — unknown token → generic non-leaky error (FR-010)
+  // -------------------------------------------------------------------------
+  it("410: unknown token returns a generic non-leaky error (FR-010)", async () => {
+    const agent = plainAgent();
+    const unknownToken = crypto.randomBytes(32).toString("hex");
+
+    const res = await agent.get(`/api/auth/invitation/${unknownToken}`);
+
+    expect(res.status).toBe(410);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  // -------------------------------------------------------------------------
+  // 3. 429 — rate limit exceeded (BETTER_AUTH_ENFORCE_RATE_LIMIT=1, plan.md Pass 12)
+  // -------------------------------------------------------------------------
+  it("429: per-IP rate limit exceeded after >10 requests in 60s", async () => {
+    const savedEnv = process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT;
+    process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT = "1";
+
+    try {
+      const agent = plainAgent();
+      // Use a single token that will be unknown (we don't need it to be valid;
+      // the rate limiter fires before the token lookup)
+      const bogusToken = crypto.randomBytes(32).toString("hex");
+
+      let lastStatus = 0;
+      // Make 12 requests — should eventually hit the 429 limit (threshold ≤10)
+      for (let i = 0; i < 12; i++) {
+        const res = await agent.get(`/api/auth/invitation/${bogusToken}`);
+        lastStatus = res.status;
+        if (lastStatus === 429) break;
+      }
+
+      expect(lastStatus).toBe(429);
+    } finally {
+      process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT = savedEnv;
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // 4. 403 — Origin not in allow-list (CSRF) when BETTER_AUTH_ENFORCE_ORIGIN=1
+  // -------------------------------------------------------------------------
+  it("403: foreign Origin header rejected when BETTER_AUTH_ENFORCE_ORIGIN=1", async () => {
+    const savedEnv = process.env.BETTER_AUTH_ENFORCE_ORIGIN;
+    process.env.BETTER_AUTH_ENFORCE_ORIGIN = "1";
+
+    try {
+      const agent = plainAgent();
+      const bogusToken = crypto.randomBytes(32).toString("hex");
+
+      const res = await agent
+        .get(`/api/auth/invitation/${bogusToken}`)
+        .set("Origin", "https://attacker.example.com");
+
+      expect(res.status).toBe(403);
+    } finally {
+      process.env.BETTER_AUTH_ENFORCE_ORIGIN = savedEnv;
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/auth/invitation/accept — anonymous accept
+// ---------------------------------------------------------------------------
+
+describe("POST /api/auth/invitation/accept", () => {
+  // -------------------------------------------------------------------------
+  // 1. 200 — happy path: valid token + password ≥12 + name → account created
+  // -------------------------------------------------------------------------
+  it("200: valid token, password, and name creates an account with Cache-Control: no-store", async () => {
+    const agent = plainAgent();
+    const email = `accept-happy-${crypto.randomUUID()}@example.com`;
+    const token = await createPendingInvitation(authPool, email);
+
+    const res = await agent
+      .post("/api/auth/invitation/accept")
+      .send({ token, password: "ValidPassword1!", name: "Test User" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ email: email.toLowerCase() });
+    expect(res.headers["cache-control"]).toBe("no-store");
+  });
+
+  // -------------------------------------------------------------------------
+  // 10. body parsing is available (req.body is parsed) — CRITICAL from plan.md
+  //     Edge Cases "Route registration vs body parsing"
+  // -------------------------------------------------------------------------
+  it("body parsing is available: req.body is parsed (not undefined)", async () => {
+    const agent = plainAgent();
+    const email = `accept-bodyparsing-${crypto.randomUUID()}@example.com`;
+    const token = await createPendingInvitation(authPool, email);
+
+    // A valid accept request should return 200 (not 400 "missing/invalid body"),
+    // proving that req.body is actually parsed by the time the handler runs.
+    const res = await agent
+      .post("/api/auth/invitation/accept")
+      .set("Content-Type", "application/json")
+      .send(JSON.stringify({ token, password: "ValidPassword1!", name: "Body Parse Test" }));
+
+    expect(res.status).toBe(200);
+  });
+
+  // -------------------------------------------------------------------------
+  // 2. 400 — password < 12 chars
+  // -------------------------------------------------------------------------
+  it("400: rejects password shorter than 12 characters", async () => {
+    const agent = plainAgent();
+    const email = `accept-shortpw-${crypto.randomUUID()}@example.com`;
+    const token = await createPendingInvitation(authPool, email);
+
+    const res = await agent
+      .post("/api/auth/invitation/accept")
+      .send({ token, password: "Short1!", name: "Test User" });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  // -------------------------------------------------------------------------
+  // 3. 400 — name empty after trim
+  // -------------------------------------------------------------------------
+  it("400: rejects name that is empty after trim", async () => {
+    const agent = plainAgent();
+    const email = `accept-emptyname-${crypto.randomUUID()}@example.com`;
+    const token = await createPendingInvitation(authPool, email);
+
+    const res = await agent
+      .post("/api/auth/invitation/accept")
+      .send({ token, password: "ValidPassword1!", name: "   " });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  // -------------------------------------------------------------------------
+  // 4. 400 — name contains control characters
+  // -------------------------------------------------------------------------
+  it("400: rejects name containing control characters", async () => {
+    const agent = plainAgent();
+    const email = `accept-ctrlname-${crypto.randomUUID()}@example.com`;
+    const token = await createPendingInvitation(authPool, email);
+
+    const res = await agent
+      .post("/api/auth/invitation/accept")
+      .send({ token, password: "ValidPassword1!", name: "Test\x01User" });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  // -------------------------------------------------------------------------
+  // 5. 400 — malformed JSON body → JSON 400, not HTML (plan.md Pass 8)
+  // -------------------------------------------------------------------------
+  it("400: malformed JSON body returns a JSON error response, not HTML (Pass 8)", async () => {
+    const agent = plainAgent();
+
+    const res = await agent
+      .post("/api/auth/invitation/accept")
+      .set("Content-Type", "application/json")
+      .send("{invalid json{{");
+
+    expect(res.status).toBe(400);
+    // Must be JSON, not an HTML error page
+    expect(res.headers["content-type"]).toMatch(/application\/json/);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  // -------------------------------------------------------------------------
+  // 6. 403 — Origin not in allow-list (CSRF) when BETTER_AUTH_ENFORCE_ORIGIN=1
+  // -------------------------------------------------------------------------
+  it("403: foreign Origin header rejected when BETTER_AUTH_ENFORCE_ORIGIN=1", async () => {
+    const savedEnv = process.env.BETTER_AUTH_ENFORCE_ORIGIN;
+    process.env.BETTER_AUTH_ENFORCE_ORIGIN = "1";
+
+    try {
+      const agent = plainAgent();
+      const email = `accept-csrf-${crypto.randomUUID()}@example.com`;
+      const token = await createPendingInvitation(authPool, email);
+
+      const res = await agent
+        .post("/api/auth/invitation/accept")
+        .set("Origin", "https://attacker.example.com")
+        .send({ token, password: "ValidPassword1!", name: "CSRF Test" });
+
+      expect(res.status).toBe(403);
+    } finally {
+      process.env.BETTER_AUTH_ENFORCE_ORIGIN = savedEnv;
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // 7. 409 — concurrent double-redemption: second attempt rejected (SC-003)
+  // -------------------------------------------------------------------------
+  it("409: concurrent double-redemption — second attempt is rejected (SC-003)", async () => {
+    const email = `accept-double-${crypto.randomUUID()}@example.com`;
+    const token = await createPendingInvitation(authPool, email);
+
+    const agent1 = plainAgent();
+    const agent2 = plainAgent();
+
+    // Fire both redemptions concurrently
+    const [res1, res2] = await Promise.all([
+      agent1
+        .post("/api/auth/invitation/accept")
+        .send({ token, password: "ValidPassword1!", name: "User One" }),
+      agent2
+        .post("/api/auth/invitation/accept")
+        .send({ token, password: "ValidPassword2!", name: "User Two" }),
+    ]);
+
+    const statuses = [res1.status, res2.status].sort();
+    // Exactly one succeeds (200) and one is rejected (409)
+    expect(statuses).toEqual([200, 409]);
+  });
+
+  // -------------------------------------------------------------------------
+  // 8. 410 — invalid/expired/retracted token
+  // -------------------------------------------------------------------------
+  it("410: invalid token returns a generic non-leaky error (FR-010)", async () => {
+    const agent = plainAgent();
+    const bogusToken = crypto.randomBytes(32).toString("hex");
+
+    const res = await agent
+      .post("/api/auth/invitation/accept")
+      .send({ token: bogusToken, password: "ValidPassword1!", name: "Test User" });
+
+    expect(res.status).toBe(410);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  // -------------------------------------------------------------------------
+  // 9. 429 — rate limit (BETTER_AUTH_ENFORCE_RATE_LIMIT=1, plan.md Pass 12)
+  // -------------------------------------------------------------------------
+  it("429: per-IP rate limit exceeded after >10 accept requests in 60s", async () => {
+    const savedEnv = process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT;
+    process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT = "1";
+
+    try {
+      const agent = plainAgent();
+      const bogusToken = crypto.randomBytes(32).toString("hex");
+
+      let lastStatus = 0;
+      // Make 12 requests — should eventually hit the 429 limit (threshold ≤10)
+      for (let i = 0; i < 12; i++) {
+        const res = await agent
+          .post("/api/auth/invitation/accept")
+          .send({ token: bogusToken, password: "ValidPassword1!", name: "Test User" });
+        lastStatus = res.status;
+        if (lastStatus === 429) break;
+      }
+
+      expect(lastStatus).toBe(429);
+    } finally {
+      process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT = savedEnv;
+    }
   });
 });
