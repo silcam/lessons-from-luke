@@ -88,7 +88,7 @@ const en = {
   Invitation_role_admin: "Administrator",
   Invitation_submit: "Create Invitation",
   Invitation_copy_link: "Copy Link",
-  Invitation_copy_success: "Link copied to clipboard",
+  Invitation_copy_success: "Invitation link copied to clipboard",
   Invitation_error_malformed_email: "Please enter a valid email address.",
   Invitation_error_invalid_role: "Please select a valid role.",
   Invitation_error_account_exists:
@@ -123,7 +123,7 @@ const en = {
   Invitations_status_retracted: "Retracted",
   Invitations_action_recopy: "Re-copy Link",
   Invitations_action_retract: "Retract",
-  Invitations_empty_state: "No invitations yet.",
+  Invitations_empty_state: "No invitations yet. Create one above.",
 };
 
 export type I18nStrings = typeof en;
