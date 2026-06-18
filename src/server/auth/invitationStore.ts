@@ -74,11 +74,36 @@ export class AccountAlreadyExistsError extends Error {
   }
 }
 
+export class NotFoundError extends Error {
+  code = "NOT_FOUND" as const;
+  constructor(id: string) {
+    super(`Invitation not found: ${id}`);
+    this.name = "NotFoundError";
+  }
+}
+
+export class NotPendingError extends Error {
+  code = "NOT_PENDING" as const;
+  constructor(id: string) {
+    super(`Invitation ${id} is not in pending state`);
+    this.name = "NotPendingError";
+  }
+}
+
+export class DecryptError extends Error {
+  code = "DECRYPT_ERROR" as const;
+  constructor(message = "Failed to decrypt invitation token") {
+    super(message);
+    this.name = "DecryptError";
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export type InvitationRole = "admin" | "standard";
+export type InvitationStatus = "pending" | "accepted" | "expired" | "retracted";
 
 export interface CreateInvitationInput {
   email: string;
@@ -96,6 +121,17 @@ export interface CreateInvitationResult {
   tokenHash: string;
   link: string;
   expiresAt: Date;
+}
+
+export interface InvitationSummary {
+  id: string;
+  email: string;
+  role: InvitationRole;
+  status: InvitationStatus;
+  createdAt: Date;
+  expiresAt: Date;
+  acceptedAt: Date | null;
+  invitedByEmail: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -482,4 +518,68 @@ export async function acceptInvitation(
   } finally {
     client.release();
   }
+}
+
+// ---------------------------------------------------------------------------
+// listInvitations — STUB (RED: not yet implemented)
+// ---------------------------------------------------------------------------
+
+/**
+ * Lists all invitations ordered newest-first.
+ * Resolves invitedByEmail via JOIN to the user table.
+ * Never returns tokenHash or tokenEnc.
+ *
+ * Spec: specs/002-invitation-system/spec.md §FR-013..FR-019
+ * Data model: data-model.md §Management-list query
+ *
+ * NOT YET IMPLEMENTED — stub exists only so the RED test file compiles.
+ */
+export async function listInvitations(_pool: Pool): Promise<InvitationSummary[]> {
+  throw new Error("listInvitations: not yet implemented");
+}
+
+// ---------------------------------------------------------------------------
+// retractInvitation — STUB (RED: not yet implemented)
+// ---------------------------------------------------------------------------
+
+/**
+ * Retracts a pending invitation by id.
+ * Uses a conditional UPDATE (WHERE status='pending') to prevent TOCTOU races.
+ * Returns the updated InvitationSummary with invitedByEmail resolved via JOIN.
+ *
+ * Throws NotFoundError if the id does not exist.
+ * Throws NotPendingError if the invitation is not in pending state.
+ *
+ * Spec: specs/002-invitation-system/spec.md §FR-015
+ * Data model: data-model.md §State machine (retract conditional UPDATE — plan.md Pass 11)
+ *
+ * NOT YET IMPLEMENTED — stub exists only so the RED test file compiles.
+ */
+export async function retractInvitation(_pool: Pool, _id: string): Promise<InvitationSummary> {
+  throw new Error("retractInvitation: not yet implemented");
+}
+
+// ---------------------------------------------------------------------------
+// getInvitationLink — STUB (RED: not yet implemented)
+// ---------------------------------------------------------------------------
+
+/**
+ * Re-copies the original invitation link by decrypting tokenEnc.
+ * Returns { link } where link is the re-derived invitation URL.
+ *
+ * Throws NotFoundError if the id does not exist.
+ * Throws NotPendingError if the invitation is not in pending state.
+ * Throws DecryptError if tokenEnc cannot be decrypted (e.g. wrong cookieSecret).
+ *
+ * Spec: specs/002-invitation-system/spec.md §FR-016
+ * Data model: data-model.md §tokenEnc encryption rules
+ *
+ * NOT YET IMPLEMENTED — stub exists only so the RED test file compiles.
+ */
+export async function getInvitationLink(
+  _pool: Pool,
+  _id: string,
+  _cookieSecret: string,
+): Promise<{ link: string }> {
+  throw new Error("getInvitationLink: not yet implemented");
 }

@@ -14,7 +14,14 @@
  */
 import { Pool } from "pg";
 import crypto from "crypto";
-import { createInvitation, lookupInvitation, acceptInvitation } from "./invitationStore";
+import {
+  createInvitation,
+  lookupInvitation,
+  acceptInvitation,
+  listInvitations,
+  retractInvitation,
+  getInvitationLink,
+} from "./invitationStore";
 import * as passwordHasher from "./passwordHasher";
 import secrets from "../util/secrets";
 
@@ -948,5 +955,429 @@ describe("acceptInvitation(pool, token, password, name, cookieSecret)", () => {
     expect(user!.admin).toBe(false);
     // Email must be the invitation's bound email
     expect(user!.email).toBe(email.toLowerCase());
+  });
+});
+
+// ------------------------------------------------------------------
+// listInvitations(pool) — FR-013..FR-019, §US3 Acceptance Scenarios
+// ------------------------------------------------------------------
+
+describe("listInvitations(pool)", () => {
+  let invitedBy: string;
+
+  beforeAll(async () => {
+    invitedBy = await getAdminUserId();
+  });
+
+  // ------------------------------------------------------------------
+  // 1. Returns an array of InvitationSummary with the expected shape
+  // ------------------------------------------------------------------
+
+  it("returns InvitationSummary objects with the expected shape including invitedByEmail via JOIN", async () => {
+    const email = "list-shape@example.com";
+    await createInvitation(pool, {
+      email,
+      role: "standard",
+      invitedBy,
+      baseUrl,
+      cookieSecret,
+    });
+
+    const list = await listInvitations(pool);
+    const found = list.find((inv) => inv.email === email.toLowerCase());
+    expect(found).toBeDefined();
+    expect(found).toMatchObject({
+      email: email.toLowerCase(),
+      role: "standard",
+      status: "pending",
+    });
+    expect(typeof found!.id).toBe("string");
+    expect(found!.id.length).toBeGreaterThan(0);
+    expect(found!.createdAt).toBeInstanceOf(Date);
+    expect(found!.expiresAt).toBeInstanceOf(Date);
+    // invitedByEmail must be a string (resolved via JOIN to user table)
+    expect(typeof found!.invitedByEmail).toBe("string");
+    expect(found!.invitedByEmail).toBe(adminEmail);
+    // Secrets must NOT be present
+    expect((found as Record<string, unknown>).tokenHash).toBeUndefined();
+    expect((found as Record<string, unknown>).tokenEnc).toBeUndefined();
+  });
+
+  // ------------------------------------------------------------------
+  // 2. Returns an empty array when no invitations exist (FR-013 empty state)
+  // ------------------------------------------------------------------
+
+  it("returns an empty array when no invitations exist (FR-013 empty state)", async () => {
+    // No invitations inserted in this test — jestSetupAfterEnv clears them between tests
+    const list = await listInvitations(pool);
+    expect(Array.isArray(list)).toBe(true);
+    expect(list).toHaveLength(0);
+  });
+
+  // ------------------------------------------------------------------
+  // 3. Orders newest first (createdAt DESC)
+  // ------------------------------------------------------------------
+
+  it("orders invitations newest-first (createdAt DESC)", async () => {
+    // Insert two invitations with a small delay between them
+    await createInvitation(pool, {
+      email: "list-order-first@example.com",
+      role: "standard",
+      invitedBy,
+      baseUrl,
+      cookieSecret,
+    });
+
+    // Backdate the first invitation so the second is definitively newer
+    const client = await pool.connect();
+    try {
+      await client.query(
+        `UPDATE "invitation" SET "createdAt" = now() - interval '1 minute'
+         WHERE LOWER(email) = $1`,
+        ["list-order-first@example.com"]
+      );
+    } finally {
+      client.release();
+    }
+
+    await createInvitation(pool, {
+      email: "list-order-second@example.com",
+      role: "standard",
+      invitedBy,
+      baseUrl,
+      cookieSecret,
+    });
+
+    const list = await listInvitations(pool);
+    const emails = list.map((inv) => inv.email);
+    const firstIdx = emails.indexOf("list-order-first@example.com");
+    const secondIdx = emails.indexOf("list-order-second@example.com");
+    expect(firstIdx).toBeGreaterThan(-1);
+    expect(secondIdx).toBeGreaterThan(-1);
+    // Second (newer) must appear before first (older)
+    expect(secondIdx).toBeLessThan(firstIdx);
+  });
+
+  // ------------------------------------------------------------------
+  // 4. Does NOT include tokenHash or tokenEnc in returned objects
+  // ------------------------------------------------------------------
+
+  it("does not include tokenHash or tokenEnc in returned objects (secrets never reach response)", async () => {
+    await createInvitation(pool, {
+      email: "list-no-secrets@example.com",
+      role: "standard",
+      invitedBy,
+      baseUrl,
+      cookieSecret,
+    });
+
+    const list = await listInvitations(pool);
+    for (const inv of list) {
+      expect((inv as Record<string, unknown>).tokenHash).toBeUndefined();
+      expect((inv as Record<string, unknown>).tokenEnc).toBeUndefined();
+    }
+  });
+
+  // ------------------------------------------------------------------
+  // 5. Lazy-expire: pending row with past expiresAt appears as 'expired'
+  // ------------------------------------------------------------------
+
+  it("lazy-expire: a pending row with past expiresAt appears as status 'expired'", async () => {
+    const email = "list-lazy-expire@example.com";
+    await insertExpiredPendingInvitation(email, invitedBy);
+
+    const list = await listInvitations(pool);
+    const found = list.find((inv) => inv.email === email.toLowerCase());
+    expect(found).toBeDefined();
+    expect(found!.status).toBe("expired");
+  });
+
+  // ------------------------------------------------------------------
+  // 6. Accepted invitation has acceptedAt set; pending has acceptedAt null
+  // ------------------------------------------------------------------
+
+  it("accepted invitation has acceptedAt set; pending invitation has acceptedAt null", async () => {
+    const pendingEmail = "list-pending-at@example.com";
+    const acceptedEmail = "list-accepted-at@example.com";
+
+    const pending = await createInvitation(pool, {
+      email: pendingEmail,
+      role: "standard",
+      invitedBy,
+      baseUrl,
+      cookieSecret,
+    });
+
+    const accepted = await createInvitation(pool, {
+      email: acceptedEmail,
+      role: "standard",
+      invitedBy,
+      baseUrl,
+      cookieSecret,
+    });
+
+    // Mark the second one as accepted with an acceptedAt timestamp
+    const client = await pool.connect();
+    try {
+      await client.query(
+        `UPDATE "invitation" SET status='accepted', "acceptedAt"=now() WHERE id=$1`,
+        [accepted.id]
+      );
+    } finally {
+      client.release();
+    }
+
+    const list = await listInvitations(pool);
+
+    const pendingRow = list.find((inv) => inv.id === pending.id);
+    const acceptedRow = list.find((inv) => inv.id === accepted.id);
+
+    expect(pendingRow).toBeDefined();
+    expect(pendingRow!.acceptedAt).toBeNull();
+
+    expect(acceptedRow).toBeDefined();
+    expect(acceptedRow!.acceptedAt).toBeInstanceOf(Date);
+  });
+});
+
+// ------------------------------------------------------------------
+// retractInvitation(pool, id) — FR-015, §US3 Acceptance Scenarios
+// ------------------------------------------------------------------
+
+describe("retractInvitation(pool, id)", () => {
+  let invitedBy: string;
+
+  beforeAll(async () => {
+    invitedBy = await getAdminUserId();
+  });
+
+  // ------------------------------------------------------------------
+  // 1. Pending invitation → status becomes 'retracted', returns InvitationSummary
+  // ------------------------------------------------------------------
+
+  it("retracts a pending invitation: status becomes 'retracted' and returns InvitationSummary with invitedByEmail (FR-015)", async () => {
+    const email = "retract-pending@example.com";
+    const created = await createInvitation(pool, {
+      email,
+      role: "standard",
+      invitedBy,
+      baseUrl,
+      cookieSecret,
+    });
+
+    const result = await retractInvitation(pool, created.id);
+    expect(result).toMatchObject({
+      id: created.id,
+      email: email.toLowerCase(),
+      role: "standard",
+      status: "retracted",
+    });
+    // invitedByEmail must be resolved via JOIN
+    expect(typeof result.invitedByEmail).toBe("string");
+    expect(result.invitedByEmail).toBe(adminEmail);
+    // Secrets must NOT be present
+    expect((result as Record<string, unknown>).tokenHash).toBeUndefined();
+    expect((result as Record<string, unknown>).tokenEnc).toBeUndefined();
+  });
+
+  // ------------------------------------------------------------------
+  // 2. Non-existent id → throws NotFoundError (→ 404)
+  // ------------------------------------------------------------------
+
+  it("throws NotFoundError for a non-existent id (→ 404)", async () => {
+    const nonExistentId = crypto.randomUUID();
+    await expect(retractInvitation(pool, nonExistentId)).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // 3. Already-accepted invitation → throws NotPendingError (→ 409)
+  // ------------------------------------------------------------------
+
+  it("throws NotPendingError for an already-accepted invitation (→ 409)", async () => {
+    const email = "retract-accepted@example.com";
+    const created = await createInvitation(pool, {
+      email,
+      role: "standard",
+      invitedBy,
+      baseUrl,
+      cookieSecret,
+    });
+
+    const client = await pool.connect();
+    try {
+      await client.query(
+        `UPDATE "invitation" SET status='accepted', "acceptedAt"=now() WHERE id=$1`,
+        [created.id]
+      );
+    } finally {
+      client.release();
+    }
+
+    await expect(retractInvitation(pool, created.id)).rejects.toMatchObject({
+      code: "NOT_PENDING",
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // 4. Already-retracted invitation → throws NotPendingError (→ 409)
+  // ------------------------------------------------------------------
+
+  it("throws NotPendingError for an already-retracted invitation (→ 409)", async () => {
+    const email = "retract-already-retracted@example.com";
+    const created = await createInvitation(pool, {
+      email,
+      role: "standard",
+      invitedBy,
+      baseUrl,
+      cookieSecret,
+    });
+
+    // Retract it once
+    await retractInvitation(pool, created.id);
+
+    // Attempting to retract again must throw NotPendingError
+    await expect(retractInvitation(pool, created.id)).rejects.toMatchObject({
+      code: "NOT_PENDING",
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // 5. RACE — accept commits first, then retract gets 0 rows → NotPendingError
+  //    (plan.md Pass 11 TOCTOU test, conditional UPDATE pattern)
+  // ------------------------------------------------------------------
+
+  it("RACE: accept commits first, concurrent retract gets 0 rows → NotPendingError, accepted state preserved (plan.md Pass 11)", async () => {
+    const email = "retract-race@example.com";
+    const created = await createInvitation(pool, {
+      email,
+      role: "standard",
+      invitedBy,
+      baseUrl,
+      cookieSecret,
+    });
+
+    // Accept the invitation first (simulating the accept winning the race)
+    const client = await pool.connect();
+    try {
+      await client.query(
+        `UPDATE "invitation" SET status='accepted', "acceptedAt"=now() WHERE id=$1 AND status='pending'`,
+        [created.id]
+      );
+    } finally {
+      client.release();
+    }
+
+    // Retract must now fail with NotPendingError (not overwrite to 'retracted')
+    await expect(retractInvitation(pool, created.id)).rejects.toMatchObject({
+      code: "NOT_PENDING",
+    });
+
+    // Confirm the row is still 'accepted' — not overwritten to 'retracted'
+    const verifyClient = await pool.connect();
+    try {
+      const res = await verifyClient.query<{ status: string }>(
+        `SELECT status FROM "invitation" WHERE id=$1`,
+        [created.id]
+      );
+      expect(res.rows[0].status).toBe("accepted");
+    } finally {
+      verifyClient.release();
+    }
+  });
+});
+
+// ------------------------------------------------------------------
+// getInvitationLink(pool, id, cookieSecret) — FR-016, §US3 Acceptance Scenarios
+// ------------------------------------------------------------------
+
+describe("getInvitationLink(pool, id, cookieSecret)", () => {
+  let invitedBy: string;
+
+  beforeAll(async () => {
+    invitedBy = await getAdminUserId();
+  });
+
+  // ------------------------------------------------------------------
+  // 1. Pending invitation → decrypts tokenEnc → returns { link }
+  // ------------------------------------------------------------------
+
+  it("pending invitation: decrypts tokenEnc and returns { link } containing the original token (FR-016)", async () => {
+    const email = "link-pending@example.com";
+    const created = await createInvitation(pool, {
+      email,
+      role: "standard",
+      invitedBy,
+      baseUrl,
+      cookieSecret,
+    });
+
+    const result = await getInvitationLink(pool, created.id, cookieSecret);
+    expect(result).toHaveProperty("link");
+    expect(typeof result.link).toBe("string");
+    // The returned link must match the original link (same token, re-derived from tokenEnc)
+    expect(result.link).toBe(created.link);
+  });
+
+  // ------------------------------------------------------------------
+  // 2. Non-existent id → throws NotFoundError (→ 404)
+  // ------------------------------------------------------------------
+
+  it("throws NotFoundError for a non-existent id (→ 404)", async () => {
+    const nonExistentId = crypto.randomUUID();
+    await expect(getInvitationLink(pool, nonExistentId, cookieSecret)).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // 3. Non-pending invitation → throws NotPendingError (→ 409)
+  // ------------------------------------------------------------------
+
+  it("throws NotPendingError for a non-pending (accepted) invitation (→ 409)", async () => {
+    const email = "link-accepted@example.com";
+    const created = await createInvitation(pool, {
+      email,
+      role: "standard",
+      invitedBy,
+      baseUrl,
+      cookieSecret,
+    });
+
+    const client = await pool.connect();
+    try {
+      await client.query(
+        `UPDATE "invitation" SET status='accepted', "acceptedAt"=now() WHERE id=$1`,
+        [created.id]
+      );
+    } finally {
+      client.release();
+    }
+
+    await expect(getInvitationLink(pool, created.id, cookieSecret)).rejects.toMatchObject({
+      code: "NOT_PENDING",
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // 4. tokenEnc decrypt failure (wrong cookieSecret) → throws DecryptError (→ 409)
+  // ------------------------------------------------------------------
+
+  it("throws DecryptError when tokenEnc decrypt fails due to wrong cookieSecret (→ 409, not 500)", async () => {
+    const email = "link-wrong-secret@example.com";
+    const created = await createInvitation(pool, {
+      email,
+      role: "standard",
+      invitedBy,
+      baseUrl,
+      cookieSecret,
+    });
+
+    // Use a different (wrong) cookieSecret that is long enough to be valid but wrong
+    const wrongSecret = "this-is-a-wrong-secret-32-chars!!";
+    await expect(getInvitationLink(pool, created.id, wrongSecret)).rejects.toMatchObject({
+      code: "DECRYPT_ERROR",
+    });
   });
 });
