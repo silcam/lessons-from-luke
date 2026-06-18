@@ -923,12 +923,13 @@ describe("GET /api/admin/invitations/:id/link", () => {
     const email = `link-decrypt-fail-${crypto.randomUUID()}@example.com`;
     const tokenHash = crypto.randomBytes(32).toString("hex");
     const garbageTokenEnc = "bad:garbage:notbase64:invalid";
+    const createdAt = new Date();
     const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
 
     await authPool.query(
-      `INSERT INTO "invitation" (id, email, role, status, "tokenHash", "tokenEnc", "invitedBy", "expiresAt")
-       VALUES ($1, $2, 'standard', 'pending', $3, $4, $5, $6)`,
-      [invitationId, email, tokenHash, garbageTokenEnc, invitedBy, expiresAt]
+      `INSERT INTO "invitation" (id, email, role, status, "tokenHash", "tokenEnc", "invitedBy", "createdAt", "expiresAt")
+       VALUES ($1, $2, 'standard', 'pending', $3, $4, $5, $6, $7)`,
+      [invitationId, email, tokenHash, garbageTokenEnc, invitedBy, createdAt, expiresAt]
     );
 
     const agent = await loggedInAgent();
