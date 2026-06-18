@@ -524,7 +524,28 @@ describe("POST /api/auth/invitation/accept", () => {
   });
 
   // -------------------------------------------------------------------------
-  // 6. 403 — Origin not in allow-list (CSRF) when BETTER_AUTH_ENFORCE_ORIGIN=1
+  // 6. 400 — oversized body (>4 kb) → JSON 400, not HTML (Pass 8, plan.md §bodyParser limit)
+  // -------------------------------------------------------------------------
+  it("400: oversized body (>4 kb) returns a JSON error response, not HTML (Pass 8)", async () => {
+    const agent = plainAgent();
+
+    // 5 kb string: 'a'.repeat(5 * 1024) wrapped in a JSON value exceeds the 4kb limit
+    const oversizedValue = "a".repeat(5 * 1024);
+    const oversizedBody = JSON.stringify({ token: oversizedValue, password: "ValidPassword1!", name: "Test User" });
+
+    const res = await agent
+      .post("/api/auth/invitation/accept")
+      .set("Content-Type", "application/json")
+      .send(oversizedBody);
+
+    expect(res.status).toBe(400);
+    // Must be JSON, not an HTML error page
+    expect(res.header["content-type"]).toMatch(/application\/json/);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  // -------------------------------------------------------------------------
+  // 7. 403 — Origin not in allow-list (CSRF) when BETTER_AUTH_ENFORCE_ORIGIN=1
   // -------------------------------------------------------------------------
   it("403: foreign Origin header rejected when BETTER_AUTH_ENFORCE_ORIGIN=1", async () => {
     const savedEnv = process.env.BETTER_AUTH_ENFORCE_ORIGIN;
@@ -547,7 +568,7 @@ describe("POST /api/auth/invitation/accept", () => {
   });
 
   // -------------------------------------------------------------------------
-  // 7. 409 — concurrent double-redemption: second attempt rejected (SC-003)
+  // 8. 409 — concurrent double-redemption: second attempt rejected (SC-003)
   // -------------------------------------------------------------------------
   it("409: concurrent double-redemption — second attempt is rejected (SC-003)", async () => {
     const email = `accept-double-${crypto.randomUUID()}@example.com`;
@@ -572,7 +593,7 @@ describe("POST /api/auth/invitation/accept", () => {
   });
 
   // -------------------------------------------------------------------------
-  // 8. 410 — invalid/expired/retracted token
+  // 9. 410 — invalid/expired/retracted token
   // -------------------------------------------------------------------------
   it("410: invalid token returns a generic non-leaky error (FR-010)", async () => {
     const agent = plainAgent();
@@ -587,7 +608,7 @@ describe("POST /api/auth/invitation/accept", () => {
   });
 
   // -------------------------------------------------------------------------
-  // 9. 429 — rate limit (BETTER_AUTH_ENFORCE_RATE_LIMIT=1, plan.md Pass 12)
+  // 10. 429 — rate limit (BETTER_AUTH_ENFORCE_RATE_LIMIT=1, plan.md Pass 12)
   // -------------------------------------------------------------------------
   it("429: per-IP rate limit exceeded after >10 accept requests in 60s", async () => {
     const savedEnv = process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT;
