@@ -93,7 +93,17 @@ paths:
                 role: { $ref: "#/components/schemas/Role" }
       responses:
         "201":
-          description: Invitation created (Pending).
+          description: >
+            Invitation created (Pending). SECURITY (red-team Pass 8): the response body returns the
+            working single-use link, so the handler MUST set `Cache-Control: no-store` (and defensively
+            `Pragma: no-cache`) — the same protection Pass 7 applied to the re-copy `GET .../{id}/link`,
+            which returns the identical link. Pass 7 hardened the re-copy of the link but omitted this
+            original-mint response; this closes that asymmetry so every link-bearing response is
+            uniformly no-store.
+          headers:
+            Cache-Control:
+              schema: { type: string, enum: ["no-store"] }
+              description: Prevents caching of the freshly-minted working single-use link (red-team Pass 8).
           content:
             application/json:
               schema:
@@ -326,6 +336,11 @@ paths:
           description: >
             Missing/short/long password, or an invalid name — empty, over-long, empty-after-trim, or
             containing ASCII control chars/newlines (red-team Pass 6). All validation runs before hashing.
+            Also covers a malformed/oversized JSON body (red-team Pass 8): the route-scoped bodyParser's
+            SyntaxError (malformed JSON) and PayloadTooLargeError (body over the small route limit, e.g.
+            4kb) MUST be caught and mapped to this generic JSON Error response — never allowed to reach
+            Express's default finalhandler, which would emit an HTML page (and a stack trace outside
+            production), violating both this JSON schema and the non-leaky-error posture (FR-010).
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
         "403":
           description: >

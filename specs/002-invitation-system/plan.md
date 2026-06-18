@@ -558,6 +558,34 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   response (keep it out of the anonymous surface entirely). The contract is updated to make the lookup
   response `{email}` only.
 
+### Pass 8 — second-order gap in Pass 7's cache hardening: the create response also returns a working link
+
+- **Threat: Pass 7 set `Cache-Control: no-store` on the re-copy `GET /api/admin/invitations/{id}/link`
+  (which returns the working single-use link) but NOT on the `POST /api/admin/invitations` `201`
+  response — which returns the *same* working single-use link in its body when the invitation is first
+  minted.** Pass 7 enumerated "three responses [that] carry secrets and are currently cacheable" but
+  omitted the create `201`, even though its body contains exactly the credential Pass 7 was protecting
+  on the re-copy path. The asymmetry is the gap: the link is `no-store` when re-copied but cacheable
+  when first issued. Grounded against `serverApp.ts`: the app sets no cache headers and `helmet()`
+  emits none, so the create `201` is left at the proxy/browser default. While most shared caches do not
+  cache a `POST` response **by default**, a `POST` response *is* cacheable when it carries explicit
+  freshness headers (RFC 9111 §4) and, more concretely here, the admin's own browser/XHR layer and any
+  intermediary that has been configured to cache POST can retain the live link — the identical residual
+  Pass 7 cited as its rationale for the re-copy `GET`. There is no reason to harden the re-copy of the
+  link but not its original emission.
+- **Mitigation**: Set `Cache-Control: no-store` (and defensively `Pragma: no-cache`) on the
+  `POST /api/admin/invitations` `201` response, matching the re-copy `GET .../{id}/link` and the
+  anonymous lookup/accept responses Pass 7 already hardened, so **every** response whose body carries a
+  working link or the bound email is uniformly `no-store`. The contract is updated to declare
+  `Cache-Control: no-store` on the create `201`. (This is the last secret-bearing JSON response on the
+  invitation surface; with it, the set of `no-store` responses — create `201`, re-copy `link`,
+  anonymous lookup, accept — is complete and symmetric, so a reviewer cannot find a link-bearing
+  response that is still cacheable.)
+- **Note (test the cache header, not just the body).** Add a controller/integration assertion that the
+  create `201`, the re-copy `200`, the anonymous lookup `200`, and the accept `200` each carry
+  `Cache-Control: no-store`, so the cache hardening cannot silently regress when these handlers are
+  refactored (mirrors the Pass 5/6/7 stance that secret-handling invariants get an explicit guard test).
+
 ## Edge Cases & Error Handling
 
 > Added by `/sp:04-red-team` (Pass 1).
@@ -579,6 +607,52 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
 - The integration test MUST assert that `POST /api/auth/invitation/accept` actually receives a
   parsed body (e.g. a happy-path create-account assertion), so a regression in route ordering is
   caught.
+
+### Pass 8 — accept creates `emailVerified: false`; FR-012 sign-in works only because verification is not required (latent coupling)
+
+- **The accept transaction inserts `user.emailVerified = false` (data-model), and FR-012 then directs
+  the recipient to sign in with the new credentials. This only works because better-auth is NOT
+  configured to require email verification — a latent coupling that must be documented so a future
+  change does not silently lock out every invitation-created account.** Grounded against `auth.ts`: the
+  `emailAndPassword` block sets `enabled`, `disableSignUp`, `minPasswordLength`, `maxPasswordLength`,
+  and the Argon2id hasher, but does **not** set `requireEmailVerification`, so it defaults to off and an
+  `emailVerified: false` account can sign in immediately (the seeded admin is also `emailVerified: false`
+  and signs in fine, so this is consistent and currently correct). The risk is purely forward-looking:
+  if anyone later turns on `requireEmailVerification`, then (a) every account this feature creates would
+  be unable to sign in right after redemption — breaking FR-012 — and (b) there is **no email-sending
+  capability** in the product (a core scope boundary, brainstorm "No email sending"), so there would be
+  no way to deliver a verification link, leaving the recipient permanently locked out.
+- **Mitigation (document, do not change behavior).** Record this as an explicit latent constraint
+  (alongside the `invitedBy`-FK "can't hard-delete an inviting admin" note): the invitation accept path
+  assumes `requireEmailVerification` stays off, because the product has no email channel to satisfy
+  verification. If email verification is ever desired, it is a new feature that must first add an email
+  channel; until then, leaving `requireEmailVerification` unset is a precondition of this feature, not an
+  oversight. No code change in this feature; `auth.ts` stays untouched (SC-008 / Principle VI). Optionally
+  add a single assertion in the accept integration test that the redeemed account can actually sign in
+  (FR-012 end-to-end), so a future verification-requirement change that breaks this is caught by CI rather
+  than in production.
+
+### Pass 8 — the route-scoped body parser's own errors must be handled (malformed / oversized JSON)
+
+- **The Edge Cases section above mandates a route-scoped `bodyParser.json()` on the accept route, but
+  the failure modes of that parser are unspecified.** `bodyParser.json()` *throws* on (a) malformed
+  JSON (`SyntaxError`, status 400) and (b) a body over its size limit (`PayloadTooLargeError`, status
+  413). Grounded against `serverApp.ts`: the app registers **no custom Express error-handling
+  middleware** (no 4-arg `(err, req, res, next)` handler anywhere), so a thrown body-parse error
+  propagates to Express's built-in `finalhandler`, which responds with an **HTML** error page (and, when
+  `NODE_ENV !== 'production'`, the stack trace). For the anonymous accept route this is two problems:
+  the response violates the contract's JSON `Error` schema (the SPA's redemption form expects JSON and
+  cannot parse an HTML error), and in non-production it leaks a stack trace — both at odds with the
+  feature's non-leaky-error posture (FR-010).
+- **Mitigation**: The accept route MUST handle its route-scoped body-parser errors explicitly rather
+  than letting them reach `finalhandler` — either by attaching a small route-scoped error handler that
+  maps a body-parse `SyntaxError`/`PayloadTooLargeError` to a generic JSON `400` matching the `Error`
+  schema (no stack, no parser detail), or by wrapping the parse in a try/catch in the handler. Give the
+  route-scoped parser an explicit small `limit` (the accept body is tiny — `token` + a ≤128-char
+  password + a ≤100-char name; e.g. `limit: '4kb'`) so an oversized body is rejected cheaply and never
+  reaches the Argon2id hash (consistent with the Pass 1 "validate before hashing" ordering). Add a test
+  asserting that a malformed-JSON `POST .../accept` returns a JSON `400` with the generic non-leaky
+  message and no stack trace.
 
 ### Lazy-expire UPDATE concurrency
 
