@@ -19,11 +19,15 @@ import * as passwordHasher from "./passwordHasher";
 // Error classes
 // ---------------------------------------------------------------------------
 
-export class AccountExistsError extends Error {
+/**
+ * Thrown at create-invitation time: an account is already registered for
+ * this email, so no invitation can be issued.
+ */
+export class AccountAlreadyRegisteredError extends Error {
   code = "ACCOUNT_EXISTS" as const;
   constructor(email: string) {
     super(`An account already exists for ${email}`);
-    this.name = "AccountExistsError";
+    this.name = "AccountAlreadyRegisteredError";
   }
 }
 
@@ -67,11 +71,15 @@ export class ValidationError extends Error {
   }
 }
 
-export class AccountAlreadyExistsError extends Error {
+/**
+ * Thrown at accept-invitation time: a concurrent request (or duplicate submit)
+ * already created an account for the bound email — this request lost the race.
+ */
+export class AccountCreatedConcurrentlyError extends Error {
   code = "ACCOUNT_ALREADY_EXISTS" as const;
   constructor(email: string) {
     super(`An account already exists for ${email}`);
-    this.name = "AccountAlreadyExistsError";
+    this.name = "AccountCreatedConcurrentlyError";
   }
 }
 
@@ -166,7 +174,7 @@ function validateRole(role: string): asserts role is InvitationRole {
  * Steps:
  * 1. Validate email (length, format) and role
  * 2. Lazy-expire: flip any expired pending rows for this email to 'expired'
- * 3. Check for existing user account (-> AccountExistsError)
+ * 3. Check for existing user account (-> AccountAlreadyRegisteredError)
  * 4. Generate token, hash, and encrypt it
  * 5. INSERT invitation row
  * 6. On pg 23505: branch on constraint name
@@ -201,7 +209,7 @@ export async function createInvitation(
       [email]
     );
     if (userCheck.rows.length > 0) {
-      throw new AccountExistsError(email);
+      throw new AccountAlreadyRegisteredError(email);
     }
 
     // 4. Build invitation -- with one retry on tokenHash collision
@@ -381,7 +389,7 @@ function hasControlChars(str: string): boolean {
  *    c. Hash password (Argon2id)
  *    d. INSERT user row
  *    e. INSERT account row
- *    f. Catch pg 23505 on user insert -> ROLLBACK -> throw AccountAlreadyExistsError
+ *    f. Catch pg 23505 on user insert -> ROLLBACK -> throw AccountCreatedConcurrentlyError
  *    g. COMMIT
  * 5. Return { email }
  */
@@ -445,7 +453,7 @@ export async function acceptInvitation(
       // 4b. If 0 rows updated, the invitation is no longer valid OR was just
       //     accepted concurrently (SC-003). Distinguish the cases by checking
       //     whether an account now exists for this email. If it does, a concurrent
-      //     request beat us to it → AccountAlreadyExistsError (409). Otherwise
+      //     request beat us to it → AccountCreatedConcurrentlyError (409). Otherwise
       //     the invitation is expired/retracted → InvalidLinkError (410).
       if (updateResult.rows.length === 0) {
         const accountCheck = await client.query<{ id: string }>(
@@ -454,7 +462,7 @@ export async function acceptInvitation(
         );
         await client.query("ROLLBACK");
         if (accountCheck.rows.length > 0) {
-          throw new AccountAlreadyExistsError(invitation.email);
+          throw new AccountCreatedConcurrentlyError(invitation.email);
         }
         throw new InvalidLinkError();
       }
@@ -476,7 +484,7 @@ export async function acceptInvitation(
       } catch (userInsertErr: unknown) {
         if (isPgUniqueViolation(userInsertErr)) {
           await client.query("ROLLBACK");
-          throw new AccountAlreadyExistsError(invitation.email);
+          throw new AccountCreatedConcurrentlyError(invitation.email);
         }
         throw userInsertErr;
       }

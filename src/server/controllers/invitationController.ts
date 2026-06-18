@@ -23,11 +23,11 @@ import {
   getInvitationLink,
   lookupInvitation,
   acceptInvitation,
-  AccountExistsError,
+  AccountAlreadyRegisteredError,
   ActivePendingError,
   ValidationError,
   InvalidLinkError,
-  AccountAlreadyExistsError,
+  AccountCreatedConcurrentlyError,
   NotFoundError,
   NotPendingError,
   DecryptError,
@@ -353,7 +353,7 @@ export function registerAnonymousInvitationRoutes(app: Express, pool: Pool): voi
           res.status(410).json({ error: "This invitation link is invalid, expired, or has already been used." });
           return;
         }
-        if (err instanceof AccountAlreadyExistsError) {
+        if (err instanceof AccountCreatedConcurrentlyError) {
           res.status(409).json({ error: err.message });
           return;
         }
@@ -410,7 +410,7 @@ export default function invitationController(app: Express, pool: Pool): void {
           cookieSecret: secrets.cookieSecret,
         });
       } catch (err) {
-        if (err instanceof AccountExistsError) {
+        if (err instanceof AccountAlreadyRegisteredError) {
           res.status(409).json({ error: err.message, code: err.code });
           return;
         }

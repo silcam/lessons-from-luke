@@ -212,7 +212,7 @@ describe("POST /api/admin/invitations", () => {
   });
 
   // -------------------------------------------------------------------------
-  // 8. 409 — email already has an account (FR-004 AccountExistsError)
+  // 8. 409 — email already has an account (FR-004 AccountAlreadyRegisteredError)
   // -------------------------------------------------------------------------
   it("409: rejects when email already has an account (FR-004)", async () => {
     const agent = await loggedInAgent();
