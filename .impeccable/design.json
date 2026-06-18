@@ -1,0 +1,218 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-18",
+  "title": "Design System: Lessons from Luke",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Action Blue",
+        "canonical": "#3f88c5",
+        "tonalRamp": [
+          "oklch(0.22 0.06 245)",
+          "oklch(0.32 0.08 245)",
+          "oklch(0.42 0.10 245)",
+          "oklch(0.52 0.11 245)",
+          "oklch(0.62 0.11 245)",
+          "oklch(0.72 0.10 245)",
+          "oklch(0.82 0.07 245)",
+          "oklch(0.92 0.04 245)"
+        ]
+      },
+      "dark-bg": {
+        "role": "secondary",
+        "displayName": "Field Navy",
+        "canonical": "#1c3144",
+        "tonalRamp": [
+          "oklch(0.18 0.03 250)",
+          "oklch(0.24 0.04 250)",
+          "oklch(0.28 0.04 250)",
+          "oklch(0.38 0.04 250)",
+          "oklch(0.50 0.04 250)",
+          "oklch(0.64 0.035 250)",
+          "oklch(0.80 0.025 250)",
+          "oklch(0.92 0.015 250)"
+        ]
+      },
+      "success": {
+        "role": "tertiary",
+        "displayName": "Done Green",
+        "canonical": "#39b54a",
+        "tonalRamp": [
+          "oklch(0.30 0.08 145)",
+          "oklch(0.40 0.11 145)",
+          "oklch(0.50 0.14 145)",
+          "oklch(0.60 0.16 145)",
+          "oklch(0.68 0.17 145)",
+          "oklch(0.78 0.15 145)",
+          "oklch(0.87 0.10 145)",
+          "oklch(0.94 0.05 145)"
+        ]
+      },
+      "highlight": {
+        "role": "tertiary",
+        "displayName": "Attention Amber",
+        "canonical": "#ffba08",
+        "tonalRamp": [
+          "oklch(0.40 0.07 80)",
+          "oklch(0.50 0.10 80)",
+          "oklch(0.60 0.13 80)",
+          "oklch(0.70 0.15 80)",
+          "oklch(0.82 0.16 80)",
+          "oklch(0.88 0.14 80)",
+          "oklch(0.93 0.09 80)",
+          "oklch(0.97 0.04 80)"
+        ]
+      },
+      "danger": {
+        "role": "tertiary",
+        "displayName": "Danger Red",
+        "canonical": "#d00000",
+        "tonalRamp": [
+          "oklch(0.25 0.10 29)",
+          "oklch(0.35 0.15 29)",
+          "oklch(0.45 0.20 29)",
+          "oklch(0.55 0.22 29)",
+          "oklch(0.65 0.20 29)",
+          "oklch(0.75 0.16 29)",
+          "oklch(0.85 0.10 29)",
+          "oklch(0.93 0.05 29)"
+        ]
+      },
+      "grey": {
+        "role": "neutral",
+        "displayName": "Mute Grey",
+        "canonical": "#999999",
+        "tonalRamp": [
+          "oklch(0.20 0 0)",
+          "oklch(0.30 0 0)",
+          "oklch(0.45 0 0)",
+          "oklch(0.58 0 0)",
+          "oklch(0.68 0 0)",
+          "oklch(0.80 0 0)",
+          "oklch(0.90 0 0)",
+          "oklch(0.97 0 0)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Page and header-bar titles (h1, 2.5em bold)." },
+      "headline": { "displayName": "Headline", "purpose": "Major section headings (h2, 2em bold)." },
+      "title": { "displayName": "Title", "purpose": "Subsection headings (h3, 1.5em bold)." },
+      "body": { "displayName": "Body", "purpose": "Running text and form values (16px, weight 400)." },
+      "label": { "displayName": "Label", "purpose": "Form-field labels; the quietest voice (1em, weight 200)." }
+    },
+    "shadows": [],
+    "motion": [],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The default action button: white text on Action Blue, slightly rounded, flat.",
+      "html": "<button class=\"ds-btn-primary\">Save</button>",
+      "css": ".ds-btn-primary { color: #fff; background: #3f88c5; border: 0; border-radius: 0.25em; padding: 0.5em 1em; margin: 0.25em; font: inherit; cursor: pointer; } .ds-btn-primary:active { background: #3470a2; } .ds-btn-primary:focus-visible { outline: 2px solid #3f88c5; outline-offset: 2px; } .ds-btn-primary:disabled { background: #3f88c599; cursor: default; }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Destructive action: white text on Danger Red. Same shape as primary.",
+      "html": "<button class=\"ds-btn-danger\">Delete</button>",
+      "css": ".ds-btn-danger { color: #fff; background: #d00000; border: 0; border-radius: 0.25em; padding: 0.5em 1em; margin: 0.25em; font: inherit; cursor: pointer; } .ds-btn-danger:active { background: #ab0000; } .ds-btn-danger:focus-visible { outline: 2px solid #d00000; outline-offset: 2px; } .ds-btn-danger:disabled { background: #d0000099; cursor: default; }"
+    },
+    {
+      "name": "Link Button",
+      "kind": "button",
+      "refersTo": "button-link",
+      "description": "Text-only action in Action Blue; underline on hover.",
+      "html": "<button class=\"ds-btn-link\">Copy link</button>",
+      "css": ".ds-btn-link { color: #3f88c5; background: transparent; border: 0; padding: 0; font: inherit; cursor: pointer; } .ds-btn-link:hover { text-decoration: underline; } .ds-btn-link:active { color: #3470a2; } .ds-btn-link:focus-visible { outline: 2px solid #3f88c5; outline-offset: 2px; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input-text",
+      "description": "Borderless field with a single hairline underline that turns blue on focus.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Email address\" />",
+      "css": ".ds-input { border: 0; border-bottom: 1px solid #ddd; padding: 0.125em 0.25em; width: 100%; box-sizing: border-box; font: inherit; background: #fff; color: #000; } .ds-input:focus { border-bottom-color: #3f88c5; outline: none; } .ds-input::placeholder { color: #999; }"
+    },
+    {
+      "name": "Textarea",
+      "kind": "input",
+      "refersTo": "input-text",
+      "description": "Full hairline border, auto-growing, no resize handle; blue border on focus.",
+      "html": "<textarea class=\"ds-textarea\" rows=\"3\" placeholder=\"Translation…\"></textarea>",
+      "css": ".ds-textarea { border: 1px solid #ddd; padding: 0.125em 0.25em; width: 100%; box-sizing: border-box; resize: none; font: inherit; background: #fff; color: #000; } .ds-textarea:focus { border-color: #3f88c5; outline: none; }"
+    },
+    {
+      "name": "Alert (Danger)",
+      "kind": "custom",
+      "refersTo": "alert-danger",
+      "description": "Bordered notice; 2px border and text share the state hue (red for danger, amber for highlight).",
+      "html": "<div class=\"ds-alert-danger\" role=\"alert\">That invitation link has expired.</div>",
+      "css": ".ds-alert-danger { border: 2px solid #d00000; color: #d00000; border-radius: 0.25em; padding: 0.5em 1em; margin: 0.5em 0; font: inherit; background: #fff; }"
+    },
+    {
+      "name": "Progress Bar",
+      "kind": "custom",
+      "refersTo": "progress-bar",
+      "description": "Hairline-grey track; fill is green at 100%, amber below.",
+      "html": "<div class=\"ds-progress\"><div class=\"ds-progress__bar\" style=\"width: 64%\"></div></div>",
+      "css": ".ds-progress { background: #ddd; height: 8px; width: 100%; margin: 6px 0; } .ds-progress__bar { background: #ffba08; height: 100%; } .ds-progress__bar[style*=\"100%\"] { background: #39b54a; }"
+    },
+    {
+      "name": "List Item",
+      "kind": "custom",
+      "refersTo": "list-item",
+      "description": "Hairline-separated row with an optional grey hover wash.",
+      "html": "<div class=\"ds-list-item\">Luke 1:1–4 · English</div>",
+      "css": ".ds-list-item { border-bottom: 1px solid #ddd; padding: 0.5em 1em; font: inherit; color: #000; background: #fff; } .ds-list-item:hover { background: #efefef; }"
+    },
+    {
+      "name": "Header Bar",
+      "kind": "nav",
+      "refersTo": "header-bar",
+      "description": "The app's one persistent chrome: navy band, white title, logo at 4em.",
+      "html": "<header class=\"ds-header\"><span class=\"ds-header__logo\" aria-hidden=\"true\"></span><h1 class=\"ds-header__title\">Lessons from Luke</h1></header>",
+      "css": ".ds-header { display: flex; align-items: center; background: #1c3144; color: #fff; padding: 1em; } .ds-header__logo { display: inline-block; width: 4em; height: 4em; margin-right: 0.8em; border-radius: 0.25em; background: rgba(255,255,255,0.12); } .ds-header__title { margin: 0; font-size: 2.5em; font-weight: 700; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Field Manual",
+    "overview": "This is a working tool, not a showpiece. A field manual earns trust by being legible, predictable, and rugged — it works on a folding table in a village with spotty power as readily as on an office desk. Every screen exists to serve one job: get translated curriculum out of a translator's head and into an exportable lesson, in their own writing system, without the interface getting in the way. The system is deliberately plain: flat (no shadows, no gradients), monochrome-typed (a single Helvetica family), built from a small consistent kit of styled-components primitives. State is communicated through a tight, named color set: blue for action, green for done, amber for in-progress/attention, red for danger. The current directive is to maintain and extend this established style, not to redesign it.",
+    "keyCharacteristics": [
+      "Flat by default — no shadows, no gradients; depth from borders and the dark header band alone.",
+      "One type family — Helvetica at a small set of sizes; hierarchy through size and weight, never new faces.",
+      "Information-carrying color — the Colors.ts set is functional (action / done / attention / danger), used sparingly on white.",
+      "Em-based, fluid spacing — sizing scales with font-size; comfortable, not dense.",
+      "Script-agnostic — must host any writing system and reading direction without breaking."
+    ],
+    "rules": [
+      { "name": "The Color-Means-Something Rule", "body": "No color is used decoratively. If a hue appears, it is reporting state — blue (actionable), green (done), amber (in progress / attention), red (danger).", "section": "colors" },
+      { "name": "The Single-Action-Color Rule", "body": "Blue is the only interactive color. Don't introduce a second accent; if everything is highlighted, nothing is.", "section": "colors" },
+      { "name": "The One-Family Rule", "body": "Hierarchy comes from size and weight within Helvetica — never from adding a second typeface. There is no display font and no mono font.", "section": "typography" },
+      { "name": "The Script-Neutral Rule", "body": "Never hard-code Latin-only assumptions into line-height, truncation, or font stacks. The editor must render right-to-left and complex scripts cleanly.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat and separated by hairlines, not shadows. If a new component reaches for a drop shadow to stand out, the answer is a border or whitespace instead.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do build new screens from the base-components/ kit and the Colors.ts tokens. The in-progress invitation workflow is not a style reference; it is unfinished and should be brought up to match this system.",
+      "Do keep surfaces flat and separate them with 1px #ddd hairlines or whitespace.",
+      "Do use color only to report state: blue = action, green = done, amber = attention, red = danger.",
+      "Do keep body text at Ink (#000) on white. Reserve Mute Grey (#999) for placeholders and disabled text only.",
+      "Do restore a visible keyboard focus indicator on buttons and inputs (the kit currently sets outline: none). WCAG 2.1 AA is the target; add a focus ring in the system's blue without otherwise altering the look.",
+      "Do pair every state color with text, an icon, or a shape so meaning survives for color-blind users.",
+      "Do keep the UI font neutral and let any writing system or reading direction (incl. RTL) render cleanly inside it."
+    ],
+    "donts": [
+      "Don't add a second accent color or use any hue decoratively.",
+      "Don't introduce shadows, gradients, glassmorphism, or hype animation — the flashy-trendy-startup look this product rejects.",
+      "Don't reach for childish church clip-art, crowded corporate-SaaS dashboards, or ornate religious skeuomorphism (gilt, parchment, stained glass, faux leather).",
+      "Don't add a second typeface or a display/mono font; hierarchy is size + weight within Helvetica.",
+      "Don't lighten body text toward gray for elegance — it breaks AA contrast and legibility.",
+      "Don't assume Latin text, left-to-right layout, modern hardware, or fast bandwidth."
+    ]
+  }
+}

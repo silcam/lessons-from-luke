@@ -6,6 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Lessons from Luke is a Sunday School curriculum translation and management application. It supports both web and Electron desktop deployments, allowing users to translate lesson content from English source languages into other languages.
 
+## Design Context
+
+Before working on any UI, read **`PRODUCT.md`** (strategic: register, users, brand personality, anti-references, design principles, accessibility) and **`DESIGN.md`** (visual system: the `Colors.ts` palette, Helvetica type scale, flat/no-shadow elevation, and the `src/frontend/common/base-components/` component kit). These are the source of truth for design decisions.
+
+- **Register: product.** Personality is *clear, efficient, utilitarian* — North Star "The Field Manual."
+- **Guiding principle: consistency over novelty.** Maintain and extend the existing visual style for new features (e.g. the invitation workflow); build from the existing base-components and tokens rather than inventing a parallel language. The invitation screens are *not* yet a style reference — they're unfinished and should be brought up to match `DESIGN.md`.
+- The `/impeccable` skill reads both files automatically. Live mode (`/impeccable live`) is **not** configured: the web build serves an in-memory HTML (webpack `HtmlWebpackPlugin` with no template file), so live mode would need a custom HTML template added to the webpack config first.
+
 ## Development Commands
 
 ```bash
