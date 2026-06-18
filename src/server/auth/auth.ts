@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { Pool } from "pg";
 import secrets from "../util/secrets";
 import * as passwordHasher from "./passwordHasher";
+import { DEFAULT_BASE_URL, getTrustedOrigins } from "./trustedOrigins";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let authInstance: ReturnType<typeof betterAuth<any>> | null = null;
@@ -54,7 +55,7 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> {
   authInstance = betterAuth({
     database: pool,
     secret: secrets.cookieSecret,
-    baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:8081",
+    baseURL: process.env.BETTER_AUTH_URL ?? DEFAULT_BASE_URL,
     // Pin trusted origins to the explicit public URL so better-auth's
     // origin/CSRF checks are never silently widened by a misconfigured proxy.
     // In production the SPA is served from the same origin as BETTER_AUTH_URL,
@@ -63,11 +64,9 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> {
     // API (:8081) and proxies /api to it, so the browser's Origin is :8080/:8082;
     // trust those (plus the API origin) so cross-origin dev login isn't rejected
     // with "Invalid origin". NODE_ENV=test skips origin checks entirely.
-    trustedOrigins: process.env.BETTER_AUTH_URL
-      ? [process.env.BETTER_AUTH_URL]
-      : process.env.NODE_ENV === "development"
-        ? ["http://localhost:8080", "http://localhost:8081", "http://localhost:8082"]
-        : [],
+    // The allow-list is sourced from trustedOrigins.ts so it stays in sync with
+    // the CSRF middleware in invitationController.ts (architecture-review 9c7.13).
+    trustedOrigins: getTrustedOrigins() ?? [],
     advanced: {
       // Explicitly enforce Secure cookies in production regardless of
       // baseURL scheme detection, so a misconfigured proxy can't silently

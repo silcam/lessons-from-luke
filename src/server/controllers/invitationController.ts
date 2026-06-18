@@ -33,6 +33,7 @@ import {
   DecryptError,
 } from "../auth/invitationStore";
 import secrets from "../util/secrets";
+import { DEFAULT_BASE_URL, getTrustedOrigins } from "../auth/trustedOrigins";
 
 // ---------------------------------------------------------------------------
 // Shared Origin / CSRF middleware (plan.md Pass 4/6)
@@ -48,20 +49,16 @@ import secrets from "../util/secrets";
 // ---------------------------------------------------------------------------
 
 /**
- * Returns the allowed origins for the current environment, mirroring
- * auth.ts's `trustedOrigins` computation exactly (plan.md Pass 6).
+ * Returns the allowed origins for the current environment.
+ *
+ * Delegates to getTrustedOrigins() from trustedOrigins.ts so this middleware
+ * and auth.ts's betterAuth trustedOrigins config can never drift apart
+ * (architecture-review remediation 9c7.13; plan.md Pass 6).
  */
 function getAllowedOrigins(): string[] | null {
-  const betterAuthUrl = process.env.BETTER_AUTH_URL;
-  if (betterAuthUrl) {
-    return [betterAuthUrl];
-  }
-  if (process.env.NODE_ENV === "development") {
-    return ["http://localhost:8080", "http://localhost:8081", "http://localhost:8082"];
-  }
   // Production with no BETTER_AUTH_URL → allow nothing (secrets.ts already
   // throws at startup if BETTER_AUTH_URL is absent in production)
-  return null;
+  return getTrustedOrigins();
 }
 
 /**
@@ -401,7 +398,7 @@ export default function invitationController(app: Express, pool: Pool): void {
         return;
       }
 
-      const baseUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:8081";
+      const baseUrl = process.env.BETTER_AUTH_URL ?? DEFAULT_BASE_URL;
 
       let result;
       try {
@@ -524,7 +521,7 @@ export default function invitationController(app: Express, pool: Pool): void {
     "/api/admin/invitations/:id/link",
     async (req: Request, res: Response): Promise<void> => {
       const { id } = req.params;
-      const baseUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:8081";
+      const baseUrl = process.env.BETTER_AUTH_URL ?? DEFAULT_BASE_URL;
 
       let link;
       try {
