@@ -586,6 +586,117 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   `Cache-Control: no-store`, so the cache hardening cannot silently regress when these handlers are
   refactored (mirrors the Pass 5/6/7 stance that secret-handling invariants get an explicit guard test).
 
+### Pass 11 — the retract `200` returns the SAME PII-bearing `InvitationSummary` the list does, but was left cacheable AND without the Pass 10 `invitedByEmail` JOIN (the "complete and symmetric" cache set is still incomplete)
+
+- **Threat: `POST /api/admin/invitations/{id}/retract` returns a full `InvitationSummary` on
+  success (contract `200`), whose body carries `email` (the bound recipient) and `invitedByEmail`
+  (the creating admin) — the SAME PII the list response carries — yet Pass 7/8/10 never set
+  `Cache-Control: no-store` on it.** Pass 10 declared the `no-store` set "genuinely complete (no PII-
+  or secret-bearing JSON response remains cacheable)" after hardening the list, but it enumerated
+  only the create `201`, list `200`, re-copy `link` `200`, anonymous lookup `200`, and accept `200`
+  — it **omitted the retract `200`**, which returns one `InvitationSummary` and therefore discloses
+  the same `email` + `invitedByEmail` pair Pass 10 judged worth protecting on the list. This is the
+  identical asymmetry class Pass 8 closed on the create path and Pass 10 closed on the list path,
+  recurring once more on the retract path: a PII-bearing response left at the proxy/browser default
+  (verified again against `serverApp.ts` lines 39-61 — `helmet()` sets no cache directive, no route
+  sets one). The retract response is a `POST` `200`, which most shared caches do not cache by
+  default, but the admin's own browser/XHR layer and any cache configured for `POST` can retain it —
+  exactly the residual Pass 8 cited as its rationale for hardening the `POST /api/admin/invitations`
+  `201`. There is no principled reason the create `201` and the list `200` are `no-store` but the
+  retract `200` (same `InvitationSummary` shape) is not.
+- **Second, congruence: the retract handler ALSO needs the Pass 10 `invitedBy → invitedByEmail`
+  JOIN, which Pass 10 specified only for the LIST query.** `InvitationSummary.invitedByEmail` is
+  resolved by joining `"user"` on `invitation.invitedBy` (the row stores the admin's `user.id`, not
+  their email — Pass 10). Pass 10 wrote that JOIN into the **list** query only (data-model
+  "Management-list query"), but the retract `200` returns the same `InvitationSummary`, so the
+  retract handler MUST perform the identical `JOIN "user" ON "user"."id" = "invitation"."invitedBy"`
+  and project `"user"."email" AS "invitedByEmail"` (or reuse the same row-mapping helper) — otherwise
+  it cannot populate the contract's required `invitedByEmail` field and would return a summary the
+  contract does not declare. Same inner-join safety holds (`invitedBy` NOT NULL, never hard-deleted).
+- **Mitigation**: (1) Set `Cache-Control: no-store` (and defensively `Pragma: no-cache`) on the
+  `POST /api/admin/invitations/{id}/retract` `200` response, so **every** invitation response whose
+  body carries an email or a link is uniformly `no-store` — now create `201`, list `200`, retract
+  `200`, re-copy `link` `200`, anonymous lookup `200`, accept `200`; this is the genuinely complete
+  set (the only remaining 2xx admin responses with a body are retract, list, and re-copy, all now
+  covered). (2) Resolve `invitedByEmail` in the retract handler via the same JOIN/row-mapper used by
+  the list. Extend the Pass 8/10 cache guard test to assert the retract `200` also carries
+  `Cache-Control: no-store`. The contract and data-model are updated to declare the header on retract
+  and to note the retract handler shares the list's `invitedBy` JOIN.
+
+### Pass 11 — retract is a check-then-act on the invitation status with no conditional UPDATE, so it can race an in-flight accept and corrupt a terminal state
+
+- **Threat: the accept path was given an atomic conditional status flip (Pass 1 / data-model
+  "Accept transaction & lazy-expire concurrency"), but the RETRACT path was never given the
+  equivalent — so retract is a TOCTOU.** The contract's retract `409` ("Invitation is not Pending")
+  implies the handler checks the current status before flipping to `retracted`. If implemented as the
+  natural "SELECT status → if pending → UPDATE status='retracted'", it races a concurrent
+  `POST /api/auth/invitation/accept` on the same pending row: both operations read `status='pending'`;
+  the accept transaction commits (creates the `user`+`account` and flips the row to `accepted`,
+  `acceptedAt` set); then the retract's unconditional `UPDATE ... SET status='retracted' WHERE id=$1`
+  overwrites the **already-accepted** row to `retracted`. The result is a corrupted terminal state:
+  an account exists for the bound email, but the invitation reads `Retracted` with no `acceptedAt` —
+  violating the state machine (no transition out of a terminal state, data-model) and the management
+  list's accuracy guarantee (SC-005: status reflects reality with 100% accuracy across all
+  transitions). The same race also exists between two concurrent retracts (benign — both want
+  `retracted`) and, less harmfully, retract-vs-lazy-expire. The accept-vs-retract case is the
+  damaging one because it can flip a `accepted` row back to `retracted`.
+- **Mitigation**: Make retract a **conditional, atomic UPDATE** mirroring the accept flip:
+  `UPDATE "invitation" SET status='retracted' WHERE id=$1 AND status='pending' RETURNING ...`, and
+  decide the response from the row count — **1 row** → `200` (retracted, return the summary); **0
+  rows** → distinguish `404` (no such id) from `409` (id exists but not pending) with a single
+  follow-up existence check, or fold both into one query (e.g. `RETURNING` plus a separate cheap
+  `SELECT 1 WHERE id=$1` only on the 0-row path). The status check and the write are then one atomic
+  statement, so an accept that commits first leaves the row `accepted` and the racing retract matches
+  **0 rows** (correctly `409`, not a silent overwrite) — exactly the single-source-of-truth pattern
+  the accept path already uses. The data-model's state-machine transition rule for
+  `pending → retracted` is updated to require this conditional UPDATE; add a concurrency test
+  (retract racing a near-simultaneous accept on the same pending invite) asserting the row ends
+  `accepted` with an account created, never `retracted`.
+
+### Pass 11 — the create path has TWO unique constraints but blanket-maps any 23505 to the "active pending invite" 409
+
+- **Threat: a `23505` unique-violation on the create INSERT is mapped unconditionally to FR-005
+  "an active pending invitation already exists," but the `invitation` table has TWO unique
+  constraints an INSERT can violate.** Data-model "Validation rules" says FR-005 is "enforced by the
+  partial unique index + caught `23505` mapped to a friendly 409." But the table carries both
+  `uq_invitation_one_pending_email` (partial UNIQUE on `LOWER(email) WHERE status='pending'`) **and**
+  `idx_invitation_tokenHash` (UNIQUE on `tokenHash`). A blanket "any `23505` → 'active pending invite
+  exists'" therefore mis-reports a `tokenHash` collision (astronomically improbable with a 256-bit
+  token, but possible) as a pending-email conflict — returning a `409` that names the wrong cause and
+  could confuse an admin who sees "already has a pending invite" for an email that demonstrably does
+  not. It also silently swallows any future unique constraint added to the table. This is a
+  correctness/error-mapping gap, not a security hole, but it undermines the "distinct, clear
+  messages" the spec requires on create (FR-004/FR-005).
+- **Mitigation**: The create handler MUST branch on the **constraint name** carried on the pg error
+  (`error.constraint`) rather than treating every `23505` identically: a violation of
+  `uq_invitation_one_pending_email` → the FR-005 `409` "active pending invitation exists"; a
+  violation of `idx_invitation_tokenHash` → regenerate the token and retry the insert once (a
+  collision is effectively impossible, but a retry is the correct, non-user-facing response — never
+  surface it as a pending-invite conflict); any other `23505` → a generic `500`/"could not create
+  invitation," not the FR-005 message. The FR-004 account-exists check stays a pre-insert `SELECT`
+  (it is on the `user` table, a different table, so it never raises a `23505` on the `invitation`
+  insert). The data-model "Validation rules" entry is updated to require constraint-name
+  discrimination on `23505` rather than a blanket map.
+
+### Pass 11 — the list (and create) GET/lazy-expire write means the list endpoint is not strictly "read-only" as Pass 4/10 stated
+
+- **Note (accuracy/congruence correction to Pass 4 and Pass 10).** Pass 4 (CSRF analysis) and Pass 10
+  both describe the admin GET routes — specifically `GET /api/admin/invitations` (list) — as
+  "read-only," and Pass 4 uses that to justify applying the Origin/CSRF allow-list only to the
+  state-changing admin POSTs and not to the GETs. But the lazy-expire mechanism (research Decision 5,
+  data-model) runs a `pending → expired` `UPDATE` "on the create and list paths" — so the **list GET
+  issues a DB write** and is not strictly read-only. This does **not** change the Pass 4 security
+  conclusion (the list GET still needs **no** Origin check): the lazy-expire UPDATE is **idempotent
+  and attacker-valueless** — it only flips already-past-due `pending` rows to `expired`, which the
+  next read would do anyway, grants the caller nothing, and is gated behind `requireAdmin`. So a
+  cross-origin forced GET (CSRF) achieves nothing an honest read would not. The correction is purely
+  to the **characterization**: the list GET has a benign idempotent side effect, so (a) it must not
+  be implemented in a way that assumes "GET ⇒ no writes" (e.g. a read-replica/route that forbids
+  writes would break the lazy-expire), and (b) reviewers should not cite "read-only" as the reason no
+  Origin check is needed — the real reason is the side effect is idempotent and valueless. No
+  contract or data-model change; recorded so the Pass 4/10 "read-only" wording is not mistaken for a
+  guarantee the implementation must preserve.
+
 ### Pass 10 — Pass 7/8 declared the cache hardening "complete and symmetric" but missed the management LIST response, which carries the largest PII surface of all
 
 - **Threat: the admin management list `GET /api/admin/invitations` `200` returns the bound recipient

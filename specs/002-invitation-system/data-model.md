@@ -55,6 +55,14 @@ Transition rules:
 - `pending → accepted`: only via valid token at `POST /api/auth/invitation/accept`, inside one
   transaction that also inserts `user`+`account`. Single-use (FR-009).
 - `pending → retracted`: admin only, only while `pending` (FR-015). Link dies immediately (SC-004).
+  **MUST be a conditional, atomic UPDATE (red-team Pass 11):** `UPDATE "invitation" SET
+  status='retracted' WHERE id=$1 AND status='pending' RETURNING ...` — **not** a SELECT-then-UPDATE.
+  A non-atomic retract races a concurrent `accept` on the same pending row (both read `pending`, the
+  accept commits the account + flips to `accepted`, then an unconditional retract overwrites the
+  already-accepted row to `retracted`), corrupting a terminal state and violating SC-005. With the
+  conditional UPDATE, an accept that commits first leaves the row `accepted` and the racing retract
+  matches **0 rows** (→ `409` "not Pending", distinguished from `404` by a cheap existence check on
+  the 0-row path) — the same single-source-of-truth pattern the accept flip uses.
 - `pending → expired`: derived at read/create time when `expiresAt <= now()` (lazy UPDATE,
   research Decision 5). Link already fails at lookup regardless (FR-018).
 - No transition out of any terminal state. No edit of `email`/`role` (retract + re-create instead —
@@ -67,9 +75,16 @@ Transition rules:
   rejected (`400`) before any DB write so an unbounded value cannot bloat the row or the
   `idx_invitation_email` / `uq_invitation_one_pending_email` / `user.email` indexes.
 - `role`: exactly one of `'admin'` | `'standard'`; rejected otherwise.
-- Creation rejected if an account already exists for `LOWER(email)` (FR-004).
+- Creation rejected if an account already exists for `LOWER(email)` (FR-004). This is a pre-insert
+  `SELECT` on the **`user`** table, so it never raises a `23505` on the `invitation` insert.
 - Creation rejected if an active `pending` row already exists for `LOWER(email)` (FR-005), enforced
-  by the partial unique index + caught `23505` mapped to a friendly 409.
+  by the partial unique index + a caught `23505` mapped to a friendly 409. **The create handler MUST
+  branch on `error.constraint`, not blanket-map every `23505` (red-team Pass 11):** the `invitation`
+  table has **two** unique constraints an INSERT can violate — `uq_invitation_one_pending_email`
+  (→ the FR-005 409 "active pending invite") and `idx_invitation_tokenHash` (a token-hash collision →
+  **regenerate the token and retry the insert once**, never surface as the FR-005 409). Any other
+  `23505` → a generic `500`, not the FR-005 message. A blanket map would mis-report a tokenHash
+  collision as a pending-email conflict and silently swallow any future unique constraint.
 - `token` (transient, not a column): 256-bit `randomBytes(32).base64url`.
 
 ### `tokenEnc` encryption rules (red-team Pass 1)
@@ -107,12 +122,19 @@ Transition rules:
   reference them (see the `invitedBy` FK-lifecycle note below), so the joined `user` row always
   exists. Select only `"user"."email"` from the joined side — no other `user` columns reach the
   response.
-- **Cache-Control (red-team Pass 10).** The list `200` body carries every invited person's `email`
-  plus every admin's `invitedByEmail` — the largest PII surface on the feature. The handler MUST set
-  `Cache-Control: no-store` (with defensive `Pragma: no-cache`), matching the single-email lookup
-  (Pass 7) and link-bearing responses (Pass 7/8), so the bulk roster is never retained by a
-  proxy/browser cache. This completes the `no-store` set across all email-/link-bearing invitation
-  responses.
+- **Cache-Control (red-team Pass 10, Pass 11).** The list `200` body carries every invited person's
+  `email` plus every admin's `invitedByEmail` — the largest PII surface on the feature. The handler
+  MUST set `Cache-Control: no-store` (with defensive `Pragma: no-cache`), matching the single-email
+  lookup (Pass 7) and link-bearing responses (Pass 7/8). **The `retract` `200` returns the same
+  single `InvitationSummary` shape (`email` + `invitedByEmail`) and MUST be hardened identically
+  (red-team Pass 11)** — Pass 10's "complete and symmetric" set omitted it. With both, the `no-store`
+  set covers **every** email-/link-bearing invitation response (create `201`, list `200`, retract
+  `200`, re-copy `link` `200`, anonymous lookup `200`, accept `200`).
+- **Retract shares the list's `invitedBy` JOIN (red-team Pass 11).** Because the `retract` `200`
+  returns the same `InvitationSummary` (with the required `invitedByEmail`), the retract handler MUST
+  resolve `invitedByEmail` via the identical `JOIN "user" ON "user"."id" = "invitation"."invitedBy"`
+  (project `"user"."email" AS "invitedByEmail"`) used by the list — reuse one row-mapping helper so
+  the two cannot diverge. Same inner-join safety holds (`invitedBy` NOT NULL, never hard-deleted).
 
 ---
 

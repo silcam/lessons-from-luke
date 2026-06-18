@@ -133,7 +133,12 @@ paths:
         "409":
           description: >
             Email already has an account (FR-004) OR an active pending invitation already exists
-            (FR-005). Distinct, clear messages; no invitation recorded.
+            (FR-005). Distinct, clear messages; no invitation recorded. CONSTRAINT MAPPING (red-team
+            Pass 11): the FR-005 "active pending invite" 409 is raised by a `23505` on the partial
+            unique index `uq_invitation_one_pending_email` ONLY — the handler MUST branch on
+            `error.constraint`, NOT blanket-map every `23505`: a `23505` on `idx_invitation_tokenHash`
+            (a token-hash collision) is regenerate-and-retry, never this 409; the FR-004 account-exists
+            case is a pre-insert SELECT on "user" (a different table) and never raises a `23505` here.
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
     get:
       summary: List all invitations (admin-only) — US3, FR-013, FR-014
@@ -170,6 +175,13 @@ paths:
         Transitions a Pending invitation to Retracted; its link stops working immediately (SC-004).
         Retracting a non-pending invitation is rejected.
 
+        CONCURRENCY (red-team Pass 11): the status check + flip MUST be a single atomic conditional
+        UPDATE — `UPDATE "invitation" SET status='retracted' WHERE id=$1 AND status='pending'
+        RETURNING ...` — NOT a SELECT-then-UPDATE. A non-atomic retract races a concurrent accept on
+        the same pending row and can overwrite an already-accepted row back to retracted (corrupting a
+        terminal state, violating SC-005). 1 row updated → 200; 0 rows → 404 (no such id) or 409
+        (exists but not pending), distinguished by a cheap existence check on the 0-row path.
+
         SECURITY (red-team Pass 4): like the create POST, this state-changing admin route bypasses
         better-auth's `toNodeHandler` and so MUST enforce the same Origin/Referer allow-list against
         BETTER_AUTH_URL (403 on mismatch or neither header) — CSRF defense.
@@ -177,7 +189,19 @@ paths:
         - { name: id, in: path, required: true, schema: { type: string } }
       responses:
         "200":
-          description: Retracted.
+          description: >
+            Retracted. The body is the full InvitationSummary (carrying `email` and `invitedByEmail`,
+            i.e. PII). SECURITY (red-team Pass 11): set `Cache-Control: no-store` (and defensively
+            `Pragma: no-cache`) — the same protection Pass 7/8/10 applied to every other email-/link-
+            bearing response (create 201, list 200, re-copy link 200, anonymous lookup 200, accept 200);
+            Pass 10's "complete and symmetric" set omitted this retract 200, which returns the identical
+            InvitationSummary PII the list 200 carries. NOTE (red-team Pass 11): like the list, the
+            retract handler resolves `invitedByEmail` via a JOIN to "user" on invitedBy (the row stores
+            the admin's user.id, not their email) — reuse the list's row-mapper.
+          headers:
+            Cache-Control:
+              schema: { type: string, enum: ["no-store"] }
+              description: Prevents caching of the retracted invitation's email/invitedByEmail PII (red-team Pass 11).
           content: { application/json: { schema: { $ref: "#/components/schemas/InvitationSummary" } } }
         "401": { description: Not signed in. }
         "403":
