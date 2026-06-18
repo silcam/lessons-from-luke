@@ -203,8 +203,9 @@ paths:
           description: >
             The original link. SECURITY (red-team Pass 7): the response body is a working single-use
             credential, so the handler MUST set `Cache-Control: no-store` (and defensively
-            `Pragma: no-cache`) — neither helmet nor the app sets cache headers, so without this an
-            intermediary/forward proxy or the admin's browser disk cache could retain a live link.
+            `Pragma: no-cache`) — neither helmet nor the app sets cache headers, so without this a
+            shared/forward proxy or the admin's browser disk cache WILL retain a live link under
+            default caching rules.
           headers:
             Cache-Control:
               schema: { type: string, enum: ["no-store"] }
