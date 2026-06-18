@@ -205,8 +205,28 @@ CREATE TABLE "invitationRateLimit" (
 any point in the cleanup order (e.g. alongside `rateLimit`, before `invitation`).
 
 **Disabled in test** (consistent with better-auth's own `rateLimit`): the rate-limit middleware
-skips enforcement when `NODE_ENV=test`, except when the integration server opts in via
-`INVITATION_RATE_LIMIT_ENFORCE=1` — so the 429 path is still reachable from an integration test.
+skips enforcement when `NODE_ENV=test`, except when the integration server opts in.
+
+**The opt-in flag MUST be one the integration server actually sets (red-team Pass 12).** Grounded
+against `scripts/integrationTestServer.js`: the integration server already sets
+`BETTER_AUTH_ENFORCE_ORIGIN=1` **and** `BETTER_AUTH_ENFORCE_RATE_LIMIT=1` before constructing the
+app (so the existing better-auth `/sign-in/email` 429 test runs), but it sets **no**
+`INVITATION_RATE_LIMIT_ENFORCE` variable. A custom invitation rate limiter gated on a *new*
+`INVITATION_RATE_LIMIT_ENFORCE=1` flag would therefore **never be enforced under the integration
+suite**, so the invitation `429` path the contract declares (`GET /api/auth/invitation/:token` and
+`POST .../accept`) would be **untestable end-to-end** — a silent coverage hole behind a green CI.
+Resolve one of two ways, both of which keep the 429 path exercised:
+- **(preferred) Reuse `BETTER_AUTH_ENFORCE_RATE_LIMIT`** — the invitation limiter enforces when
+  `NODE_ENV !== 'test' || process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT === '1'`, the **same predicate
+  `auth.ts` already uses** for better-auth's limiter. The integration server already sets this flag,
+  so the invitation 429 path is exercised with no new wiring, and the invitation limiter and the
+  better-auth limiter are on/off together (one mental model, no drift).
+- **(alternative) Add a dedicated `INVITATION_RATE_LIMIT_ENFORCE=1`** and **also edit
+  `scripts/integrationTestServer.js` to set it** (a listed source edit, not a doc-only note),
+  alongside the two existing `BETTER_AUTH_ENFORCE_*` lines. If this path is taken, the
+  `scripts/integrationTestServer.js` edit is a required task, not optional.
+
+Either way, the invitation limiter MUST NOT invent a test opt-in flag that nothing sets.
 
 Rationale for option (a) over (b): no coupling to better-auth's internal `rateLimit` schema
 (which better-auth owns and may migrate), consistent with Principle VI server-only isolation, and
@@ -251,6 +271,24 @@ No new `secrets.json` field is required (reuses `cookieSecret`, `BETTER_AUTH_URL
 `user` delete (the `invitedBy` FK is NOT NULL; a leftover invitation referencing a deleted
 non-admin user raises `23503` and breaks isolation), alongside the existing `rateLimit`/`session`/
 `verification`/`account`/`user` cleanup (research Decision 3).
+
+**Grounded against the actual cleanup (red-team Pass 12).** The existing `afterEach` does **not** run
+a blanket `DELETE FROM "user"`; it deletes `account` then `user` **scoped to non-admin rows**
+(`WHERE LOWER(email) != $adminEmail`), sparing the seeded admin so `loggedInAgent()` survives across
+tests. Two precise consequences for the invitation delete:
+1. **`23503` only arises for invitations whose `invitedBy` points at a *deleted* (non-admin) user.**
+   An invitation created by a *non-admin* admin (an admin onboarded via a prior invite) references a
+   row the scoped delete removes, so `DELETE FROM "invitation"` MUST precede the scoped `user` delete
+   to avoid the FK violation — the ordering rule stands. An invitation created by the *seeded* admin
+   references a row that is **spared**, so it would not raise `23503`; but it would still **leak**
+   across tests (the admin is never deleted, so the invitation persists and can trip the
+   partial-unique-pending index or pollute a later list assertion). Hence the unconditional
+   `DELETE FROM "invitation"` is required for isolation regardless of who created the row — not only
+   to dodge `23503`.
+2. **Place the invitation delete before the `account`/`user` deletes** (it is unconditional —
+   `DELETE FROM "invitation"`, no `WHERE`), so the row count is zero before either user-row delete
+   runs and neither the scoped nor a future unscoped user delete can hit the FK. `invitationRateLimit`
+   has no FK and may be deleted in any position.
 
 The `invitedBy` FK is a plain `REFERENCES "user"("id")` with **no `ON DELETE CASCADE`** (red-team
 Pass 1): audit history (FR-019) must never be silently destroyed by a future user deletion, and

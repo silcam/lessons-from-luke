@@ -176,7 +176,10 @@ src/server/
 │   ├── invitationController.ts           # NEW — /api/admin/invitations* + /api/auth/invitation/*
 │   └── invitationController.test.ts      # NEW — 401/403/201/409/410 controller tests
 ├── serverApp.ts                          # EDIT — mount invitationController (anon routes BEFORE /api/auth/* catch-all); redact the raw token in the request logger for /api/auth/invitation/:token and /invitation/:token (red-team Pass 5)
-└── jestSetupAfterEnv.ts                  # EDIT — add DELETE FROM "invitationRateLimit" (any order) and DELETE FROM "invitation" (before user delete) to afterEach
+└── jestSetupAfterEnv.ts                  # EDIT — add DELETE FROM "invitationRateLimit" (any order) and DELETE FROM "invitation" (before the scoped non-admin user delete) to afterEach (red-team Pass 12: the existing user delete is scoped `WHERE LOWER(email) != adminEmail`, not blanket)
+
+scripts/
+└── integrationTestServer.js              # EDIT (only under the dedicated-flag path — red-team Pass 12) — if the invitation limiter gates on a NEW INVITATION_RATE_LIMIT_ENFORCE flag, set it here next to BETTER_AUTH_ENFORCE_ORIGIN/RATE_LIMIT; NO edit if the limiter reuses the existing BETTER_AUTH_ENFORCE_RATE_LIMIT (preferred)
 
 src/frontend/web/
 ├── invitations/                          # NEW — admin create form + management list
@@ -253,7 +256,10 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   existing `/sign-in/email` rule shape). **Validate the token and the password length bounds
   *before* invoking `passwordHasher.hash`** so an invalid/expired token or an out-of-bounds password
   never reaches Argon2id. Disabled under `NODE_ENV=test` (as the better-auth limiter is), gated on by
-  the integration server via an env flag so the limit is still exercised by an integration test.
+  the integration server via an env flag so the limit is still exercised by an integration test —
+  **and that flag MUST be one the integration server actually sets (red-team Pass 12); reuse the
+  existing `BETTER_AUTH_ENFORCE_RATE_LIMIT` rather than inventing an unset flag. See data-model.md
+  and the Pass 12 section below.**
 
 ### Token confidentiality in transit, logs, and Referer
 
@@ -726,6 +732,41 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   guard test to also assert the list `200` carries `Cache-Control: no-store`. (The two read-only admin
   routes that return no body PII — there are none here, since both remaining admin GETs return either
   a link or the list — so nothing else needs the header.)
+
+### Pass 12 — the invitation rate limiter's test opt-in must use a flag the integration server actually sets, or the 429 path is untestable
+
+- **Threat (a self-inflicted coverage hole, not an attacker vector): the Pass 2 rate-limit design
+  disables the invitation limiter under `NODE_ENV=test` "except when the integration server opts in
+  via `INVITATION_RATE_LIMIT_ENFORCE=1`" — but nothing sets that flag.** Grounded against
+  `scripts/integrationTestServer.js` (the launcher `jestIntegrationGlobalSetup.ts` spawns for the
+  whole `*.integration.test.ts` suite): it explicitly sets `BETTER_AUTH_URL`,
+  `BETTER_AUTH_ENFORCE_ORIGIN=1`, and `BETTER_AUTH_ENFORCE_RATE_LIMIT=1` before constructing the app,
+  precisely so better-auth's origin/CSRF and its `/sign-in/email` 429 are exercised under
+  `NODE_ENV=test`. It sets **no** `INVITATION_RATE_LIMIT_ENFORCE`. Because the invitation limiter is
+  **custom Express code outside better-auth**, it does not inherit `BETTER_AUTH_ENFORCE_RATE_LIMIT`;
+  if it instead keys on a brand-new `INVITATION_RATE_LIMIT_ENFORCE` flag, that flag is never `1` in
+  any harness, so the limiter is silently inert in every test, the contract's invitation `429`
+  responses (`GET /api/auth/invitation/:token`, `POST .../accept`) are never produced under test, and
+  CI is green while the abuse/DoS protection (Pass 1's whole rationale) ships unverified. This is the
+  same class of "false-green" gap Pass 7 flagged for the SPA-route log test, here on the rate-limit
+  path: the protection exists in the design but no test can reach it.
+- **Note — the Pass 1/4/6 Origin-check test opt-in does NOT share this gap.** Those passes specify the
+  invitation Origin middleware skips under `NODE_ENV=test` "unless `BETTER_AUTH_ENFORCE_ORIGIN=1`",
+  reusing better-auth's existing flag — which `integrationTestServer.js` already sets. So the Origin
+  `403` path *is* reachable from the integration suite as written; only the rate-limit opt-in flag was
+  newly invented and left unwired. The fix below makes the rate-limit path mirror the Origin path's
+  (correct) flag-reuse pattern.
+- **Mitigation**: Gate the invitation rate limiter on the **same predicate `auth.ts` already uses for
+  better-auth's limiter** — enforce when `process.env.NODE_ENV !== 'test' ||
+  process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT === '1'`. This reuses the flag the integration server
+  already sets (no new wiring, the invitation `429` is exercised by an integration test for free) and
+  keeps the invitation limiter and the better-auth limiter on/off together (no second mental model).
+  If a dedicated `INVITATION_RATE_LIMIT_ENFORCE` flag is preferred instead for separation of concerns,
+  then **`scripts/integrationTestServer.js` MUST be edited to set it** alongside the two existing
+  `BETTER_AUTH_ENFORCE_*` lines — that edit becomes a required source task (added to Project Structure
+  below), because a doc-only mention will not make the flag exist. Add an integration test that drives
+  the limit (>10 requests / 60s on `GET /api/auth/invitation/:token`) and asserts a `429`, so the
+  limiter's effectiveness — not just its presence — is verified and cannot silently regress to inert.
 
 ## Edge Cases & Error Handling
 
