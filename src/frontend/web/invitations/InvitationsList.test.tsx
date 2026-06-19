@@ -281,10 +281,20 @@ describe("InvitationsList", () => {
         expect(retractBtn).toBeTruthy();
       });
 
+      // First click opens the inline confirm — it must NOT retract yet (destructive-action guard).
       await act(async () => {
         const buttons = Array.from(container.querySelectorAll("button"));
-        const retractBtn = buttons.find((b) => /retract/i.test(b.textContent || ""));
+        const retractBtn = buttons.find((b) => /^retract$/i.test((b.textContent || "").trim()));
         fireEvent.click(retractBtn!);
+      });
+
+      expect(retractInvitation).not.toHaveBeenCalled();
+
+      // Confirming actually retracts.
+      await act(async () => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const confirmBtn = buttons.find((b) => /confirm retract/i.test(b.textContent || ""));
+        fireEvent.click(confirmBtn!);
       });
 
       await waitFor(() => {
@@ -419,10 +429,17 @@ describe("InvitationsList", () => {
         expect(buttons.find((b) => /retract/i.test(b.textContent || ""))).toBeTruthy();
       });
 
+      // Open the confirm, then confirm.
       await act(async () => {
         const buttons = Array.from(container.querySelectorAll("button"));
-        const retractBtn = buttons.find((b) => /retract/i.test(b.textContent || ""));
+        const retractBtn = buttons.find((b) => /^retract$/i.test((b.textContent || "").trim()));
         fireEvent.click(retractBtn!);
+      });
+
+      await act(async () => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const confirmBtn = buttons.find((b) => /confirm retract/i.test(b.textContent || ""));
+        fireEvent.click(confirmBtn!);
       });
 
       await waitFor(() => {

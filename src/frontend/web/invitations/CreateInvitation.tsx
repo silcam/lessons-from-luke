@@ -6,13 +6,15 @@
  *       plan.md §Accessibility Requirements
  *
  * Renders:
- *   - Email input + role select + submit button
- *   - On success: generated link with keyboard-operable Copy Link button
- *   - Copy-success announced via aria-live region
+ *   - Email input + role select + submit button (Enter submits)
+ *   - On success: "Invitation ready" heading, share guidance, the generated
+ *     link in a selectable box, a keyboard-operable Copy Link button, a visible
+ *     + announced copy confirmation, and a "Create another" reset
  *   - Inline validation/error via Alert (role="alert") for 409 variants
  */
 
 import React, { useState } from "react";
+import styled from "styled-components";
 import { useDispatch } from "react-redux";
 import { Link } from "react-router-dom";
 import { AppDispatch } from "../../common/state/appState";
@@ -26,9 +28,25 @@ import SelectInput from "../../common/base-components/SelectInput";
 import Button from "../../common/base-components/Button";
 import Alert from "../../common/base-components/Alert";
 import Label from "../../common/base-components/Label";
+import PDiv from "../../common/base-components/PDiv";
+import Heading from "../../common/base-components/Heading";
+import HandleKey from "../../common/base-components/HandleKey";
+import HelpText from "../../common/base-components/HelpText";
+import Colors from "../../common/util/Colors";
 import useTranslation from "../../common/util/useTranslation";
 
 type SubmitError = InvitationError | null;
+
+// The generated link is shown as selectable text (one click selects it all) in a
+// hairline box — kept as text, not an input, so it wraps and is easy to copy by hand.
+const LinkBox = styled.p`
+  word-break: break-all;
+  user-select: all;
+  border: 1px solid ${Colors.lightGrey};
+  border-radius: 0.25em;
+  padding: 0.5em 0.7em;
+  margin: 0.5em 0;
+`;
 
 export default function CreateInvitation() {
   const t = useTranslation();
@@ -83,6 +101,14 @@ export default function CreateInvitation() {
     }
   };
 
+  const resetForm = () => {
+    setResult(null);
+    setCopySuccess(false);
+    setSubmitError(null);
+    setEmail("");
+    setRole("standard");
+  };
+
   const errorMessage = (): string | null => {
     if (!submitError) return null;
     switch (submitError.code) {
@@ -111,26 +137,30 @@ export default function CreateInvitation() {
     >
       <Div pad>
         {!result ? (
-          <>
-            <Label text={t("Invitation_email_label")}>
-              <TextInput
-                value={email}
-                setValue={(v) => {
-                  setEmail(v);
-                  setSubmitError(null);
-                }}
-                placeholder={t("Email")}
-                autoFocus
-              />
-            </Label>
+          <HandleKey onEnter={handleSubmit}>
+            <PDiv>
+              <Label text={t("Invitation_email_label")}>
+                <TextInput
+                  value={email}
+                  setValue={(v) => {
+                    setEmail(v);
+                    setSubmitError(null);
+                  }}
+                  placeholder={t("Email")}
+                  autoFocus
+                />
+              </Label>
+            </PDiv>
 
-            <Label text={t("Invitation_role_label")}>
-              <SelectInput
-                value={role}
-                setValue={(v) => setRole(v as "standard" | "admin")}
-                options={roleOptions}
-              />
-            </Label>
+            <PDiv>
+              <Label text={t("Invitation_role_label")}>
+                <SelectInput
+                  value={role}
+                  setValue={(v) => setRole(v as "standard" | "admin")}
+                  options={roleOptions}
+                />
+              </Label>
+            </PDiv>
 
             {errMsg && (
               <div role="alert">
@@ -139,10 +169,13 @@ export default function CreateInvitation() {
             )}
 
             <Button disabled={submitting} onClick={handleSubmit} text={t("Invitation_submit")} />
-          </>
+          </HandleKey>
         ) : (
           <>
-            <p>{result.link}</p>
+            <Heading level={3} text={t("Invitation_create_heading_ready")} />
+            <HelpText>{t("Invitation_share_instructions")}</HelpText>
+
+            <LinkBox>{result.link}</LinkBox>
 
             <Button
               onClick={handleCopyLink}
@@ -150,10 +183,13 @@ export default function CreateInvitation() {
               aria-label={t("Invitation_copy_link")}
             />
 
-            {/* Accessible live region — copy-success announcement */}
+            {/* Accessible + visible copy-success confirmation */}
             <div role="status" aria-live="polite">
-              {copySuccess ? t("Invitation_copy_success") : ""}
+              {copySuccess ? <Alert success>{t("Invitation_copy_success")}</Alert> : ""}
             </div>
+
+            <PDiv />
+            <Button link text={t("Invitation_create_another")} onClick={resetForm} />
           </>
         )}
       </Div>

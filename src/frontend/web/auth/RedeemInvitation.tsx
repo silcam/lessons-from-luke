@@ -7,11 +7,14 @@
  *
  * Renders:
  *   - Loading state while looking up the token
- *   - Terminal error (FR-010) for 410 invalid/unknown/expired/retracted link
+ *   - Terminal error (FR-010) for 410 invalid/unknown/expired/retracted link —
+ *     never a dead end: shows the app title + a "Go to sign in" action
  *   - Transient rate-limited message (Pass 9) for 429 — a valid link MUST NOT read as dead
  *   - Generic try-again for other errors
- *   - Form with locked pre-filled email + password + display name
- *   - On submit success: redirect to sign-in (FR-012)
+ *   - Form with locked (readOnly) pre-filled email + password + display name,
+ *     each with inline guidance (email source, password requirement)
+ *   - On submit success: green confirmation + explicit "Continue to sign in"
+ *     plus a convenience auto-redirect (FR-012)
  */
 
 import React, { useEffect, useState } from "react";
@@ -24,6 +27,7 @@ import Button from "../../common/base-components/Button";
 import Alert from "../../common/base-components/Alert";
 import Label from "../../common/base-components/Label";
 import PDiv from "../../common/base-components/PDiv";
+import HelpText from "../../common/base-components/HelpText";
 import MiddleOfPage from "../../common/base-components/MiddleOfPage";
 import Heading from "../../common/base-components/Heading";
 import HandleKey from "../../common/base-components/HandleKey";
@@ -111,10 +115,13 @@ export default function RedeemInvitation({ token }: Props) {
       }
     } else {
       setSubmitState({ phase: "success" });
-      // Redirect to sign-in after a short pause so the user can read the success message
+      // Convenience redirect to sign-in; the explicit "Continue" button below is
+      // the reliable path (the redirect can be missed under reduced motion / slow JS).
       setTimeout(() => navigate("/"), 2000);
     }
   };
+
+  const goToSignIn = () => navigate("/");
 
   // ── Lookup states ──────────────────────────────────────────────────────────
 
@@ -126,34 +133,30 @@ export default function RedeemInvitation({ token }: Props) {
     );
   }
 
+  // A recipient holding a one-time link is never stranded: every terminal state
+  // shows the app title for orientation and a clear way forward.
+  const terminalError = (message: string, help?: string) => (
+    <MiddleOfPage>
+      <Heading level={1} text="Lessons from Luke" />
+      <div role="alert">
+        <Alert danger>{message}</Alert>
+      </div>
+      {help ? <HelpText>{help}</HelpText> : null}
+      <PDiv />
+      <Button bigger text={t("Invitation_go_to_sign_in")} onClick={goToSignIn} />
+    </MiddleOfPage>
+  );
+
   if (lookupState.phase === "invalid_link") {
-    return (
-      <MiddleOfPage>
-        <div role="alert">
-          <Alert danger>{t("Invitation_error_invalid_link")}</Alert>
-        </div>
-      </MiddleOfPage>
-    );
+    return terminalError(t("Invitation_error_invalid_link"), t("Invitation_invalid_link_help"));
   }
 
   if (lookupState.phase === "rate_limited") {
-    return (
-      <MiddleOfPage>
-        <div role="alert">
-          <Alert danger>{t("Invitation_error_rate_limited")}</Alert>
-        </div>
-      </MiddleOfPage>
-    );
+    return terminalError(t("Invitation_error_rate_limited"));
   }
 
   if (lookupState.phase === "error") {
-    return (
-      <MiddleOfPage>
-        <div role="alert">
-          <Alert danger>{t("Invitation_error_generic")}</Alert>
-        </div>
-      </MiddleOfPage>
-    );
+    return terminalError(t("Invitation_error_generic"));
   }
 
   // ── Success state ──────────────────────────────────────────────────────────
@@ -161,9 +164,12 @@ export default function RedeemInvitation({ token }: Props) {
   if (submitState.phase === "success") {
     return (
       <MiddleOfPage>
+        <Heading level={1} text="Lessons from Luke" />
         <div role="status">
-          <Alert>{t("Invitation_redeem_success")}</Alert>
+          <Alert success>{t("Invitation_redeem_success")}</Alert>
         </div>
+        <PDiv />
+        <Button bigger text={t("Invitation_redeem_continue")} onClick={goToSignIn} />
       </MiddleOfPage>
     );
   }
@@ -171,13 +177,7 @@ export default function RedeemInvitation({ token }: Props) {
   // ── Terminal submit errors (replace form) ──────────────────────────────────
 
   if (submitState.phase === "invalid_link") {
-    return (
-      <MiddleOfPage>
-        <div role="alert">
-          <Alert danger>{t("Invitation_error_invalid_link")}</Alert>
-        </div>
-      </MiddleOfPage>
-    );
+    return terminalError(t("Invitation_error_invalid_link"), t("Invitation_invalid_link_help"));
   }
 
   // ── Redemption form ────────────────────────────────────────────────────────
@@ -201,7 +201,8 @@ export default function RedeemInvitation({ token }: Props) {
         <Heading level={1} text="Lessons from Luke" />
         <Heading level={3} text={t("Invitation_redeem_submit")} />
 
-        {/* Locked email — pre-filled and not editable (FR-007) */}
+        {/* Locked email — pre-filled and read-only (FR-007). readOnly (not
+            disabled) keeps it focusable/announced and avoids reading as broken. */}
         <PDiv>
           <Label text={t("Invitation_email_locked_label")}>
             <TextInput
@@ -209,10 +210,10 @@ export default function RedeemInvitation({ token }: Props) {
               setValue={() => {
                 /* locked */
               }}
-              disabled
-              aria-readonly="true"
+              readOnly
             />
           </Label>
+          <HelpText>{t("Invitation_email_locked_help")}</HelpText>
         </PDiv>
 
         <PDiv>
@@ -227,6 +228,7 @@ export default function RedeemInvitation({ token }: Props) {
               autoFocus
             />
           </Label>
+          <HelpText>{t("Invitation_password_help")}</HelpText>
         </PDiv>
 
         <PDiv>

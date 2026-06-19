@@ -32,6 +32,14 @@ const StyledTextInput = styled.input<STIProps>`
     outline: none;
   }
 
+  /* Keyboard focus gets a real ring (WCAG 2.1 AA 2.4.7); pointer focus keeps
+     just the blue underline shift above. */
+  &:focus-visible {
+    border-color: ${Colors.primary};
+    outline: 2px solid ${Colors.primary};
+    outline-offset: 2px;
+  }
+
   ::placeholder {
     color: ${Colors.grey};
   }
