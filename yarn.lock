@@ -6846,15 +6846,15 @@ __metadata:
   linkType: hard
 
 "form-data@npm:^4.0.0, form-data@npm:^4.0.5, form-data@npm:~4.0.4":
-  version: 4.0.5
-  resolution: "form-data@npm:4.0.5"
+  version: 4.0.6
+  resolution: "form-data@npm:4.0.6"
   dependencies:
     asynckit: "npm:^0.4.0"
     combined-stream: "npm:^1.0.8"
     es-set-tostringtag: "npm:^2.1.0"
-    hasown: "npm:^2.0.2"
-    mime-types: "npm:^2.1.12"
-  checksum: 10c0/dd6b767ee0bbd6d84039db12a0fa5a2028160ffbfaba1800695713b46ae974a5f6e08b3356c3195137f8530dcd9dfcb5d5ae1eeff53d0db1e5aad863b619ce3b
+    hasown: "npm:^2.0.4"
+    mime-types: "npm:^2.1.35"
+  checksum: 10c0/43947a77bf0ff45c6ceed789778982d47a3f3e720a74b71721174ebf3310a5f1a8be1d6b38a3ee3688e8a18a2c4273073ec0844cd37efda3eaf46d41c9c318ff
   languageName: node
   linkType: hard
 
@@ -7441,7 +7441,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"hasown@npm:^2.0.3":
+"hasown@npm:^2.0.3, hasown@npm:^2.0.4":
   version: 2.0.4
   resolution: "hasown@npm:2.0.4"
   dependencies:
@@ -9840,16 +9840,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"mime-types@npm:^2.1.12, mime-types@npm:~2.1.19":
-  version: 2.1.25
-  resolution: "mime-types@npm:2.1.25"
-  dependencies:
-    mime-db: "npm:1.42.0"
-  checksum: 10c0/c27b27602d3693d2792dfcb921dddf3b2cb6bad78124adb29ca14dc23bedbb19bdc4e592d9bf603372d5968ae8ed5ac449cb81fbd0b347c6b15c2105cef1bf39
-  languageName: node
-  linkType: hard
-
-"mime-types@npm:^2.1.27, mime-types@npm:~2.1.34":
+"mime-types@npm:^2.1.27, mime-types@npm:^2.1.35, mime-types@npm:~2.1.34":
   version: 2.1.35
   resolution: "mime-types@npm:2.1.35"
   dependencies:
@@ -9873,6 +9864,15 @@ __metadata:
   dependencies:
     mime-db: "npm:1.40.0"
   checksum: 10c0/01960b9e2f5dc77f15e3858beb512243681535c6ca92954952185e4f8cc194910f5f4a9194454298c94562f1bedc3243a18ba1b6ddebe36c34b7ed43f8d39762
+  languageName: node
+  linkType: hard
+
+"mime-types@npm:~2.1.19":
+  version: 2.1.25
+  resolution: "mime-types@npm:2.1.25"
+  dependencies:
+    mime-db: "npm:1.42.0"
+  checksum: 10c0/c27b27602d3693d2792dfcb921dddf3b2cb6bad78124adb29ca14dc23bedbb19bdc4e592d9bf603372d5968ae8ed5ac449cb81fbd0b347c6b15c2105cef1bf39
   languageName: node
   linkType: hard
 
