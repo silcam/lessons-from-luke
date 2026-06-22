@@ -22,7 +22,7 @@ const fr: I18nStrings = {
   writeLockInvalid:
     "Le projet de traduction n'est plus verrouillé pour cet ordinateur. Veuillez contacter l'administrateur si vous voulez continuer la traduction.",
   serverError: "Erreur de serveur : %{status}",
-  Email: "Courriel",
+  Email: "Adresse e-mail",
   Source_language: "Langue source :",
   Pick_a_lesson: "Choisissez une leçon",
   Server_error: "Erreur de serveur (%{status})",
