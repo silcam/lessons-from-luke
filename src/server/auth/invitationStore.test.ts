@@ -520,11 +520,11 @@ describe("lookupInvitation(pool, token)", () => {
 });
 
 // ------------------------------------------------------------------
-// acceptInvitation(pool, token, password, name, cookieSecret) — FR-008..FR-012,
+// acceptInvitation(pool, token, password, name) — FR-008..FR-012,
 // §US2 Acceptance Scenarios, §Edge Cases
 // ------------------------------------------------------------------
 
-describe("acceptInvitation(pool, token, password, name, cookieSecret)", () => {
+describe("acceptInvitation(pool, token, password, name)", () => {
   let invitedBy: string;
 
   beforeAll(async () => {
@@ -536,9 +536,13 @@ describe("acceptInvitation(pool, token, password, name, cookieSecret)", () => {
   // ------------------------------------------------------------------
 
   /** Look up a user row by email. Returns null if not found. */
-  async function getUserByEmail(
-    email: string
-  ): Promise<{ id: string; name: string; admin: boolean; email: string } | null> {
+  async function getUserByEmail(email: string): Promise<{
+    id: string;
+    name: string;
+    admin: boolean;
+    email: string;
+    emailVerified: boolean;
+  } | null> {
     const client = await pool.connect();
     try {
       const res = await client.query<{
@@ -546,9 +550,11 @@ describe("acceptInvitation(pool, token, password, name, cookieSecret)", () => {
         name: string;
         admin: boolean;
         email: string;
-      }>(`SELECT id, name, admin, email FROM "user" WHERE LOWER(email) = $1 LIMIT 1`, [
-        email.toLowerCase(),
-      ]);
+        emailVerified: boolean;
+      }>(
+        `SELECT id, name, admin, email, "emailVerified" FROM "user" WHERE LOWER(email) = $1 LIMIT 1`,
+        [email.toLowerCase()]
+      );
       return res.rows[0] ?? null;
     } finally {
       client.release();
@@ -603,13 +609,7 @@ describe("acceptInvitation(pool, token, password, name, cookieSecret)", () => {
     });
     const token = created.link.split("/").pop()!;
 
-    const result = await acceptInvitation(
-      pool,
-      token,
-      "ValidPassword123!",
-      "Alice Smith",
-      cookieSecret
-    );
+    const result = await acceptInvitation(pool, token, "ValidPassword123!", "Alice Smith");
     expect(result).toEqual({ email: email.toLowerCase() });
 
     // User row created with correct data
@@ -618,6 +618,9 @@ describe("acceptInvitation(pool, token, password, name, cookieSecret)", () => {
     expect(user!.email).toBe(email.toLowerCase());
     expect(user!.name).toBe("Alice Smith");
     expect(user!.admin).toBe(false);
+    // Redeeming an email-bound, single-use link proves mailbox control, so the
+    // account is verified-by-redemption.
+    expect(user!.emailVerified).toBe(true);
 
     // Credential account row created
     const account = await getAccountByUserId(user!.id);
@@ -645,7 +648,7 @@ describe("acceptInvitation(pool, token, password, name, cookieSecret)", () => {
     });
     const token = created.link.split("/").pop()!;
 
-    await acceptInvitation(pool, token, "ValidPassword123!", "Admin User", cookieSecret);
+    await acceptInvitation(pool, token, "ValidPassword123!", "Admin User");
 
     const user = await getUserByEmail(email);
     expect(user).not.toBeNull();
@@ -669,7 +672,7 @@ describe("acceptInvitation(pool, token, password, name, cookieSecret)", () => {
     });
     const token = created.link.split("/").pop()!;
 
-    await acceptInvitation(pool, token, plaintext, "Hash Verifier", cookieSecret);
+    await acceptInvitation(pool, token, plaintext, "Hash Verifier");
 
     const user = await getUserByEmail(email);
     const account = await getAccountByUserId(user!.id);
@@ -686,7 +689,7 @@ describe("acceptInvitation(pool, token, password, name, cookieSecret)", () => {
   it("throws InvalidLinkError for an unknown token", async () => {
     const unknownToken = crypto.randomBytes(32).toString("base64url");
     await expect(
-      acceptInvitation(pool, unknownToken, "ValidPassword123!", "Some Body", cookieSecret)
+      acceptInvitation(pool, unknownToken, "ValidPassword123!", "Some Body")
     ).rejects.toMatchObject({ code: "INVALID_LINK" });
   });
 
@@ -711,12 +714,12 @@ describe("acceptInvitation(pool, token, password, name, cookieSecret)", () => {
     const token = created.link.split("/").pop()!;
 
     // First accept should succeed
-    await acceptInvitation(pool, token, "ValidPassword123!", "First Accept", cookieSecret);
+    await acceptInvitation(pool, token, "ValidPassword123!", "First Accept");
 
     // Second accept on the same token must fail with AccountCreatedConcurrentlyError
     // because the first accept created a user for the bound email.
     await expect(
-      acceptInvitation(pool, token, "ValidPassword123!", "Second Accept", cookieSecret)
+      acceptInvitation(pool, token, "ValidPassword123!", "Second Accept")
     ).rejects.toMatchObject({ code: "ACCOUNT_ALREADY_EXISTS" });
   });
 
@@ -744,7 +747,7 @@ describe("acceptInvitation(pool, token, password, name, cookieSecret)", () => {
 
     const token = created.link.split("/").pop()!;
     await expect(
-      acceptInvitation(pool, token, "ValidPassword123!", "No Account", cookieSecret)
+      acceptInvitation(pool, token, "ValidPassword123!", "No Account")
     ).rejects.toMatchObject({ code: "INVALID_LINK" });
 
     // No user created
@@ -779,7 +782,7 @@ describe("acceptInvitation(pool, token, password, name, cookieSecret)", () => {
 
     const token = created.link.split("/").pop()!;
     await expect(
-      acceptInvitation(pool, token, "ValidPassword123!", "No Account", cookieSecret)
+      acceptInvitation(pool, token, "ValidPassword123!", "No Account")
     ).rejects.toMatchObject({ code: "INVALID_LINK" });
 
     // No user created
@@ -802,9 +805,9 @@ describe("acceptInvitation(pool, token, password, name, cookieSecret)", () => {
     });
     const token = created.link.split("/").pop()!;
 
-    await expect(
-      acceptInvitation(pool, token, "short", "Alice", cookieSecret)
-    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(acceptInvitation(pool, token, "short", "Alice")).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+    });
   });
 
   // ------------------------------------------------------------------
@@ -823,9 +826,9 @@ describe("acceptInvitation(pool, token, password, name, cookieSecret)", () => {
     const token = created.link.split("/").pop()!;
 
     const tooLongPassword = "A".repeat(129);
-    await expect(
-      acceptInvitation(pool, token, tooLongPassword, "Alice", cookieSecret)
-    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(acceptInvitation(pool, token, tooLongPassword, "Alice")).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+    });
   });
 
   // ------------------------------------------------------------------
@@ -843,9 +846,9 @@ describe("acceptInvitation(pool, token, password, name, cookieSecret)", () => {
     });
     const token = created.link.split("/").pop()!;
 
-    await expect(
-      acceptInvitation(pool, token, "ValidPassword123!", "   ", cookieSecret)
-    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    await expect(acceptInvitation(pool, token, "ValidPassword123!", "   ")).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+    });
   });
 
   // ------------------------------------------------------------------
@@ -865,7 +868,7 @@ describe("acceptInvitation(pool, token, password, name, cookieSecret)", () => {
 
     // Name with a newline character
     await expect(
-      acceptInvitation(pool, token, "ValidPassword123!", "Alice\nSmith", cookieSecret)
+      acceptInvitation(pool, token, "ValidPassword123!", "Alice\nSmith")
     ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
   });
 
@@ -889,8 +892,8 @@ describe("acceptInvitation(pool, token, password, name, cookieSecret)", () => {
 
     // Race two simultaneous accept calls against the same token
     const results = await Promise.allSettled([
-      acceptInvitation(pool, token, "ValidPassword123!", "Racer One", cookieSecret),
-      acceptInvitation(pool, token, "ValidPassword123!", "Racer Two", cookieSecret),
+      acceptInvitation(pool, token, "ValidPassword123!", "Racer One"),
+      acceptInvitation(pool, token, "ValidPassword123!", "Racer Two"),
     ]);
 
     const fulfilled = results.filter((r) => r.status === "fulfilled");
@@ -938,13 +941,7 @@ describe("acceptInvitation(pool, token, password, name, cookieSecret)", () => {
     const token = created.link.split("/").pop()!;
 
     // The caller passes a display name — only the invitation's bound email/role are used
-    const result = await acceptInvitation(
-      pool,
-      token,
-      "ValidPassword123!",
-      "Correct Display Name",
-      cookieSecret
-    );
+    const result = await acceptInvitation(pool, token, "ValidPassword123!", "Correct Display Name");
 
     // The returned email must match the invitation's bound email, not any other identity
     expect(result).toEqual({ email: email.toLowerCase() });
@@ -999,8 +996,8 @@ describe("listInvitations(pool)", () => {
     expect(typeof found!.invitedByEmail).toBe("string");
     expect(found!.invitedByEmail).toBe(adminEmail);
     // Secrets must NOT be present
-    expect((found as Record<string, unknown>).tokenHash).toBeUndefined();
-    expect((found as Record<string, unknown>).tokenEnc).toBeUndefined();
+    expect((found as unknown as Record<string, unknown>).tokenHash).toBeUndefined();
+    expect((found as unknown as Record<string, unknown>).tokenEnc).toBeUndefined();
   });
 
   // ------------------------------------------------------------------
@@ -1073,8 +1070,8 @@ describe("listInvitations(pool)", () => {
 
     const list = await listInvitations(pool);
     for (const inv of list) {
-      expect((inv as Record<string, unknown>).tokenHash).toBeUndefined();
-      expect((inv as Record<string, unknown>).tokenEnc).toBeUndefined();
+      expect((inv as unknown as Record<string, unknown>).tokenHash).toBeUndefined();
+      expect((inv as unknown as Record<string, unknown>).tokenEnc).toBeUndefined();
     }
   });
 
@@ -1176,8 +1173,8 @@ describe("retractInvitation(pool, id)", () => {
     expect(typeof result.invitedByEmail).toBe("string");
     expect(result.invitedByEmail).toBe(adminEmail);
     // Secrets must NOT be present
-    expect((result as Record<string, unknown>).tokenHash).toBeUndefined();
-    expect((result as Record<string, unknown>).tokenEnc).toBeUndefined();
+    expect((result as unknown as Record<string, unknown>).tokenHash).toBeUndefined();
+    expect((result as unknown as Record<string, unknown>).tokenEnc).toBeUndefined();
   });
 
   // ------------------------------------------------------------------

@@ -374,7 +374,12 @@ export async function acceptInvitation(
       // 4c. Hash the password (Argon2id)
       const hashedPassword = await passwordHasher.hash(password);
 
-      // 4d. INSERT user row
+      // 4d. INSERT user row.
+      // emailVerified = true: the account is created only by redeeming an
+      // admin-issued, email-bound, single-use invitation link sent to this exact
+      // address, which proves control of the mailbox. Verified-by-redemption is
+      // the honest value and keeps invited users from being locked out if
+      // requireEmailVerification is enabled later.
       const userId = crypto.randomUUID();
       const now = new Date();
       const isAdmin = invitation.role === "admin";
@@ -382,7 +387,7 @@ export async function acceptInvitation(
       try {
         await client.query(
           `INSERT INTO "user" ("id","email","name","admin","emailVerified","createdAt","updatedAt")
-           VALUES ($1, LOWER($2), $3, $4, false, $5, $5)`,
+           VALUES ($1, LOWER($2), $3, $4, true, $5, $5)`,
           [userId, invitation.email, trimmedName, isAdmin, now]
         );
       } catch (userInsertErr: unknown) {
