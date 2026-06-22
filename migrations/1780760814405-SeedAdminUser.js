@@ -78,7 +78,11 @@ module.exports.up = async () => {
       await sql`DELETE FROM "user" WHERE email = ${email} AND admin = true`;
     }
 
-    // Insert user + account atomically in a single transaction
+    // Insert user + account atomically in a single transaction.
+    // emailVerified = true: the admin email is provisioned out-of-band by the
+    // operator via secrets.json (adminEmail), and the app has no email-sending /
+    // verification flow that could ever flip it. Marking it verified keeps the
+    // account from being locked out if requireEmailVerification is enabled later.
     const now = new Date();
     const userId = crypto.randomUUID();
     const accountId = crypto.randomUUID();
@@ -88,7 +92,7 @@ module.exports.up = async () => {
       INSERT INTO "user" (
         "id", "email", "name", "admin", "emailVerified", "createdAt", "updatedAt"
       ) VALUES (
-        ${userId}, ${email}, 'Admin', true, false, ${now}, ${now}
+        ${userId}, ${email}, 'Admin', true, true, ${now}, ${now}
       )
     `;
 
