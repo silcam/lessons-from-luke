@@ -1,0 +1,14 @@
+// Type-check-only config: like ./tsconfig.json but with NO emit and tests
+// (and jest infra) re-included, so `yarn typecheck` covers *.test.ts too.
+// rootDir is widened to the repo root (the build's rootDir pin is only needed
+// for flat emit; here we never emit, and tests/mocks reach outside src/desktop).
+// The build/emit path (dev `tsc -b -w ./src/desktop`, tsconfig.prod.json) keeps
+// using ./tsconfig.json, which still excludes tests so dist/ stays clean.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "../.."
+  },
+  "exclude": ["node_modules"]
+}
