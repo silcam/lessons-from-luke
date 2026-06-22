@@ -1,0 +1,11 @@
+// Type-check-only config: like ./tsconfig.json but with NO emit and tests
+// (*.test.tsx and jest infra) re-included, so `yarn typecheck` covers them too.
+// References core for its built declarations (run `tsc -b ./src/core` first).
+// The build/emit path (webpack via ts-loader / *.prod.json) is unaffected.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "exclude": ["node_modules"]
+}

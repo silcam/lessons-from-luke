@@ -20,10 +20,16 @@ import secrets from "../util/secrets";
 
 // The integration test server is started by jestIntegrationGlobalSetup.ts
 // as a compiled child process (avoids Jest/ESM conflict with better-auth).
-const serverUrl = process.env.INTEGRATION_SERVER_URL;
-if (!serverUrl) {
-  throw new Error("INTEGRATION_SERVER_URL is not set. Run tests via `yarn test:integration`.");
-}
+// Asserted as a definite `string` (not merely CFA-narrowed by a guard) so the
+// hoisted `function` declarations below — whose bodies TS analyzes without the
+// post-guard narrowing in scope — also see `string`, not `string | undefined`.
+const serverUrl: string = (() => {
+  const url = process.env.INTEGRATION_SERVER_URL;
+  if (!url) {
+    throw new Error("INTEGRATION_SERVER_URL is not set. Run tests via `yarn test:integration`.");
+  }
+  return url;
+})();
 
 // supertest can accept a URL string directly to make requests against a running server
 const agent = () => request.agent(serverUrl);
@@ -109,7 +115,7 @@ test("Full create → lookup → accept → sign-in flow (FR-012 end-to-end, SC-
     .get(`/api/auth/invitation/${token}`)
     .set("Origin", serverUrl)
     .expect(200);
-  expect(lookupRes.headers["cache-control"]).toBe("no-store");
+  expect(lookupRes.header["cache-control"]).toBe("no-store");
   // Lookup response must contain email only (Pass 7 — role is NOT returned)
   expect(lookupRes.body.email).toBe(recipientEmail);
   expect(lookupRes.body.role).toBeUndefined();
@@ -120,7 +126,7 @@ test("Full create → lookup → accept → sign-in flow (FR-012 end-to-end, SC-
     .set("Origin", serverUrl)
     .send({ token, password: recipientPassword, name: recipientName })
     .expect(200);
-  expect(acceptRes.headers["cache-control"]).toBe("no-store");
+  expect(acceptRes.header["cache-control"]).toBe("no-store");
   expect(acceptRes.body.email).toBe(recipientEmail);
 
   // The created account can sign in with the new credentials (FR-012)
@@ -221,15 +227,12 @@ test("Retract: admin retracts invitation → link stops working immediately (SC-
     .post(`/api/admin/invitations/${invitation.id}/retract`)
     .set("Origin", serverUrl)
     .expect(200);
-  expect(retractRes.headers["cache-control"]).toBe("no-store");
+  expect(retractRes.header["cache-control"]).toBe("no-store");
   expect(retractRes.body.status).toBe("retracted");
   expect(retractRes.body.email).toBe(recipientEmail);
 
   // Recipient tries to look up the retracted link → 410
-  await agent()
-    .get(`/api/auth/invitation/${token}`)
-    .set("Origin", serverUrl)
-    .expect(410);
+  await agent().get(`/api/auth/invitation/${token}`).set("Origin", serverUrl).expect(410);
 
   // Recipient tries to accept → 410
   await agent()
@@ -262,10 +265,7 @@ test("Expired invitation link → 410", async () => {
   }
 
   // Lookup → 410
-  await agent()
-    .get(`/api/auth/invitation/${token}`)
-    .set("Origin", serverUrl)
-    .expect(410);
+  await agent().get(`/api/auth/invitation/${token}`).set("Origin", serverUrl).expect(410);
 
   // Accept → 410
   await agent()
@@ -288,9 +288,7 @@ test("Rate limit: 11 rapid requests to GET /api/auth/invitation/:token → 429",
   // Drive > 10 requests from the same agent to hit the per-IP limit
   let lastStatus = 0;
   for (let i = 0; i < 12; i++) {
-    const res = await agent()
-      .get(`/api/auth/invitation/${token}`)
-      .set("Origin", serverUrl);
+    const res = await agent().get(`/api/auth/invitation/${token}`).set("Origin", serverUrl);
     lastStatus = res.status;
     if (lastStatus === 429) break;
   }
@@ -343,7 +341,7 @@ test("Body parsing: malformed JSON to POST /api/auth/invitation/accept → JSON 
 
   expect(res.status).toBe(400);
   // Must be JSON, not HTML (plan.md Pass 8 — non-leaky JSON error)
-  expect(res.headers["content-type"]).toMatch(/application\/json/);
+  expect(res.header["content-type"]).toMatch(/application\/json/);
   expect(res.body).toBeDefined();
   expect(typeof res.body.error).toBe("string");
   // Must not contain a stack trace
@@ -365,7 +363,7 @@ test("Re-copy: admin re-copies a pending invitation link → same link (FR-016)"
     .get(`/api/admin/invitations/${invitation.id}/link`)
     .expect(200);
 
-  expect(reCopyRes.headers["cache-control"]).toBe("no-store");
+  expect(reCopyRes.header["cache-control"]).toBe("no-store");
   expect(reCopyRes.body.link).toBe(originalLink);
 });
 
@@ -379,7 +377,7 @@ test("GET /api/admin/invitations with no invitations → empty array (not error)
   const adminAgent = await signedInAdminAgent();
   const res = await adminAgent.get("/api/admin/invitations").expect(200);
 
-  expect(res.headers["cache-control"]).toBe("no-store");
+  expect(res.header["cache-control"]).toBe("no-store");
   expect(Array.isArray(res.body)).toBe(true);
   expect(res.body).toHaveLength(0);
 });
@@ -413,7 +411,7 @@ test("Logger redaction: /invitation/<token> path is redacted to placeholder", ()
     "/api/admin/invitations/some-id/link",
     "/api/auth/sign-in/email",
     "/api/languages",
-    "/invitation/",       // empty token → no path segment
+    "/invitation/", // empty token → no path segment
   ];
   for (const p of keepCases) {
     expect(TOKEN_PATH_REDACT.test(p)).toBe(false);
@@ -442,29 +440,27 @@ test("Cache-Control: no-store on all secret/PII-bearing responses", async () => 
     .set("Origin", serverUrl)
     .send({ email: recipientEmail, role: "standard" })
     .expect(201);
-  expect(createRes.headers["cache-control"]).toBe("no-store");
+  expect(createRes.header["cache-control"]).toBe("no-store");
 
   const invitationId: string = createRes.body.id;
   const token = extractToken(createRes.body.link);
 
   // Re-copy link
   const adminAgent2 = await signedInAdminAgent();
-  const linkRes = await adminAgent2
-    .get(`/api/admin/invitations/${invitationId}/link`)
-    .expect(200);
-  expect(linkRes.headers["cache-control"]).toBe("no-store");
+  const linkRes = await adminAgent2.get(`/api/admin/invitations/${invitationId}/link`).expect(200);
+  expect(linkRes.header["cache-control"]).toBe("no-store");
 
   // List
   const adminAgent3 = await signedInAdminAgent();
   const listRes = await adminAgent3.get("/api/admin/invitations").expect(200);
-  expect(listRes.headers["cache-control"]).toBe("no-store");
+  expect(listRes.header["cache-control"]).toBe("no-store");
 
   // Anonymous lookup
   const lookupRes = await agent()
     .get(`/api/auth/invitation/${token}`)
     .set("Origin", serverUrl)
     .expect(200);
-  expect(lookupRes.headers["cache-control"]).toBe("no-store");
+  expect(lookupRes.header["cache-control"]).toBe("no-store");
 
   // Accept
   const acceptRes = await agent()
@@ -472,7 +468,7 @@ test("Cache-Control: no-store on all secret/PII-bearing responses", async () => 
     .set("Origin", serverUrl)
     .send({ token, password: "SecurePassword1!", name: "Cache Test" })
     .expect(200);
-  expect(acceptRes.headers["cache-control"]).toBe("no-store");
+  expect(acceptRes.header["cache-control"]).toBe("no-store");
 });
 
 test("Cache-Control: no-store on retract response (plan.md Pass 11)", async () => {
@@ -485,7 +481,7 @@ test("Cache-Control: no-store on retract response (plan.md Pass 11)", async () =
     .post(`/api/admin/invitations/${invitation.id}/retract`)
     .set("Origin", serverUrl)
     .expect(200);
-  expect(retractRes.headers["cache-control"]).toBe("no-store");
+  expect(retractRes.header["cache-control"]).toBe("no-store");
 });
 
 // ------------------------------------------------------------------
