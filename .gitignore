@@ -39,3 +39,5 @@ src/**/*.js.map
 .pnp.*
 
 .sp-harden-findings.json
+.claude/projects/
+.impeccable/critique/
