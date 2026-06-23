@@ -17,7 +17,7 @@
  *     plus a convenience auto-redirect (FR-012)
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { AppDispatch } from "../../common/state/appState";
@@ -63,6 +63,14 @@ export default function RedeemInvitation({ token }: Props) {
   const [submitState, setSubmitState] = useState<SubmitState>({ phase: "idle" });
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimerRef.current !== null) clearTimeout(redirectTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,7 +125,7 @@ export default function RedeemInvitation({ token }: Props) {
       setSubmitState({ phase: "success" });
       // Convenience redirect to sign-in; the explicit "Continue" button below is
       // the reliable path (the redirect can be missed under reduced motion / slow JS).
-      setTimeout(() => navigate("/"), 2000);
+      redirectTimerRef.current = setTimeout(() => navigate("/"), 2000);
     }
   };
 
