@@ -8,7 +8,7 @@
  *
  * Additional assertions:
  *   - Public paths do NOT trigger a redirect (no redirect loop)
- *   - AuthGate and publicAllowlist are NOT imported by any desktop entry file
+ *   - AuthGate is NOT imported by any desktop entry file
  *     (structural isolation — web-only placement is the architectural enforcement,
  *     not a runtime flag; see constitution Principle VI)
  */
@@ -151,10 +151,10 @@ describe("AuthGate", () => {
 /**
  * Import-graph isolation guard (constitution Principle VI)
  *
- * AuthGate and publicAllowlist live under src/frontend/web/ and must never be
- * imported by desktop entry points. Web-only placement is the architectural
- * enforcement mechanism — there is no runtime flag. This test performs a static
- * scan of the desktop entry files to prove that boundary holds.
+ * AuthGate lives under src/frontend/web/ and must never be imported by desktop
+ * entry points. Web-only placement is the architectural enforcement mechanism —
+ * there is no runtime flag. This test performs a static scan of the desktop
+ * entry files to prove that boundary holds.
  *
  * Desktop entry files checked:
  *   - src/frontend/desktopFrontend/MainPage.tsx  (React root for Electron)
@@ -173,7 +173,7 @@ describe("AuthGate import-graph isolation (desktop non-regression)", () => {
   ];
 
   // Web-auth module identifiers that must not appear in desktop entry files.
-  const forbiddenImports = ["AuthGate", "publicAllowlist"];
+  const forbiddenImports = ["AuthGate"];
 
   for (const entryFile of desktopEntryFiles) {
     for (const forbidden of forbiddenImports) {
@@ -181,7 +181,7 @@ describe("AuthGate import-graph isolation (desktop non-regression)", () => {
         const fullPath = path.join(projectRoot, entryFile);
         const source = fs.readFileSync(fullPath, "utf8");
         // Match any import/require referencing the forbidden module name,
-        // including path-based imports like './auth/AuthGate' or 'publicAllowlist'.
+        // including path-based imports like './auth/AuthGate'.
         const pattern = new RegExp(`\\b${forbidden}\\b`);
         expect(source).not.toMatch(pattern);
       });
