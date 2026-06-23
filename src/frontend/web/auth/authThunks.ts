@@ -4,11 +4,15 @@ import { authClient } from "./authClient";
 
 export function loadCurrentUser() {
   return async (dispatch: AppDispatch) => {
-    const result = await authClient.getSession();
-    if (result?.data?.user) {
-      const { id, admin } = result.data.user as { id: string; admin?: boolean };
-      dispatch(currentUserSlice.actions.setUser({ id, admin: Boolean(admin) }));
-    } else {
+    try {
+      const result = await authClient.getSession();
+      if (result?.data?.user) {
+        const { id, admin } = result.data.user as { id: string; admin?: boolean };
+        dispatch(currentUserSlice.actions.setUser({ id, admin: Boolean(admin) }));
+      } else {
+        dispatch(currentUserSlice.actions.setUser(null));
+      }
+    } catch {
       dispatch(currentUserSlice.actions.setUser(null));
     }
   };
@@ -34,6 +38,8 @@ export function pushLogin(login: { email: string; password: string }) {
           admin?: boolean;
         };
         dispatch(currentUserSlice.actions.setUser({ id, admin: Boolean(admin) }));
+      } else {
+        dispatch(currentUserSlice.actions.setError("An error occurred. Please try again."));
       }
     } catch {
       dispatch(currentUserSlice.actions.setError("An error occurred. Please try again."));
