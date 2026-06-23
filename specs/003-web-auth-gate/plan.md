@@ -115,7 +115,9 @@ specs/003-web-auth-gate/
 
 ```text
 src/frontend/web/
-├── MainRouter.tsx                    # EDIT: wrap gated routes in <AuthGate>; keep public routes outside
+├── MainRouter.tsx                    # EDIT: wrap gated routes in <AuthGate>; keep public routes outside;
+│                                     #       own the post-login return-to navigation (see pass-2 correction
+│                                     #       in Design Consistency Notes — NOT in authThunks, NOT in PublicHome)
 ├── auth/
 │   ├── AuthGate.tsx                  # NEW: web-only route guard (loaded-gate + redirect + return-to)
 │   ├── AuthGate.test.tsx             # NEW: unit tests for the guard's decision logic
@@ -123,9 +125,13 @@ src/frontend/web/
 │   ├── publicAllowlist.test.ts       # NEW: allowlist membership + default-deny tests
 │   ├── safeReturnTo.ts               # NEW: pure same-app-path sanitizer (open-redirect guard)
 │   ├── safeReturnTo.test.ts          # NEW: exhaustive sanitizer tests (absolute/protocol-relative/external)
-│   └── authThunks.ts                 # EDIT: sign-in success navigates to sanitized returnTo (or "/")
+│   └── authThunks.ts                 # EDIT (scope reduced): wrap loadCurrentUser getSession() in try/catch →
+│                                     #       setUser(null) on failure (loaded always resolves). Stays
+│                                     #       routing-free — does NOT own returnTo navigation (pass-2).
 └── home/
-    ├── PublicHome.tsx                # EDIT: show contextual "Please sign in to continue" prompt when redirected
+    ├── PublicHome.tsx                # EDIT: show contextual "Please sign in to continue" prompt when
+    │                                 #       redirected (reads returnTo for prompt-presence ONLY; does not
+    │                                 #       perform post-login navigation — pass-2 correction)
     └── PublicHome.test.tsx           # NEW/EDIT: prompt-rendering tests
 
 cypress/integration/
@@ -337,6 +343,51 @@ reload re-runs `getSession`. This is an accepted limitation (the data API stays 
 is no security regression vs. today); document it explicitly so it is a known boundary, not a
 surprise.
 
+### Post-login redirect races the sign-in form's own unmount (FR-006 correctness)
+
+> Added by `/sp:04-red-team` (pass 2). Second-order effect of the pass-1 Design Consistency
+> resolution that moved post-login navigation into `PublicHome`.
+
+The catch-all route is `<Route path="*" element={user ? <AdminHome /> : <PublicHome />} />`.
+A successful login dispatches `setUser({...})`, which flips `currentUser.user` from `null` to a
+value **synchronously in the same Redux update**. On the next render `MainRouter`'s catch-all
+swaps `PublicHome → AdminHome`, so **`PublicHome` unmounts the instant login succeeds**. This
+breaks the pass-1 plan to run `navigate(safeReturnTo(returnTo))` from inside `PublicHome`: a
+naive `useEffect(() => { if (loginSucceeded) navigate(returnTo) }, …)` placed in `PublicHome`
+races its own unmount and can drop the redirect, leaving the user on `AdminHome` (home) instead
+of their deep-linked destination — a silent FR-006 violation that unit tests using a persistent
+test host can easily miss. The design MUST:
+
+- Perform the post-login return-to navigation from a component that **survives** the
+  `user: null → set` transition — i.e. `MainRouter` itself (which never unmounts across the auth
+  flip), not `PublicHome` (which does). Concretely: an effect in `MainRouter` keyed on `user`
+  becoming non-null that, when a sanitized `returnTo` is present on the current location,
+  calls `navigate(safeReturnTo(returnTo), { replace: true })`. This **supersedes** the pass-1
+  Design Consistency Note's "do it in `PublicHome`" wording (corrected below).
+- The post-login navigation MUST use `replace: true` so the `/?returnTo=…` URL is evicted from
+  history; otherwise the back button returns the now-signed-in user to a `?returnTo=` URL whose
+  param is stale/consumed (cosmetically wrong, and a second forward navigation could re-run a
+  consumed redirect).
+- Read `returnTo` from the **current location at success time**, before the navigation replaces
+  it. Add a test that asserts: signed-out deep-link → fail login once (`returnTo` survives, see
+  "Login attempt while already redirected" above) → succeed login → lands on the sanitized
+  `returnTo` (not on `AdminHome`/home), via a test harness whose router host outlives the
+  `PublicHome → AdminHome` swap so the race is actually exercised.
+
+### `returnTo` is only meaningful while signed out; a signed-in deep-linker must not loop
+
+> Added by `/sp:04-red-team` (pass 2).
+
+A user who is **already signed in** and opens `/?returnTo=/translate/x` directly hits the
+catch-all, which renders `AdminHome` (home) — there is no gate redirect because they are
+authenticated, and `MainRouter`'s post-login effect only fires on the `null → set` transition,
+not on a mount that is already signed in. So a hand-crafted `/?returnTo=…` for an
+**already-authenticated** user is inert (it does not auto-forward them). Document this as
+intended: `returnTo` is consumed only on the sign-in *transition*, never on a steady-state
+signed-in mount, so there is no auto-navigation primitive an attacker can trigger against a
+logged-in user by feeding them a `/?returnTo=…` link. Assert it: a signed-in mount with a
+`returnTo` present does **not** navigate.
+
 ## Accessibility Requirements
 
 > Added by `/sp:04-red-team` (pass 1). Target: WCAG 2.2 AA (per Presentation Design + PRODUCT.md).
@@ -379,12 +430,20 @@ conveyed by text content, satisfying WCAG 1.4.1 (Use of Color).
 - **Where the post-login `navigate` lives.** The Source Structure table lists
   `authThunks.ts` as `EDIT` ("sign-in success navigates to sanitized returnTo"), but research R2
   *prefers Option 1* — keep `pushLogin` pure of routing and do `navigate(safeReturnTo(returnTo))`
-  in `PublicHome` (where `useNavigate` lives). These disagree. Resolve to **Option 1**: drop the
-  `authThunks.ts` edit from the gated-navigation path (the thunk stays routing-free), and add the
-  `useSearchParams` + `navigate` logic to `PublicHome` instead. `pushLogin`'s existing
-  `callbackURL: "/"` is a better-auth server-redirect hint the in-place email flow does not act
-  on (research R2) and can be left as-is. `sp:05-tasks` should generate the `PublicHome` edit, not
-  an `authThunks` edit, for return-to navigation.
+  outside the thunk (where `useNavigate` lives). These disagree on the thunk; resolve to
+  **Option 1** (thunk stays routing-free, `pushLogin`'s existing `callbackURL: "/"` is an unused
+  better-auth server-redirect hint and can be left as-is). **CORRECTION (pass 2):** the earlier
+  pass-1 wording said to put the `navigate` in **`PublicHome`** — that is wrong, because
+  `PublicHome` unmounts the moment login succeeds (the catch-all swaps to `AdminHome`), so a
+  navigate effect there races its own unmount (see "Post-login redirect races the sign-in form's
+  own unmount" in Edge Cases). The post-login `navigate(safeReturnTo(returnTo), { replace: true })`
+  MUST instead live in **`MainRouter`** (which survives the auth flip), in an effect keyed on
+  `user` transitioning `null → set` with a `returnTo` present on the current location. `PublicHome`
+  may still read `returnTo` purely to decide whether to show the contextual prompt, but it MUST
+  NOT own the post-login navigation. `sp:05-tasks` should therefore generate a `MainRouter` edit
+  (post-login return-to navigation) plus a `PublicHome` edit (contextual prompt only) — **not** an
+  `authThunks` edit and **not** a `PublicHome`-owned navigation. Update the Source Structure
+  table accordingly when generating tasks.
 - **Allowlist shape vs. actual routing.** `publicAllowlist`/`isPublicPath()` describe a set of
   paths, but the real public surface is (a) the catch-all `"*"` when signed out and (b)
   `/invitation/:token`. Document that the allowlist's job is to identify which **named** routes
