@@ -255,5 +255,14 @@ describe("auth thunks (web/auth/authThunks)", () => {
       );
       expect(logoutCalls.length).toBeGreaterThan(0);
     });
+
+    it("when signOut throws, still dispatches logout action", async () => {
+      (authClient.signOut as jest.Mock).mockRejectedValue(new Error("Network failure"));
+      const dispatch = jest.fn();
+
+      await pushLogout()(dispatch);
+
+      expect(dispatch).toHaveBeenCalledWith(currentUserSlice.actions.logout());
+    });
   });
 });

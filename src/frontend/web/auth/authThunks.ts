@@ -49,7 +49,11 @@ export function pushLogin(login: { email: string; password: string }) {
 
 export function pushLogout() {
   return async (dispatch: AppDispatch) => {
-    await authClient.signOut();
-    dispatch(currentUserSlice.actions.setUser(null));
+    try {
+      await authClient.signOut();
+    } catch {
+      // ignore — always clear local session state
+    }
+    dispatch(currentUserSlice.actions.logout());
   };
 }
