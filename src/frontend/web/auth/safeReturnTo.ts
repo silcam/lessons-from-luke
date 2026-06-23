@@ -34,7 +34,8 @@ export function safeReturnTo(raw: string, baseOrigin?: string): string {
   // We do NOT trim-then-accept: leading whitespace itself is a rejection condition.
   // eslint-disable-next-line no-control-regex
   if (/[\x00-\x1F\x7F]/.test(withoutFragment)) return "/";
-  if (withoutFragment.startsWith(" ") || withoutFragment.startsWith(" ")) return "/";
+  // Leading ASCII space (U+0020) or Unicode non-breaking space (U+00A0)
+  if (withoutFragment.startsWith("\u0020") || withoutFragment.startsWith("\u00A0")) return "/";
 
   // 2b. Backslash (covers /\evil.com, \/evil.com, /\/evil.com)
   if (withoutFragment.includes("\\")) return "/";
@@ -58,7 +59,8 @@ export function safeReturnTo(raw: string, baseOrigin?: string): string {
   // Re-check string rules on the decoded value
   // eslint-disable-next-line no-control-regex
   if (/[\x00-\x1F\x7F]/.test(decoded)) return "/";
-  if (decoded.startsWith(" ") || decoded.startsWith(" ")) return "/";
+  // Leading ASCII space (U+0020) or Unicode non-breaking space (U+00A0)
+  if (decoded.startsWith("\u0020") || decoded.startsWith("\u00A0")) return "/";
   if (decoded.includes("\\")) return "/";
   if (decoded.startsWith("//")) return "/";
   const decodedFirstSlash = decoded.indexOf("/");
