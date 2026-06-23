@@ -1,6 +1,8 @@
 node_modules
 /dist
-/docs
+# Ignore the ODT root contents, but track the project glossary that lives here.
+/docs/*
+!/docs/glossary.md
 /strings
 
 # Transient sp:08-harden orchestration artifacts
