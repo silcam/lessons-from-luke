@@ -1,12 +1,11 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Routes, Route, useParams } from "react-router-dom";
 import TranslateRoute from "../common/translate/TranslateHome";
 import AdminHome from "./home/AdminHome";
 import PublicHome from "./home/PublicHome";
-import { useSelector } from "react-redux";
-import { AppState } from "../common/state/appState";
-import { useLoad } from "../common/api/useLoad";
-import { loadCurrentUser } from "../common/state/currentUserSlice";
+import { useDispatch, useSelector } from "react-redux";
+import { AppDispatch, AppState } from "../common/state/appState";
+import { loadCurrentUser } from "./auth/authThunks";
 import RootDiv from "../common/base-components/RootDiv";
 import LoadingSnake from "../common/base-components/LoadingSnake";
 import LessonPage from "./lessons/LessonPage";
@@ -41,8 +40,13 @@ function UpdateIssuesPageWrapper() {
 
 export default function MainRouter() {
   const { user, loaded } = useSelector((state: AppState) => state.currentUser);
-  useLoad(loadCurrentUser);
+  const dispatch = useDispatch<AppDispatch>();
   useClearBannersOnNavigation();
+
+  useEffect(() => {
+    dispatch(loadCurrentUser());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <RootDiv>

@@ -1,9 +1,11 @@
-import currentUserSlice, { loadCurrentUser, pushLogin, pushLogout } from "./currentUserSlice";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const sliceModule = require("./currentUserSlice");
+const currentUserSlice = sliceModule.default;
 import { User } from "../../../core/models/User";
 
 function makeUser(overrides: Partial<User> = {}): User {
   return {
-    id: 1,
+    id: "u1",
     admin: false,
     ...overrides,
   };
@@ -45,7 +47,11 @@ describe("currentUserSlice reducers", () => {
     });
 
     it("does not change locale when user is set", () => {
-      const stateWithUser = { ...initialState, user: makeUser(), locale: "en" as const };
+      const stateWithUser = {
+        ...initialState,
+        user: makeUser(),
+        locale: "en" as const,
+      };
 
       const state = currentUserSlice.reducer(
         stateWithUser,
@@ -58,7 +64,7 @@ describe("currentUserSlice reducers", () => {
 
   describe("setUser", () => {
     it("sets the user and marks loaded as true", () => {
-      const user = makeUser({ id: 5, admin: true });
+      const user = makeUser({ id: "u5", admin: true });
 
       const state = currentUserSlice.reducer(initialState, currentUserSlice.actions.setUser(user));
 
@@ -84,65 +90,40 @@ describe("currentUserSlice reducers", () => {
 
       expect(state.user).toBeNull();
     });
-  });
-});
 
-describe("currentUserSlice thunks", () => {
-  describe("loadCurrentUser", () => {
-    it("calls GET /api/users/current and dispatches setUser", async () => {
-      const user = makeUser({ id: 1, admin: false });
-      const get = jest.fn().mockResolvedValue(user);
-      const dispatch = jest.fn();
+    it("clears error so stale login-failed banner does not reappear", () => {
+      const stateWithError = {
+        ...initialState,
+        user: null,
+        error: "Invalid credentials",
+      };
 
-      await loadCurrentUser(get)(dispatch);
+      const stateAfterError = currentUserSlice.reducer(
+        stateWithError,
+        currentUserSlice.actions.setError("Invalid credentials")
+      );
 
-      expect(get).toHaveBeenCalledWith("/api/users/current", {});
-      expect(dispatch).toHaveBeenCalledWith(currentUserSlice.actions.setUser(user));
-    });
+      const state = currentUserSlice.reducer(stateAfterError, currentUserSlice.actions.logout());
 
-    it("dispatches setUser(null) even if GET returns null (to mark loaded)", async () => {
-      const get = jest.fn().mockResolvedValue(null);
-      const dispatch = jest.fn();
-
-      await loadCurrentUser(get)(dispatch);
-
-      expect(dispatch).toHaveBeenCalledWith(currentUserSlice.actions.setUser(null));
+      expect(state.error).toBeNull();
     });
   });
 
-  describe("pushLogin", () => {
-    it("posts login and dispatches setUser", async () => {
-      const user = makeUser({ id: 2, admin: true });
-      const login = { username: "admin", password: "secret" };
-      const post = jest.fn().mockResolvedValue(user);
-      const dispatch = jest.fn();
+  describe("initial state", () => {
+    it("has user null and loaded false", () => {
+      const state = currentUserSlice.reducer(undefined, { type: "@@INIT" });
 
-      await pushLogin(login)(post, dispatch);
-
-      expect(post).toHaveBeenCalledWith("/api/users/login", {}, login);
-      expect(dispatch).toHaveBeenCalledWith(currentUserSlice.actions.setUser(user));
+      expect(state.user).toBeNull();
+      expect(state.loaded).toBe(false);
     });
 
-    it("dispatches setUser(null) if post returns null", async () => {
-      const login = { username: "wrong", password: "wrong" };
-      const post = jest.fn().mockResolvedValue(null);
-      const dispatch = jest.fn();
+    it("after setUser with a user, has user set and loaded true", () => {
+      const user = makeUser({ id: "u1", admin: true });
 
-      await pushLogin(login)(post, dispatch);
+      const state = currentUserSlice.reducer(undefined, currentUserSlice.actions.setUser(user));
 
-      expect(dispatch).toHaveBeenCalledWith(currentUserSlice.actions.setUser(null));
-    });
-  });
-
-  describe("pushLogout", () => {
-    it("posts logout and dispatches logout action", async () => {
-      const post = jest.fn().mockResolvedValue({});
-      const dispatch = jest.fn();
-
-      await pushLogout()(post, dispatch);
-
-      expect(post).toHaveBeenCalledWith("/api/users/logout", {}, null);
-      expect(dispatch).toHaveBeenCalledWith(currentUserSlice.actions.logout());
+      expect(state.user).toEqual({ id: "u1", admin: true });
+      expect(state.loaded).toBe(true);
     });
   });
 });

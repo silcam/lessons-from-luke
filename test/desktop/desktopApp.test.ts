@@ -16,7 +16,10 @@ const ELECTRON_TEST_ARGS = ["--no-sandbox", "--disable-gpu", "--disable-software
 
 beforeAll(async () => {
   try {
-    await Axios.get("http://localhost:8081/api/users/current");
+    // Readiness probe: /api/languages is public and DB-backed, so a 200 confirms
+    // the API process is up AND can reach Postgres. (The legacy /api/users/current
+    // endpoint this used to hit was removed in the better-auth migration.)
+    await Axios.get("http://localhost:8081/api/languages");
     await Axios.get("http://localhost:8082/desktop.html", {});
     // Seed the test API's database from fixtures so the GHI project / Batanga
     // language exist. Without this, a freshly-migrated CI database has only

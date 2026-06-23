@@ -1,0 +1,208 @@
+openapi: 3.0.3
+info:
+  title: Better-Auth Migration — Authentication & Admin-Gating Contract
+  version: 1.0.0
+  description: >
+    Contract for the server-only authentication surface introduced by the better-auth
+    migration. The /api/auth/* routes are served by better-auth's toNodeHandler (mounted
+    BEFORE bodyParser); only a representative subset used by this feature is documented
+    here. The /api/admin/* gating behavior is the cross-cutting authorization contract
+    (US2 / FR-004). The desktop per-translation access-code path (/api/languages/code/:code)
+    is intentionally OUT OF SCOPE and unchanged (US5 / FR-008).
+
+servers:
+  - url: http://localhost:8081
+    description: Local API (dev / test)
+
+paths:
+  /api/auth/sign-in/email:
+    post:
+      summary: Sign in with email + password (US1, FR-001, FR-007)
+      description: >
+        Verifies the submitted password against the stored Argon2id hash. On success a
+        server-side session is created and a session cookie is set. Failure responses MUST NOT
+        reveal whether the email is registered (FR-007). The password length is bounded by an
+        explicitly-configured `emailAndPassword.maxPasswordLength` (red-team Pass 2) so an
+        over-length password cannot amplify Argon2id CPU/memory cost via the 2MB JSON body limit;
+        over-length input is rejected BEFORE hashing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password:
+                  type: string
+                  description: >
+                    Bounded by the configured maxPasswordLength (~128; explicitly set, not relying
+                    on an unverified library default — red-team Pass 2).
+                  maxLength: 128
+      responses:
+        "200":
+          description: Authenticated. Session cookie set.
+          headers:
+            Set-Cookie:
+              description: >
+                Session cookie. Name is `better-auth.session_token` on plain-HTTP localhost,
+                `__Host-better-auth.session_token` (Secure; HttpOnly; SameSite=Lax; Path=/) in
+                production (FR-010). The production `Secure` + `__Host-` attributes depend on the
+                server seeing the request as HTTPS behind the Passenger TLS-terminating proxy, which
+                requires `app.set("trust proxy", 1)` in serverApp.ts (red-team Pass 3) — without it
+                the cookie can be emitted without `Secure` in production.
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionUserEnvelope" }
+        "400":
+          description: >
+            Malformed or out-of-bounds input (missing field, non-email, or password exceeding
+            maxPasswordLength). Rejected by validation BEFORE the Argon2id hash runs, so it cannot
+            be used as a CPU/memory amplification vector (red-team Pass 2). This is an input-shape
+            error, NOT a credential-validity signal, and MUST NOT reveal whether the email exists.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthError" }
+        "401":
+          description: >
+            Invalid credentials (wrong password OR unknown email — indistinguishable to the
+            caller; FR-007). No session created. (Spec US1 scenario 2.) The status code, body
+            (AuthError), and headers MUST be byte-identical for "unknown email" and "wrong
+            password", and the response time MUST NOT distinguish them (no early-return for
+            unknown email) — closing the timing enumeration side-channel. (red-team Pass 1.)
+            **This 401 is the failure status the web sign-in UI keys on** — it replaces the legacy
+            422 that `PublicHome.tsx` currently checks; the rewired slice/component MUST surface 401
+            (not 422) to render the `Log_in_failed` alert, or US1-scenario-2 silently regresses
+            (red-team Pass 2).
+        "429":
+          description: >
+            Too Many Requests — sign-in is rate-limited (red-team Pass 1). better-auth's rate
+            limiter throttles repeated attempts to defend the single known admin account against
+            credential stuffing AND to cap Argon2id CPU/memory spend (DoS amplification). A
+            stricter custom rule applies to this route (~5–10 attempts/window per client IP, keyed
+            on the trusted-proxy-derived IP, not raw X-Forwarded-For). The trusted-proxy-derived IP
+            requires `app.set("trust proxy", 1)` in serverApp.ts (red-team Pass 3); without it the
+            limiter keys on a spoofable or wrong IP. The limiter store is DB-backed (auth pg.Pool) so
+            limits are not silently per-worker under Passenger.
+          headers:
+            Retry-After:
+              description: Seconds until the caller may retry.
+              schema: { type: integer }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthError" }
+
+  /api/auth/sign-up/email:
+    post:
+      summary: Public sign-up — DISABLED (FR-002, US4 scenario 4)
+      description: >
+        Sign-up is disabled (emailAndPassword.disableSignUp = true). Any self-service sign-up
+        attempt MUST be rejected. Documented to assert the negative contract; there is no public
+        account-creation path.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+                name: { type: string }
+      responses:
+        "403":
+          description: Sign-up rejected (disabled). Exact status is better-auth's disabled-route response; the invariant is "not created".
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthError" }
+
+  /api/auth/get-session:
+    get:
+      summary: Resolve the current session (load / refresh)
+      description: >
+        Returns the current user + session if the request carries a valid, unexpired session
+        cookie; otherwise null. Expired sessions are treated as unauthenticated (FR-006).
+        Drives the frontend's loadCurrentUser. Fails CLOSED: if the auth session store is
+        unreachable (auth pg.Pool error), the resolved session is treated as null
+        (unauthenticated), never as authenticated, and the error is logged server-side without
+        leaking connection details. (red-team Pass 1.)
+      responses:
+        "200":
+          description: Either the session envelope or null.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - { $ref: "#/components/schemas/SessionUserEnvelope" }
+                  - { type: "null" }
+
+  /api/auth/sign-out:
+    post:
+      summary: Sign out (US3, FR-005)
+      description: >
+        Ends the current session and clears the session cookie. Idempotent: a sign-out with an
+        already-invalid, expired, or absent session cookie still returns 200 with a cleared
+        cookie and never 500. (red-team Pass 1.)
+      responses:
+        "200":
+          description: Session ended (or already absent); cookie cleared.
+          headers:
+            Set-Cookie:
+              description: Session cookie cleared (expired).
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+
+  /api/admin/languages:
+    get:
+      summary: Representative admin-only endpoint — authorization contract (US2, FR-004)
+      description: >
+        Stands in for ALL /api/admin/* endpoints. The requireAdmin middleware resolves the
+        session and enforces the three-way outcome. SC-002: 100% of admin-only endpoints behave
+        this way.
+      responses:
+        "200":
+          description: Authenticated AND admin. (US2 scenario 3.)
+        "401":
+          description: >
+            No (valid) session — unauthenticated. (US2 scenario 1; US3 scenario 2.) This is also
+            the FAIL-CLOSED outcome when the auth session store throws/errors: requireAdmin treats
+            a session-lookup failure as unauthenticated (401), never as a bypass. (red-team Pass 1.)
+        "403":
+          description: Authenticated but NOT an admin. (US2 scenario 2.)
+
+components:
+  schemas:
+    SessionUserEnvelope:
+      type: object
+      properties:
+        user:
+          type: object
+          properties:
+            id: { type: string, description: Opaque better-auth identifier (FR-013) }
+            email: { type: string, format: email }
+            name: { type: string }
+            admin: { type: boolean, description: Admin capability flag (FR-004) }
+            emailVerified: { type: boolean }
+          required: [id, email, admin]
+        session:
+          type: object
+          properties:
+            id: { type: string }
+            userId: { type: string }
+            expiresAt: { type: string, format: date-time }
+          required: [id, userId, expiresAt]
+      required: [user, session]
+    AuthError:
+      type: object
+      description: >
+        Generic auth failure. MUST NOT disclose whether an email is registered (FR-007).
+      properties:
+        message: { type: string }
+        code: { type: string }

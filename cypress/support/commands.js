@@ -31,7 +31,10 @@ Cypress.Commands.add("resetDatabase", () =>
 Cypress.Commands.add("loadFixtures", () => cy.resetDatabase());
 
 Cypress.Commands.add("login", () =>
-  cy.request("POST", "/api/users/login", { username: "chris", password: "yo" })
+  cy.request("POST", "/api/auth/sign-in/email", {
+    email: Cypress.env("adminEmail"),
+    password: Cypress.env("adminPassword"),
+  })
 );
 
 // Find input by placeholder

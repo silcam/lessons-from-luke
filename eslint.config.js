@@ -47,15 +47,22 @@ export default [
       ],
     },
   },
-  // CommonJS .js files (configs, scripts, webpack, migrations, mocks, root tooling)
+  // CommonJS .js and .cjs files (configs, scripts, webpack, migrations, mocks, root tooling)
   {
     files: [
       "**/*.config.js",
       "**/*Sequencer.js",
       "webpack/**/*.js",
       "scripts/**/*.js",
+      "scripts/**/*.cjs",
       "migrations/**/*.js",
       "__mocks__/**/*.js",
+      // All `.cjs` are CommonJS by definition (Jest shims under any
+      // src/**/__mocks__, root tooling, etc.) — match them everywhere so a new
+      // mock dir can't fall through to the default config (no node globals →
+      // `'module' is not defined`). CI's `eslint .` lints these even though
+      // lint-staged's `**/*.{ts,tsx}` glob never does.
+      "**/*.cjs",
       "*.js",
     ],
     languageOptions: {

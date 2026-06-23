@@ -23,9 +23,9 @@ su - postgres -c "psql -v ON_ERROR_STOP=0 --dbname=postgres -c \
 if [ ! -f /workspace/secrets.json ]; then
     cat > /workspace/secrets.json <<'SECRETS'
 {
-  "cookieSecret": "fuerabgui4pab5m32;tkqipn84",
-  "adminUsername": "chris",
-  "adminPassword": "yo",
+  "cookieSecret": "dev-only-secret-replace-in-production-xx",
+  "adminEmail": "admin@example.com",
+  "adminPassword": "dev-password-1",
   "db": {
     "database": "lessons-from-luke",
     "username": "lessons-from-luke",

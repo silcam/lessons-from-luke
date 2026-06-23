@@ -16,6 +16,21 @@ import React from "react";
 import { renderWithProviders, defaultSyncState } from "../../common/testHelpers";
 import PublicHome from "./PublicHome";
 
+// authClient is mapped to src/frontend/__mocks__/authClient.ts via jest moduleNameMapper
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { authClient } = require("../../web/auth/authClient") as {
+  authClient: { getSession: jest.Mock; signIn: { email: jest.Mock }; signOut: jest.Mock };
+};
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  // Default: successful login
+  authClient.signIn.email.mockResolvedValue({
+    data: { user: { id: "u1", email: "admin@example.com" } },
+    error: null,
+  });
+});
+
 describe("PublicHome", () => {
   it("renders without crashing", () => {
     const { container } = renderWithProviders(<PublicHome />, {
@@ -42,82 +57,57 @@ describe("PublicHome", () => {
     expect(buttons.length).toBeGreaterThan(0);
   });
 
-  it("shows login failed alert when credentials are invalid (422 error, lines 20-25)", async () => {
+  it("shows login failed alert when credentials are invalid (401 error)", async () => {
     const { fireEvent, act } = require("@testing-library/react");
-    const { mockPost } = require("../../common/testHelpers");
-    // Simulate a 422 HTTP error from the server
-    mockPost.mockRejectedValueOnce({ type: "HTTP", status: 422, message: "Unprocessable" });
-
-    const { container } = renderWithProviders(<PublicHome />, {
-      syncState: defaultSyncState,
-      currentUser: { user: null, locale: "en", loaded: false },
+    // Simulate a 401 error from the authClient
+    authClient.signIn.email.mockResolvedValue({
+      data: null,
+      error: { status: 401, message: "Invalid credentials" },
     });
 
-    // Click the Log In button
+    const { container, getByText } = renderWithProviders(<PublicHome />, {
+      syncState: defaultSyncState,
+      currentUser: { user: null, locale: "en", loaded: false, error: null },
+    });
+
     const loginButton = container.querySelector("button");
     await act(async () => {
       fireEvent.click(loginButton!);
     });
 
-    // The loginFailed state should be set, showing an alert
-    // Even if alert doesn't appear (no text typed), the handler runs without crashing
-    expect(container).toBeTruthy();
+    expect(getByText(/log.?in failed/i)).toBeTruthy();
   });
 
-  it("clears loginFailed when username is typed (lines 37-39)", async () => {
+  it("calls authClient.signIn.email when login button is clicked", async () => {
     const { fireEvent, act } = require("@testing-library/react");
-    const { mockPost } = require("../../common/testHelpers");
-    mockPost.mockRejectedValueOnce({ type: "HTTP", status: 422, message: "Unprocessable" });
 
     const { container } = renderWithProviders(<PublicHome />, {
       syncState: defaultSyncState,
       currentUser: { user: null, locale: "en", loaded: false },
     });
 
-    // First trigger a login failure
     const loginButton = container.querySelector("button");
     await act(async () => {
       fireEvent.click(loginButton!);
     });
 
-    // Now type in username field to clear loginFailed
+    expect(authClient.signIn.email).toHaveBeenCalledWith(
+      expect.objectContaining({ callbackURL: "/" })
+    );
+  });
+
+  it("renders email and password inputs", () => {
+    const { container } = renderWithProviders(<PublicHome />, {
+      syncState: defaultSyncState,
+      currentUser: { user: null, locale: "en", loaded: false },
+    });
+
     const inputs = container.querySelectorAll("input");
-    await act(async () => {
-      fireEvent.change(inputs[0], { target: { value: "testuser" } });
-    });
-    // loginFailed should be cleared (no crash)
-    expect(container).toBeTruthy();
+    expect(inputs.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("clears loginFailed when password is typed (lines 46-49)", async () => {
+  it("does not crash on successful login", async () => {
     const { fireEvent, act } = require("@testing-library/react");
-    const { mockPost } = require("../../common/testHelpers");
-    mockPost.mockRejectedValueOnce({ type: "HTTP", status: 422, message: "Unprocessable" });
-
-    const { container } = renderWithProviders(<PublicHome />, {
-      syncState: defaultSyncState,
-      currentUser: { user: null, locale: "en", loaded: false },
-    });
-
-    // First trigger login failure
-    const loginButton = container.querySelector("button");
-    await act(async () => {
-      fireEvent.click(loginButton!);
-    });
-
-    // Now type in the password field
-    const inputs = container.querySelectorAll("input");
-    await act(async () => {
-      if (inputs[1]) fireEvent.change(inputs[1], { target: { value: "secret" } });
-    });
-    expect(container).toBeTruthy();
-  });
-
-  it("returns false from error handler for non-422 errors so banner is shown", async () => {
-    const { fireEvent, act } = require("@testing-library/react");
-    const { mockPost } = require("../../common/testHelpers");
-    // Non-422 HTTP error: error handler returns false so banner is dispatched
-    mockPost.mockRejectedValueOnce({ type: "HTTP", status: 500, message: "Server Error" });
 
     const { container } = renderWithProviders(<PublicHome />, {
       syncState: defaultSyncState,

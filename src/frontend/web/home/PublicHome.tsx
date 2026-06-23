@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { usePush } from "../../common/api/useLoad";
-import { pushLogin } from "../../common/state/currentUserSlice";
+import { useDispatch, useSelector } from "react-redux";
+import { AppDispatch, AppState } from "../../common/state/appState";
+import { pushLogin } from "../auth/authThunks";
 import Button from "../../common/base-components/Button";
 import TextInput from "../../common/base-components/TextInput";
 import MiddleOfPage from "../../common/base-components/MiddleOfPage";
@@ -12,18 +13,13 @@ import useTranslation from "../../common/util/useTranslation";
 
 export default function PublicHome() {
   const t = useTranslation();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loginFailed, setLoginFailed] = useState(false);
-  const push = usePush();
-  const logIn = () =>
-    push(pushLogin({ username, password }), (appError) => {
-      if (appError.type == "HTTP" && appError.status == 422) {
-        setLoginFailed(true);
-        return true;
-      }
-      return false;
-    });
+  const dispatch = useDispatch<AppDispatch>();
+  const error = useSelector((state: AppState) => state.currentUser.error);
+  const loginFailed = Boolean(error);
+
+  const logIn = () => dispatch(pushLogin({ email, password }));
 
   return (
     <MiddleOfPage>
@@ -32,12 +28,11 @@ export default function PublicHome() {
         <Heading level={3} text={t("Log_in")} />
         <PDiv>
           <TextInput
-            value={username}
+            value={email}
             setValue={(v) => {
-              setUsername(v);
-              setLoginFailed(false);
+              setEmail(v);
             }}
-            placeholder={t("Username")}
+            placeholder={t("Email")}
             autoFocus
           />
         </PDiv>
@@ -46,7 +41,6 @@ export default function PublicHome() {
             value={password}
             setValue={(v) => {
               setPassword(v);
-              setLoginFailed(false);
             }}
             placeholder={t("Password")}
             password

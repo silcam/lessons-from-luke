@@ -13,6 +13,17 @@ module.exports = {
       transform: {
         "^.+\\.tsx?$": ["ts-jest", { tsconfig: { jsx: "react" } }],
       },
+      // Redirect ESM-only better-auth packages to CJS shims so Jest's CommonJS
+      // runner can load them without hitting the "Cannot use import statement
+      // outside a module" ESM parse error.
+      // - better-auth: stub betterAuth() factory (unit tests mock getAuth() directly)
+      // - better-auth/node: real CJS wrapper around better-call/node (which IS CJS)
+      // Integration tests use real better-auth via a compiled child-process server
+      // (jestIntegrationGlobalSetup.ts) and have their own config without these shims.
+      moduleNameMapper: {
+        "^better-auth$": "<rootDir>/src/server/__mocks__/better-auth.cjs",
+        "^better-auth/node$": "<rootDir>/src/server/__mocks__/better-auth-node.cjs",
+      },
       testEnvironment: "node",
       globalSetup: "<rootDir>/src/server/jestGlobalSetup.ts",
       setupFilesAfterEnv: ["<rootDir>/src/server/jestSetupAfterEnv.ts"],
@@ -62,6 +73,23 @@ module.exports = {
         "^electron$": "<rootDir>/__mocks__/electron.ts",
         // Handle CSS/assets
         "\\.(css|less|scss|svg|png|jpg|jpeg|gif|ico)$": "<rootDir>/__mocks__/styleMock.js",
+        // Redirect ESM-only better-auth/react to a CJS shim so Jest's CommonJS
+        // runner can load it. The authClient moduleNameMapper entries below redirect
+        // all authClient imports to a manual mock, so better-auth/react is never
+        // actually called in unit tests; this shim exists to satisfy the static import
+        // in authClient.ts (which is itself redirected to the mock, but ts-jest still
+        // needs to parse it).
+        "^better-auth/react$": "<rootDir>/src/frontend/__mocks__/better-auth-react.cjs",
+        // Redirect authClient imports to a jest.fn()-based manual mock so that
+        // unit tests can call mockResolvedValue() without the virtual-mock
+        // keying mismatch (virtual mocks key on the raw path, not the resolved
+        // absolute path, so the slice's import and the test's require end up
+        // consulting different registry entries).
+        // The first pattern matches cross-layer imports (../../web/auth/authClient).
+        // The second matches the relative import ./authClient used by authThunks.ts
+        // (which lives in web/auth/ and imports authClient as a sibling module).
+        ".*/web/auth/authClient": "<rootDir>/src/frontend/__mocks__/authClient.ts",
+        "^\\./authClient(\\.ts)?$": "<rootDir>/src/frontend/__mocks__/authClient.ts",
       },
     },
   ],
@@ -124,6 +152,12 @@ module.exports = {
     "!src/frontend/web/languages/UsfmImportResultPage.tsx",
     "!src/frontend/web/lessons/UploadLessonForm.tsx",
     "!src/frontend/web/documents/useGetDocument.tsx",
+    // Auth config glue — getAuth() factory around the better-auth constructor + env switch;
+    // sign-in/guard behavior is covered by auth.integration.test.ts, not the unit coverage report:
+    "!src/server/auth/auth.ts",
+    // Auth client glue — better-auth React client construction; behavior covered by
+    // currentUserSlice.test.ts mocks and Cypress e2e, not unit tests:
+    "!src/frontend/web/auth/authClient.ts",
   ],
   coverageThreshold: {
     global: {

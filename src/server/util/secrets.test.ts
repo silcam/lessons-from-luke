@@ -17,6 +17,11 @@
  *   2. Using `jest.resetModules()` + `require()` to force a fresh evaluation
  *      of the module so the `fs.existsSync` check runs again.
  *   3. Deleting the temp file and resetting modules afterwards.
+ *
+ * FR-011 validation tests confirm the module throws on:
+ *   - cookieSecret shorter than 32 characters
+ *   - adminEmail absent when NODE_ENV=production
+ * and succeeds with a valid configuration.
  */
 
 import fs from "fs";
@@ -24,8 +29,32 @@ import path from "path";
 
 const secretsJsonPath = path.join(process.cwd(), "secrets.json");
 
+/** A valid secrets object that satisfies all validation rules (including production). */
+const validSecrets = {
+  cookieSecret: "a-strong-unique-cookie-secret-for-testing!!",
+  adminEmail: "admin@example.com",
+  adminUsername: "admin",
+  adminPassword: "hunter2-secure",
+  db: {
+    database: "my-db",
+    username: "my-user",
+    password: "my-pass",
+  },
+  testDb: {
+    database: "my-test-db",
+    username: "my-user",
+    password: "my-pass",
+  },
+  devDb: {
+    database: "my-dev-db",
+    username: "my-user",
+    password: "my-pass",
+  },
+};
+
 describe("secrets — file-based branch (line 21 true path)", () => {
   let originalContent: string | null = null;
+  let originalNodeEnv: string | undefined;
 
   beforeAll(() => {
     // Snapshot the original file (if present) so we can restore it after each
@@ -37,7 +66,18 @@ describe("secrets — file-based branch (line 21 true path)", () => {
     }
   });
 
+  beforeEach(() => {
+    originalNodeEnv = process.env.NODE_ENV;
+  });
+
   afterEach(() => {
+    // Restore NODE_ENV
+    if (originalNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
+
     // Restore (or remove) secrets.json to exactly its pre-test state.
     if (originalContent !== null) {
       fs.writeFileSync(secretsJsonPath, originalContent, "utf8");
@@ -50,43 +90,23 @@ describe("secrets — file-based branch (line 21 true path)", () => {
   });
 
   test("reads values from secrets.json when the file exists", () => {
-    const customSecrets = {
-      cookieSecret: "custom-cookie-secret",
-      adminUsername: "admin",
-      adminPassword: "hunter2",
-      db: {
-        database: "my-db",
-        username: "my-user",
-        password: "my-pass",
-      },
-      testDb: {
-        database: "my-test-db",
-        username: "my-user",
-        password: "my-pass",
-      },
-      devDb: {
-        database: "my-dev-db",
-        username: "my-user",
-        password: "my-pass",
-      },
-    };
-
     // Write a temporary secrets.json at cwd so the module finds it
-    fs.writeFileSync(secretsJsonPath, JSON.stringify(customSecrets), "utf8");
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(validSecrets), "utf8");
 
     // Verify the file is there before resetting modules
     expect(fs.existsSync(secretsJsonPath)).toBe(true);
     const onDisk = JSON.parse(fs.readFileSync(secretsJsonPath, "utf8"));
-    expect(onDisk.cookieSecret).toBe("custom-cookie-secret");
+    expect(onDisk.cookieSecret).toBe("a-strong-unique-cookie-secret-for-testing!!");
 
     // Re-require the module so it re-evaluates from scratch
     jest.resetModules();
 
     const freshSecrets = require("./secrets").default;
 
-    expect(freshSecrets.cookieSecret).toBe("custom-cookie-secret");
+    expect(freshSecrets.cookieSecret).toBe("a-strong-unique-cookie-secret-for-testing!!");
+    expect(freshSecrets.adminEmail).toBe("admin@example.com");
     expect(freshSecrets.adminUsername).toBe("admin");
-    expect(freshSecrets.adminPassword).toBe("hunter2");
+    expect(freshSecrets.adminPassword).toBe("hunter2-secure");
     expect(freshSecrets.db.database).toBe("my-db");
     expect(freshSecrets.testDb.database).toBe("my-test-db");
     expect(freshSecrets.devDb.database).toBe("my-dev-db");
@@ -100,11 +120,354 @@ describe("secrets — file-based branch (line 21 true path)", () => {
 
     const freshSecrets = require("./secrets").default;
 
-    // Default values from the source
-    expect(freshSecrets.cookieSecret).toBe("fuerabgui4pab5m32;tkqipn84");
+    // Default values from the source (cookieSecret must be >= 32 chars)
+    expect(freshSecrets.cookieSecret.length).toBeGreaterThanOrEqual(32);
+    expect(freshSecrets.adminEmail).toBeDefined();
     expect(freshSecrets.adminUsername).toBe("chris");
     expect(freshSecrets.db.database).toBe("lessons-from-luke");
     expect(freshSecrets.testDb.database).toBe("lessons-from-luke-test");
     expect(freshSecrets.devDb.database).toBe("lessons-from-luke-dev");
+  });
+});
+
+describe("secrets — FR-011 fail-fast validation", () => {
+  let originalContent: string | null = null;
+  let originalNodeEnv: string | undefined;
+  let originalBetterAuthUrl: string | undefined;
+
+  beforeAll(() => {
+    if (fs.existsSync(secretsJsonPath)) {
+      originalContent = fs.readFileSync(secretsJsonPath, "utf8");
+    }
+  });
+
+  beforeEach(() => {
+    originalNodeEnv = process.env.NODE_ENV;
+    originalBetterAuthUrl = process.env.BETTER_AUTH_URL;
+  });
+
+  afterEach(() => {
+    // Restore NODE_ENV
+    if (originalNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
+
+    // Restore BETTER_AUTH_URL
+    if (originalBetterAuthUrl === undefined) {
+      delete process.env.BETTER_AUTH_URL;
+    } else {
+      process.env.BETTER_AUTH_URL = originalBetterAuthUrl;
+    }
+
+    if (originalContent !== null) {
+      fs.writeFileSync(secretsJsonPath, originalContent, "utf8");
+    } else if (fs.existsSync(secretsJsonPath)) {
+      fs.unlinkSync(secretsJsonPath);
+    }
+    jest.resetModules();
+  });
+
+  test("throws when cookieSecret is shorter than 32 characters", () => {
+    process.env.NODE_ENV = "test";
+
+    const shortSecrets = {
+      ...validSecrets,
+      cookieSecret: "short", // 5 chars — too short
+    };
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(shortSecrets), "utf8");
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).toThrow(/cookieSecret/i);
+  });
+
+  test("error message for short cookieSecret does not contain the secret value", () => {
+    process.env.NODE_ENV = "test";
+
+    const shortSecrets = {
+      ...validSecrets,
+      cookieSecret: "short-secret-value", // 18 chars — too short
+    };
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(shortSecrets), "utf8");
+
+    jest.resetModules();
+
+    let errorMessage = "";
+    try {
+      require("./secrets");
+    } catch (e) {
+      errorMessage = (e as Error).message;
+    }
+
+    expect(errorMessage).not.toContain("short-secret-value");
+  });
+
+  test("throws when NODE_ENV=production and adminEmail is absent", () => {
+    process.env.NODE_ENV = "production";
+
+    const noEmailSecrets = { ...validSecrets };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (noEmailSecrets as any).adminEmail;
+
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(noEmailSecrets), "utf8");
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).toThrow(/adminEmail/i);
+  });
+
+  test("does not throw when adminEmail is absent outside production", () => {
+    process.env.NODE_ENV = "test";
+
+    const noEmailSecrets = { ...validSecrets };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (noEmailSecrets as any).adminEmail;
+
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(noEmailSecrets), "utf8");
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).not.toThrow();
+  });
+
+  test("succeeds with a valid configuration (cookieSecret >= 32 chars, adminEmail present, BETTER_AUTH_URL https)", () => {
+    process.env.NODE_ENV = "production";
+    process.env.BETTER_AUTH_URL = "https://example.com";
+
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(validSecrets), "utf8");
+
+    jest.resetModules();
+
+    let freshSecrets: ReturnType<typeof require> | null = null;
+    expect(() => {
+      freshSecrets = require("./secrets").default;
+    }).not.toThrow();
+
+    expect(freshSecrets).not.toBeNull();
+    expect(freshSecrets.adminEmail).toBe("admin@example.com");
+  });
+
+  test("throws when NODE_ENV=production and BETTER_AUTH_URL is not set", () => {
+    process.env.NODE_ENV = "production";
+    delete process.env.BETTER_AUTH_URL;
+
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(validSecrets), "utf8");
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).toThrow(/BETTER_AUTH_URL/i);
+  });
+
+  test("throws when NODE_ENV=production and BETTER_AUTH_URL does not start with https://", () => {
+    process.env.NODE_ENV = "production";
+    process.env.BETTER_AUTH_URL = "http://example.com";
+
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(validSecrets), "utf8");
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).toThrow(/BETTER_AUTH_URL/i);
+  });
+
+  test("error message for invalid BETTER_AUTH_URL does not contain the URL value", () => {
+    process.env.NODE_ENV = "production";
+    process.env.BETTER_AUTH_URL = "http://my-secret-internal-host.corp";
+
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(validSecrets), "utf8");
+
+    jest.resetModules();
+
+    let errorMessage = "";
+    try {
+      require("./secrets");
+    } catch (e) {
+      errorMessage = (e as Error).message;
+    }
+
+    expect(errorMessage).not.toContain("http://my-secret-internal-host.corp");
+    expect(errorMessage).toMatch(/BETTER_AUTH_URL/i);
+  });
+
+  test("does not throw when BETTER_AUTH_URL is unset outside production", () => {
+    process.env.NODE_ENV = "test";
+    delete process.env.BETTER_AUTH_URL;
+
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(validSecrets), "utf8");
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).not.toThrow();
+  });
+
+  test("throws when NODE_ENV=production and cookieSecret is the built-in default", () => {
+    process.env.NODE_ENV = "production";
+    process.env.BETTER_AUTH_URL = "https://example.com";
+
+    const defaultCookieSecretSecrets = {
+      ...validSecrets,
+      cookieSecret: "dev-only-secret-replace-in-production-xx",
+    };
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(defaultCookieSecretSecrets), "utf8");
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).toThrow(/cookieSecret/i);
+  });
+
+  test("throws when adminPassword is shorter than 12 characters", () => {
+    process.env.NODE_ENV = "test";
+
+    const shortPasswordSecrets = {
+      ...validSecrets,
+      adminPassword: "short", // 5 chars — below 12-char NIST/OWASP minimum
+    };
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(shortPasswordSecrets), "utf8");
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).toThrow(/adminPassword/i);
+  });
+
+  test("throws when adminPassword is exactly 11 characters (one below minimum)", () => {
+    process.env.NODE_ENV = "test";
+
+    const elevenCharSecrets = {
+      ...validSecrets,
+      adminPassword: "eleven-char", // exactly 11 chars
+    };
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(elevenCharSecrets), "utf8");
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).toThrow(/adminPassword/i);
+  });
+
+  test("does not throw when adminPassword is exactly 12 characters (the minimum)", () => {
+    process.env.NODE_ENV = "test";
+
+    const twelveCharSecrets = {
+      ...validSecrets,
+      adminPassword: "twelve-chars!", // exactly 13 chars — use 12
+    };
+    // Use precisely 12 chars
+    twelveCharSecrets.adminPassword = "TwelveChars!";
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(twelveCharSecrets), "utf8");
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).not.toThrow();
+  });
+
+  test("error message for short adminPassword does not expose the password value", () => {
+    process.env.NODE_ENV = "test";
+
+    const shortPasswordSecrets = {
+      ...validSecrets,
+      adminPassword: "my-short-pw", // 11 chars — one below minimum
+    };
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(shortPasswordSecrets), "utf8");
+
+    jest.resetModules();
+
+    let errorMessage = "";
+    try {
+      require("./secrets");
+    } catch (e) {
+      errorMessage = (e as Error).message;
+    }
+
+    expect(errorMessage).not.toContain("my-short-pw");
+    expect(errorMessage).toMatch(/adminPassword/i);
+  });
+
+  test("throws when NODE_ENV=production and adminPassword is the built-in default", () => {
+    process.env.NODE_ENV = "production";
+    process.env.BETTER_AUTH_URL = "https://example.com";
+
+    const defaultPasswordSecrets = {
+      ...validSecrets,
+      adminPassword: "dev-password-1", // the defaultSecrets value from secrets.ts
+    };
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(defaultPasswordSecrets), "utf8");
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).toThrow(/adminPassword/i);
+  });
+
+  test("error message for default adminPassword in production does not expose the password value", () => {
+    process.env.NODE_ENV = "production";
+    process.env.BETTER_AUTH_URL = "https://example.com";
+
+    const defaultPasswordSecrets = {
+      ...validSecrets,
+      adminPassword: "dev-password-1",
+    };
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(defaultPasswordSecrets), "utf8");
+
+    jest.resetModules();
+
+    let errorMessage = "";
+    try {
+      require("./secrets");
+    } catch (e) {
+      errorMessage = (e as Error).message;
+    }
+
+    expect(errorMessage).not.toContain("dev-password-1");
+    expect(errorMessage).toMatch(/adminPassword/i);
+  });
+
+  test("does not throw when adminPassword is the built-in default outside production", () => {
+    process.env.NODE_ENV = "test";
+
+    const defaultPasswordSecrets = {
+      ...validSecrets,
+      adminPassword: "dev-password-1",
+    };
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(defaultPasswordSecrets), "utf8");
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).not.toThrow();
+  });
+
+  test("does not throw when cookieSecret is the built-in default outside production", () => {
+    process.env.NODE_ENV = "test";
+
+    const defaultCookieSecretSecrets = {
+      ...validSecrets,
+      cookieSecret: "dev-only-secret-replace-in-production-xx",
+    };
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(defaultCookieSecretSecrets), "utf8");
+
+    jest.resetModules();
+
+    expect(() => require("./secrets")).not.toThrow();
+  });
+
+  test("error message for default cookieSecret in production does not contain the secret value", () => {
+    process.env.NODE_ENV = "production";
+    process.env.BETTER_AUTH_URL = "https://example.com";
+
+    const defaultCookieSecretSecrets = {
+      ...validSecrets,
+      cookieSecret: "dev-only-secret-replace-in-production-xx",
+    };
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(defaultCookieSecretSecrets), "utf8");
+
+    jest.resetModules();
+
+    let errorMessage = "";
+    try {
+      require("./secrets");
+    } catch (e) {
+      errorMessage = (e as Error).message;
+    }
+
+    expect(errorMessage).not.toContain("dev-only-secret-replace-in-production-xx");
+    expect(errorMessage).toMatch(/cookieSecret/i);
   });
 });

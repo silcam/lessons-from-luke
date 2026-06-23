@@ -1,27 +1,31 @@
-# turtlebased-ts Constitution
-
-<!-- STARTUPFIXME: Rename "turtlebased-ts" in the title above and the "TURTLEBASED-TS" header below to your project name. -->
-
 <!--
 Sync Impact Report:
-- Version: 1.2.0 → 1.2.1 (PATCH - Clarified 100% coverage achievement strategies)
+- Version change: 1.0.0 → 1.1.0 (MINOR)
+- Lineage: re-ratified from the turtlebased-ts constitution as v1.0.0 on 2026-06-05;
+  this is the first amendment under the Lessons from Luke identity.
 - Modified principles:
-  - I.A Application Code: Added guidance for achieving 100% test coverage
-  - Added acceptable/unacceptable uses of istanbul ignore comments
-  - Added escalation strategy: mock → refactor → istanbul ignore (as last resort)
-- Added sections: None
-- Removed sections: None
-- Templates requiring updates:
-  ✅ plan-template.md - No changes needed
-  ✅ spec-template.md - No changes needed
-- Implementation changes:
-  - .claude/skills/typescript-unit-testing/SKILL.md: Added "100% Coverage Requirement" section
-  - .claude/skills/code-review/references/test-quality.md: Added "Coverage Verification" section
-  - CLAUDE.md: Strengthened coverage requirement language and added verification steps
-- Follow-up TODOs: None
+  - VI. Layered Architecture and Dual Deployment Targets — Persistence mandate
+    scoped to DOMAIN data; new "Server-only infrastructure exemption" bullet
+    permitting auth backends (better-auth) to own their storage; rationale extended.
+- Unchanged: Preamble; Zeroth Principle; I. Test-First Development; II. Type Safety
+  and Static Analysis; III. Code Quality Standards; IV. Pre-commit Quality Gates;
+  V. Warning and Deprecation Policy; VII. Simplicity and Maintainability; Governance.
+- Added sections: "Server-only infrastructure exemption" bullet under Principle VI.
+- Removed sections: none.
+- Templates checked:
+  ✅ .specify/templates/plan-template.md (Constitution Check gate unaffected; no edit needed)
+  ✅ .specify/templates/spec-template.md (no stale references; no edit needed)
+  ✅ .specify/templates/checklist-template.md (no stale references; no edit needed)
+  ✅ CLAUDE.md (unaffected; no edit needed)
+  N/A .specify/templates/tasks-template.md (not present in this repo)
+- Follow-up TODOs (tooling gaps vs. aspirational standards — carried forward):
+  - TODO: raise jest coverage threshold 95 → 100 (jest.config.js coverageThreshold).
+  - TODO: tighten ESLint `@typescript-eslint/no-explicit-any` warn → error.
+  - TODO: add `@typescript-eslint/explicit-module-boundary-types` (explicit return types).
+  - TODO: enforce `--max-warnings 0` in lint scripts.
 -->
 
-# TURTLEBASED-TS Constitution
+# Lessons from Luke Constitution
 
 ## Preamble: Alignment and Purpose
 
@@ -84,11 +88,11 @@ This system is built for **stewardship**:
 No rule in this constitution may be interpreted in a way that excuses:
 
 - Willful blindness ("the tests passed").
-- False certainty ("the types prove it’s correct").
-- Cargo-cult rigor ("this is how it’s done").
+- False certainty ("the types prove it's correct").
+- Cargo-cult rigor ("this is how it's done").
 - Abdication of responsibility ("the process allowed it").
 
-When rules conflict, **faithfulness to reality and the user’s actual experience takes precedence**.
+When rules conflict, **faithfulness to reality and the user's actual experience takes precedence**.
 
 This principle is not optional, optimizable, or enforceable by tooling.
 It is the condition under which all other principles remain valid.
@@ -111,9 +115,9 @@ Test-Driven Development is MANDATORY for all application code. No exceptions.
   2. **Green**: Write minimal code to pass
   3. **Refactor**: Improve code while maintaining green tests
 
-- 100% test coverage threshold MUST be maintained (branches, functions, lines, statements)
-- Tests use `.spec.ts` or `.test.ts` suffix
-- Watch mode (`npx vitest`) MUST be used during development
+- 100% test coverage threshold MUST be maintained (branches, functions, lines, statements). This is the standing aspiration; the jest configuration presently enforces 95% (see Sync Impact Report follow-ups for the gap to close).
+- Tests use `.test.ts`/`.test.tsx` (the established convention in this repo); `.spec.ts` is also accepted
+- Watch mode (`yarn test`, the alias for jest in watch mode via `npx jest --runInBand`) MUST be used during development
 - When achieving 100% coverage is difficult:
   - First, try mocking external dependencies
   - Second, try restructuring code to make it testable
@@ -121,44 +125,35 @@ Test-Driven Development is MANDATORY for all application code. No exceptions.
   - Acceptable uses: unreachable type guards, platform-specific errors, third-party library internals
   - Unacceptable uses: normal code paths, error handlers you can mock, edge cases you can simulate
 
-**Scope**: All TypeScript/JavaScript source code in `src/`, `.claude/`, and similar application directories.
+**Scope**: All TypeScript/JavaScript source code under `src/` (the isomorphic `core`, the `server`, the `frontend`, and the `desktop` layers), `.claude/`, and similar application directories.
 
 **Rationale**: Pre-written tests ensure code correctness, prevent regressions, and serve as living documentation. The strict red-green-refactor discipline prevents implementation drift and maintains high quality standards.
 
-#### Static Site Code (Hugo)
+#### Document Processing and Multi-Layer Verification
 
-Build verification testing is MANDATORY for all Hugo static site changes.
+Some surfaces cannot be honestly verified by pure unit TDD: ODT/XML document processing (`src/server/xml/`) depends on the LibreOffice binary, and end-user flows span the React UI, the Express API, and the Electron shell. These surfaces MUST be covered by the appropriate higher layer.
 
-- Hugo MUST build successfully with zero errors and zero warnings
-- Build verification tests (`cd hugo && npm test`) MUST pass:
-  - Validates build completes with no errors or warnings
-  - Verifies required output files exist (index.html, CSS, 404.html)
-  - Confirms output directory structure is correct
-- Changes to templates, content, or configuration MUST be validated by successful build
-- Build tests are enforced in pre-commit hooks and CI
+- ODT/XML processing and other surfaces that depend on external binaries or full document round-trips MUST be covered by **integration tests** (`*.integration.test.ts`, run via `yarn test:integration`, exercising LibreOffice through `soffice --headless` where conversion is involved)
+- User-facing flows MUST be covered by **end-to-end tests**: Cypress for the web app and Playwright + Electron for the desktop app
+- All integration and E2E suites MUST pass before commit and before any CI merge
+- Coverage at these layers verifies behavior the unit layer cannot reach; it does not excuse skipping unit TDD for the imperative logic underneath
 
-**Scope**: All Hugo files in `hugo/` directory including:
+**Scope**: Document-processing code (`src/server/xml/`, USFM handling, ODT round-trips) and all user-facing flows across the web and desktop targets.
 
-- Content files (`content/**/*.md`)
-- Templates and layouts (`layouts/**/*.html`)
-- Configuration (`config/**/*.yaml`, `hugo.yaml`)
-- Data files (`data/**/*.yaml`)
-- Styling (`assets/css/**/*.css`)
-
-**Rationale**: Hugo content and templates are declarative rather than imperative. Build verification is the appropriate testing strategy - if the site builds successfully and produces the expected output structure, the code is correct. Traditional TDD with unit tests is not applicable to markup, content, and configuration files. Zero-warning policy mirrors TypeScript's strictness and prevents quality degradation.
+**Rationale**: Declarative output and external-binary surfaces are correctly verified by integration and end-to-end execution rather than pure unit TDD — the test must touch the same reality the user does. Requiring all suites green before commit mirrors the imperative-code discipline and prevents quality degradation at the seams between layers.
 
 #### Development Workflow
 
-When adding functionality that spans both application and static site code:
+When a change spans multiple layers or surfaces:
 
-1. For TypeScript/JavaScript: Follow strict TDD (red-green-refactor)
-2. For Hugo changes: Validate with build tests
-3. Both test suites MUST pass before committing
-4. Pre-commit hooks enforce both validation strategies automatically
+1. For TypeScript/JavaScript application code: follow strict TDD (red-green-refactor)
+2. For document-processing and user-facing changes: validate with integration tests and E2E (Cypress for web, Playwright + Electron for desktop)
+3. All relevant test suites MUST pass before committing
+4. Pre-commit hooks and CI enforce these validation strategies automatically
 
 ### II. Type Safety and Static Analysis
 
-Extremely strict type checking and linting standards MUST be enforced at all times.
+Extremely strict type checking and linting standards MUST be enforced at all times. These are hard targets; where current tooling is more lenient, the gap is tracked as a follow-up (see Sync Impact Report), not a relaxation of the standard.
 
 - TypeScript strict mode with ALL strict flags enabled
 - Additional strict checks: `noUncheckedIndexedAccess`, `noImplicitOverride`, `noPropertyAccessFromIndexSignature`
@@ -168,6 +163,7 @@ Extremely strict type checking and linting standards MUST be enforced at all tim
 - **Strict boolean expressions**: no truthy/falsy checks on strings, numbers, nullable objects
 - **Type imports**: Use `type` keyword for type-only imports
 - ESLint max-warnings: 0 (zero tolerance for warnings)
+- Compile target: ES2022, CommonJS modules, `moduleResolution: node`, strict
 
 **Rationale**: Strict type safety catches bugs at compile time, improves IDE intelligence, and makes refactoring safer. Zero-warning policy prevents gradual quality degradation.
 
@@ -191,13 +187,13 @@ Consistent code style, documentation, and naming conventions MUST be maintained.
 
 Automated quality gates MUST pass before ANY commit is accepted.
 
-- Husky + lint-staged enforce:
-  - Prettier formatting
-  - ESLint (max-warnings: 0)
-  - TypeScript type checking
-  - Jest tests for changed files
+- `.husky/pre-commit` runs, in order:
+  1. `yarn typecheck` — full project type-check across `core`, `server`, `desktop`, and `frontend` (it builds `src/core` declarations first because the other projects reference it, then runs `tsc --noEmit` against each)
+  2. `npx lint-staged` — on staged files only:
+     - `*.{ts,tsx}` → `eslint --fix` → `prettier --write` → `jest --findRelatedTests --bail --passWithNoTests --runInBand`
+     - `*.{js,json,md,yml,yaml}` → `prettier --write`
 
-- ALL quality checks MUST pass (no bypassing)
+- ALL quality checks MUST pass (no bypassing; never `--no-verify`)
 - Commit messages MUST follow conventional commits format:
   - Types: feat, fix, docs, style, refactor, perf, test, chore, revert
   - Format: `type: lowercase subject` (no period, max 100 chars)
@@ -210,22 +206,26 @@ ALL warnings and deprecations MUST be addressed immediately. No deferral allowed
 
 - Compiler warnings (TypeScript, ESLint) MUST be fixed before proceeding
 - Deprecation warnings (dependencies, runtime) MUST be addressed
-- Security advisories (`npm audit`) MUST be resolved
+- Security advisories (`yarn audit`) MUST be resolved
 - Test warnings or flaky tests MUST be fixed
 - Never ignore or defer warnings
 
 **Rationale**: Warnings are early indicators of problems. Addressing them immediately prevents technical debt accumulation and avoids compounding issues that become harder to fix later.
 
-### VI. Cloudflare Workers Target Environment
+### VI. Layered Architecture and Dual Deployment Targets
 
-Code MUST be compatible with Cloudflare Workers runtime constraints.
+The codebase is an isomorphic four-layer architecture serving two deployment targets behind a single storage abstraction. These boundaries MUST be respected.
 
-- Target: ES2022, NodeNext modules
-- No Node.js-specific APIs unless polyfilled
-- Respect Workers runtime limits (CPU time, memory, size)
-- Code MUST work in the Workers V8 isolate environment
+- **Isomorphic core**: `src/core/` MUST remain platform-agnostic — no Node-only, DOM-only, or Electron-only APIs — so it runs unchanged on the server, the web frontend, and the desktop app.
+- **Persistence abstraction**: all **domain** data access (languages, lessons, tStrings, and related curriculum/translation entities) MUST go through the `Persistence` interface (`src/core/interfaces/Persistence.ts`). Implementations: `PGStorage` (production), `PGTestStorage`/`TransactionalTestStorage` (test), `PGDevStorage` (development), and `LocalStorage` (desktop, offline-first). Layer dependency direction is one-way: `core` ← `server`/`frontend`/`desktop` (never the reverse).
+- **Server-only infrastructure exemption**: dedicated **server-only** infrastructure that manages its own storage — notably authentication/session backends (e.g. better-auth) and the tables and database connection they own — is EXEMPT from the `Persistence` mandate, provided it (a) runs only on the server and is never imported into the isomorphic `core` or the desktop offline path, and (b) does not store or proxy domain data. Such infrastructure MAY own its own schema, migrations, and DB connection.
+- **Two deployment targets**:
+  - **Web**: Express server compiled to TypeScript/CommonJS, deployed via Capistrano + Passenger (Node 24 via nvm; appId `org.sil.cmb.lessons-from-luke`).
+  - **Desktop**: Electron main process with the offline-first `LocalStorage`, packaged by electron-builder (`.dmg`/`.exe`). The desktop app MUST work offline and reconcile via sync.
+- **Three isolated runtime environments**: production, development, and test each have a distinct `NODE_ENV`, storage class, database, and ODT root. They MUST NOT cross-contaminate — only the test environment mounts `/api/test/reset-storage`; dev resets through the `yarn reset:dev` CLI.
+- **Target**: ES2022, CommonJS, strict.
 
-**Rationale**: Cloudflare Workers has specific runtime constraints different from Node.js. Code that doesn't respect these constraints will fail in production.
+**Rationale**: Keeping `core` isomorphic and routing all persistence through one interface is what makes a single codebase serve both an online server and an offline-capable desktop app correctly. Hard environment isolation prevents test fixtures or dev data from ever reaching production. The Persistence mandate governs domain data because that is what crosses the isomorphic-core and offline-desktop boundaries; server-only auth infrastructure never enters those paths, so it is scoped out rather than forced through an interface designed for domain persistence.
 
 ### VII. Simplicity and Maintainability
 
@@ -277,4 +277,4 @@ Constitution follows semantic versioning:
 - Violations require either fix or constitutional amendment
 - Use CLAUDE.md for runtime development guidance to Claude Code
 
-**Version**: 1.2.1 | **Ratified**: 2026-01-13 | **Last Amended**: 2026-01-23
+**Version**: 1.1.0 | **Ratified**: 2026-06-05 | **Last Amended**: 2026-06-05

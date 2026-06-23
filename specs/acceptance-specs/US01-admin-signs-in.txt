@@ -1,0 +1,23 @@
+;=============================================
+; Admin signs in with correct credentials and reaches admin functions.
+;=============================================
+GIVEN a provisioned admin account with email and Argon2id-hashed password.
+WHEN the admin submits the correct email and password to the sign-in form.
+THEN a server-side session is established and the admin reaches admin functions.
+
+;=============================================
+; Wrong password is rejected without revealing whether the email exists.
+;=============================================
+GIVEN a provisioned admin account.
+WHEN the admin submits the correct email but a wrong password.
+THEN sign-in is rejected with a clear failure state in the UI.
+THEN no session is created.
+THEN the response does not reveal whether the email is registered.
+
+;=============================================
+; Stored credential is a one-way Argon2id hash, never plaintext.
+;=============================================
+GIVEN the stored credential in the database.
+WHEN the credential is inspected directly.
+THEN the password field contains a one-way Argon2id hash in argon2id format.
+THEN no plaintext password exists anywhere in the system.

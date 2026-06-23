@@ -1,7 +1,8 @@
 const secrets = {
-  cookieSecret: "super secret",
+  cookieSecret: "dev-only-secret-replace-in-production-xx",
+  adminEmail: "admin@example.com",
   adminUsername: "username",
-  adminPassword: "password",
+  adminPassword: "sample-password",
 };
 
 export default secrets;

@@ -1,0 +1,449 @@
+# Implementation Plan: Better-Auth Migration
+
+**Branch**: `001-better-auth-migration` | **Date**: 2026-06-05 | **Spec**: [spec.md](./spec.md)
+**Input**: Feature specification from `/specs/001-better-auth-migration/spec.md`
+
+## Summary
+
+Replace the placeholder authentication (a single hardcoded admin `chris`/`yo` compared in
+**plaintext** with a `cookie-session` cookie, no `users` table, no hashing) with **better-auth**
+email + password using **Argon2id** hashing, invitation-only (no public sign-up), a real boolean
+`admin` capability gating `/api/admin/*` (401 anon / 403 non-admin / 200 admin), server-side
+sessions, sign-out, and an idempotent migration that seeds the single admin from deployment
+secrets. The auth backend owns its four tables (`user`/`session`/`account`/`verification`) through
+its **own isolated `pg` (node-postgres) connection pool**, leaving the domain porsager
+`postgres@1.0.2` driver and the `Persistence` data-access path completely untouched (constitution
+Principle VI v1.1.0 server-only-infrastructure exemption). `User.id` becomes an opaque `string`;
+that ripple lands in one cohesive commit so the whole-project typecheck stays green. The Electron
+desktop client (per-translation access codes) is untouched.
+
+**Technical approach** (validated against published packages — see [research.md](./research.md)):
+pass a `pg.Pool` directly to better-auth's `database` option (it accepts a `PostgresPool`), using
+better-auth's built-in Kysely adapter — **no Drizzle, no `drizzle-orm`, no `authSchema.ts`**
+(supersedes the reference plan). Argon2id via `@noble/hashes@2` with the corrected v2
+`.js`-suffixed import paths.
+
+## Technical Context
+
+**Language/Version**: TypeScript (ES2022, CommonJS, strict + all strict flags); Node 24 (nvm,
+`.nvmrc`). Migration runner files are plain CommonJS.
+**Primary Dependencies**:
+
+- **Add**: `better-auth@^1.6.14`, `pg@^8.21.0`, `@types/pg@^8.20.0`, `@noble/hashes@^2.2.0`.
+- **Remove**: `cookie-session@^2.1.0`, `@types/cookie-session@^2.0.37`.
+- **Unchanged (constraint)**: `postgres@^1.0.2` (porsager, domain driver — DO NOT bump),
+  Express, body-parser, React 16, Redux Toolkit, `migrate` (npm runner).
+
+**Storage**: PostgreSQL. **Two isolated drivers** post-migration:
+
+- Domain data → porsager `postgres@1.0.2` via `Persistence`/`PGStorage` (unchanged).
+- Auth tables → better-auth's own `pg.Pool` (new, isolated). Three runtime DBs unchanged
+  (`lessons-from-luke` / `-dev` / `-test`).
+
+**Testing**: Jest (unit, `--runInBand`, 95% coverage gate), `*.integration.test.ts` (real test DB,
+CI `integration` job), Cypress (web `e2e`), Playwright+Electron (`desktop-e2e`).
+**Target Platform**: Linux/macOS Node 24 server (Express, Capistrano+Passenger); auth is
+**server-only** and never enters the isomorphic `core` runtime path or the desktop offline path.
+**Project Type**: web (isomorphic four-layer: `core` / `server` / `frontend` / `desktop`).
+**Performance Goals**: admin sign-in → admin functions in < 5s under normal conditions (SC-001).
+**Constraints** (from spec + brainstorm Key Decisions, carried forward):
+
+- Auth MUST own its storage through its **own isolated DB connection/driver**; MUST NOT alter or
+  share the domain storage driver or its data-access path (FR-012, SC-007).
+- Do NOT upgrade the domain `postgres@1` driver (Out of Scope).
+- The `User.id: number → string` ripple MUST land cohesively in one commit (whole-project typecheck
+  green — Principle IV gate).
+- `cookieSecret` ≥ 32 chars; fail-fast on weak/missing config (FR-011); current default is 26 chars
+  (must be replaced).
+- No public sign-up; no OAuth; no password reset; no legacy `/api/users/*` shims; desktop untouched.
+- 95% coverage threshold on new code (100% aspirational); zero ESLint warnings; conventional commits.
+
+**Scale/Scope**: single admin account in this cut; ~25 files touched (2 new migrations, ~3 new
+server files, ~6 server modifications, 1 core type, ~7 frontend files, ~4 cypress/config files).
+No NEEDS CLARIFICATION remain.
+
+## Brainstorm Context
+
+**Source**: [specs/brainstorms/2026-06-05-better-auth-migration-requirements.md](../brainstorms/2026-06-05-better-auth-migration-requirements.md)
+
+### Key Decisions Carried Forward
+
+- **Re-apply the existing plan, refreshed**: follow the reference implementation plan for product
+  behavior, but refresh for drift and the pre-commit/CI/constitution gates; do not re-open product
+  decisions.
+- **Reconcile via the Principle VI amendment** (already DONE, v1.1.0, commit `a3dd2ca`): domain-scope
+  the `Persistence` mandate; permit server-only auth infra to own its tables.
+- **Isolate better-auth's DB driver**: use better-auth's own `pg`/Kysely path rather than Drizzle +
+  postgres-js, because the domain layer is pinned to porsager `postgres@1.0.2` while
+  `drizzle-orm/postgres-js` targets `postgres@3`. **This supersedes the reference plan's Drizzle
+  adapter and likely drops `drizzle-orm` and `authSchema.ts`.** (Confirmed in research: pass a
+  `pg.Pool` to better-auth's `database` option; no Drizzle at all.)
+
+### Scope Boundaries (explicit non-goals, carried into plan)
+
+OAuth/social login; email password-reset and email-verification flows; multi-role/RBAC beyond the
+boolean `admin`; self-service invitation or user-management UI; any desktop auth change; legacy
+`/api/users/*` compatibility shims; upgrading the domain PostgreSQL driver.
+
+### Deferred Questions (resolved during planning — full detail in research.md)
+
+- Exact isolated adapter → **native `pg.Pool` passed to better-auth `database`** (no Drizzle, no
+  Kysely package; better-auth's built-in Kysely adapter handles it). Supports the `admin`
+  `additionalField`. (research D1)
+- `@noble/hashes` import drift → v2 requires **`.js`-suffixed** subpaths
+  (`@noble/hashes/argon2.js`, `@noble/hashes/utils.js`); v1 paths fail. (research D2)
+- Test session-row leakage → `afterEach` `DELETE FROM "session"`/`"verification"`/`"rateLimit"` on
+  the auth pool; spare the seeded admin. (research D5; `rateLimit` added red-team Pass 1, see
+  Test-Isolation Edge Cases.)
+- Coverage strategy for glue files → real unit/integration tests for behavior; justified
+  `collectCoverageFrom` exclusions only for `auth.ts` config glue + web `authClient.ts`. (research D6)
+- `BETTER_AUTH_URL`/cookie-origin → `baseURL` env-driven, defaults `:8081`; webpack proxies `/api`;
+  fallback to `:8080` if cookies misalign. (research D8)
+- `cookieSecret` minimum length → **verified current default is 26 chars**; add fail-fast ≥ 32 +
+  update default/sample. (research D7)
+- `User.id` ripple inventory → contained; `id: 1` literal exists in exactly one test file; desktop
+  has zero references. (research D9)
+
+## Presentation Design
+
+**Component Framework**: React 16 + the repo's `base-components` (`TextInput`, `Button`, `Alert`).
+**Interaction Patterns**: Redux Toolkit `currentUser` slice; form-submit sign-in on the public home.
+**Accessibility Target**: maintain existing behavior (no regression); inputs keep placeholder labels.
+
+This feature has **one** small user-facing change: the web sign-in form switches its first field from
+**Username** to **Email** (FR-007). No new screens. The `AdminHome` log-out button already exists;
+only its dispatch wiring changes. All other work is backend/auth infrastructure.
+
+### UI Decisions
+
+| Screen / Component                 | User Story | Approach                                                                                                                                                                                                                                                                                | Design Skills |
+| ---------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| Public sign-in form (`PublicHome`) | US1        | Rename `username` state → `email`; placeholder `t("Username")` → `t("Email")`; **rewire the failure check from `appError.status == 422` to the better-auth failure status (401)** — see Edge Cases "Login-failure status drift"; keep `Log_in_failed` alert and no-enumeration behavior | —             |
+| Admin log-out button (`AdminHome`) | US3        | Existing button; switch `usePush(pushLogout)` → plain thunk dispatch (no visual change)                                                                                                                                                                                                 | —             |
+
+No DaisyUI, onboarding, or adaptive-layout work applies — this repo uses styled base-components and
+the change is a single field rename plus a new `Email` i18n key (`en.ts`, `fr.ts`).
+
+### Quality Pass
+
+**Design quality target**: MVP (non-regression; preserve existing look and error UX).
+**Post-implementation refinement**: None planned.
+
+## Constitution Check
+
+_GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
+
+Evaluated against constitution **v1.1.0**.
+
+| Principle                                   | Status  | Notes                                                                                                                                                                                                                                                |
+| ------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **0. Fidelity to Reality**                  | ✅ PASS | Research verified every decision against actually-published packages and the real codebase, not the older reference plan. Drift (noble v2 paths, missing kysely export, 26-char secret) caught and corrected.                                        |
+| **I. Test-First (TDD)**                     | ✅ PASS | Unit tests precede impl for `passwordHasher`, `requireUser`/`requireAdmin`, `secrets` fail-fast, slice thunks, `PublicHome`. Integration test (`auth.integration.test.ts`) covers the DB-touching auth flows; Cypress covers the login flow.         |
+| **II. Type Safety & Static Analysis**       | ✅ PASS | Explicit return types, no `any` (cast on better-auth handler only where the existing pattern already casts middleware — minimize, justify). Whole-project strict typecheck is the cohesion gate for the id change.                                   |
+| **III. Code Quality Standards**             | ✅ PASS | JSDoc on new public functions/types; import ordering; Prettier; conventional commits.                                                                                                                                                                |
+| **IV. Pre-commit Quality Gates**            | ✅ PASS | `yarn typecheck` (whole project) + `lint-staged` (eslint/prettier/jest related). The `User.id` ripple is sequenced to land in one commit so typecheck never goes red. Never `--no-verify`.                                                           |
+| **V. Warning & Deprecation Policy**         | ✅ PASS | Removing `cookie-session` removes its surface; new deps resolved clean; address any deprecation/audit immediately.                                                                                                                                   |
+| **VI. Layered Architecture & Dual Targets** | ✅ PASS | **Direct application of the v1.1.0 exemption**: auth is server-only, owns its tables via its own `pg.Pool`, never enters `core`/desktop, stores no domain data. Domain `Persistence`/`PGStorage`/porsager driver untouched. Desktop unchanged (US5). |
+| **VII. Simplicity & Maintainability**       | ✅ PASS | Dropping Drizzle (vs. reference plan) and using a bare `pg.Pool` is the simpler path (KISS/YAGNI). No speculative roles/UI.                                                                                                                          |
+
+**Initial gate: PASS — no violations. Complexity Tracking is empty (omitted).**
+
+**Post-Design re-check (after Phase 1): PASS — no new violations.** The Phase 0/1 design
+_strengthens_ compliance rather than introducing complexity: choosing a bare `pg.Pool` over Drizzle
+removes a dependency and a schema file (Principle VII), and routing auth through its own pool keeps
+the domain `Persistence`/porsager path byte-for-byte unchanged (Principle VI exemption applied
+exactly as written). The only `core` addition is the platform-agnostic `User` type. The 95%
+coverage gate (Principle I) is met by real unit + integration tests, with only thin config glue
+(`auth.ts`, web `authClient.ts`) excluded via justified `collectCoverageFrom` negations consistent
+with the existing pattern — no `istanbul ignore` on real code paths.
+
+## Project Structure
+
+### Documentation (this feature)
+
+```text
+specs/001-better-auth-migration/
+├── plan.md              # This file
+├── research.md          # Phase 0 — all deferred questions resolved
+├── data-model.md        # Phase 1 — auth tables + shared User type
+├── quickstart.md        # Phase 1 — verification path
+├── contracts/
+│   └── auth-api.yaml    # Phase 1 — /api/auth/* + admin-gating contract
+└── tasks.md             # Phase 2 — created by sp:05-tasks (NOT here)
+```
+
+### Source Code (repository root)
+
+```text
+migrations/
+├── _helpers.js                                  # UNCHANGED (porsager helper; reused for DDL only)
+├── <unix-ms>-AddBetterAuthTables.js             # NEW  — DDL for user/session/account/verification/rateLimit (+indexes); see data-model.md DDL ordering
+└── <unix-ms+1>-SeedAdminUser.js                 # NEW  — idempotent Argon2id admin seed from secrets
+
+src/core/
+├── models/User.ts                               # MODIFY — id: number→string; LoginAttempt username→email
+└── i18n/locales/{en,fr}.ts                       # MODIFY — add "Email" key
+
+src/server/
+├── auth/
+│   ├── passwordHasher.ts                         # NEW  — Argon2id hash/verify (@noble/hashes/argon2.js)
+│   ├── passwordHasher.test.ts                    # NEW  — round-trip + format unit tests
+│   ├── auth.ts                                   # NEW  — getAuth() factory (pg.Pool) + resetAuth()
+│   └── auth.integration.test.ts                  # NEW  — sign-in/get-session/sign-out/401/403/200
+├── middle/
+│   ├── requireUser.ts                            # REWRITE — loadSession + requireUser/requireAdmin
+│   └── requireUser.test.ts                       # REWRITE — 401/403/next via mocked getAuth
+├── util/
+│   ├── secrets.ts                                # MODIFY — adminEmail field; fail-fast (email/secret len)
+│   ├── secrets.test.ts                           # NEW  — fail-fast branch coverage
+│   └── sampleSecrets.ts                          # MODIFY — adminEmail + ≥32-char cookieSecret
+├── controllers/usersController.ts                # DELETE (+ usersController.test.ts)
+├── serverApp.ts                                  # MODIFY — app.set("trust proxy", 1) (rate-limit IP-keying + prod Secure cookie); toNodeHandler before bodyParser; requireAdmin; drop cookie-session/usersController
+├── testHelper.ts                                 # MODIFY — loggedInAgent() POSTs /api/auth/sign-in/email
+└── jestSetupAfterEnv.ts                          # MODIFY — afterEach cleanup of session/verification/rateLimit rows + non-seed user/account
+
+src/frontend/
+├── web/auth/authClient.ts                        # NEW  — better-auth/react client + inferAdditionalFields<admin>
+├── common/state/currentUserSlice.ts              # REWRITE — thunks → authClient (getSession/signIn.email/signOut)
+├── common/state/currentUserSlice.test.ts         # REWRITE — mock authClient; id: "u1"
+├── web/home/PublicHome.tsx (+ .test.tsx)          # MODIFY — email field; pushLogin({email,password})
+├── web/home/AdminHome.tsx                         # MODIFY — pushLogout via plain dispatch
+└── web/MainRouter.tsx                             # MODIFY — loadCurrentUser via adapted load/useEffect
+
+src/desktop/**                                     # UNCHANGED (verified zero auth references — US5)
+
+cypress/
+├── integration/login.spec.js                     # MODIFY — Email field; correct creds
+└── support/commands.js                            # MODIFY — cy.login → POST /api/auth/sign-in/email
+
+package.json                                       # MODIFY — add/remove deps (see Technical Context)
+jest.config.js                                     # MODIFY — collectCoverageFrom exclusions for auth glue
+CLAUDE.md                                          # MODIFY — adminEmail, BETTER_AUTH_URL, cookieSecret≥32, /api/auth/*
+```
+
+**Structure Decision**: Existing isomorphic four-layer web structure (`src/core` / `src/server` /
+`src/frontend` / `src/desktop`) is retained. The new auth infrastructure lives entirely under
+`src/server/auth/` and `migrations/`, honoring the server-only exemption — nothing auth-related is
+added to `src/core` except the platform-agnostic `User` type (which carries no Node/DB concerns),
+and `src/desktop` is untouched.
+
+## Acceptance Test Strategy
+
+> **ATDD Outer Loop**: Each user story with acceptance scenarios in the spec gets an acceptance spec
+> file created during `sp:05-tasks`, in `specs/acceptance-specs/`, in the GWT format consumed by the
+> acceptance pipeline.
+
+| User Story                             | Acceptance Spec File                                      | Scenarios |
+| -------------------------------------- | --------------------------------------------------------- | --------- |
+| US1: Administrator signs in securely   | `specs/acceptance-specs/US01-admin-signs-in.txt`          | 3         |
+| US2: Admin-only areas are protected    | `specs/acceptance-specs/US02-admin-areas-protected.txt`   | 3         |
+| US3: Administrator signs out           | `specs/acceptance-specs/US03-admin-signs-out.txt`         | 2         |
+| US4: Invitation-only provisioning      | `specs/acceptance-specs/US04-invitation-provisioning.txt` | 4         |
+| US5: Desktop translation is unaffected | `specs/acceptance-specs/US05-desktop-unaffected.txt`      | 2         |
+
+**Pipeline**: `specs/acceptance-specs/*.txt` → `acceptance/parse-specs.ts` →
+`acceptance/generate-tests.ts` → `generated-acceptance-tests/*.spec.ts`.
+
+## Security Considerations
+
+> Added by `/sp:04-red-team` Pass 1. These harden the auth surface against attacks the
+> functional design did not yet address. Items here are requirements, not suggestions.
+
+### Brute-force / Rate Limiting (NEW — Critical gap in prior design)
+
+The current server has **no** rate limiting (verified: no `cors`, no `rate-limit` package, no
+throttle middleware in `serverApp.ts`). An email+password sign-in endpoint with no throttling
+lets an attacker run unlimited credential-guessing against the single known admin account, and
+Argon2id's deliberate per-attempt cost (m=19456, t=2) also makes the endpoint a cheap CPU/memory
+**DoS amplifier** — each guess forces a memory-hard hash.
+
+- **MUST** enable better-auth's built-in rate limiter (`rateLimit: { enabled: true, ... }`) and
+  apply a **stricter custom rule** to `/sign-in/email` (e.g. max ~5–10 attempts per window per IP).
+  better-auth's rate-limit store MUST use a backing it can actually share across the process model
+  — in this Passenger/Capistrano deploy, prefer the **database** store (its own `pg.Pool`) over the
+  default in-memory store so limits are not silently per-worker.
+- **MUST NOT** let the rate limiter key solely on client-controlled `X-Forwarded-For`. With
+  `trust proxy` set, Express derives `req.ip` from the forwarded chain; behind Passenger only the
+  **front-most trusted proxy** hop may be trusted. `serverApp.ts` MUST call
+  `app.set("trust proxy", 1)` (the specific hop count, **not** `true`) so a client cannot spoof its
+  IP to evade the limit by prepending `X-Forwarded-For` headers. **This is a required wiring step,
+  not an existing one** — the current `serverApp.ts` sets no `trust proxy` at all (verified), so the
+  `serverApp.ts` modification task MUST add it. The same `trust proxy` setting is what lets Express /
+  better-auth see the request as HTTPS behind the Passenger TLS-terminating proxy, which the
+  production `Secure` + `__Host-` cookie attributes (FR-010, see "CSRF / Cookie Posture") also depend
+  on — without it the production session cookie can fail to carry `Secure`. The `requireAdmin`
+  integration test asserting throttling (above) MUST exercise the IP-keyed path so a missing/relaxed
+  `trust proxy` cannot silently regress the limiter into a spoofable or per-worker state.
+- The integration test suite MUST include a case asserting repeated bad sign-ins are throttled
+  (so the protection cannot silently regress).
+
+### Account Enumeration & Response-Timing (hardening FR-007)
+
+FR-007 / US1-scenario-2 already require that failure not reveal whether an email exists. Two
+second-order leaks the functional spec did not call out:
+
+- **Timing side-channel**: a registered email runs the Argon2id verify (slow); an unknown email
+  may short-circuit (fast). The measurable timing delta re-introduces enumeration even with
+  identical response bodies. better-auth normalizes this, but the integration test MUST treat the
+  invariant as "indistinguishable" and the design MUST NOT add any pre-check that returns early for
+  unknown emails.
+- **Error-shape consistency**: the `AuthError` body, status code (401), and headers MUST be
+  byte-identical for "unknown email" and "wrong password". Documented in `contracts/auth-api.yaml`.
+
+### Secret & Credential Exposure (NEW)
+
+- The seed migration hashes `secrets.adminPassword`; the **plaintext admin password MUST NOT be
+  logged** by the migration runner, and the migration MUST NOT echo `secrets.json` contents on
+  error. Failures print only which field was missing, never its value.
+- `secrets.json` MUST remain git-ignored (verify it is). The new `adminEmail` and the ≥32-char
+  `cookieSecret` are deployment secrets, not committed defaults — `defaultSecrets`/`sampleSecrets`
+  carry only non-production placeholders, and the ≥32-char fail-fast (Decision 7) ensures the weak
+  26-char placeholder cannot be used to boot a production server.
+- The session token and `cookieSecret` MUST never appear in request logs. The existing
+  `res.on("finish")` logger prints only `method path => status`; new auth wiring MUST NOT widen it
+  to log headers, cookies, or bodies.
+
+### CSRF / Cookie Posture (hardening FR-010)
+
+- Session cookies MUST be `HttpOnly` + `SameSite=Lax` (better-auth default) and, in production,
+  `Secure` + `__Host-` prefixed (already in the contract). `SameSite=Lax` plus the JSON-only
+  content type (better-auth rejects form-encoded cross-site posts) is the CSRF defense for state-
+  changing auth routes; the design MUST NOT relax `SameSite` to `None` (no cross-site embedding is
+  required in this cut).
+- `/api/admin/*` is read/write behind the session cookie; because there is no CORS allowlist today,
+  the design MUST NOT add a permissive `Access-Control-Allow-Origin: *` with credentials. Same-
+  origin is the posture; keep it.
+
+### Authorization Invariants (hardening FR-004)
+
+- The `admin` capability MUST be resolved **server-side per request** from the session-backed user
+  (Decision 4 `getSession`), never from a client-sent flag or a value cached in a JWT the client
+  could tamper with. `admin` is `input:false` (data-model) so it cannot be set via any public API.
+- `requireAdmin` MUST `return` after sending 401/403 (no fall-through to `next()`), and MUST default
+  to deny if `getSession` throws (treat a session-store error as unauthenticated, not as a bypass).
+
+## Edge Cases & Error Handling
+
+> Added by `/sp:04-red-team` Pass 1.
+
+### Auth Store / Dependency Failures (NEW)
+
+- **Auth `pg.Pool` unreachable** (DB down, pool exhausted, connection refused): `getSession` and
+  sign-in will reject. The design MUST fail **closed** — `requireAdmin`/`requireUser` treat a thrown
+  session lookup as unauthenticated (401), and sign-in returns a generic failure, rather than 500-ing
+  with a stack trace or, worse, allowing the request through. Errors are logged server-side without
+  leaking connection strings.
+- **Pool sizing / exhaustion**: the new auth `pg.Pool` is a _second_ pool against the same Postgres
+  instance as the domain porsager driver. Its `max` MUST be bounded so the two pools combined stay
+  under Postgres `max_connections`; an unbounded auth pool under a sign-in flood could starve the
+  domain driver and take down unrelated endpoints. **Chosen `max: 5`** — the porsager driver defaults
+  to `os.cpus().length` (≤ 4 on this single-VPS deploy), so the combined ceiling is ≤ 9, well within
+  PostgreSQL's default `max_connections = 100`. Create the auth pool as:
+  `new Pool({ ...secrets.db, max: 5 })` (or the env-appropriate secret block). The test-env pool
+  uses `secrets.testDb` with the same `max: 5` cap.
+
+### Bootstrap / Migration Edge Cases (hardening FR-003)
+
+- **Partial seed failure**: the seed inserts a `user` then an `account`. If it fails between the two,
+  a later re-run's idempotency check (`skip if user with adminEmail exists`) would see the user and
+  skip — leaving an admin with **no credential** (un-loginable). The seed MUST be atomic (single
+  transaction inserting both rows) OR its idempotency check MUST verify _both_ the `user` and a
+  matching `credential` `account` exist before skipping.
+- **Email casing**: better-auth treats emails case-insensitively for login but the `UNIQUE`
+  constraint is on the stored value. The seed MUST insert `adminEmail` in the **normalized** form
+  better-auth uses at login (lowercase), or a correctly-cased login could fail to match, or a second
+  differently-cased seed could violate/avoid the unique constraint inconsistently.
+- **Migration driver choice** (research Decision 10): if the seed uses the porsager helper for DDL
+  but the runtime uses `pg.Pool`, both MUST agree on column types/casing; a `text` vs `varchar` or
+  camelCase-vs-snake_case mismatch would make better-auth's Kysely queries miss the seeded row.
+
+### Session Lifecycle Edge Cases (hardening FR-006)
+
+- **Clock skew / expiry boundary**: an expired session MUST be treated as anonymous (401), and the
+  `expiresAt` comparison MUST be server-clock based, not client-supplied.
+- **Sign-out idempotency**: signing out with an already-invalid/absent session cookie MUST still
+  return success (200) and a cleared cookie, never 500.
+- **Stale frontend state**: after server-side expiry, the SPA still holds `user={...}` until its next
+  `get-session`. A protected call will 401; `MainRouter`/`currentUserSlice` MUST map a 401 from any
+  admin call back to `setUser(null)` so the UI does not present admin affordances that no longer work.
+
+### Frontend Failure-Status Drift (NEW — Pass 2)
+
+- **Login-failure status drift (422 → 401)**: `PublicHome.tsx` currently gates its `Log_in_failed`
+  alert on `appError.type == "HTTP" && appError.status == 422` — the status the legacy
+  `usersController` threw. better-auth's `/sign-in/email` rejects bad credentials with **401**
+  (see `contracts/auth-api.yaml`), so if the component keeps checking `== 422` the alert will
+  **silently never render** and US1-scenario-2 ("clear failure state on bad credentials") regresses
+  with no test obviously failing. The rewired `currentUserSlice` sign-in thunk and `PublicHome` MUST
+  key the failure UI on the better-auth failure status (401), and a `PublicHome` unit test MUST assert
+  the alert appears on a 401 rejection so the contract drift cannot silently regress. This is also a
+  plan↔contract congruence point: the contract says 401, so the UI must follow the contract.
+- **`/api/tStrings` stays access-code-gated, NOT user-session-gated (clarity)**: `POST /api/tStrings`
+  is authorized today by the per-translation **access code** (`storage.invalidCode(...)`, 401 on a
+  bad code), independent of any user session — it is the translator/desktop write path (US5). The
+  migration changes the _user-session_ gate (`requireUser`→`requireAdmin` on `/api/admin/*`) and MUST
+  leave the access-code authorization on `/api/tStrings` untouched. The design MUST NOT (a) drop the
+  access-code check, nor (b) accidentally place `/api/tStrings` behind the new admin session gate
+  (which would break translator writes). Only `/api/admin/*` is user-session-gated.
+
+### Test-Isolation Edge Cases (hardening research Decision 5)
+
+- The `afterEach` cleanup deletes `session`/`verification`/`rateLimit` and non-seed `user`/`account`.
+  If a test creates a non-admin user with an email differing only by case, the "spare the seeded
+  admin" filter MUST match on normalized email so it neither deletes the admin nor leaks the test
+  user. The cleanup MUST also run even when the test body throws (use `afterEach`, not inline
+  teardown).
+- **`rateLimit` must be in the cleanup set (NEW — Pass 3)**: because Pass 1 made the rate limiter
+  **DB-backed** (`rateLimit.storage = "database"`) and mandated an integration test asserting repeated
+  bad sign-ins are throttled, the per-test throttle `count`/`lastRequest` rows now persist on the auth
+  `pg.Pool` outside the domain test transaction. If `afterEach` does not also `DELETE FROM "rateLimit"`,
+  one test's accumulated attempt counts bleed into the next, so whether a later sign-in test sees 200
+  or 429 becomes **order-dependent and flaky**, and the throttling assertion itself can pass or fail
+  depending on suite ordering. The cleanup MUST delete `rateLimit` alongside `session`/`verification`.
+  (This is a direct second-order effect of the Pass 1 DB-backed-limiter decision; the `rateLimit`
+  entity was added to data-model.md in Pass 1 but its `afterEach` deletion was not yet reflected in the
+  `jestSetupAfterEnv.ts` work item.)
+
+## Performance Considerations
+
+> Added by `/sp:04-red-team` Pass 1.
+
+### Argon2id Cost vs. SC-001 (NEW)
+
+- Pure-JS `@noble/hashes` Argon2id at m=19456 KiB, t=2 is **single-threaded JS** and noticeably
+  slower than the native addon. A single verify must comfortably fit inside SC-001's < 5s sign-in
+  budget on the deploy host — but **concurrent** sign-ins serialize on the event loop and each holds
+  ~19 MiB. The chosen `m`/`t`/`p` parameters MUST be validated on the actual Passenger host so a
+  burst of sign-ins (or the rate-limited brute-force ceiling) cannot blow the SC-001 budget or the
+  process memory. If native-addon-free cost is too high, lower `m`/`t` to a still-safe Argon2id
+  profile rather than silently exceeding the budget.
+- This ties directly to the rate-limit requirement above: throttling sign-in is also the throttle on
+  Argon2id CPU/memory spend.
+- **Bound the password input length (NEW — Pass 2)**: the global `bodyParser.json({ limit: "2MB" })`
+  would otherwise let a single _allowed_ sign-in attempt submit a multi-MB `password` that Argon2id
+  must hash, amplifying the per-attempt CPU/memory cost far beyond a normal password. better-auth
+  applies a default `maxPasswordLength` (≈128), but the design MUST **explicitly configure**
+  `emailAndPassword.maxPasswordLength` (and a sane `minPasswordLength`) rather than rely on an
+  unverified library default — better-auth is not yet installed, so the effective default cannot be
+  assumed. Over-length passwords MUST be rejected **before** the Argon2id hash runs, and the integration
+  test MUST assert an over-length password is rejected (so a future config change cannot silently remove
+  the cap). This complements the rate limit: rate-limit caps attempt _frequency_, the length cap caps
+  per-attempt _cost_.
+
+### Query / Index Footprint
+
+- The data-model already specifies `idx_account_userId`, `idx_session_userId`,
+  `idx_verification_identifier`, and a UNIQUE on `session.token` and `user.email`. Per-request
+  `getSession` looks up by session **token** — confirm better-auth's query hits the unique `token`
+  index (not a scan), since this runs on **every** `/api/admin/*` request. No N+1 is expected (one
+  session row → one user row), but the design MUST NOT add a per-request full-table user scan.
+
+## Applied Learnings
+
+No prior `.specify/solutions/` entries are relevant to this auth-migration design (the existing
+entries are `tooling/` ralph/spec-kit workflow learnings and there is no `security/` solution yet).
+Section omitted by design — nothing to apply.
+
+## Complexity Tracking
+
+> No constitution violations — table intentionally empty.

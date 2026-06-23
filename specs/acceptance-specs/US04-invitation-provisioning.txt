@@ -1,0 +1,29 @@
+;=============================================
+; Fresh provisioning creates exactly one admin account.
+;=============================================
+GIVEN a fresh environment with admin credentials configured in secrets.
+WHEN provisioning runs.
+THEN exactly one admin account exists with the configured email and admin capability.
+
+;=============================================
+; Re-running provisioning is idempotent with no duplicate and no error.
+;=============================================
+GIVEN provisioning has already run and an admin account exists.
+WHEN provisioning runs again.
+THEN no duplicate account is created.
+THEN no error occurs.
+
+;=============================================
+; Missing admin configuration causes a loud failure with a clear message.
+;=============================================
+GIVEN required admin configuration is missing from secrets.
+WHEN provisioning runs.
+THEN it fails loudly with a clear error message identifying the missing field.
+THEN no secret values are disclosed in the error message.
+
+;=============================================
+; Public self-service sign-up is rejected.
+;=============================================
+GIVEN the running system.
+WHEN anyone attempts public self-service sign-up via the API.
+THEN the request is rejected.

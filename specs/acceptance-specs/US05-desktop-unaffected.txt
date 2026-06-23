@@ -1,0 +1,13 @@
+;=============================================
+; Desktop translator workflow using access code is unaffected.
+;=============================================
+GIVEN the desktop application.
+WHEN a translator opens a translation with a valid access code.
+THEN the translation workflow behaves exactly as before the auth migration.
+
+;=============================================
+; Desktop codebase contains no dependency on the user-auth system.
+;=============================================
+GIVEN the desktop codebase.
+WHEN inspected for references to the user-auth system.
+THEN it contains zero references to better-auth, authClient, cookie-session, or user session APIs.
