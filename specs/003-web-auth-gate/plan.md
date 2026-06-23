@@ -366,7 +366,7 @@ test host can easily miss. The design MUST:
   Design Consistency Note's "do it in `PublicHome`" wording (corrected below).
 - The post-login navigation MUST use `replace: true` so the `/?returnTo=…` URL is evicted from
   history; otherwise the back button returns the now-signed-in user to a `?returnTo=` URL whose
-  param is stale/consumed (cosmetically wrong, and a second forward navigation could re-run a
+  param is stale/consumed (cosmetically wrong, and a second forward navigation would re-run a
   consumed redirect).
 - Read `returnTo` from the **current location at success time**, before the navigation replaces
   it. Add a test that asserts: signed-out deep-link → fail login once (`returnTo` survives, see
