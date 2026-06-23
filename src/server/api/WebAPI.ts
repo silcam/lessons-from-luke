@@ -1,4 +1,4 @@
-import { GetRoute, PostRoute, APIPost, APIGet } from "../../core/interfaces/Api";
+import { GetRoute, PostRoute, APIPost, APIGet } from "../../core/api/ApiContracts";
 import { Express, Request, Response } from "express";
 
 export type GetRequestHandler<T extends GetRoute> = (req: Request) => Promise<APIGet[T][1]>;

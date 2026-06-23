@@ -1,4 +1,4 @@
-import { GetRoute, APIGet, PostRoute, APIPost } from "../../../core/interfaces/Api";
+import { GetRoute, APIGet, PostRoute, APIPost } from "../../../core/api/ApiContracts";
 import React from "react";
 
 export type GetRequest = <T extends GetRoute>(
