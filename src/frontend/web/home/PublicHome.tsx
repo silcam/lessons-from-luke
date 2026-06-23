@@ -27,7 +27,7 @@ export default function PublicHome() {
   // prior failed-login alert does not bleed onto the contextual prompt.
   useEffect(() => {
     if (hasReturnTo && error) {
-      dispatch(currentUserSlice.actions.setError(""));
+      dispatch(currentUserSlice.actions.clearError());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
