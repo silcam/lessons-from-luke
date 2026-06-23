@@ -380,13 +380,66 @@ test host can easily miss. The design MUST:
 
 A user who is **already signed in** and opens `/?returnTo=/translate/x` directly hits the
 catch-all, which renders `AdminHome` (home) — there is no gate redirect because they are
-authenticated, and `MainRouter`'s post-login effect only fires on the `null → set` transition,
-not on a mount that is already signed in. So a hand-crafted `/?returnTo=…` for an
+authenticated, and `MainRouter`'s post-login effect must fire only on an **in-session login**
+transition, not on a mount that is already signed in. So a hand-crafted `/?returnTo=…` for an
 **already-authenticated** user is inert (it does not auto-forward them). Document this as
 intended: `returnTo` is consumed only on the sign-in *transition*, never on a steady-state
 signed-in mount, so there is no auto-navigation primitive an attacker can trigger against a
 logged-in user by feeding them a `/?returnTo=…` link. Assert it: a signed-in mount with a
 `returnTo` present does **not** navigate.
+
+> **CORRECTION (pass 3):** "the post-login effect only fires on the `null → set` transition" is
+> **not a sufficient trigger** — see "Post-login effect must distinguish initial session
+> resolution from in-session login" in Edge Cases below. With the real `currentUserSlice`, the
+> *initial session load of an already-signed-in user* is **also** a `user: null → set`
+> transition (`loadCurrentUser` dispatches the same `setUser({...})` that `pushLogin` does), so
+> an effect keyed purely on `null → set` would fire on a signed-in cold open of `/?returnTo=…`
+> and auto-forward them — directly contradicting the "does not navigate" assertion above. The
+> trigger MUST be the narrower "`null → set` **while `loaded` was already `true`**" so this
+> section's assertion holds.
+
+### Post-login effect must distinguish initial session resolution from in-session login (FR-006 / FR-007 / FR-010 correctness)
+
+> Added by `/sp:04-red-team` (pass 3). Second-order effect of the pass-2 resolution that moved
+> the post-login `navigate(returnTo)` into a `MainRouter` effect "keyed on `user` becoming
+> non-null". Verified against the real `currentUserSlice` and `authThunks` — the pass-2
+> trigger as literally worded is unsatisfiable without auto-forwarding signed-in users.
+
+`currentUserSlice.setUser({...})` is the **single** action that flips `user` from `null` to a
+value, and it is dispatched by **two distinct paths** that the effect cannot tell apart by the
+`user` value alone:
+
+1. `loadCurrentUser()` on `MainRouter` mount — fires `setUser({...})` when the **initial
+   session resolves to an already-signed-in user** (cold reload / fresh-tab deep link of a
+   logged-in user). This also flips `loaded: false → true` in the same action.
+2. `pushLogin()` on a successful **in-session login** — fires the identical `setUser({...})`,
+   but here `loaded` is **already `true`** (the user only reached the gate's sign-in surface
+   because `loaded === true` let `AuthGate` decide to redirect them).
+
+A `MainRouter` effect keyed merely on "`user` transitioned `null → set` with a `returnTo`
+present" (pass-2 wording) therefore fires in **both** cases. In case 1 it would auto-forward an
+already-signed-in user who cold-opened `/?returnTo=/translate/x` straight to `/translate/x` —
+contradicting the pass-2 "a signed-in mount with a `returnTo` present does **not** navigate"
+assertion, and producing two conflicting acceptance tests for `sp:05-tasks` to generate. The
+design MUST disambiguate:
+
+- **Fire the post-login navigation only on an in-session login**, i.e. when `user` goes
+  `null → set` **and `loaded` was already `true` immediately before** the transition. The
+  cleanest implementation tracks the prior `(loaded, user)` with a ref and acts only on the
+  `loaded === true && prevUser === null && user !== null` edge — explicitly **excluding** the
+  initial-resolution edge where `prevLoaded === false`. Equivalent framings (a "have we already
+  resolved a session?" ref set true the first time `loaded` becomes `true`) are acceptable as
+  long as the **initial `loaded: false → true` resolution never triggers a returnTo navigation**.
+- This is also what keeps FR-007 honest for the in-session case: a user who reaches sign-in via
+  the gate, fails once, then succeeds, navigates to `returnTo`; a user who merely *reloads while
+  signed in* with a stale `?returnTo=` in their URL stays put (no surprise jump).
+- Add **two** tests that pin the distinction (a single "null → set navigates" test is
+  insufficient and would mask the bug): (a) **signed-in cold mount** with `?returnTo=/x`
+  present → **no** navigation (initial resolution, `prevLoaded === false`); (b) **gate-driven
+  in-session login** (`loaded` already `true`, `user` was `null`) with `returnTo` present →
+  navigates to the sanitized `returnTo`. The test harness MUST drive the two paths through the
+  real reducer so the shared `setUser` action is exercised, not a mock that fakes a distinct
+  "login" action.
 
 ## Accessibility Requirements
 
@@ -437,8 +490,11 @@ conveyed by text content, satisfying WCAG 1.4.1 (Use of Color).
   `PublicHome` unmounts the moment login succeeds (the catch-all swaps to `AdminHome`), so a
   navigate effect there races its own unmount (see "Post-login redirect races the sign-in form's
   own unmount" in Edge Cases). The post-login `navigate(safeReturnTo(returnTo), { replace: true })`
-  MUST instead live in **`MainRouter`** (which survives the auth flip), in an effect keyed on
-  `user` transitioning `null → set` with a `returnTo` present on the current location. `PublicHome`
+  MUST instead live in **`MainRouter`** (which survives the auth flip), in an effect that fires
+  on an **in-session login** — `user` transitioning `null → set` **while `loaded` was already
+  `true`** (NOT the initial `loaded: false → true` session-resolution edge; see the pass-3 note
+  "Post-login effect must distinguish initial session resolution from in-session login" in Edge
+  Cases) — with a `returnTo` present on the current location. `PublicHome`
   may still read `returnTo` purely to decide whether to show the contextual prompt, but it MUST
   NOT own the post-login navigation. `sp:05-tasks` should therefore generate a `MainRouter` edit
   (post-login return-to navigation) plus a `PublicHome` edit (contextual prompt only) — **not** an
