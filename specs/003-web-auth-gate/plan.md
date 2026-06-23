@@ -125,9 +125,12 @@ src/frontend/web/
 │   ├── publicAllowlist.test.ts       # NEW: allowlist membership + default-deny tests
 │   ├── safeReturnTo.ts               # NEW: pure same-app-path sanitizer (open-redirect guard)
 │   ├── safeReturnTo.test.ts          # NEW: exhaustive sanitizer tests (absolute/protocol-relative/external)
-│   └── authThunks.ts                 # EDIT (scope reduced): wrap loadCurrentUser getSession() in try/catch →
-│                                     #       setUser(null) on failure (loaded always resolves). Stays
-│                                     #       routing-free — does NOT own returnTo navigation (pass-2).
+│   └── authThunks.ts                 # EDIT (state-only, no routing): (1) wrap loadCurrentUser getSession() in
+│                                     #       try/catch → setUser(null) on failure (loaded always resolves);
+│                                     #       (2) pushLogin: on success-with-no-user (error falsy + data.user
+│                                     #       falsy) dispatch setError so the visitor is never silently
+│                                     #       stranded (pass-4). Stays routing-free — does NOT own returnTo
+│                                     #       navigation (pass-2).
 └── home/
     ├── PublicHome.tsx                # EDIT: show contextual "Please sign in to continue" prompt when
     │                                 #       redirected (reads returnTo for prompt-presence ONLY; does not
@@ -441,6 +444,51 @@ design MUST disambiguate:
   real reducer so the shared `setUser` action is exercised, not a mock that fakes a distinct
   "login" action.
 
+### A successful sign-in that yields no user must not silently strand the visitor (FR-004 / FR-006 happy-path correctness)
+
+> Added by `/sp:04-red-team` (pass 4). Verified against the real `pushLogin` thunk
+> (`src/frontend/web/auth/authThunks.ts`). Every prior pass assumed "login success ⇒
+> `setUser({...})` fires"; the actual thunk has a third branch where it fires **neither**
+> `setUser` nor `setError`, which the entire return-to design silently depends on never
+> happening.
+
+`pushLogin` has **three** outcomes from `authClient.signIn.email`, not two:
+
+1. `result.error` truthy → `setError(...)` (the failure path passes 1–3 reasoned about).
+2. `result.error` falsy **and** `result.data?.user` truthy → `setUser({...})` (the success path
+   the post-login return-to effect keys on).
+3. `result.error` falsy **and** `result.data?.user` falsy → **nothing is dispatched.** Neither
+   `setUser` nor `setError` fires.
+
+Branch 3 is reachable: better-auth's `signIn.email` can resolve without an `error` yet without a
+populated `data.user` (e.g. an email-verification-required / pending response, a shape change, or
+a 2xx with an unexpected body). When it happens, the visitor on the gated sign-in surface clicks
+**Log in**, and: `user` stays `null`, so the `MainRouter` post-login effect (which fires only on
+`null → set` while `loaded` was already `true`) **never runs** and `returnTo` is **never
+consumed**; `error` stays `null`, so `PublicHome` shows **no failure `Alert`**; `loaded` is
+untouched, so the gate does not even relax. The user is left staring at the sign-in form with
+**no feedback and no progress** — a silent dead-end that violates the spirit of FR-004/FR-006
+(the gate must lead to content on a successful sign-in) and that no pass-1–3 test would catch,
+because every existing/planned test stubs `signIn.email` to return either an error or a user.
+The design MUST:
+
+- Treat branch 3 as a **failure** in `pushLogin`: when `result.error` is falsy **and**
+  `result.data?.user` is absent, dispatch `setError(...)` with a generic
+  "An error occurred. Please try again." (the same copy the existing `catch` uses), so the user
+  always gets feedback and can retry. This is a real edit to the existing `pushLogin` thunk and,
+  unlike the return-to navigation (which stays out of the thunk per the Design Consistency Note),
+  it is **purely a state dispatch with no routing**, so it correctly belongs *inside* `pushLogin`
+  — it does not reintroduce the "thunk owns navigation" anti-pattern that pass 2 rejected.
+- Add a unit test for the third branch: `signIn.email` resolves to
+  `{ error: null, data: {} }` (or `{ data: null }`) → `setError` dispatched, `setUser` **not**
+  dispatched, `loaded`/`user` unchanged, and `PublicHome` shows the failure `Alert`. Pin it
+  alongside the existing error-branch and success-branch tests so the three outcomes are all
+  covered.
+- Note the `returnTo` interaction: because branch 3 now routes through `setError` (not
+  `setUser`), `returnTo` survives untouched on the URL (consistent with the failed-login
+  "`returnTo` survives the failed attempt" rule above), and a subsequent genuine success
+  consumes it normally.
+
 ## Accessibility Requirements
 
 > Added by `/sp:04-red-team` (pass 1). Target: WCAG 2.2 AA (per Presentation Design + PRODUCT.md).
@@ -497,9 +545,15 @@ conveyed by text content, satisfying WCAG 1.4.1 (Use of Color).
   Cases) — with a `returnTo` present on the current location. `PublicHome`
   may still read `returnTo` purely to decide whether to show the contextual prompt, but it MUST
   NOT own the post-login navigation. `sp:05-tasks` should therefore generate a `MainRouter` edit
-  (post-login return-to navigation) plus a `PublicHome` edit (contextual prompt only) — **not** an
-  `authThunks` edit and **not** a `PublicHome`-owned navigation. Update the Source Structure
-  table accordingly when generating tasks.
+  (post-login return-to navigation) plus a `PublicHome` edit (contextual prompt only) — **no
+  routing/`navigate` in `authThunks`** and **no `PublicHome`-owned navigation**. Update the Source
+  Structure table accordingly when generating tasks. **NOTE (pass 4):** "no routing in
+  `authThunks`" does **not** mean `authThunks.ts` is untouched — pass 4 adds a *routing-free*
+  `pushLogin` edit (the branch-3 `setError` fix; see "A successful sign-in that yields no user must
+  not silently strand the visitor" in Edge Cases). `loadCurrentUser` is likewise edited (the
+  pass-1 `getSession` try/catch). So `authThunks.ts` **is** an `EDIT` target — just for state
+  dispatches, never for `navigate`. Keep both `authThunks` edits and the `MainRouter` navigation
+  edit as distinct tasks.
 - **Allowlist shape vs. actual routing.** `publicAllowlist`/`isPublicPath()` describe a set of
   paths, but the real public surface is (a) the catch-all `"*"` when signed out and (b)
   `/invitation/:token`. Document that the allowlist's job is to identify which **named** routes
