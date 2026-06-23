@@ -7,7 +7,6 @@ import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, AppState } from "../common/state/appState";
 import { loadCurrentUser } from "./auth/authThunks";
 import RootDiv from "../common/base-components/RootDiv";
-import LoadingSnake from "../common/base-components/LoadingSnake";
 import LessonPage from "./lessons/LessonPage";
 import AppLoadingBar from "../common/api/AppLoadingBar";
 import UsfmImportResultPage from "./languages/UsfmImportResultPage";
@@ -17,6 +16,7 @@ import { useClearBannersOnNavigation } from "../common/banners/useClearBannersOn
 import CreateInvitation from "./invitations/CreateInvitation";
 import InvitationsList from "./invitations/InvitationsList";
 import RedeemInvitation from "./auth/RedeemInvitation";
+import AuthGate from "./auth/AuthGate";
 
 function TranslateRouteWrapper() {
   const { code } = useParams<{ code: string }>();
@@ -47,7 +47,7 @@ function RedeemInvitationWrapper() {
 }
 
 export default function MainRouter() {
-  const { user, loaded } = useSelector((state: AppState) => state.currentUser);
+  const { user } = useSelector((state: AppState) => state.currentUser);
   const dispatch = useDispatch<AppDispatch>();
   useClearBannersOnNavigation();
 
@@ -59,8 +59,10 @@ export default function MainRouter() {
   return (
     <RootDiv>
       <AppLoadingBar />
-      {loaded ? (
-        <Routes>
+      <Routes>
+        {/* AuthGate wraps all named content routes — unauthenticated visitors
+            are redirected to /?returnTo=<path> before seeing any content. */}
+        <Route element={<AuthGate />}>
           <Route path="/translate/:code" element={<TranslateRouteWrapper />} />
           <Route path="/lessons/:id" element={<LessonPageWrapper />} />
           <Route path="/usfmImportResult" element={<UsfmImportResultPage />} />
@@ -69,19 +71,19 @@ export default function MainRouter() {
             element={<DocStringsPageWrapper />}
           />
           <Route path="/update-issues/:lessonId" element={<UpdateIssuesPageWrapper />} />
-          {/* Public route — anyone with the token URL can redeem (FR-007, FR-011) */}
-          <Route path="/invitation/:token" element={<RedeemInvitationWrapper />} />
           {user?.admin && (
             <Route path="/admin/invitations/new" element={<CreateInvitation />} />
           )}
           {user?.admin && (
             <Route path="/admin/invitations" element={<InvitationsList />} />
           )}
-          <Route path="*" element={user ? <AdminHome /> : <PublicHome />} />
-        </Routes>
-      ) : (
-        <LoadingSnake />
-      )}
+        </Route>
+        {/* Public route — anyone with the token URL can redeem (FR-007, FR-011).
+            MUST be outside AuthGate to prevent redirect loops. */}
+        <Route path="/invitation/:token" element={<RedeemInvitationWrapper />} />
+        {/* Catch-all: outside AuthGate so the home/sign-in page is always reachable. */}
+        <Route path="*" element={user ? <AdminHome /> : <PublicHome />} />
+      </Routes>
     </RootDiv>
   );
 }
