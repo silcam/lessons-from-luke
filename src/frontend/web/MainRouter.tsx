@@ -1,5 +1,5 @@
-import React, { useEffect } from "react";
-import { Routes, Route, useParams } from "react-router-dom";
+import React, { useEffect, useRef } from "react";
+import { Routes, Route, useParams, useNavigate, useLocation } from "react-router-dom";
 import TranslateRoute from "../common/translate/TranslateHome";
 import AdminHome from "./home/AdminHome";
 import PublicHome from "./home/PublicHome";
@@ -17,6 +17,7 @@ import CreateInvitation from "./invitations/CreateInvitation";
 import InvitationsList from "./invitations/InvitationsList";
 import RedeemInvitation from "./auth/RedeemInvitation";
 import AuthGate from "./auth/AuthGate";
+import { safeReturnTo } from "./auth/safeReturnTo";
 
 function TranslateRouteWrapper() {
   const { code } = useParams<{ code: string }>();
@@ -47,14 +48,38 @@ function RedeemInvitationWrapper() {
 }
 
 export default function MainRouter() {
-  const { user } = useSelector((state: AppState) => state.currentUser);
+  const { user, loaded } = useSelector((state: AppState) => state.currentUser);
   const dispatch = useDispatch<AppDispatch>();
+  const navigate = useNavigate();
+  const location = useLocation();
   useClearBannersOnNavigation();
+
+  // Track previous (loaded, user) to distinguish initial resolution from in-session login.
+  const prevLoadedRef = useRef(loaded);
+  const prevUserRef = useRef(user);
 
   useEffect(() => {
     dispatch(loadCurrentUser());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Post-login return-to navigation.
+  // Trigger ONLY on the in-session login edge:
+  //   prevLoaded===true (already resolved) AND prevUser===null AND user!==null.
+  // The initial-resolution edge (prevLoaded===false → loaded becomes true) must NOT navigate.
+  useEffect(() => {
+    const prevLoaded = prevLoadedRef.current;
+    const prevUser = prevUserRef.current;
+
+    if (prevLoaded === true && prevUser === null && user !== null) {
+      const params = new URLSearchParams(location.search);
+      const returnTo = params.get("returnTo") ?? "";
+      navigate(safeReturnTo(returnTo), { replace: true });
+    }
+
+    prevLoadedRef.current = loaded;
+    prevUserRef.current = user;
+  }, [loaded, user, location.search, navigate]);
 
   return (
     <RootDiv>
