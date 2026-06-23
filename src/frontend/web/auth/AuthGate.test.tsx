@@ -8,6 +8,9 @@
  *
  * Additional assertions:
  *   - Public paths do NOT trigger a redirect (no redirect loop)
+ *   - AuthGate and publicAllowlist are NOT imported by any desktop entry file
+ *     (structural isolation — web-only placement is the architectural enforcement,
+ *     not a runtime flag; see constitution Principle VI)
  */
 
 // Break networkSlice → appState → networkSlice circular dep
@@ -139,4 +142,45 @@ describe("AuthGate", () => {
       expect(screen.getByText("Lesson content")).toBeTruthy();
     });
   });
+});
+
+/**
+ * Import-graph isolation guard (constitution Principle VI)
+ *
+ * AuthGate and publicAllowlist live under src/frontend/web/ and must never be
+ * imported by desktop entry points. Web-only placement is the architectural
+ * enforcement mechanism — there is no runtime flag. This test performs a static
+ * scan of the desktop entry files to prove that boundary holds.
+ *
+ * Desktop entry files checked:
+ *   - src/frontend/desktopFrontend/MainPage.tsx  (React root for Electron)
+ *   - src/desktop/DesktopApp.ts                  (Electron main-process entry)
+ */
+describe("AuthGate import-graph isolation (desktop non-regression)", () => {
+  const fs = require("fs") as typeof import("fs");
+  const path = require("path") as typeof import("path");
+
+  const projectRoot = path.resolve(__dirname, "../../../../");
+
+  // Desktop entry files that must never pull in web-auth modules.
+  const desktopEntryFiles = [
+    "src/frontend/desktopFrontend/MainPage.tsx",
+    "src/desktop/DesktopApp.ts",
+  ];
+
+  // Web-auth module identifiers that must not appear in desktop entry files.
+  const forbiddenImports = ["AuthGate", "publicAllowlist"];
+
+  for (const entryFile of desktopEntryFiles) {
+    for (const forbidden of forbiddenImports) {
+      it(`${entryFile} does not import "${forbidden}"`, () => {
+        const fullPath = path.join(projectRoot, entryFile);
+        const source = fs.readFileSync(fullPath, "utf8");
+        // Match any import/require referencing the forbidden module name,
+        // including path-based imports like './auth/AuthGate' or 'publicAllowlist'.
+        const pattern = new RegExp(`\\b${forbidden}\\b`);
+        expect(source).not.toMatch(pattern);
+      });
+    }
+  }
 });
