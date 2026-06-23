@@ -315,9 +315,81 @@ jobs:
             /tmp/webpack-desktop.log
             /tmp/server.log
 
+  e2e-prod-smoke:
+    runs-on: ubuntu-latest
+    needs: static-checks
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: lessons-from-luke
+          POSTGRES_PASSWORD: lessons-from-luke
+          POSTGRES_DB: lessons-from-luke
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+      # No "Create test database" step: this job serves NODE_ENV=production, which
+      # uses secrets.db ("lessons-from-luke") — already created by the postgres
+      # service's POSTGRES_DB. The unused testDb block below just satisfies the
+      # Secrets interface.
+      - name: Generate secrets.json
+        run: |
+          cat > secrets.json << 'EOF'
+          {
+            "cookieSecret": "ci-test-cookie-secret-min-32-characters-long",
+            "adminEmail": "admin@example.com",
+            "adminPassword": "ci-test-password-1234",
+            "db": {
+              "host": "localhost",
+              "database": "lessons-from-luke",
+              "username": "lessons-from-luke",
+              "password": "lessons-from-luke"
+            },
+            "testDb": {
+              "host": "localhost",
+              "database": "lessons-from-luke-test",
+              "username": "lessons-from-luke",
+              "password": "lessons-from-luke"
+            }
+          }
+          EOF
+      - name: Install dependencies
+        run: yarn install --immutable
+        env:
+          NPM_CONFIG_UNSAFE_PERM: "true"
+      # Prod bundle: tsc -b src/server/tsconfig.prod.json (nests the entry at
+      # dist/server/server/server.js) AND webpack production (→ dist/frontend).
+      # serve-prod runs the nested entry; the SPA shell is served from dist/frontend.
+      - name: Build production server + web bundle
+        run: yarn build-server
+      # No flag → migrates the prod DB ("lessons-from-luke") and seeds the admin
+      # user, so /api/auth/get-session resolves and PublicHome renders.
+      - name: Run migrations (prod DB)
+        run: yarn migrate
+      - uses: cypress-io/github-action@v6
+        with:
+          install: false
+          start: yarn serve-prod
+          # serve-prod sets BETTER_AUTH_URL=https://localhost:8081 (to pass the
+          # prod secrets guard) and NODE_ENV=production. "/" serves the SPA shell
+          # without touching the DB, so a 200 means the HTTP server is up; the
+          # spec's own commands then wait for the app to finish loading.
+          wait-on: "http://localhost:8081"
+          wait-on-timeout: 180
+          command: npx cypress run --config-file cypress.prod.config.js
+
   build_on_mac:
     runs-on: macos-latest
-    needs: [static-checks, test, integration, e2e, desktop-e2e]
+    needs: [static-checks, test, integration, e2e, e2e-prod-smoke, desktop-e2e]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
