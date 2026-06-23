@@ -29,7 +29,7 @@ jest.mock("../../common/state/networkSlice", () => ({
 
 import React from "react";
 import { screen } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { render } from "@testing-library/react";
 import { Provider } from "react-redux";
 import { buildStore } from "../../common/testHelpers";
@@ -92,10 +92,12 @@ describe("AuthGate", () => {
     });
 
     it("includes returnTo with the encoded original path in the redirect URL", () => {
-      // We verify this by checking the location in a custom component
+      // Capture the MemoryRouter's in-memory location (not window.location)
+      // by reading useLocation() from within the router context.
       let capturedSearch = "";
       function CaptureSearch() {
-        capturedSearch = window.location.search;
+        const location = useLocation();
+        capturedSearch = location.search;
         return <div>Sign-in page</div>;
       }
 
@@ -121,6 +123,8 @@ describe("AuthGate", () => {
 
       // After redirect the sign-in page should be shown
       expect(screen.getByText("Sign-in page")).toBeTruthy();
+      // The redirect URL must carry ?returnTo=%2Ftranslate%2FABC123
+      expect(capturedSearch).toBe("?returnTo=%2Ftranslate%2FABC123");
     });
   });
 
