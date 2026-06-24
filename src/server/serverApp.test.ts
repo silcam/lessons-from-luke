@@ -50,6 +50,19 @@ describe("HTTP security headers", () => {
     const styleSrcValue = styleSrcMatch ? styleSrcMatch[1] : "";
     expect(styleSrcValue).not.toContain("'unsafe-inline'");
   });
+
+  test("Content-Security-Policy styleSrc carries a per-request nonce", async () => {
+    // styled-components injects runtime <style> tags; without a style-src nonce
+    // (and with no 'unsafe-inline') the production SPA throws
+    // "CSSStyleSheet could not be found on HTMLStyleElement". Must hit a 200 route
+    // because Express's finalhandler replaces the CSP with "default-src 'none'"
+    // on 404/error responses, masking helmet's policy.
+    const app = serverApp({ silent: true });
+    const response = await request(app).get("/api/languages");
+    const csp = (response.header["content-security-policy"] ?? "") as string;
+    const styleSrc = csp.match(/style-src\s+([^;]*)/i)?.[1] ?? "";
+    expect(styleSrc).toMatch(/'nonce-[A-Za-z0-9+/=]+'/);
+  });
 });
 
 test("serverApp can be called with no arguments (default opts)", () => {
@@ -181,6 +194,35 @@ describe("serverApp production branch", () => {
       // With the dist/frontend/index.html in place this MUST be 200
       expect(response.status).toBe(200);
       expect(response.text).toContain("<html>");
+    });
+  });
+
+  test("wildcard route injects the per-request CSP nonce into the served HTML", async () => {
+    await withProductionServerApp(async (app) => {
+      const response = await request(app).get("/any/frontend/path");
+      expect(response.status).toBe(200);
+      const csp = (response.header["content-security-policy"] ?? "") as string;
+      const headerNonce = csp.match(/'nonce-([A-Za-z0-9+/=]+)'/)?.[1];
+      expect(headerNonce).toBeTruthy();
+      // The HTML the SPA loads must carry the SAME nonce the CSP advertises so
+      // webApp.tsx can wire it into styled-components' __webpack_nonce__.
+      expect(response.text).toContain(`<meta name="csp-nonce" content="${headerNonce}">`);
+    });
+  });
+
+  test("each request gets a fresh, unique CSP nonce", async () => {
+    await withProductionServerApp(async (app) => {
+      const nonceOf = async () => {
+        // 200 catch-all so finalhandler doesn't clobber helmet's CSP header
+        const r = await request(app).get("/any/frontend/path");
+        const csp = (r.header["content-security-policy"] ?? "") as string;
+        return csp.match(/'nonce-([A-Za-z0-9+/=]+)'/)?.[1];
+      };
+      const first = await nonceOf();
+      const second = await nonceOf();
+      expect(first).toBeTruthy();
+      expect(second).toBeTruthy();
+      expect(first).not.toBe(second);
     });
   });
 });
