@@ -116,8 +116,10 @@ describe("US2 — Recipient redeems an invitation", () => {
 
       cy.visit(`/invitation/${token}`);
 
-      // Email field is pre-filled and disabled (locked) (FR-007)
-      cy.inLabel("Email (pre-filled, not editable)").should("have.value", email).and("be.disabled");
+      // Email field is pre-filled and locked (FR-007). The field is rendered
+      // readOnly (not disabled) so it stays focusable and announced to screen
+      // readers — assert the readonly attribute, not the disabled property.
+      cy.inLabel("Email").should("have.value", email).and("have.attr", "readonly");
     });
   });
 
@@ -192,8 +194,9 @@ describe("US3 — Admin manages invitations", () => {
     // instead we assert the heading renders, as the empty state can only be
     // reliably tested in full-reset environments.
     cy.visit("/admin/invitations");
-    // Heading always renders (US3 screen exists)
-    cy.contains("h2", "Invitations").should("exist");
+    // Heading always renders (US3 screen exists). The page chrome renders the
+    // title via the Heading base component, which is styled.h1.
+    cy.contains("h1", "Invitations").should("exist");
     // Either the empty state or a table is shown — both are valid
     // (empty state appears only on a truly empty invitation table)
   });
@@ -224,10 +227,13 @@ describe("US3 — Admin manages invitations", () => {
 
     cy.visit("/admin/invitations");
 
-    // Find the row and click Retract
+    // Find the row and retract. Retract is a destructive two-step action: the
+    // first click reveals an inline confirm prompt, and only the "Confirm retract"
+    // button actually fires the API request.
     cy.contains("tr", email).within(() => {
       cy.intercept("POST", /\/api\/admin\/invitations\/.+\/retract/).as("retractInvitation");
       cy.contains("button", "Retract").click();
+      cy.contains("button", "Confirm retract").click();
     });
     cy.wait("@retractInvitation").its("response.statusCode").should("eq", 200);
 
@@ -258,7 +264,7 @@ describe("US3 — Admin manages invitations", () => {
     cy.wait("@getLink").its("response.statusCode").should("eq", 200);
 
     // Copy success live region appears (FR-016)
-    cy.contains("Link copied to clipboard").should("exist");
+    cy.contains("Invitation link copied to clipboard").should("exist");
   });
 
   it("retracted invitation link stops working immediately (SC-004)", () => {
