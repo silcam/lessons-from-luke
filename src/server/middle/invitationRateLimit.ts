@@ -16,21 +16,34 @@
  *
  * KEY TRUST MODEL
  * ---------------
- * The primary rate-limit key is 'invitation:' + req.ip. Express derives req.ip
- * from X-Forwarded-For under app.set('trust proxy', 1) (serverApp.ts). This is
- * safe in the deployed topology because the Passenger/nginx reverse proxy
- * overwrites (not appends) X-Forwarded-For to the real client TCP-socket IP
- * before passing the request to Express. See serverApp.ts for the full
- * DEPLOYMENT CONTRACT comment and the conditions under which this guarantee
- * holds.
+ * The primary rate-limit key is 'invitation:' + clientIp(req). Under the
+ * deployed topology — Cloudflare in front of Phusion Passenger — there are TWO
+ * proxy hops and BOTH APPEND to X-Forwarded-For. So under app.set('trust
+ * proxy', 1) (serverApp.ts) Express's req.ip resolves to a Cloudflare EDGE IP
+ * (172.64.0.0/13), NOT the real client: every distinct client arriving via the
+ * same edge would share one bucket and throttle each other.
+ *
+ * clientIp() therefore keys on Cloudflare's CF-Connecting-IP header, which
+ * Cloudflare sets to the real connecting IP and the client cannot override,
+ * falling back to req.ip only when Cloudflare is absent (dev / supertest, where
+ * the header is not present — then req.ip, the trust-proxy-derived value, is the
+ * correct client IP). This mirrors auth.ts's better-auth ipAddressHeaders
+ * ordering (["cf-connecting-ip", "x-forwarded-for"]) so the two limiters never
+ * drift, and is independent of `trust proxy`. See clientIp() below and the
+ * trust-proxy comment in serverApp.ts.
+ *
+ * Residual risk: a client connecting DIRECTLY to the origin (bypassing
+ * Cloudflare) could set CF-Connecting-IP itself. Mitigate at the infra layer by
+ * firewalling ingress to Cloudflare's published IP ranges — out of scope for
+ * this middleware.
  *
  * SECONDARY (TOKEN-SCOPED) KEY — graceful degradation
  * ----------------------------------------------------
  * For the GET /api/auth/invitation/:token lookup endpoint the caller can
  * also pass a secondary key (e.g. the SHA-256 hex of the token). When present,
- * BOTH keys are checked and the stricter limit applies. This means even if
- * req.ip were unreliable (proxy misconfiguration), each unique token still has
- * its own rate-limit bucket and cannot be brute-forced at unbounded rate.
+ * BOTH keys are checked and the stricter limit applies. This means even if the
+ * client IP were unreliable, each unique token still has its own rate-limit
+ * bucket and cannot be brute-forced at unbounded rate.
  */
 
 import { Request, Response, NextFunction } from "express";
@@ -38,6 +51,21 @@ import { Pool } from "pg";
 
 const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 60 seconds
 const RATE_LIMIT_MAX = 10;
+
+/**
+ * Authoritative client IP behind Cloudflare. CF-Connecting-IP is set by
+ * Cloudflare to the real connecting IP and cannot be spoofed by the client;
+ * it is absent when Cloudflare is off (then req.ip — the trust-proxy-derived
+ * value — is correct). Mirrors auth.ts's ipAddressHeaders ordering; uses
+ * req.ip (not raw x-forwarded-for) as the fallback because this in-app limiter
+ * has the trust-proxy-aware value available. Independent of `trust proxy`.
+ */
+export function clientIp(req: Request): string {
+  const cf = req.headers["cf-connecting-ip"];
+  const value = Array.isArray(cf) ? cf[0] : cf;
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : (req.ip ?? "unknown");
+}
 
 /**
  * Creates an Express middleware that enforces a per-IP rate limit on invitation
@@ -65,7 +93,7 @@ export function invitationRateLimit(pool: Pool, secondaryKeyFn?: (req: Request) 
 
     const nowMs = Date.now();
     const windowStart = nowMs - RATE_LIMIT_WINDOW_MS;
-    const ipKey = `invitation:${req.ip ?? "unknown"}`;
+    const ipKey = `invitation:${clientIp(req)}`;
     const secondaryKey = secondaryKeyFn ? secondaryKeyFn(req) : undefined;
 
     const client = await pool.connect();
@@ -101,7 +129,7 @@ export function invitationRateLimit(pool: Pool, secondaryKeyFn?: (req: Request) 
       }
 
       // Check secondary (token-scoped) key when present — graceful degradation
-      // if req.ip is unreliable due to proxy misconfiguration (see header comment).
+      // if the client IP is unreliable (see header comment).
       if (secondaryKey !== undefined) {
         const secondaryCount = await upsertCount(secondaryKey);
         if (secondaryCount > RATE_LIMIT_MAX) {

@@ -37,13 +37,28 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
     console.log(`[serverApp] NODE_ENV=${process.env.NODE_ENV} storage=${cls}`);
   }
 
-  // Trust one proxy hop for req.protocol/req.ip. NOTE: under Cloudflare +
-  // Passenger there are TWO hops, so req.ip currently resolves to a Cloudflare
-  // edge IP (172.64.0.0/13). Harmless today — no app code reads req.ip — but
-  // before the 002 invitation limiter merges (it keys on req.ip), either set
-  // `trust proxy = 2` AND restrict the origin to Cloudflare's published IP
-  // ranges (otherwise req.ip becomes spoofable), or have that limiter read
-  // `cf-connecting-ip` directly. Left at 1 for now.
+  // Trust one proxy hop for req.protocol/req.ip. Under the deployed topology —
+  // Cloudflare in front of Phusion Passenger — there are TWO hops and BOTH
+  // APPEND to X-Forwarded-For, so req.ip resolves to a Cloudflare EDGE IP
+  // (172.64.0.0/13), not the real client. We deliberately keep this at 1 rather
+  // than `trust proxy = 2`: bumping the hop count only yields the real client IP
+  // if ingress is ALSO firewalled to Cloudflare's published ranges (otherwise
+  // req.ip becomes spoofable), which would couple the app to infra it can't
+  // enforce.
+  //
+  // Instead, both IP-sensitive consumers read Cloudflare's authoritative,
+  // non-spoofable CF-Connecting-IP header directly — falling back to req.ip /
+  // x-forwarded-for when Cloudflare is absent — so they are independent of this
+  // setting:
+  //   - invitation rate limiter: clientIp() in middle/invitationRateLimit.ts
+  //   - better-auth rate limiting: ipAddressHeaders in auth/auth.ts
+  // Keep those two header orderings in sync so the limiters never key on
+  // different identities.
+  //
+  // Residual risk: a client reaching the origin DIRECTLY (bypassing Cloudflare)
+  // could forge CF-Connecting-IP. Mitigate at the infra layer by firewalling
+  // ingress to Cloudflare's published IP ranges (follow-up; out of scope for
+  // this code change).
   app.set("trust proxy", 1);
 
   // Normalize a doubled X-Forwarded-Proto at the trust boundary. Cloudflare and
