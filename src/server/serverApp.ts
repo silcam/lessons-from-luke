@@ -7,6 +7,7 @@ import { toNodeHandler } from "better-auth/node";
 import languagesController from "./controllers/languagesController";
 import lessonsController from "./controllers/lessonsController";
 import { requireAdmin } from "./middle/requireUser";
+import normalizeForwardedProto from "./middle/normalizeForwardedProto";
 import tStringsController from "./controllers/tStringsController";
 import testController from "./controllers/testController";
 import documentsController from "./controllers/documentsController";
@@ -33,7 +34,22 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
     console.log(`[serverApp] NODE_ENV=${process.env.NODE_ENV} storage=${cls}`);
   }
 
+  // Trust one proxy hop for req.protocol/req.ip. NOTE: under Cloudflare +
+  // Passenger there are TWO hops, so req.ip currently resolves to a Cloudflare
+  // edge IP (172.64.0.0/13). Harmless today — no app code reads req.ip — but
+  // before the 002 invitation limiter merges (it keys on req.ip), either set
+  // `trust proxy = 2` AND restrict the origin to Cloudflare's published IP
+  // ranges (otherwise req.ip becomes spoofable), or have that limiter read
+  // `cf-connecting-ip` directly. Left at 1 for now.
   app.set("trust proxy", 1);
+
+  // Normalize a doubled X-Forwarded-Proto at the trust boundary. Cloudflare and
+  // Passenger each APPEND their scheme, so the app sees "https, https"; left
+  // unchanged, better-auth's toNodeHandler (which reads the RAW req.headers)
+  // builds a malformed base URL like "https, https://host". This must run first
+  // — before the CSP-nonce middleware and crucially before the terminal auth
+  // handler below — so the normalized header reaches better-auth's fromNodeHeaders.
+  app.use(normalizeForwardedProto);
 
   // Per-request CSP nonce. styled-components injects its CSS as runtime <style>
   // tags, which the Content-Security-Policy below would otherwise block (we keep

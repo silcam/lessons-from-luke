@@ -62,6 +62,15 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> {
       // Left undefined elsewhere → better-auth's env default (enforced in
       // production, skipped in test/dev so cross-origin dev login still works).
       disableOriginCheck: process.env.BETTER_AUTH_ENFORCE_ORIGIN === "1" ? false : undefined,
+      // Key rate-limiting on the real, non-spoofable client IP. better-auth
+      // derives the client IP itself (it ignores Express req.ip), defaulting to
+      // the leftmost x-forwarded-for token — which Cloudflare PREPENDS any
+      // client-supplied value to, so it's spoofable. cf-connecting-ip is
+      // Cloudflare's authoritative client IP; the first header yielding a valid
+      // IP wins. Cloudflare ON → cf-connecting-ip; Cloudflare OFF (or supertest,
+      // where neither header is present) → falls back to x-forwarded-for / the
+      // socket IP. Independent of Express's `trust proxy`.
+      ipAddress: { ipAddressHeaders: ["cf-connecting-ip", "x-forwarded-for"] },
     },
     emailAndPassword: {
       enabled: true,

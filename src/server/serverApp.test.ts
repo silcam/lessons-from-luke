@@ -63,6 +63,19 @@ describe("HTTP security headers", () => {
     const styleSrc = csp.match(/style-src\s+([^;]*)/i)?.[1] ?? "";
     expect(styleSrc).toMatch(/'nonce-[A-Za-z0-9+/=]+'/);
   });
+
+  test('a doubled X-Forwarded-Proto ("https, https") is handled without breaking the response', async () => {
+    // Boundary smoke check: the normalizeForwardedProto middleware collapses the
+    // doubled header (Cloudflare + Passenger each append a scheme) before any
+    // downstream handler. The request must still succeed with normal security headers.
+    const app = serverApp({ silent: true });
+    const response = await request(app)
+      .get("/api/languages")
+      .set("X-Forwarded-Proto", "https, https");
+    expect(response.status).toBe(200);
+    expect(response.header["x-content-type-options"]).toBe("nosniff");
+    expect(response.header["content-security-policy"]).toBeDefined();
+  });
 });
 
 test("serverApp can be called with no arguments (default opts)", () => {
