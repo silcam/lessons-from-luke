@@ -208,7 +208,7 @@ jobs:
         run: npx tsc -b src/server
       - name: Run migrations
         run: yarn migrate:test
-      - uses: cypress-io/github-action@v6
+      - uses: cypress-io/github-action@v7
         with:
           install: false
           start: npx concurrently "yarn wpDevServerWeb" "yarn serve"
@@ -375,7 +375,7 @@ jobs:
       # user, so /api/auth/get-session resolves and PublicHome renders.
       - name: Run migrations (prod DB)
         run: yarn migrate
-      - uses: cypress-io/github-action@v6
+      - uses: cypress-io/github-action@v7
         with:
           install: false
           start: yarn serve-prod
