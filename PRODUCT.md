@@ -35,7 +35,7 @@ This should **not** look or feel like any of these:
 
 ## Design Principles
 
-1. **Consistency over novelty.** New features adopt the existing component vocabulary and palette (`src/frontend/common/base-components/`, `Colors.ts`). The current direction is to *maintain* the established visual style — e.g. the invitation workflow — not to introduce a competing visual language. Reach for what's already there before inventing.
+1. **Consistency over novelty.** New features adopt the existing component vocabulary and palette (`src/frontend/common/base-components/`, `Colors.ts`). The current direction is to _maintain_ the established visual style — e.g. the invitation workflow — not to introduce a competing visual language. Reach for what's already there before inventing.
 2. **The text is the product.** Scripture and translation content are the focus; chrome recedes so the words read clearly. Optimize for legibility and sustained focus during long editing sessions.
 3. **Approachable for non-experts.** Many users are volunteers, not software people. Name things plainly, guide each screen, and forgive mistakes. Clarity beats cleverness.
 4. **Works where the work happens.** Assume low bandwidth, modest hardware, and frequent offline use. Favor lightweight, resilient, fast-loading interfaces over heavy effects.

@@ -19,24 +19,14 @@ export function encryptToken(token: string, secret: string): string {
   const key = deriveKey(secret);
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
-  const ciphertext = Buffer.concat([
-    cipher.update(token, "utf8"),
-    cipher.final(),
-  ]);
+  const ciphertext = Buffer.concat([cipher.update(token, "utf8"), cipher.final()]);
   const authTag = cipher.getAuthTag();
   return (
-    iv.toString("base64") +
-    ":" +
-    authTag.toString("base64") +
-    ":" +
-    ciphertext.toString("base64")
+    iv.toString("base64") + ":" + authTag.toString("base64") + ":" + ciphertext.toString("base64")
   );
 }
 
-export function decryptToken(
-  encryptedStr: string,
-  secret: string,
-): string | null {
+export function decryptToken(encryptedStr: string, secret: string): string | null {
   try {
     const parts = encryptedStr.split(":");
     if (parts.length !== 3) return null;
@@ -47,10 +37,7 @@ export function decryptToken(
     const ciphertext = Buffer.from(ciphertextB64, "base64");
     const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
     decipher.setAuthTag(authTag);
-    const plaintext = Buffer.concat([
-      decipher.update(ciphertext),
-      decipher.final(),
-    ]);
+    const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
     return plaintext.toString("utf8");
   } catch {
     return null;

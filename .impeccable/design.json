@@ -96,11 +96,23 @@
       }
     },
     "typographyMeta": {
-      "display": { "displayName": "Display", "purpose": "Page and header-bar titles (h1, 2.5em bold)." },
-      "headline": { "displayName": "Headline", "purpose": "Major section headings (h2, 2em bold)." },
+      "display": {
+        "displayName": "Display",
+        "purpose": "Page and header-bar titles (h1, 2.5em bold)."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Major section headings (h2, 2em bold)."
+      },
       "title": { "displayName": "Title", "purpose": "Subsection headings (h3, 1.5em bold)." },
-      "body": { "displayName": "Body", "purpose": "Running text and form values (16px, weight 400)." },
-      "label": { "displayName": "Label", "purpose": "Form-field labels; the quietest voice (1em, weight 200)." }
+      "body": {
+        "displayName": "Body",
+        "purpose": "Running text and form values (16px, weight 400)."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Form-field labels; the quietest voice (1em, weight 200)."
+      }
     },
     "shadows": [],
     "motion": [],
@@ -191,11 +203,31 @@
       "Script-agnostic — must host any writing system and reading direction without breaking."
     ],
     "rules": [
-      { "name": "The Color-Means-Something Rule", "body": "No color is used decoratively. If a hue appears, it is reporting state — blue (actionable), green (done), amber (in progress / attention), red (danger).", "section": "colors" },
-      { "name": "The Single-Action-Color Rule", "body": "Blue is the only interactive color. Don't introduce a second accent; if everything is highlighted, nothing is.", "section": "colors" },
-      { "name": "The One-Family Rule", "body": "Hierarchy comes from size and weight within Helvetica — never from adding a second typeface. There is no display font and no mono font.", "section": "typography" },
-      { "name": "The Script-Neutral Rule", "body": "Never hard-code Latin-only assumptions into line-height, truncation, or font stacks. The editor must render right-to-left and complex scripts cleanly.", "section": "typography" },
-      { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat and separated by hairlines, not shadows. If a new component reaches for a drop shadow to stand out, the answer is a border or whitespace instead.", "section": "elevation" }
+      {
+        "name": "The Color-Means-Something Rule",
+        "body": "No color is used decoratively. If a hue appears, it is reporting state — blue (actionable), green (done), amber (in progress / attention), red (danger).",
+        "section": "colors"
+      },
+      {
+        "name": "The Single-Action-Color Rule",
+        "body": "Blue is the only interactive color. Don't introduce a second accent; if everything is highlighted, nothing is.",
+        "section": "colors"
+      },
+      {
+        "name": "The One-Family Rule",
+        "body": "Hierarchy comes from size and weight within Helvetica — never from adding a second typeface. There is no display font and no mono font.",
+        "section": "typography"
+      },
+      {
+        "name": "The Script-Neutral Rule",
+        "body": "Never hard-code Latin-only assumptions into line-height, truncation, or font stacks. The editor must render right-to-left and complex scripts cleanly.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat-By-Default Rule",
+        "body": "Surfaces are flat and separated by hairlines, not shadows. If a new component reaches for a drop shadow to stand out, the answer is a border or whitespace instead.",
+        "section": "elevation"
+      }
     ],
     "dos": [
       "Do build new screens from the base-components/ kit and the Colors.ts tokens. The in-progress invitation workflow is not a style reference; it is unfinished and should be brought up to match this system.",

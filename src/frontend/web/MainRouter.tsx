@@ -71,12 +71,8 @@ export default function MainRouter() {
           <Route path="/update-issues/:lessonId" element={<UpdateIssuesPageWrapper />} />
           {/* Public route — anyone with the token URL can redeem (FR-007, FR-011) */}
           <Route path="/invitation/:token" element={<RedeemInvitationWrapper />} />
-          {user?.admin && (
-            <Route path="/admin/invitations/new" element={<CreateInvitation />} />
-          )}
-          {user?.admin && (
-            <Route path="/admin/invitations" element={<InvitationsList />} />
-          )}
+          {user?.admin && <Route path="/admin/invitations/new" element={<CreateInvitation />} />}
+          {user?.admin && <Route path="/admin/invitations" element={<InvitationsList />} />}
           <Route path="*" element={user ? <AdminHome /> : <PublicHome />} />
         </Routes>
       ) : (

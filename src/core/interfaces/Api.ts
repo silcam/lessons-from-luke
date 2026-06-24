@@ -90,8 +90,16 @@ export interface APIPost {
     DocString[],
     { lesson: Lesson; tStrings: TString[] },
   ];
-  "/api/admin/invitations": [Record<string, never>, { email: string; role: string }, InvitationResult];
-  "/api/admin/invitations/:id/retract": [{ id: string }, Record<string, never>, InvitationSummaryRow];
+  "/api/admin/invitations": [
+    Record<string, never>,
+    { email: string; role: string },
+    InvitationResult,
+  ];
+  "/api/admin/invitations/:id/retract": [
+    { id: string },
+    Record<string, never>,
+    InvitationSummaryRow,
+  ];
   "/api/auth/invitation/accept": [
     Record<string, never>,
     { token: string; password: string; name: string },

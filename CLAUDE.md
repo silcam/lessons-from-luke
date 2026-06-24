@@ -10,8 +10,8 @@ Lessons from Luke is a Sunday School curriculum translation and management appli
 
 Before working on any UI, read **`PRODUCT.md`** (strategic: register, users, brand personality, anti-references, design principles, accessibility) and **`DESIGN.md`** (visual system: the `Colors.ts` palette, Helvetica type scale, flat/no-shadow elevation, and the `src/frontend/common/base-components/` component kit). These are the source of truth for design decisions.
 
-- **Register: product.** Personality is *clear, efficient, utilitarian* — North Star "The Field Manual."
-- **Guiding principle: consistency over novelty.** Maintain and extend the existing visual style for new features (e.g. the invitation workflow); build from the existing base-components and tokens rather than inventing a parallel language. The invitation screens are *not* yet a style reference — they're unfinished and should be brought up to match `DESIGN.md`.
+- **Register: product.** Personality is _clear, efficient, utilitarian_ — North Star "The Field Manual."
+- **Guiding principle: consistency over novelty.** Maintain and extend the existing visual style for new features (e.g. the invitation workflow); build from the existing base-components and tokens rather than inventing a parallel language. The invitation screens are _not_ yet a style reference — they're unfinished and should be brought up to match `DESIGN.md`.
 - The `/impeccable` skill reads both files automatically. Live mode (`/impeccable live`) is **not** configured: the web build serves an in-memory HTML (webpack `HtmlWebpackPlugin` with no template file), so live mode would need a custom HTML template added to the webpack config first.
 
 ## Development Commands
@@ -238,6 +238,7 @@ Helper scripts:
 Use subagents liberally and aggressively to conserve the main context window. Avoid performing tasks directly: instead, orchestrate subagents.
 
 ## Active Technologies
+
 - TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) — isomorphic four-layer architecture (`core` / `server` / `frontend` / `desktop`).
 - PostgreSQL with **two isolated drivers**: domain data via porsager `postgres@1.0.2` (`PGStorage`, through the `Persistence` interface); server-only authentication via better-auth on its own `pg` (node-postgres) `Pool` (singleton exported as `getAuthPool()` from `auth.ts`). (001-better-auth-migration)
 - New auth-owned `invitation` table sharing the single `getAuthPool()` singleton (server-only, constitution Principle VI exemption); Node `crypto` for token generation (randomBytes), SHA-256 hash lookup, and AES-256-GCM at-rest token encryption. (002-invitation-system)

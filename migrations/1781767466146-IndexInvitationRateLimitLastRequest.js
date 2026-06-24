@@ -20,9 +20,7 @@ module.exports.up = async () => {
 
 module.exports.down = async () => {
   await dbConnect(async (sql) => {
-    console.log(
-      'Dropping index on invitationRateLimit("lastRequest")...'
-    );
+    console.log('Dropping index on invitationRateLimit("lastRequest")...');
 
     await sql`DROP INDEX IF EXISTS "idx_invitationRateLimit_lastRequest"`;
 

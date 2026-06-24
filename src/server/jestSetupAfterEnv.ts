@@ -66,10 +66,10 @@ afterEach(async () => {
     //   - loggedInAgent() works across tests (seeded admin session can be re-created)
     //   - invitation.invitedBy FK is satisfied in controller tests using the better-auth
     //     unit-test shim, which returns "user-test-id" as req.user.id
-    await client.query(
-      `DELETE FROM "user" WHERE LOWER(email) != $1 AND id != $2`,
-      [adminEmail, MOCK_USER_ID]
-    );
+    await client.query(`DELETE FROM "user" WHERE LOWER(email) != $1 AND id != $2`, [
+      adminEmail,
+      MOCK_USER_ID,
+    ]);
   } finally {
     client.release();
   }

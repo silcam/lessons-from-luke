@@ -22,9 +22,7 @@
 // ---------------------------------------------------------------------------
 function apiCreateInvitation(email, role) {
   role = role ?? "standard";
-  return cy
-    .request("POST", "/api/admin/invitations", { email, role })
-    .then((resp) => resp.body);
+  return cy.request("POST", "/api/admin/invitations", { email, role }).then((resp) => resp.body);
 }
 
 // Generate a unique email for each test to avoid conflicts across repeated runs
@@ -119,9 +117,7 @@ describe("US2 — Recipient redeems an invitation", () => {
       cy.visit(`/invitation/${token}`);
 
       // Email field is pre-filled and disabled (locked) (FR-007)
-      cy.inLabel("Email (pre-filled, not editable)")
-        .should("have.value", email)
-        .and("be.disabled");
+      cy.inLabel("Email (pre-filled, not editable)").should("have.value", email).and("be.disabled");
     });
   });
 

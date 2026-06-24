@@ -36,6 +36,7 @@ curl -X POST http://localhost:8081/api/admin/invitations \
 ```
 
 Rejections to expect:
+
 - Existing account for that email → `409` (FR-004).
 - An active pending invite already exists for that email → `409` (FR-005).
 - Malformed email / bad role → `400`.

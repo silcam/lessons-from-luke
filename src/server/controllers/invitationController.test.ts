@@ -53,7 +53,8 @@ async function nonAdminAgent() {
   const now = new Date();
 
   // Import lazily to avoid circular issues and to mirror auth.integration.test.ts
-  const { hash: argon2idHash } = require("../auth/passwordHasher") as typeof import("../auth/passwordHasher");
+  const { hash: argon2idHash } =
+    require("../auth/passwordHasher") as typeof import("../auth/passwordHasher");
   const passwordHash = await argon2idHash(password);
 
   const client = await authPool.connect();
@@ -73,9 +74,7 @@ async function nonAdminAgent() {
   }
 
   const agent = plainAgent();
-  await agent
-    .post("/api/auth/sign-in/email")
-    .send({ email, password });
+  await agent.post("/api/auth/sign-in/email").send({ email, password });
   return agent;
 }
 
@@ -91,9 +90,7 @@ describe("POST /api/admin/invitations", () => {
     const agent = await loggedInAgent();
     const email = `invited-standard-${crypto.randomUUID()}@example.com`;
 
-    const res = await agent
-      .post("/api/admin/invitations")
-      .send({ email, role: "standard" });
+    const res = await agent.post("/api/admin/invitations").send({ email, role: "standard" });
 
     expect(res.status).toBe(201);
     // Response shape: {id, email, role, status, link, expiresAt}
@@ -118,9 +115,7 @@ describe("POST /api/admin/invitations", () => {
     const agent = await loggedInAgent();
     const email = `invited-admin-${crypto.randomUUID()}@example.com`;
 
-    const res = await agent
-      .post("/api/admin/invitations")
-      .send({ email, role: "admin" });
+    const res = await agent.post("/api/admin/invitations").send({ email, role: "admin" });
 
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({
@@ -253,15 +248,11 @@ describe("POST /api/admin/invitations", () => {
     const email = `pending-conflict-${crypto.randomUUID()}@example.com`;
 
     // Create the first invitation — should succeed
-    const first = await agent
-      .post("/api/admin/invitations")
-      .send({ email, role: "standard" });
+    const first = await agent.post("/api/admin/invitations").send({ email, role: "standard" });
     expect(first.status).toBe(201);
 
     // Create a second invitation for the same email — should conflict
-    const second = await agent
-      .post("/api/admin/invitations")
-      .send({ email, role: "admin" });
+    const second = await agent.post("/api/admin/invitations").send({ email, role: "admin" });
 
     expect(second.status).toBe(409);
     expect(second.body).toMatchObject({ error: expect.any(String), code: "PENDING_INVITE_EXISTS" });
@@ -285,9 +276,7 @@ describe("POST /api/admin/invitations", () => {
       // Make 12 requests — should hit the 429 limit (threshold ≤10)
       for (let i = 0; i < 12; i++) {
         const email = `rate-limit-admin-${crypto.randomUUID()}@example.com`;
-        const res = await agent
-          .post("/api/admin/invitations")
-          .send({ email, role: "standard" });
+        const res = await agent.post("/api/admin/invitations").send({ email, role: "standard" });
         lastStatus = res.status;
         if (lastStatus === 429) break;
       }
@@ -531,7 +520,11 @@ describe("POST /api/auth/invitation/accept", () => {
 
     // 5 kb string: 'a'.repeat(5 * 1024) wrapped in a JSON value exceeds the 4kb limit
     const oversizedValue = "a".repeat(5 * 1024);
-    const oversizedBody = JSON.stringify({ token: oversizedValue, password: "ValidPassword1!", name: "Test User" });
+    const oversizedBody = JSON.stringify({
+      token: oversizedValue,
+      password: "ValidPassword1!",
+      name: "Test User",
+    });
 
     const res = await agent
       .post("/api/auth/invitation/accept")
@@ -648,9 +641,7 @@ describe("GET /api/admin/invitations", () => {
     const email = `list-test-${crypto.randomUUID()}@example.com`;
 
     // Create an invitation so the list is non-empty
-    await agent
-      .post("/api/admin/invitations")
-      .send({ email, role: "standard" });
+    await agent.post("/api/admin/invitations").send({ email, role: "standard" });
 
     const res = await agent.get("/api/admin/invitations");
 
@@ -711,9 +702,7 @@ describe("POST /api/admin/invitations/:id/retract", () => {
     const email = `retract-happy-${crypto.randomUUID()}@example.com`;
 
     // Create a pending invitation
-    const createRes = await agent
-      .post("/api/admin/invitations")
-      .send({ email, role: "standard" });
+    const createRes = await agent.post("/api/admin/invitations").send({ email, role: "standard" });
     expect(createRes.status).toBe(201);
     const invitationId = createRes.body.id as string;
 
@@ -797,9 +786,7 @@ describe("POST /api/admin/invitations/:id/retract", () => {
     const email = `retract-409-${crypto.randomUUID()}@example.com`;
 
     // Create a pending invitation
-    const createRes = await agent
-      .post("/api/admin/invitations")
-      .send({ email, role: "standard" });
+    const createRes = await agent.post("/api/admin/invitations").send({ email, role: "standard" });
     expect(createRes.status).toBe(201);
     const invitationId = createRes.body.id as string;
 
@@ -828,9 +815,7 @@ describe("GET /api/admin/invitations/:id/link", () => {
     const email = `link-happy-${crypto.randomUUID()}@example.com`;
 
     // Create a pending invitation
-    const createRes = await agent
-      .post("/api/admin/invitations")
-      .send({ email, role: "standard" });
+    const createRes = await agent.post("/api/admin/invitations").send({ email, role: "standard" });
     expect(createRes.status).toBe(201);
     const invitationId = createRes.body.id as string;
     const originalLink = createRes.body.link as string;
@@ -890,9 +875,7 @@ describe("GET /api/admin/invitations/:id/link", () => {
     const email = `link-409-${crypto.randomUUID()}@example.com`;
 
     // Create and then retract an invitation
-    const createRes = await agent
-      .post("/api/admin/invitations")
-      .send({ email, role: "standard" });
+    const createRes = await agent.post("/api/admin/invitations").send({ email, role: "standard" });
     expect(createRes.status).toBe(201);
     const invitationId = createRes.body.id as string;
 

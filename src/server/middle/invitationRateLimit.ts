@@ -83,10 +83,7 @@ export function clientIp(req: Request): string {
 export function invitationRateLimit(pool: Pool, secondaryKeyFn?: (req: Request) => string) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     // Skip in test mode unless enforcement flag is set
-    if (
-      process.env.NODE_ENV === "test" &&
-      process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT !== "1"
-    ) {
+    if (process.env.NODE_ENV === "test" && process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT !== "1") {
       next();
       return;
     }
@@ -99,10 +96,9 @@ export function invitationRateLimit(pool: Pool, secondaryKeyFn?: (req: Request) 
     const client = await pool.connect();
     try {
       // Prune stale entries from previous windows (same round-trip)
-      await client.query(
-        `DELETE FROM "invitationRateLimit" WHERE "lastRequest" < $1`,
-        [windowStart]
-      );
+      await client.query(`DELETE FROM "invitationRateLimit" WHERE "lastRequest" < $1`, [
+        windowStart,
+      ]);
 
       // Atomic UPSERT helper: returns the post-increment count for a key
       const upsertCount = async (k: string): Promise<number> => {
