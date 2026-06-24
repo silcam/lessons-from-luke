@@ -354,20 +354,18 @@ export async function acceptInvitation(
         [invitation.id]
       );
 
-      // 4b. If 0 rows updated, the invitation is no longer valid OR was just
-      //     accepted concurrently (SC-003). Distinguish the cases by checking
-      //     whether an account now exists for this email. If it does, a concurrent
-      //     request beat us to it → AccountCreatedConcurrentlyError (409). Otherwise
-      //     the invitation is expired/retracted → InvalidLinkError (410).
+      // 4b. If 0 rows updated, the link is no longer redeemable: it was already
+      //     accepted (single-use, FR-009), retracted, or expired. Every one of
+      //     these is a consumed/invalid link and MUST return the same non-leaky
+      //     410 (FR-010). We deliberately do NOT probe for an existing account
+      //     here, so the response never leaks whether an account exists for this
+      //     email. This branch also covers the concurrent double-redemption loser:
+      //     its conditional UPDATE re-evaluates against the winner's committed
+      //     'accepted' row and matches 0 rows (spec Edge Cases — "rejected by the
+      //     single-use rule"). The genuine INSERT-unique-violation path below
+      //     remains the only AccountCreatedConcurrentlyError (409) source.
       if (updateResult.rows.length === 0) {
-        const accountCheck = await client.query<{ id: string }>(
-          `SELECT 1 FROM "user" WHERE LOWER(email) = LOWER($1) LIMIT 1`,
-          [invitation.email]
-        );
         await client.query("ROLLBACK");
-        if (accountCheck.rows.length > 0) {
-          throw new AccountCreatedConcurrentlyError(invitation.email);
-        }
         throw new InvalidLinkError();
       }
 

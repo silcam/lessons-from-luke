@@ -561,9 +561,9 @@ describe("POST /api/auth/invitation/accept", () => {
   });
 
   // -------------------------------------------------------------------------
-  // 8. 409 — concurrent double-redemption: second attempt rejected (SC-003)
+  // 8. 410 — concurrent double-redemption: second attempt rejected (SC-003)
   // -------------------------------------------------------------------------
-  it("409: concurrent double-redemption — second attempt is rejected (SC-003)", async () => {
+  it("410: concurrent double-redemption — second attempt is rejected (SC-003)", async () => {
     const email = `accept-double-${crypto.randomUUID()}@example.com`;
     const token = await createPendingInvitation(authPool, email);
 
@@ -581,8 +581,12 @@ describe("POST /api/auth/invitation/accept", () => {
     ]);
 
     const statuses = [res1.status, res2.status].sort();
-    // Exactly one succeeds (200) and one is rejected (409)
-    expect(statuses).toEqual([200, 409]);
+    // Exactly one succeeds (200); the loser is rejected by the single-use rule
+    // with the same non-leaky 410 as any consumed/invalid link (FR-009, FR-010).
+    // Its conditional UPDATE re-evaluates against the winner's committed 'accepted'
+    // row and matches 0 rows → InvalidLinkError (410), never leaking that an
+    // account now exists for the bound email.
+    expect(statuses).toEqual([200, 410]);
   });
 
   // -------------------------------------------------------------------------
