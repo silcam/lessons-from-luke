@@ -8,6 +8,18 @@ import store from "./common/state/appState";
 import RequestContext from "./common/api/RequestContext";
 import { webGet, webPost } from "../core/api/WebAPIClient";
 
+// Wire the per-request CSP nonce (injected by the server as a <meta> tag in the
+// document head) into webpack's runtime nonce, so styled-components stamps it on
+// the <style> tags it injects at runtime. Without this, the production CSP
+// (style-src with a per-request nonce and no 'unsafe-inline') blocks those styles
+// and styled-components throws "CSSStyleSheet could not be found on
+// HTMLStyleElement". Must run before the first render below.
+declare let __webpack_nonce__: string;
+const cspNonce = document.querySelector('meta[name="csp-nonce"]')?.getAttribute("content");
+if (cspNonce) {
+  __webpack_nonce__ = cspNonce;
+}
+
 function WebApp() {
   return (
     <Provider store={store}>
