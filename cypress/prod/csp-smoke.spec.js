@@ -50,9 +50,42 @@ describe("production CSP smoke", () => {
       "rgb(63, 136, 197)"
     );
 
-    // (a) No CSP violation fired during load + render. styled-components injects
-    // its <style> tags as a side effect of the renders we just asserted, so any
-    // style-src violation has already been recorded by now.
+    // (a) No CSP violation fired during the app's load + render. styled-components
+    // injects its <style> tags as a side effect of the renders we just asserted,
+    // so any style-src violation has already been recorded by now.
     cy.window().its("__csp").should("have.length", 0);
+
+    // --- Enforcement tripwire ------------------------------------------------
+    // Every assertion above is only meaningful if the browser is ACTUALLY
+    // enforcing the CSP. Cypress strips CSP headers by default; we re-enable
+    // enforcement with `experimentalCspAllowList: true` (cypress.prod.config.js).
+    // But that's an experimental flag — if a future Cypress release renames or
+    // drops it, enforcement would silently vanish and this whole spec would pass
+    // even against the bug (a tautology). So actively prove the policy still
+    // bites by injecting an un-nonced <style> (exactly what styled-components
+    // does, minus the nonce) and confirming the browser refused it.
+    // Yields `true` only when the browser BLOCKED the un-nonced <style> (i.e. the
+    // policy is enforced). A blocked <style> never gets a stylesheet, so its
+    // `.sheet` is null; if the CSP weren't enforced (e.g. Cypress quietly reverted
+    // to stripping it) the style would apply, `.sheet` would be a live
+    // CSSStyleSheet, this yields `false`, and the assertion fails loudly instead
+    // of passing as a tautology.
+    cy.window()
+      .then((win) => {
+        const probe = win.document.createElement("style");
+        probe.textContent = ".csp-enforcement-probe{color:rgb(1,2,3)}";
+        // Deliberately NO nonce → must be blocked by `style-src 'self' 'nonce-…'`.
+        win.document.head.appendChild(probe);
+        return probe.sheet === null;
+      })
+      .should("equal", true);
+
+    // The blocked probe also fires a style-src violation. Asserting it landed in
+    // __csp proves the securitypolicyviolation listener is genuinely wired up and
+    // observing the app window — so the "zero violations" check above is itself a
+    // real signal and not a silently-dead listener.
+    cy.window()
+      .its("__csp")
+      .should("satisfy", (violations) => violations.some((v) => /style-src/.test(v)));
   });
 });
