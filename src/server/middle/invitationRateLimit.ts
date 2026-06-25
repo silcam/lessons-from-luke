@@ -16,26 +16,14 @@
  *
  * KEY TRUST MODEL
  * ---------------
- * The primary rate-limit key is 'invitation:' + clientIp(req). Under the
- * deployed topology — Cloudflare in front of Phusion Passenger — there are TWO
- * proxy hops and BOTH APPEND to X-Forwarded-For. So under app.set('trust
- * proxy', 1) (serverApp.ts) Express's req.ip resolves to a Cloudflare EDGE IP
- * (172.64.0.0/13), NOT the real client: every distinct client arriving via the
- * same edge would share one bucket and throttle each other.
- *
- * clientIp() therefore keys on Cloudflare's CF-Connecting-IP header, which
- * Cloudflare sets to the real connecting IP and the client cannot override,
- * falling back to req.ip only when Cloudflare is absent (dev / supertest, where
- * the header is not present — then req.ip, the trust-proxy-derived value, is the
- * correct client IP). This mirrors auth.ts's better-auth ipAddressHeaders
- * ordering (["cf-connecting-ip", "x-forwarded-for"]) so the two limiters never
- * drift, and is independent of `trust proxy`. See clientIp() below and the
- * trust-proxy comment in serverApp.ts.
- *
- * Residual risk: a client connecting DIRECTLY to the origin (bypassing
- * Cloudflare) could set CF-Connecting-IP itself. Mitigate at the infra layer by
- * firewalling ingress to Cloudflare's published IP ranges — out of scope for
- * this middleware.
+ * The primary rate-limit key is 'invitation:' + clientIp(req). clientIp() keys
+ * on Cloudflare's authoritative, non-spoofable CF-Connecting-IP header so every
+ * distinct client gets its own bucket (rather than all clients behind one edge
+ * IP sharing — and throttling — a single bucket). It is shared with better-auth
+ * via util/clientIp.ts (CF_CONNECTING_IP), so the two limiters never key on
+ * different identities. See util/clientIp.ts for the full cf-connecting-ip /
+ * req.ip / "unknown" fallback rationale and the trust-proxy comment in
+ * serverApp.ts.
  *
  * SECONDARY (TOKEN-SCOPED) KEY — graceful degradation
  * ----------------------------------------------------
@@ -48,24 +36,10 @@
 
 import { Request, Response, NextFunction } from "express";
 import { Pool } from "pg";
+import { clientIp } from "../util/clientIp";
 
 const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 60 seconds
 const RATE_LIMIT_MAX = 10;
-
-/**
- * Authoritative client IP behind Cloudflare. CF-Connecting-IP is set by
- * Cloudflare to the real connecting IP and cannot be spoofed by the client;
- * it is absent when Cloudflare is off (then req.ip — the trust-proxy-derived
- * value — is correct). Mirrors auth.ts's ipAddressHeaders ordering; uses
- * req.ip (not raw x-forwarded-for) as the fallback because this in-app limiter
- * has the trust-proxy-aware value available. Independent of `trust proxy`.
- */
-export function clientIp(req: Request): string {
-  const cf = req.headers["cf-connecting-ip"];
-  const value = Array.isArray(cf) ? cf[0] : cf;
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : (req.ip ?? "unknown");
-}
 
 /**
  * Creates an Express middleware that enforces a per-IP rate limit on invitation

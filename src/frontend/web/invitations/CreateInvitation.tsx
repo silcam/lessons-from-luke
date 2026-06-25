@@ -114,8 +114,10 @@ export default function CreateInvitation() {
     switch (submitError.code) {
       case "account_exists":
         return t("Invitation_error_account_exists");
-      case "active_pending":
-        return t("Invitation_error_active_pending");
+      case "malformed_email":
+        return t("Invitation_error_malformed_email");
+      case "invalid_role":
+        return t("Invitation_error_invalid_role");
       default:
         return t("Invitation_error_generic");
     }

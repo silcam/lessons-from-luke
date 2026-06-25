@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 
 import { Request } from "express";
-import { clientIp } from "./invitationRateLimit";
+import { clientIp } from "./clientIp";
 
 // Minimal mock req: clientIp only reads req.headers["cf-connecting-ip"] and req.ip.
 function mockReq(opts: { cf?: string | string[]; ip?: string }): Request {

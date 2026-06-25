@@ -19,7 +19,6 @@ import {
   validateEmail,
   validateRole,
   AccountAlreadyRegisteredError,
-  ActivePendingError,
   InvalidLinkError,
   ValidationError,
   AccountCreatedConcurrentlyError,
@@ -31,7 +30,6 @@ import {
 export type { InvitationRole, InvitationStatus } from "./invitationValidation";
 export {
   AccountAlreadyRegisteredError,
-  ActivePendingError,
   InvalidLinkError,
   ValidationError,
   AccountCreatedConcurrentlyError,
@@ -39,6 +37,26 @@ export {
   NotPendingError,
   DecryptError,
 } from "./invitationValidation";
+
+// ---------------------------------------------------------------------------
+// Derived-status rule (single definition — #115)
+// ---------------------------------------------------------------------------
+
+/**
+ * SQL CASE fragment that DERIVES the invitation status from its timestamps,
+ * replacing the old denormalized `status` column. Reused verbatim in every
+ * status-returning SELECT. Precedence: retracted > accepted > expired > pending.
+ *
+ * The referenced columns ("retractedAt", "acceptedAt", "expiresAt") exist only
+ * on "invitation", never on "user", so this stays unambiguous in the JOIN
+ * queries — no table qualification needed.
+ */
+const STATUS_CASE_SQL = `CASE
+        WHEN "retractedAt" IS NOT NULL THEN 'retracted'
+        WHEN "acceptedAt"  IS NOT NULL THEN 'accepted'
+        WHEN "expiresAt"   <= now()    THEN 'expired'
+        ELSE 'pending'
+      END`;
 
 export interface CreateInvitationInput {
   email: string;
@@ -74,18 +92,20 @@ export interface InvitationSummary {
 // ---------------------------------------------------------------------------
 
 /**
- * Creates a new pending invitation in the database.
+ * Creates (or refreshes) an open invitation for an email.
+ *
+ * Refresh-on-reinvite (#115): re-inviting an email that already has an open
+ * (pending or past-due-unswept) invite refreshes that row's token, expiry,
+ * role, and invitedBy in place via UPSERT. The old link dies; the row stays a
+ * single open invite per email (FR-005). There is no ActivePendingError.
  *
  * Steps:
  * 1. Validate email (length, format) and role
- * 2. Lazy-expire: flip any expired pending rows for this email to 'expired'
- * 3. Check for existing user account (-> AccountAlreadyRegisteredError)
- * 4. Generate token, hash, and encrypt it
- * 5. INSERT invitation row
- * 6. On pg 23505: branch on constraint name
- *    - uq_invitation_one_pending_email -> ActivePendingError
- *    - idx_invitation_tokenHash -> retry once with new token
- *    - other -> rethrow
+ * 2. Check for existing user account (-> AccountAlreadyRegisteredError)
+ * 3. Generate token, hash, and encrypt it
+ * 4. UPSERT invitation row (ON CONFLICT on the open-email partial index)
+ * 5. On pg 23505 from a tokenHash collision (NOT the ON CONFLICT target):
+ *    retry once with a fresh token; a second collision surfaces as a generic error
  */
 export async function createInvitation(
   pool: Pool,
@@ -101,14 +121,7 @@ export async function createInvitation(
 
   const client = await pool.connect();
   try {
-    // 2. Lazy-expire: transition any past-due pending rows to 'expired'
-    await client.query(
-      `UPDATE "invitation" SET status='expired'
-       WHERE LOWER(email) = $1 AND status = 'pending' AND "expiresAt" <= now()`,
-      [email]
-    );
-
-    // 3. Check for existing user account
+    // 2. Check for existing user account
     const userCheck = await client.query<{ id: string }>(
       `SELECT 1 FROM "user" WHERE LOWER(email) = $1 LIMIT 1`,
       [email]
@@ -117,7 +130,7 @@ export async function createInvitation(
       throw new AccountAlreadyRegisteredError(email);
     }
 
-    // 4. Build invitation -- with one retry on tokenHash collision
+    // 3/4. Build invitation -- with one retry on tokenHash collision
     return await attemptInsert(client, {
       email,
       role,
@@ -157,19 +170,33 @@ async function attemptInsert(
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
 
+  let row: { id: string; expiresAt: Date };
   try {
-    await client.query(
+    // UPSERT on the open-email partial index (FR-005). The ON CONFLICT inference
+    // clause MUST exactly match uq_invitation_one_open_email's predicate. When an
+    // open invite already exists for this email, DO UPDATE refreshes it in place
+    // (new token, new createdAt/expiresAt, refreshed role + invitedBy) -- the old
+    // link dies. RETURNING id is load-bearing: on the UPDATE branch the surviving
+    // row's id is the EXISTING row's id, not the generated $1.
+    const result = await client.query<{ id: string; expiresAt: Date }>(
       `INSERT INTO "invitation"
-         ("id","email","role","status","tokenHash","tokenEnc","invitedBy","createdAt","expiresAt")
-       VALUES ($1,$2,$3,'pending',$4,$5,$6,$7,$8)`,
+         ("id","email","role","tokenHash","tokenEnc","invitedBy","createdAt","expiresAt")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       ON CONFLICT (LOWER("email")) WHERE "acceptedAt" IS NULL AND "retractedAt" IS NULL
+       DO UPDATE SET "role"=EXCLUDED."role", "tokenHash"=EXCLUDED."tokenHash",
+                     "tokenEnc"=EXCLUDED."tokenEnc", "invitedBy"=EXCLUDED."invitedBy",
+                     "createdAt"=EXCLUDED."createdAt", "expiresAt"=EXCLUDED."expiresAt"
+       RETURNING id, "expiresAt"`,
       [id, email, role, tokenHash, tokenEnc, invitedBy, now, expiresAt]
     );
+    row = result.rows[0];
   } catch (err: unknown) {
     if (isPgUniqueViolation(err)) {
       const constraint = getConstraintName(err);
-      if (constraint === "uq_invitation_one_pending_email") {
-        throw new ActivePendingError(email);
-      }
+      // A refreshed tokenHash colliding with ANOTHER row still raises 23505 on
+      // idx_invitation_tokenHash -- that is NOT the ON CONFLICT target (the open-
+      // email index), so it propagates here rather than being absorbed by DO
+      // UPDATE. Retry once with a fresh token.
       if (
         constraint === "idx_invitation_tokenHash" ||
         constraint === "invitation_tokenhash_key" ||
@@ -191,7 +218,8 @@ async function attemptInsert(
 
   const link = buildInvitationLink(token, baseUrl);
 
-  return { id, email, role, status: "pending", tokenHash, link, expiresAt };
+  // A freshly created or refreshed row is always pending.
+  return { id: row.id, email, role, status: "pending", tokenHash, link, expiresAt: row.expiresAt };
 }
 
 // ---------------------------------------------------------------------------
@@ -232,13 +260,12 @@ export async function lookupInvitation(
   const client = await pool.connect();
   try {
     const result = await client.query<{
-      id: string;
       email: string;
       status: string;
-      expiresAt: Date;
-    }>(`SELECT id, email, status, "expiresAt" FROM "invitation" WHERE "tokenHash" = $1 LIMIT 1`, [
-      tokenHash,
-    ]);
+    }>(
+      `SELECT email, ${STATUS_CASE_SQL} AS status FROM "invitation" WHERE "tokenHash" = $1 LIMIT 1`,
+      [tokenHash]
+    );
 
     if (result.rows.length === 0) {
       return null;
@@ -246,11 +273,10 @@ export async function lookupInvitation(
 
     const row = result.rows[0];
 
+    // Derived status collapses the old not-pending + separate-expiry checks: a
+    // past-due row derives 'expired', a consumed/withdrawn row derives
+    // accepted/retracted -- all non-pending, all non-leaky null (FR-010, FR-018).
     if (row.status !== "pending") {
-      return null;
-    }
-
-    if (new Date(row.expiresAt) <= new Date()) {
       return null;
     }
 
@@ -289,7 +315,8 @@ function hasControlChars(str: string): boolean {
  * 2. Validate name: trim, reject empty, reject control chars, check length <= 100
  * 3. Hash token -> tokenHash; SELECT invitation row
  * 4. BEGIN transaction:
- *    a. Conditional UPDATE invitation -> status='accepted' WHERE status='pending' AND expiresAt > now()
+ *    a. Conditional UPDATE invitation -> set acceptedAt WHERE the row is still
+ *       open (acceptedAt IS NULL AND retractedAt IS NULL AND expiresAt > now())
  *    b. If 0 rows updated -> ROLLBACK -> throw InvalidLinkError
  *    c. Hash password (Argon2id)
  *    d. INSERT user row
@@ -345,11 +372,12 @@ export async function acceptInvitation(
     await client.query("BEGIN");
 
     try {
-      // 4a. Conditional UPDATE: only update if status='pending' AND expiresAt > now()
+      // 4a. Conditional UPDATE: only accept if the row is still open (derived
+      //     'pending') — not already accepted, retracted, or past expiry.
       const updateResult = await client.query<{ id: string }>(
         `UPDATE "invitation"
-         SET status = 'accepted', "acceptedAt" = now()
-         WHERE id = $1 AND status = 'pending' AND "expiresAt" > now()
+         SET "acceptedAt" = now()
+         WHERE id = $1 AND "acceptedAt" IS NULL AND "retractedAt" IS NULL AND "expiresAt" > now()
          RETURNING id`,
         [invitation.id]
       );
@@ -458,7 +486,8 @@ function mapInvitationRow(row: InvitationRow): InvitationSummary {
 
 /**
  * Lists all invitations ordered newest-first.
- * Lazy-expires any pending rows with past expiresAt before fetching.
+ * Status is derived from the row's timestamps (no stored column, no lazy-expire
+ * sweep — past-due rows simply derive 'expired').
  * Resolves invitedByEmail via JOIN to the user table.
  * Never returns tokenHash or tokenEnc.
  *
@@ -468,18 +497,12 @@ function mapInvitationRow(row: InvitationRow): InvitationSummary {
 export async function listInvitations(pool: Pool): Promise<InvitationSummary[]> {
   const client = await pool.connect();
   try {
-    // Lazy-expire: flip any pending rows with past expiresAt to 'expired'
-    await client.query(
-      `UPDATE "invitation" SET status='expired'
-       WHERE status='pending' AND "expiresAt" <= now()`
-    );
-
     const result = await client.query<InvitationRow>(
       `SELECT
          invitation.id,
          invitation.email,
          invitation.role,
-         invitation.status,
+         ${STATUS_CASE_SQL} AS status,
          invitation."createdAt",
          invitation."expiresAt",
          invitation."acceptedAt",
@@ -501,11 +524,13 @@ export async function listInvitations(pool: Pool): Promise<InvitationSummary[]> 
 
 /**
  * Retracts a pending invitation by id.
- * Uses a conditional UPDATE (WHERE status='pending') to prevent TOCTOU races.
- * Returns the updated InvitationSummary with invitedByEmail resolved via JOIN.
+ * Uses a conditional UPDATE (matching the derived-'pending' predicate) to
+ * prevent TOCTOU races. Returns the updated InvitationSummary with
+ * invitedByEmail resolved via JOIN.
  *
  * Throws NotFoundError if the id does not exist.
- * Throws NotPendingError if the invitation is not in pending state.
+ * Throws NotPendingError if the invitation is not in pending state
+ * (already accepted, expired, or retracted).
  *
  * Spec: specs/002-invitation-system/spec.md §FR-015
  * Data model: data-model.md §State machine (retract conditional UPDATE — plan.md Pass 11)
@@ -513,10 +538,10 @@ export async function listInvitations(pool: Pool): Promise<InvitationSummary[]> 
 export async function retractInvitation(pool: Pool, id: string): Promise<InvitationSummary> {
   const client = await pool.connect();
   try {
-    // Atomic conditional UPDATE: only retract if currently pending
+    // Atomic conditional UPDATE: only retract if currently open (derived 'pending')
     const updateResult = await client.query<{ id: string }>(
-      `UPDATE "invitation" SET status='retracted'
-       WHERE id=$1 AND status='pending'
+      `UPDATE "invitation" SET "retractedAt" = now()
+       WHERE id=$1 AND "acceptedAt" IS NULL AND "retractedAt" IS NULL AND "expiresAt" > now()
        RETURNING id`,
       [id]
     );
@@ -539,7 +564,7 @@ export async function retractInvitation(pool: Pool, id: string): Promise<Invitat
          invitation.id,
          invitation.email,
          invitation.role,
-         invitation.status,
+         ${STATUS_CASE_SQL} AS status,
          invitation."createdAt",
          invitation."expiresAt",
          invitation."acceptedAt",
@@ -584,7 +609,9 @@ export async function getInvitationLink(
       id: string;
       status: InvitationStatus;
       tokenEnc: string;
-    }>(`SELECT id, status, "tokenEnc" FROM "invitation" WHERE id=$1 LIMIT 1`, [id]);
+    }>(`SELECT id, ${STATUS_CASE_SQL} AS status, "tokenEnc" FROM "invitation" WHERE id=$1 LIMIT 1`, [
+      id,
+    ]);
 
     if (result.rows.length === 0) {
       throw new NotFoundError(id);
@@ -592,6 +619,8 @@ export async function getInvitationLink(
 
     const row = result.rows[0];
 
+    // Derived status tightens this intentionally: a past-due-but-unswept link now
+    // derives 'expired' -> NotPending, so it can no longer be re-copied (#115).
     if (row.status !== "pending") {
       throw new NotPendingError(id);
     }

@@ -366,6 +366,29 @@ test("CSRF: POST /api/auth/invitation/accept with wrong Origin → 403", async (
 });
 
 // ------------------------------------------------------------------
+// 6b. Redemption lookup with NO Origin/Referer → 200 (production repro)
+//
+// The lookup GET is intentionally un-gated: a same-origin GET sends no Origin,
+// and helmet's Referrer-Policy: no-referrer strips Referer, so requireSameOrigin
+// would have rejected every real redemption with a 403. This asserts the
+// real compiled server (with live origin enforcement, per test 6) serves the
+// lookup with neither header present.
+// ------------------------------------------------------------------
+
+test("Redemption lookup succeeds with NO Origin/Referer header (prod repro)", async () => {
+  const recipientEmail = "integration-no-origin@example.com";
+
+  const invitation = await adminCreateInvitation(recipientEmail);
+  const token = extractToken(invitation.link);
+
+  // Deliberately set neither Origin nor Referer.
+  const res = await agent().get(`/api/auth/invitation/${token}`);
+
+  expect(res.status).toBe(200);
+  expect(res.body.email).toBe(recipientEmail);
+});
+
+// ------------------------------------------------------------------
 // 7. CSRF on admin POST: POST /api/admin/invitations with wrong Origin → 403
 // ------------------------------------------------------------------
 
@@ -652,18 +675,26 @@ test("FR-004: duplicate account email → 409", async () => {
   expect(res.body.error).toBeDefined();
 });
 
-test("FR-005: second invitation for same email while first is pending → 409", async () => {
+test("FR-005: re-inviting an open email refreshes it → 201, new link, old link dead (#115)", async () => {
   const sharedEmail = "integration-dup-pending@example.com";
 
   // First invitation succeeds
-  await adminCreateInvitation(sharedEmail);
+  const first = await adminCreateInvitation(sharedEmail);
+  const firstToken = extractToken(first.link);
 
-  // Second invitation for the same email while first is pending → 409
+  // Re-inviting the same open email refreshes the invite → 201 with a new link
   const adminAgent = await signedInAdminAgent();
   const res = await adminAgent
     .post("/api/admin/invitations")
     .set("Origin", serverUrl)
     .send({ email: sharedEmail, role: "standard" })
-    .expect(409);
-  expect(res.body.error).toBeDefined();
+    .expect(201);
+  expect(res.body.status).toBe("pending");
+  expect(res.body.link).not.toBe(first.link);
+
+  const secondToken = extractToken(res.body.link);
+
+  // The old link is dead; the refreshed link works
+  await agent().get(`/api/auth/invitation/${firstToken}`).set("Origin", serverUrl).expect(410);
+  await agent().get(`/api/auth/invitation/${secondToken}`).set("Origin", serverUrl).expect(200);
 });

@@ -32,14 +32,6 @@ export class AccountAlreadyRegisteredError extends Error {
   }
 }
 
-export class ActivePendingError extends Error {
-  code = "PENDING_INVITE_EXISTS" as const;
-  constructor(email: string) {
-    super(`An active pending invitation already exists for ${email}`);
-    this.name = "ActivePendingError";
-  }
-}
-
 export class InvalidEmailError extends Error {
   code = "INVALID_EMAIL" as const;
   constructor(message: string) {

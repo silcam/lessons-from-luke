@@ -50,7 +50,7 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   // non-spoofable CF-Connecting-IP header directly — falling back to req.ip /
   // x-forwarded-for when Cloudflare is absent — so they are independent of this
   // setting:
-  //   - invitation rate limiter: clientIp() in middle/invitationRateLimit.ts
+  //   - invitation rate limiter: clientIp() in util/clientIp.ts
   //   - better-auth rate limiting: ipAddressHeaders in auth/auth.ts
   // Keep those two header orderings in sync so the limiters never key on
   // different identities.

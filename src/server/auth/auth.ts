@@ -3,6 +3,7 @@ import { Pool } from "pg";
 import secrets from "../util/secrets";
 import * as passwordHasher from "./passwordHasher";
 import { DEFAULT_BASE_URL, getTrustedOrigins } from "./trustedOrigins";
+import { CF_CONNECTING_IP } from "../util/clientIp";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let authInstance: ReturnType<typeof betterAuth<any>> | null = null;
@@ -45,7 +46,6 @@ export function getAuthPool(): Pool {
  * FR-001, FR-002, FR-006, FR-010, FR-012
  */
 export function getAuth(): ReturnType<typeof betterAuth<any>> {
-  // eslint-disable-line @typescript-eslint/no-explicit-any
   if (authInstance) {
     return authInstance;
   }
@@ -80,14 +80,15 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> {
       // production, skipped in test/dev so cross-origin dev login still works).
       disableOriginCheck: process.env.BETTER_AUTH_ENFORCE_ORIGIN === "1" ? false : undefined,
       // Key rate-limiting on the real, non-spoofable client IP. better-auth
-      // derives the client IP itself (it ignores Express req.ip), defaulting to
-      // the leftmost x-forwarded-for token — which Cloudflare PREPENDS any
-      // client-supplied value to, so it's spoofable. cf-connecting-ip is
-      // Cloudflare's authoritative client IP; the first header yielding a valid
-      // IP wins. Cloudflare ON → cf-connecting-ip; Cloudflare OFF (or supertest,
-      // where neither header is present) → falls back to x-forwarded-for / the
-      // socket IP. Independent of Express's `trust proxy`.
-      ipAddress: { ipAddressHeaders: ["cf-connecting-ip", "x-forwarded-for"] },
+      // derives the client IP itself (it ignores Express req.ip); the first
+      // header yielding a valid IP wins. CF_CONNECTING_IP is the shared constant
+      // (util/clientIp.ts) so this never drifts from the in-app clientIp()
+      // helper. The "x-forwarded-for" entry is better-auth's lib-level fallback
+      // for when cf-connecting-ip is absent (supertest / Cloudflare OFF) — the
+      // intentional divergence from clientIp(), which falls back to the
+      // trust-proxy-aware req.ip (unavailable to better-auth) instead.
+      // Independent of Express's `trust proxy`.
+      ipAddress: { ipAddressHeaders: [CF_CONNECTING_IP, "x-forwarded-for"] },
     },
     emailAndPassword: {
       enabled: true,

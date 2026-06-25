@@ -28,7 +28,7 @@ import {
   InvitationSummaryRow,
 } from "./invitationsListThunks";
 import { StdHeaderBarPage } from "../../common/base-components/HeaderBar";
-import { FlexRow } from "../../common/base-components/Flex";
+import { FlexRow, FlexCol } from "../../common/base-components/Flex";
 import Div from "../../common/base-components/Div";
 import Button from "../../common/base-components/Button";
 import Table from "../../common/base-components/Table";
@@ -238,20 +238,27 @@ export default function InvitationsList() {
   return (
     <StdHeaderBarPage
       title={t("Invitations_page_heading")}
-      renderRight={() => (
-        <FlexRow>
-          <Link to="/admin/invitations/new">
-            <Button text={t("Invitation_submit")} onClick={() => {}} />
-          </Link>
-          <Button text={t("Log_out")} onClick={logOut} />
-        </FlexRow>
-      )}
+      renderRight={() => <Button text={t("Log_out")} onClick={logOut} />}
     >
       <Div pad>
         {/* Accessible + visible copy-success announcement */}
         <div role="status" aria-live="polite">
           {copySuccess ? <Alert success>{t("Invitation_copy_success")}</Alert> : ""}
         </div>
+
+        {/*
+          Primary action lives in the page body (not the header chrome). The empty
+          FlexCol spacer pushes it to the trailing edge — the same right-alignment
+          pattern the header bar uses. Rendered above renderBody() so it is present
+          in every state, including the empty state where the first invitation is
+          created.
+        */}
+        <FlexRow>
+          <FlexCol />
+          <Link to="/admin/invitations/new">
+            <Button text={t("Invitation_submit")} onClick={() => {}} />
+          </Link>
+        </FlexRow>
 
         {renderBody()}
       </Div>

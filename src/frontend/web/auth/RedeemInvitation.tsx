@@ -13,11 +13,12 @@
  *   - Generic try-again for other errors
  *   - Form with locked (readOnly) pre-filled email + password + display name,
  *     each with inline guidance (email source, password requirement)
- *   - On submit success: green confirmation + explicit "Continue to sign in"
- *     plus a convenience auto-redirect (FR-012)
+ *   - On submit success: green confirmation + an explicit "Continue to sign in"
+ *     button (no auto-redirect). FR-012 (directed to sign-in, no auto-session)
+ *     is satisfied by that button.
  */
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { AppDispatch } from "../../common/state/appState";
@@ -63,14 +64,6 @@ export default function RedeemInvitation({ token }: Props) {
   const [submitState, setSubmitState] = useState<SubmitState>({ phase: "idle" });
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-
-  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (redirectTimerRef.current !== null) clearTimeout(redirectTimerRef.current);
-    };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,9 +116,6 @@ export default function RedeemInvitation({ token }: Props) {
       }
     } else {
       setSubmitState({ phase: "success" });
-      // Convenience redirect to sign-in; the explicit "Continue" button below is
-      // the reliable path (the redirect can be missed under reduced motion / slow JS).
-      redirectTimerRef.current = setTimeout(() => navigate("/"), 2000);
     }
   };
 

@@ -26,7 +26,8 @@ import {
 } from "../auth/invitationStore";
 import {
   AccountAlreadyRegisteredError,
-  ActivePendingError,
+  InvalidEmailError,
+  InvalidRoleError,
   ValidationError,
   InvalidLinkError,
   AccountCreatedConcurrentlyError,
@@ -35,7 +36,7 @@ import {
   DecryptError,
 } from "../auth/invitationValidation";
 import secrets from "../util/secrets";
-import { DEFAULT_BASE_URL } from "../auth/trustedOrigins";
+import { getInvitationBaseUrl } from "../auth/trustedOrigins";
 import { requireSameOrigin } from "../middle/requireSameOrigin";
 import { invitationRateLimit } from "../middle/invitationRateLimit";
 
@@ -95,10 +96,23 @@ export function registerAnonymousInvitationRoutes(app: Express, pool: Pool): voi
   });
 
   // GET /api/auth/invitation/:token — look up a pending invitation by token
+  //
+  // Intentionally NOT origin-gated (no requireSameOrigin). This is a read-only
+  // lookup with no side effect, and its JSON body is unreadable cross-origin
+  // under the same-origin policy (the server sets no CORS headers) — so a forced
+  // cross-origin GET achieves nothing an honest read would not (plan.md Pass
+  // 4/11, which reached this same conclusion for read-only GETs).
+  //
+  // It MUST stay un-gated: browsers omit the Origin header on a *same-origin*
+  // GET (contrary to plan.md Pass 1's assumption that Origin is "always" sent),
+  // and helmet's default Referrer-Policy: no-referrer strips the Referer too, so
+  // requireSameOrigin would have no signal in production and 403 every real
+  // redemption — the redemption page's first call. The token in the path is the
+  // capability; tokenRateLimiter still bounds brute force. The state-changing
+  // accept POST below keeps requireSameOrigin (POST always sends Origin).
   app.get(
     "/api/auth/invitation/:token",
     tokenRateLimiter,
-    requireSameOrigin,
     async (req: Request, res: Response, next: NextFunction): Promise<void> => {
       const { token } = req.params;
 
@@ -208,7 +222,7 @@ export default function invitationController(app: Express, pool: Pool): void {
         return;
       }
 
-      const baseUrl = process.env.BETTER_AUTH_URL ?? DEFAULT_BASE_URL;
+      const baseUrl = getInvitationBaseUrl();
 
       let result;
       try {
@@ -224,17 +238,11 @@ export default function invitationController(app: Express, pool: Pool): void {
           res.status(409).json({ error: err.message, code: err.code });
           return;
         }
-        if (err instanceof ActivePendingError) {
-          res.status(409).json({ error: err.message, code: err.code });
-          return;
-        }
         // Validation errors from createInvitation (InvalidEmailError, InvalidRoleError)
-        // have a .code property we can check — or just check the name
-        if (
-          err instanceof Error &&
-          (err.name === "InvalidEmailError" || err.name === "InvalidRoleError")
-        ) {
-          res.status(400).json({ error: err.message });
+        // forward their .code so the client can map it to a friendly, actionable
+        // message. The raw err.message stays in `error` for diagnostics/back-compat.
+        if (err instanceof InvalidEmailError || err instanceof InvalidRoleError) {
+          res.status(400).json({ error: err.message, code: err.code });
           return;
         }
         // Unexpected error — rethrow for Express default error handler
@@ -329,7 +337,7 @@ export default function invitationController(app: Express, pool: Pool): void {
   // (plan.md Pass 4)
   app.get("/api/admin/invitations/:id/link", async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
-    const baseUrl = process.env.BETTER_AUTH_URL ?? DEFAULT_BASE_URL;
+    const baseUrl = getInvitationBaseUrl();
 
     let link: string;
     try {

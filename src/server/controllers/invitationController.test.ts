@@ -189,7 +189,7 @@ describe("POST /api/admin/invitations", () => {
       .send({ email: longEmail, role: "standard" });
 
     expect(res.status).toBe(400);
-    expect(res.body).toMatchObject({ error: expect.any(String) });
+    expect(res.body).toMatchObject({ error: expect.any(String), code: "INVALID_EMAIL" });
   });
 
   // -------------------------------------------------------------------------
@@ -203,7 +203,21 @@ describe("POST /api/admin/invitations", () => {
       .send({ email: "valid@example.com", role: "superuser" });
 
     expect(res.status).toBe(400);
-    expect(res.body).toMatchObject({ error: expect.any(String) });
+    expect(res.body).toMatchObject({ error: expect.any(String), code: "INVALID_ROLE" });
+  });
+
+  // -------------------------------------------------------------------------
+  // 7b. 400 — malformed email rejected with INVALID_EMAIL code
+  // -------------------------------------------------------------------------
+  it("400: rejects a malformed email with code INVALID_EMAIL", async () => {
+    const agent = await loggedInAgent();
+
+    const res = await agent
+      .post("/api/admin/invitations")
+      .send({ email: "not-an-email", role: "standard" });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: expect.any(String), code: "INVALID_EMAIL" });
   });
 
   // -------------------------------------------------------------------------
@@ -241,9 +255,10 @@ describe("POST /api/admin/invitations", () => {
   });
 
   // -------------------------------------------------------------------------
-  // 9. 409 — active pending invite already exists (FR-005 ActivePendingError)
+  // 9. 201 — re-inviting an open email REFRESHES it (FR-005, #115): new link,
+  //    refreshed role, old link dead. No ActivePendingError.
   // -------------------------------------------------------------------------
-  it("409: rejects when an active pending invitation already exists for this email (FR-005)", async () => {
+  it("201: re-inviting an open email refreshes it with a new link (FR-005)", async () => {
     const agent = await loggedInAgent();
     const email = `pending-conflict-${crypto.randomUUID()}@example.com`;
 
@@ -251,11 +266,22 @@ describe("POST /api/admin/invitations", () => {
     const first = await agent.post("/api/admin/invitations").send({ email, role: "standard" });
     expect(first.status).toBe(201);
 
-    // Create a second invitation for the same email — should conflict
+    // Re-invite the same open email — refreshes the invite (now with role 'admin')
     const second = await agent.post("/api/admin/invitations").send({ email, role: "admin" });
 
-    expect(second.status).toBe(409);
-    expect(second.body).toMatchObject({ error: expect.any(String), code: "PENDING_INVITE_EXISTS" });
+    expect(second.status).toBe(201);
+    expect(second.body).toMatchObject({
+      email: email.toLowerCase(),
+      role: "admin",
+      status: "pending",
+    });
+    expect(second.body.link).not.toBe(first.body.link);
+
+    // The old link no longer resolves; the refreshed one does
+    const firstToken = new URL(first.body.link).pathname.split("/").pop();
+    const secondToken = new URL(second.body.link).pathname.split("/").pop();
+    await plainAgent().get(`/api/auth/invitation/${firstToken}`).expect(410);
+    await plainAgent().get(`/api/auth/invitation/${secondToken}`).expect(200);
   });
 
   // -------------------------------------------------------------------------
@@ -385,21 +411,30 @@ describe("GET /api/auth/invitation/:token", () => {
   });
 
   // -------------------------------------------------------------------------
-  // 4. 403 — Origin not in allow-list (CSRF) when BETTER_AUTH_ENFORCE_ORIGIN=1
+  // 4. The lookup GET is intentionally NOT origin-gated — read-only, no side
+  //    effect, and its body is unreadable cross-origin (no CORS headers), so a
+  //    forced cross-origin GET achieves nothing (plan.md Pass 4/11).
+  //
+  //    Regression test for the production 403: browsers omit Origin on a
+  //    same-origin GET, and helmet's Referrer-Policy: no-referrer strips Referer,
+  //    so requireSameOrigin had no signal and 403'd every real redemption. A
+  //    lookup with NO Origin and NO Referer must succeed even under enforcement.
   // -------------------------------------------------------------------------
-  it("403: foreign Origin header rejected when BETTER_AUTH_ENFORCE_ORIGIN=1", async () => {
+  it("200: valid token succeeds with NO Origin/Referer even when BETTER_AUTH_ENFORCE_ORIGIN=1 (prod redemption repro)", async () => {
     const savedEnv = process.env.BETTER_AUTH_ENFORCE_ORIGIN;
     process.env.BETTER_AUTH_ENFORCE_ORIGIN = "1";
 
     try {
       const agent = plainAgent();
-      const bogusToken = crypto.randomBytes(32).toString("hex");
+      const email = `lookup-no-origin-${crypto.randomUUID()}@example.com`;
+      const token = await createPendingInvitation(authPool, email);
 
-      const res = await agent
-        .get(`/api/auth/invitation/${bogusToken}`)
-        .set("Origin", "https://attacker.example.com");
+      // No .set("Origin", ...) and no Referer — exactly what a same-origin GET
+      // looks like under Referrer-Policy: no-referrer in production.
+      const res = await agent.get(`/api/auth/invitation/${token}`);
 
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ email: email.toLowerCase() });
     } finally {
       process.env.BETTER_AUTH_ENFORCE_ORIGIN = savedEnv;
     }
@@ -914,8 +949,8 @@ describe("GET /api/admin/invitations/:id/link", () => {
     const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
 
     await authPool.query(
-      `INSERT INTO "invitation" (id, email, role, status, "tokenHash", "tokenEnc", "invitedBy", "createdAt", "expiresAt")
-       VALUES ($1, $2, 'standard', 'pending', $3, $4, $5, $6, $7)`,
+      `INSERT INTO "invitation" (id, email, role, "tokenHash", "tokenEnc", "invitedBy", "createdAt", "expiresAt")
+       VALUES ($1, $2, 'standard', $3, $4, $5, $6, $7)`,
       [invitationId, email, tokenHash, garbageTokenEnc, invitedBy, createdAt, expiresAt]
     );
 

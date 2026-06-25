@@ -82,6 +82,9 @@ const en = {
   Update_issues: "Update Issues",
   View_lesson: "View Lesson",
 
+  // Interim signed-in (non-admin) home — see SignedInHome.tsx
+  SignedIn_message: "You're signed in.",
+
   // Invitation feature — Create Invitation form (US1)
   Invitation_email_label: "Recipient Email",
   Invitation_role_label: "Role",
@@ -93,10 +96,9 @@ const en = {
   Invitation_error_malformed_email: "Please enter a valid email address.",
   Invitation_error_invalid_role: "Please select a valid role.",
   Invitation_error_account_exists: "An account already exists for this email address.",
-  Invitation_error_active_pending: "An active invitation already exists for this email address.",
   Invitation_create_heading_ready: "Invitation ready",
   Invitation_share_instructions:
-    "Share this single-use link with the person you invited. It works once and then expires.",
+    "Share this single-use link with the person you invited. It can be used only once.",
   Invitation_create_another: "Create another invitation",
 
   // Invitation feature — Redeem Invitation form (US2)

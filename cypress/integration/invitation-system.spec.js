@@ -83,21 +83,28 @@ describe("US1 — Admin issues an invitation", () => {
     cy.contains("An account already exists for this email address.").should("exist");
   });
 
-  it("rejects a second invitation for an email with an active pending invitation (FR-005)", () => {
+  it("refreshes the invite when re-inviting an email with an open invitation (FR-005, #115)", () => {
     const email = uniqueEmail("us1-dupe");
 
-    // Create first invitation via API
-    apiCreateInvitation(email, "standard");
+    // Create first invitation via API and remember its token
+    apiCreateInvitation(email, "standard").then((first) => {
+      const firstToken = first.link.split("/invitation/")[1];
 
-    // Now try to create a second one via the UI
-    cy.visit("/admin/invitations/new");
-    cy.inLabel("Recipient Email").type(email);
+      // Now re-invite the same email via the UI — it refreshes, not conflicts
+      cy.visit("/admin/invitations/new");
+      cy.inLabel("Recipient Email").type(email);
 
-    cy.intercept("POST", "/api/admin/invitations").as("createInvitation");
-    cy.contains("button", "Create Invitation").click();
-    cy.wait("@createInvitation").its("response.statusCode").should("eq", 409);
+      cy.intercept("POST", "/api/admin/invitations").as("createInvitation");
+      cy.contains("button", "Create Invitation").click();
+      cy.wait("@createInvitation").its("response.statusCode").should("eq", 201);
 
-    cy.contains("An active invitation already exists for this email address.").should("exist");
+      // The refreshed link is shown (and differs from the original)
+      cy.contains("button", "Copy Link").should("exist");
+      cy.get("p")
+        .invoke("text")
+        .should("include", "/invitation/")
+        .and("not.include", firstToken);
+    });
   });
 });
 

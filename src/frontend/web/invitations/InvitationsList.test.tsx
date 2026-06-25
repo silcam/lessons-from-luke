@@ -121,7 +121,7 @@ describe("InvitationsList", () => {
       });
     });
 
-    it("renders a 'Create Invitation' link to the create form in the toolbar", async () => {
+    it("renders a 'Create Invitation' link to the create form above the table", async () => {
       listInvitations.mockReturnValue(
         jest.fn().mockResolvedValue({ payload: [], error: undefined })
       );

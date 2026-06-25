@@ -3,8 +3,10 @@ import { Routes, Route, useParams, useNavigate, useLocation } from "react-router
 import TranslateRoute from "../common/translate/TranslateHome";
 import AdminHome from "./home/AdminHome";
 import PublicHome from "./home/PublicHome";
+import SignedInHome from "./home/SignedInHome";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, AppState } from "../common/state/appState";
+import { User } from "../../core/models/User";
 import { loadCurrentUser } from "./auth/authThunks";
 import RootDiv from "../common/base-components/RootDiv";
 import LessonPage from "./lessons/LessonPage";
@@ -45,6 +47,13 @@ function UpdateIssuesPageWrapper() {
 function RedeemInvitationWrapper() {
   const { token } = useParams<{ token: string }>();
   return <RedeemInvitation token={token!} />;
+}
+
+function renderHome(user: User | null) {
+  if (!user) return <PublicHome />;
+  if (user.admin) return <AdminHome />;
+  // Logged-in non-admins get an interim placeholder (see SignedInHome).
+  return <SignedInHome />;
 }
 
 export default function MainRouter() {
@@ -102,8 +111,10 @@ export default function MainRouter() {
         {/* Public route — anyone with the token URL can redeem (FR-007, FR-011).
             MUST be outside AuthGate to prevent redirect loops. */}
         <Route path="/invitation/:token" element={<RedeemInvitationWrapper />} />
-        {/* Catch-all: outside AuthGate so the home/sign-in page is always reachable. */}
-        <Route path="*" element={user ? <AdminHome /> : <PublicHome />} />
+        {/* Catch-all: outside AuthGate so the home/sign-in page is always reachable.
+            renderHome routes logged-in non-admins to SignedInHome (FR fix from
+            002-invitation-system), admins to AdminHome, anonymous to PublicHome. */}
+        <Route path="*" element={renderHome(user)} />
       </Routes>
     </RootDiv>
   );
