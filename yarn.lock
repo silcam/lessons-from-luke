@@ -9502,7 +9502,7 @@ __metadata:
     webpack-bundle-analyzer: "npm:^4.10.2"
     webpack-cli: "npm:^5.1.4"
     webpack-dev-middleware: "npm:^7.4.2"
-    webpack-dev-server: "npm:^5.2.5"
+    webpack-dev-server: "npm:5.2.5"
   languageName: unknown
   linkType: soft
 
@@ -14020,7 +14020,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"webpack-dev-server@npm:^5.2.5":
+"webpack-dev-server@npm:5.2.5":
   version: 5.2.5
   resolution: "webpack-dev-server@npm:5.2.5"
   dependencies:
