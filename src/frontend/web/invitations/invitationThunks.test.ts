@@ -144,6 +144,51 @@ describe("invitationThunks", () => {
       expect(rejectedCall![0].payload).toMatchObject({ code: "validation_error" });
     });
 
+    it("on 400 INVALID_EMAIL, rejects with { code: 'malformed_email' }", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => ({ error: "Invalid email format: bad", code: "INVALID_EMAIL" }),
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await createInvitation({ email: "bad", role: "standard" })(dispatch, getState, undefined);
+
+      const rejectedCall = dispatch.mock.calls.find(
+        ([action]) => action.type === "invitations/createInvitation/rejected"
+      );
+      expect(rejectedCall).toBeTruthy();
+      expect(rejectedCall![0].payload).toMatchObject({ code: "malformed_email" });
+    });
+
+    it("on 400 INVALID_ROLE, rejects with { code: 'invalid_role' }", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => ({
+          error: "Invalid role: superuser. Must be 'admin' or 'standard'",
+          code: "INVALID_ROLE",
+        }),
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await createInvitation({ email: "valid@example.com", role: "superuser" })(
+        dispatch,
+        getState,
+        undefined
+      );
+
+      const rejectedCall = dispatch.mock.calls.find(
+        ([action]) => action.type === "invitations/createInvitation/rejected"
+      );
+      expect(rejectedCall).toBeTruthy();
+      expect(rejectedCall![0].payload).toMatchObject({ code: "invalid_role" });
+    });
+
     it("on network failure, rejects with { code: 'network_error' }", async () => {
       mockFetch.mockRejectedValue(new Error("Network failure"));
 

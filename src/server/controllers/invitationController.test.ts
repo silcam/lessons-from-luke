@@ -189,7 +189,7 @@ describe("POST /api/admin/invitations", () => {
       .send({ email: longEmail, role: "standard" });
 
     expect(res.status).toBe(400);
-    expect(res.body).toMatchObject({ error: expect.any(String) });
+    expect(res.body).toMatchObject({ error: expect.any(String), code: "INVALID_EMAIL" });
   });
 
   // -------------------------------------------------------------------------
@@ -203,7 +203,21 @@ describe("POST /api/admin/invitations", () => {
       .send({ email: "valid@example.com", role: "superuser" });
 
     expect(res.status).toBe(400);
-    expect(res.body).toMatchObject({ error: expect.any(String) });
+    expect(res.body).toMatchObject({ error: expect.any(String), code: "INVALID_ROLE" });
+  });
+
+  // -------------------------------------------------------------------------
+  // 7b. 400 — malformed email rejected with INVALID_EMAIL code
+  // -------------------------------------------------------------------------
+  it("400: rejects a malformed email with code INVALID_EMAIL", async () => {
+    const agent = await loggedInAgent();
+
+    const res = await agent
+      .post("/api/admin/invitations")
+      .send({ email: "not-an-email", role: "standard" });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: expect.any(String), code: "INVALID_EMAIL" });
   });
 
   // -------------------------------------------------------------------------

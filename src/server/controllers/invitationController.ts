@@ -27,6 +27,8 @@ import {
 import {
   AccountAlreadyRegisteredError,
   ActivePendingError,
+  InvalidEmailError,
+  InvalidRoleError,
   ValidationError,
   InvalidLinkError,
   AccountCreatedConcurrentlyError,
@@ -229,12 +231,10 @@ export default function invitationController(app: Express, pool: Pool): void {
           return;
         }
         // Validation errors from createInvitation (InvalidEmailError, InvalidRoleError)
-        // have a .code property we can check — or just check the name
-        if (
-          err instanceof Error &&
-          (err.name === "InvalidEmailError" || err.name === "InvalidRoleError")
-        ) {
-          res.status(400).json({ error: err.message });
+        // forward their .code so the client can map it to a friendly, actionable
+        // message. The raw err.message stays in `error` for diagnostics/back-compat.
+        if (err instanceof InvalidEmailError || err instanceof InvalidRoleError) {
+          res.status(400).json({ error: err.message, code: err.code });
           return;
         }
         // Unexpected error — rethrow for Express default error handler

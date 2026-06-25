@@ -276,6 +276,66 @@ describe("CreateInvitation", () => {
       });
     });
 
+    it("shows the friendly email message when server returns malformed_email (400)", async () => {
+      createInvitation.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: { code: "malformed_email" },
+          error: { message: "rejected" },
+        })
+      );
+
+      const { container, getByText } = renderWithProviders(
+        <CreateInvitation />,
+        defaultInitialState
+      );
+
+      await act(async () => {
+        fireEvent.click(createButton());
+      });
+
+      await waitFor(() => {
+        const alerts = container.querySelectorAll("[role='alert'], .alert");
+        const found = Array.from(alerts).some((el) =>
+          /please enter a valid email address/i.test(el.textContent || "")
+        );
+        if (!found) {
+          expect(getByText(/please enter a valid email address/i)).toBeTruthy();
+        } else {
+          expect(found).toBe(true);
+        }
+      });
+    });
+
+    it("shows the friendly role message when server returns invalid_role (400)", async () => {
+      createInvitation.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: { code: "invalid_role" },
+          error: { message: "rejected" },
+        })
+      );
+
+      const { container, getByText } = renderWithProviders(
+        <CreateInvitation />,
+        defaultInitialState
+      );
+
+      await act(async () => {
+        fireEvent.click(createButton());
+      });
+
+      await waitFor(() => {
+        const alerts = container.querySelectorAll("[role='alert'], .alert");
+        const found = Array.from(alerts).some((el) =>
+          /please select a valid role/i.test(el.textContent || "")
+        );
+        if (!found) {
+          expect(getByText(/please select a valid role/i)).toBeTruthy();
+        } else {
+          expect(found).toBe(true);
+        }
+      });
+    });
+
     it("the account-exists and active-pending alerts show different messages", async () => {
       // First render: account_exists
       createInvitation.mockReturnValue(

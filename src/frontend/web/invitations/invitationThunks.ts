@@ -6,7 +6,7 @@
  *
  * POST /api/admin/invitations → { id, email, role, status, link, expiresAt }
  *
- * Error shape: { code: 'account_exists' | 'active_pending' | 'validation_error' | 'network_error', message: string }
+ * Error shape: { code: 'account_exists' | 'active_pending' | 'malformed_email' | 'invalid_role' | 'validation_error' | 'network_error', message: string }
  */
 
 import { createAsyncThunk } from "@reduxjs/toolkit";
@@ -15,7 +15,13 @@ import { InvitationResult } from "../../../core/interfaces/Api";
 export type { InvitationResult };
 
 export interface InvitationError {
-  code: "account_exists" | "active_pending" | "validation_error" | "network_error";
+  code:
+    | "account_exists"
+    | "active_pending"
+    | "malformed_email"
+    | "invalid_role"
+    | "validation_error"
+    | "network_error";
   message: string;
 }
 
@@ -57,6 +63,13 @@ export const createInvitation = createAsyncThunk<
     }
     // Unknown 409 variant — treat as generic
     return rejectWithValue({ code: "validation_error", message: errorText });
+  }
+
+  if (body.code === "INVALID_EMAIL") {
+    return rejectWithValue({ code: "malformed_email", message: errorText });
+  }
+  if (body.code === "INVALID_ROLE") {
+    return rejectWithValue({ code: "invalid_role", message: errorText });
   }
 
   return rejectWithValue({ code: "validation_error", message: errorText });
