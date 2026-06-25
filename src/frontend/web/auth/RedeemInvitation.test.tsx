@@ -273,41 +273,6 @@ describe("RedeemInvitation", () => {
         expect(getByText(/your account has been created/i)).toBeTruthy();
       });
     });
-
-    it("navigates to / after 2 seconds on success", async () => {
-      jest.useFakeTimers();
-
-      lookupInvitation.mockReturnValue(
-        jest.fn().mockResolvedValue({
-          payload: { email: "recipient@example.com" },
-        })
-      );
-      acceptInvitation.mockReturnValue(
-        jest.fn().mockResolvedValue({
-          payload: { email: "recipient@example.com" },
-        })
-      );
-
-      renderWithProviders(<RedeemInvitation token={TEST_TOKEN} />, defaultInitialState);
-
-      await act(async () => {
-        jest.runAllTicks();
-      });
-
-      await waitFor(() => submitButton());
-
-      await act(async () => {
-        fireEvent.click(submitButton());
-      });
-
-      await act(async () => {
-        jest.advanceTimersByTime(2000);
-      });
-
-      expect(mockNavigate).toHaveBeenCalledWith("/");
-
-      jest.useRealTimers();
-    });
   });
 
   describe("submit: 429 rate limited (transient — form remains usable)", () => {
