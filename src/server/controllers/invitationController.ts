@@ -37,7 +37,7 @@ import {
   DecryptError,
 } from "../auth/invitationValidation";
 import secrets from "../util/secrets";
-import { DEFAULT_BASE_URL } from "../auth/trustedOrigins";
+import { getInvitationBaseUrl } from "../auth/trustedOrigins";
 import { requireSameOrigin } from "../middle/requireSameOrigin";
 import { invitationRateLimit } from "../middle/invitationRateLimit";
 
@@ -210,7 +210,7 @@ export default function invitationController(app: Express, pool: Pool): void {
         return;
       }
 
-      const baseUrl = process.env.BETTER_AUTH_URL ?? DEFAULT_BASE_URL;
+      const baseUrl = getInvitationBaseUrl();
 
       let result;
       try {
@@ -329,7 +329,7 @@ export default function invitationController(app: Express, pool: Pool): void {
   // (plan.md Pass 4)
   app.get("/api/admin/invitations/:id/link", async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
-    const baseUrl = process.env.BETTER_AUTH_URL ?? DEFAULT_BASE_URL;
+    const baseUrl = getInvitationBaseUrl();
 
     let link: string;
     try {

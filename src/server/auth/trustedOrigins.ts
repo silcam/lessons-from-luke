@@ -12,9 +12,30 @@
 
 /**
  * Fallback base URL used when BETTER_AUTH_URL is not set in the environment.
- * Matches the webpack-dev-server API port used by `yarn dev-web`.
+ * Matches the Express API/auth server port used by `yarn dev-web`
+ * (webpack-dev-server on :8080 proxies /api to it). Used as the better-auth
+ * baseURL default — NOT for building user-facing links; see
+ * getInvitationBaseUrl().
  */
 export const DEFAULT_BASE_URL = "http://localhost:8081";
+
+/**
+ * Fallback WEB APP origin used to build user-facing invitation links when
+ * BETTER_AUTH_URL is not set. In dev the web app is served by
+ * webpack-dev-server on :8080 (the API/auth server is on :8081), so invitation
+ * links must point here, not at the API. In production the web app and API
+ * share one origin (BETTER_AUTH_URL), so that value is used instead.
+ */
+export const DEFAULT_WEB_APP_URL = "http://localhost:8080";
+
+/**
+ * Base URL for user-facing invitation links: the configured public origin in
+ * production (BETTER_AUTH_URL = the shared web/API origin), or the dev
+ * webpack-dev-server web origin (:8080) when unset.
+ */
+export function getInvitationBaseUrl(): string {
+  return process.env.BETTER_AUTH_URL ?? DEFAULT_WEB_APP_URL;
+}
 
 /**
  * The three localhost origins trusted during local development (in the absence
