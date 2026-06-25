@@ -13,27 +13,27 @@ desktop path. The domain `postgres@1` driver and `PGStorage` are untouched.
 
 An administrator-issued, single-use authorization to create exactly one account.
 
-| Field        | Type          | Constraints / Notes                                                                 | Requirement        |
-| ------------ | ------------- | ----------------------------------------------------------------------------------- | ------------------ |
-| `id`         | `text` (PK)   | `crypto.randomUUID()`                                                                | —                  |
-| `email`      | `text`        | NOT NULL. Stored **lowercased**. Bound recipient address.                           | FR-001, FR-007     |
-| `role`       | `text`        | NOT NULL. Enum: `'admin'` \| `'standard'`. Maps to `user.admin` at accept.          | FR-002, FR-008     |
-| `status`     | `text`        | NOT NULL DEFAULT `'pending'`. Enum: `pending` \| `accepted` \| `expired` \| `retracted`. | FR-014        |
-| `tokenHash`  | `text`        | NOT NULL **UNIQUE**. `sha256(token)` hex. Lookup key. Plaintext never stored here.  | FR-009 (single-use)|
-| `tokenEnc`   | `text`        | NOT NULL. AES-256-GCM(token), encoded `iv:authTag:ciphertext` (base64). Per-row random 12-byte IV; key = KDF(`cookieSecret`). Read only by admin re-copy. | FR-016 |
-| `invitedBy`  | `text`        | NOT NULL. FK → `"user"("id")`. Creating administrator (audit).                      | FR-017             |
-| `createdAt`  | `timestamptz` | NOT NULL.                                                                           | FR-013             |
-| `expiresAt`  | `timestamptz` | NOT NULL. `createdAt + 14 days` (system-wide default, configurable).                | FR-018             |
-| `acceptedAt` | `timestamptz` | NULL until accepted; set in the accept transaction.                                 | FR-013             |
+| Field        | Type          | Constraints / Notes                                                                                                                                       | Requirement         |
+| ------------ | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| `id`         | `text` (PK)   | `crypto.randomUUID()`                                                                                                                                     | —                   |
+| `email`      | `text`        | NOT NULL. Stored **lowercased**. Bound recipient address.                                                                                                 | FR-001, FR-007      |
+| `role`       | `text`        | NOT NULL. Enum: `'admin'` \| `'standard'`. Maps to `user.admin` at accept.                                                                                | FR-002, FR-008      |
+| `status`     | `text`        | NOT NULL DEFAULT `'pending'`. Enum: `pending` \| `accepted` \| `expired` \| `retracted`.                                                                  | FR-014              |
+| `tokenHash`  | `text`        | NOT NULL **UNIQUE**. `sha256(token)` hex. Lookup key. Plaintext never stored here.                                                                        | FR-009 (single-use) |
+| `tokenEnc`   | `text`        | NOT NULL. AES-256-GCM(token), encoded `iv:authTag:ciphertext` (base64). Per-row random 12-byte IV; key = KDF(`cookieSecret`). Read only by admin re-copy. | FR-016              |
+| `invitedBy`  | `text`        | NOT NULL. FK → `"user"("id")`. Creating administrator (audit).                                                                                            | FR-017              |
+| `createdAt`  | `timestamptz` | NOT NULL.                                                                                                                                                 | FR-013              |
+| `expiresAt`  | `timestamptz` | NOT NULL. `createdAt + 14 days` (system-wide default, configurable).                                                                                      | FR-018              |
+| `acceptedAt` | `timestamptz` | NULL until accepted; set in the accept transaction.                                                                                                       | FR-013              |
 
 ### Indexes / Invariants
 
-| Index                              | Definition                                                            | Purpose                                            |
-| ---------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------- |
-| PK                                 | `("id")`                                                              | identity                                           |
-| `idx_invitation_tokenHash`         | UNIQUE `("tokenHash")`                                                | O(1) single-use lookup; prevents hash collisions   |
-| `idx_invitation_email`             | `(LOWER("email"))`                                                    | management list + account/dup checks               |
-| `uq_invitation_one_pending_email`  | **partial** UNIQUE `(LOWER("email")) WHERE "status" = 'pending'`      | FR-005 one active invite per email (DB invariant)  |
+| Index                             | Definition                                                       | Purpose                                           |
+| --------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------- |
+| PK                                | `("id")`                                                         | identity                                          |
+| `idx_invitation_tokenHash`        | UNIQUE `("tokenHash")`                                           | O(1) single-use lookup; prevents hash collisions  |
+| `idx_invitation_email`            | `(LOWER("email"))`                                               | management list + account/dup checks              |
+| `uq_invitation_one_pending_email` | **partial** UNIQUE `(LOWER("email")) WHERE "status" = 'pending'` | FR-005 one active invite per email (DB invariant) |
 
 ### State machine
 
@@ -56,7 +56,7 @@ Transition rules:
   transaction that also inserts `user`+`account`. Single-use (FR-009).
 - `pending → retracted`: admin only, only while `pending` (FR-015). Link dies immediately (SC-004).
   **MUST be a conditional, atomic UPDATE (red-team Pass 11):** `UPDATE "invitation" SET
-  status='retracted' WHERE id=$1 AND status='pending' RETURNING ...` — **not** a SELECT-then-UPDATE.
+status='retracted' WHERE id=$1 AND status='pending' RETURNING ...` — **not** a SELECT-then-UPDATE.
   A non-atomic retract races a concurrent `accept` on the same pending row (both read `pending`, the
   accept commits the account + flips to `accepted`, then an unconditional retract overwrites the
   already-accepted row to `retracted`), corrupting a terminal state and violating SC-005. With the
@@ -102,7 +102,7 @@ Transition rules:
 
 - The accept status flip MUST be **conditional and atomic**:
   `UPDATE "invitation" SET status='accepted', "acceptedAt"=now() WHERE id=$1 AND status='pending'
-  AND "expiresAt" > now()` inside the same transaction that inserts `user`+`account`; a 0-row result
+AND "expiresAt" > now()` inside the same transaction that inserts `user`+`account`; a 0-row result
   means "invalid link" → `410` and the transaction rolls back (no account created). This conditional
   update — not the lazy-expire UPDATE — is the single source of truth for single-use + expiry under
   concurrency.
@@ -149,11 +149,11 @@ Transition rules:
 Mirrors the shape of better-auth's own `rateLimit` table (`key`, `count`, `lastRequest`) but is
 owned by this feature and lives in the same isolated `pg.Pool`.
 
-| Field         | Type      | Constraints / Notes                                                  |
-| ------------- | --------- | -------------------------------------------------------------------- |
+| Field         | Type      | Constraints / Notes                                                 |
+| ------------- | --------- | ------------------------------------------------------------------- |
 | `key`         | `text`    | PRIMARY KEY. Format: `invitation:<ip>` (e.g. `invitation:1.2.3.4`). |
-| `count`       | `integer` | NOT NULL. Request count within the current window.                   |
-| `lastRequest` | `bigint`  | NOT NULL. Unix ms timestamp of the most recent request.              |
+| `count`       | `integer` | NOT NULL. Request count within the current window.                  |
+| `lastRequest` | `bigint`  | NOT NULL. Unix ms timestamp of the most recent request.             |
 
 Window: ≤ 10 requests per 60 seconds per IP. Keyed on `req.ip` (which honors
 `app.set("trust proxy", 1)` and the `X-Forwarded-For` hop from Passenger).
@@ -179,11 +179,12 @@ Window: ≤ 10 requests per 60 seconds per IP. Keyed on `req.ip` (which honors
   per-IP limit a true invariant under concurrent requests across Passenger workers (the row is the
   shared state), mirroring how the partial-unique-pending index makes the one-pending-invite rule a
   DB invariant rather than a check-then-act race.
+
 - **Pruning (bounded growth).** Unlike `invitation` rows, `invitationRateLimit` rows have **no audit
   value**, so FR-019's retain-forever does NOT apply. Without pruning the table grows one row per
   distinct client IP forever (a slow resource leak). Prune opportunistically with no cron: on each
   limiter write also run (or fold into the same path) `DELETE FROM "invitationRateLimit" WHERE
-  "lastRequest" < $windowStart` — cheap, bounded, and keeps the table to roughly the set of IPs
+"lastRequest" < $windowStart` — cheap, bounded, and keeps the table to roughly the set of IPs
   active within the last window.
 
 **Migration**: `migrations/<timestamp>-AddInvitationRateLimitTable.js` — a separate migration
@@ -211,11 +212,12 @@ skips enforcement when `NODE_ENV=test`, except when the integration server opts 
 against `scripts/integrationTestServer.js`: the integration server already sets
 `BETTER_AUTH_ENFORCE_ORIGIN=1` **and** `BETTER_AUTH_ENFORCE_RATE_LIMIT=1` before constructing the
 app (so the existing better-auth `/sign-in/email` 429 test runs), but it sets **no**
-`INVITATION_RATE_LIMIT_ENFORCE` variable. A custom invitation rate limiter gated on a *new*
+`INVITATION_RATE_LIMIT_ENFORCE` variable. A custom invitation rate limiter gated on a _new_
 `INVITATION_RATE_LIMIT_ENFORCE=1` flag would therefore **never be enforced under the integration
 suite**, so the invitation `429` path the contract declares (`GET /api/auth/invitation/:token` and
 `POST .../accept`) would be **untestable end-to-end** — a silent coverage hole behind a green CI.
 Resolve one of two ways, both of which keep the 429 path exercised:
+
 - **(preferred) Reuse `BETTER_AUTH_ENFORCE_RATE_LIMIT`** — the invitation limiter enforces when
   `NODE_ENV !== 'test' || process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT === '1'`, the **same predicate
   `auth.ts` already uses** for better-auth's limiter. The integration server already sets this flag,
@@ -238,15 +240,15 @@ gives a clear ownership boundary for cleanup and migration management.
 
 Created by the accept flow via direct SQL (research Decision 1), mirroring `SeedAdminUser`.
 
-| Aspect              | Value at accept                                                                 | Requirement |
-| ------------------- | ------------------------------------------------------------------------------- | ----------- |
-| `user.id`           | `crypto.randomUUID()`                                                            | —           |
-| `user.email`        | invitation `email` (lowercased, bound — NOT from request body)                  | FR-007      |
-| `user.name`         | recipient-supplied display name (NOT NULL column); the **only** attacker-controlled field persisted from the anonymous accept route — `trim()`, reject empty-after-trim, reject ASCII control chars/newlines, all **before** the Argon2id hash (red-team Pass 6). Rendered only via React auto-escaping. | FR-008      |
-| `user.admin`        | `invitation.role === 'admin'` → `true`, else `false` (set via direct SQL only)  | FR-008      |
-| `user.emailVerified`| `false` (consistent with seed)                                                  | —           |
-| `account.providerId`| `'credential'`                                                                  | —           |
-| `account.password`  | `passwordHasher.hash(password)` — Argon2id, same format as seed/integration test| FR-008, FR-011 |
+| Aspect               | Value at accept                                                                                                                                                                                                                                                                                          | Requirement    |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| `user.id`            | `crypto.randomUUID()`                                                                                                                                                                                                                                                                                    | —              |
+| `user.email`         | invitation `email` (lowercased, bound — NOT from request body)                                                                                                                                                                                                                                           | FR-007         |
+| `user.name`          | recipient-supplied display name (NOT NULL column); the **only** attacker-controlled field persisted from the anonymous accept route — `trim()`, reject empty-after-trim, reject ASCII control chars/newlines, all **before** the Argon2id hash (red-team Pass 6). Rendered only via React auto-escaping. | FR-008         |
+| `user.admin`         | `invitation.role === 'admin'` → `true`, else `false` (set via direct SQL only)                                                                                                                                                                                                                           | FR-008         |
+| `user.emailVerified` | `false` (consistent with seed)                                                                                                                                                                                                                                                                           | —              |
+| `account.providerId` | `'credential'`                                                                                                                                                                                                                                                                                           | —              |
+| `account.password`   | `passwordHasher.hash(password)` — Argon2id, same format as seed/integration test                                                                                                                                                                                                                         | FR-008, FR-011 |
 
 No new columns on `user`/`account`. No session created at accept (FR-012).
 
@@ -254,11 +256,11 @@ No new columns on `user`/`account`. No session created at accept (FR-012).
 
 ## Configuration / Secrets
 
-| Key                          | Where                         | Notes                                                              |
-| ---------------------------- | ----------------------------- | ------------------------------------------------------------------ |
-| `BETTER_AUTH_URL`            | env (existing)                | base origin for invitation links; https-required in prod (existing)|
-| `cookieSecret` (≥ 32 chars)  | `secrets.json` (existing)     | reused to derive the AES-256-GCM key for `tokenEnc`                 |
-| Invitation TTL (14 days)     | server constant (new)         | single system-wide default; not per-invite (spec assumption)       |
+| Key                         | Where                     | Notes                                                               |
+| --------------------------- | ------------------------- | ------------------------------------------------------------------- |
+| `BETTER_AUTH_URL`           | env (existing)            | base origin for invitation links; https-required in prod (existing) |
+| `cookieSecret` (≥ 32 chars) | `secrets.json` (existing) | reused to derive the AES-256-GCM key for `tokenEnc`                 |
+| Invitation TTL (14 days)    | server constant (new)     | single system-wide default; not per-invite (spec assumption)        |
 
 No new `secrets.json` field is required (reuses `cookieSecret`, `BETTER_AUTH_URL`).
 
@@ -276,10 +278,11 @@ non-admin user raises `23503` and breaks isolation), alongside the existing `rat
 a blanket `DELETE FROM "user"`; it deletes `account` then `user` **scoped to non-admin rows**
 (`WHERE LOWER(email) != $adminEmail`), sparing the seeded admin so `loggedInAgent()` survives across
 tests. Two precise consequences for the invitation delete:
-1. **`23503` only arises for invitations whose `invitedBy` points at a *deleted* (non-admin) user.**
-   An invitation created by a *non-admin* admin (an admin onboarded via a prior invite) references a
+
+1. **`23503` only arises for invitations whose `invitedBy` points at a _deleted_ (non-admin) user.**
+   An invitation created by a _non-admin_ admin (an admin onboarded via a prior invite) references a
    row the scoped delete removes, so `DELETE FROM "invitation"` MUST precede the scoped `user` delete
-   to avoid the FK violation — the ordering rule stands. An invitation created by the *seeded* admin
+   to avoid the FK violation — the ordering rule stands. An invitation created by the _seeded_ admin
    references a row that is **spared**, so it would not raise `23503`; but it would still **leak**
    across tests (the admin is never deleted, so the invitation persists and can trip the
    partial-unique-pending index or pollute a later list assertion). Hence the unconditional

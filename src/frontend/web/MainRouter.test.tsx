@@ -133,10 +133,10 @@ describe("MainRouter post-login return-to navigation", () => {
     });
 
     it("navigates to '/' when ?returnTo points to an external URL (sanitizer honored)", async () => {
-      const store = renderMainRouter(
-        "/?returnTo=" + encodeURIComponent("https://evil.com/steal"),
-        { user: null, loaded: true }
-      );
+      const store = renderMainRouter("/?returnTo=" + encodeURIComponent("https://evil.com/steal"), {
+        user: null,
+        loaded: true,
+      });
 
       await act(async () => {
         store.dispatch(currentUserSlice.actions.setUser({ id: "u1", admin: false }));

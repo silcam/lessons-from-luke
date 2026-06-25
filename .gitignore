@@ -23,6 +23,8 @@ node_modules
 /coverage
 autoresearch-results.tsv
 cypress/fixtures/*_FILES/
+cypress/screenshots/
+cypress/videos/
 
 # TS build leakage — sources live as .ts; compiled .js/.map belong in /dist
 src/**/*.js

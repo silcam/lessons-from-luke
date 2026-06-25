@@ -116,10 +116,7 @@ describe("currentUserSlice reducers", () => {
         error: "Invalid credentials",
       };
 
-      const state = currentUserSlice.reducer(
-        stateWithError,
-        currentUserSlice.actions.clearError()
-      );
+      const state = currentUserSlice.reducer(stateWithError, currentUserSlice.actions.clearError());
 
       expect(state.error).toBeNull();
     });

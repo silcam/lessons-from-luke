@@ -22,10 +22,7 @@ import PublicHome from "./PublicHome";
 /**
  * Render PublicHome at a specific URL path (to simulate ?returnTo query params).
  */
-function renderPublicHomeAt(
-  path: string,
-  initialState?: Record<string, unknown>
-) {
+function renderPublicHomeAt(path: string, initialState?: Record<string, unknown>) {
   const store = buildStore({
     syncState: defaultSyncState,
     currentUser: { user: null, locale: "en", loaded: false, error: null },
@@ -163,9 +160,7 @@ describe("PublicHome", () => {
     });
 
     it("shows the prompt when ?returnTo=https://evil.com is present but does not render the URL in DOM", () => {
-      const { getByRole, queryByText } = renderPublicHomeAt(
-        "/?returnTo=https://evil.com"
-      );
+      const { getByRole, queryByText } = renderPublicHomeAt("/?returnTo=https://evil.com");
       // Prompt must appear (presence detection, not value rendering)
       const alert = getByRole("alert");
       expect(alert.textContent).toMatch(/please sign in to continue/i);
@@ -174,12 +169,9 @@ describe("PublicHome", () => {
     });
 
     it("clears stale error state and shows prompt when redirected with ?returnTo present", () => {
-      const { getByRole, queryByText } = renderPublicHomeAt(
-        "/?returnTo=/translate/ABC",
-        {
-          currentUser: { user: null, locale: "en", loaded: false, error: "Login failed." },
-        }
-      );
+      const { getByRole, queryByText } = renderPublicHomeAt("/?returnTo=/translate/ABC", {
+        currentUser: { user: null, locale: "en", loaded: false, error: "Login failed." },
+      });
       // Contextual prompt is shown
       const alert = getByRole("alert");
       expect(alert.textContent).toMatch(/please sign in to continue/i);

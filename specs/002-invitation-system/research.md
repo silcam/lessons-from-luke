@@ -114,7 +114,7 @@ constraint on `user.email`).
 - Storing only the hash means a DB read (e.g. a leaked backup) cannot yield working links, except
   the deliberately encrypted `tokenEnc`, which is protected by the same secret that protects
   sessions. This is the minimum needed to satisfy both "store a hash, not plaintext" **and** the
-  product requirement that re-copy returns the *same* link (FR-016 + assumption).
+  product requirement that re-copy returns the _same_ link (FR-016 + assumption).
 - The partial unique index makes the "one active invite per email" rule a **database invariant**
   rather than a check-then-insert race (Decision 5), aligning with constitution Truth (no
   time-of-check/time-of-use gap under concurrent admin creates).
@@ -208,7 +208,7 @@ design intent.
 application-level pre-check that returns the spec's clear messages:
 
 1. **Account already exists (FR-004)**: before creating, `SELECT 1 FROM "user" WHERE LOWER(email)
-   = $1` → if present, reject 409 with "an account already exists for this email"; no row written.
+= $1` → if present, reject 409 with "an account already exists for this email"; no row written.
 2. **Active pending invite exists (FR-005)**: the partial unique index rejects a second
    `pending` row for the same email at the DB layer. The controller first checks for an existing
    pending row to return a friendly 409 message; if a concurrent insert still races through, the

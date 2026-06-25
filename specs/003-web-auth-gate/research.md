@@ -25,9 +25,10 @@ sign-in (SC-006: zero false redirects). `MainRouter` already shows `LoadingSnake
 `!loaded`, so reusing it keeps behavior consistent and adds no new loading affordance.
 
 **Alternatives considered**:
-- *Optimistically render and redirect once `loaded` resolves* — rejected: causes exactly the
+
+- _Optimistically render and redirect once `loaded` resolves_ — rejected: causes exactly the
   flicker/false-redirect FR-010 forbids.
-- *A separate `authStatus: "pending" | "in" | "out"` machine* — rejected (YAGNI): the existing
+- _A separate `authStatus: "pending" | "in" | "out"` machine_ — rejected (YAGNI): the existing
   `{ user, loaded }` shape already encodes the three states; adding a parallel enum risks drift.
 
 **Strict-TS note**: use `loaded === false` / `user !== null`, never truthy checks
@@ -46,13 +47,14 @@ the post-login navigation reads `returnTo`, runs it through `safeReturnTo()`, an
 
 **`safeReturnTo(raw: string | null): string`** — a pure, exhaustively unit-tested sanitizer that
 returns a safe in-app path or `"/"`:
+
 - accept only values that start with a single `/` followed by a non-`/` character (a same-app
   absolute path), preserving query string;
 - reject `null`/empty, protocol-relative (`//host`, `/\host`), absolute URLs
   (`http://`, `https://`, `javascript:`, any scheme), and anything containing a host;
 - decode safely and re-validate; never return an external destination.
-This is the FR-008 open-redirect guard, isolated as a single testable policy function
-(prefactoring: separate policy from mechanism; design for testability).
+  This is the FR-008 open-redirect guard, isolated as a single testable policy function
+  (prefactoring: separate policy from mechanism; design for testability).
 
 **Rationale**: A query param (vs. React Router location-state) **survives a full page reload**,
 which is essential because the sign-in page is `PublicHome` rendered at the app root and the deep
@@ -63,20 +65,22 @@ navigate with — the React layer performs the navigation after `setUser`. So re
 in the React/thunk layer, not via better-auth's `callbackURL`.
 
 **Alternatives considered**:
-- *React Router `location.state` (`<Navigate state={{ from }}/>`)* — rejected: lost on hard
+
+- _React Router `location.state` (`<Navigate state={{ from }}/>`)_ — rejected: lost on hard
   reload / cold deep-link open; harder to verify in E2E.
-- *`sessionStorage`* — rejected: extra implicit state, multi-tab bleed, no benefit over the URL.
-- *Trusting `returnTo` verbatim* — rejected: classic open-redirect (FR-008); hence
+- _`sessionStorage`_ — rejected: extra implicit state, multi-tab bleed, no benefit over the URL.
+- _Trusting `returnTo` verbatim_ — rejected: classic open-redirect (FR-008); hence
   `safeReturnTo`.
 
 **Where the navigation fires**: simplest correct placement is in the sign-in success path. Two
 acceptable implementations (decide in `sp:05-tasks`/implementation, both TDD-able):
-  1. `PublicHome` reads `returnTo` from `useSearchParams()` and, after a successful
-     `pushLogin`, calls `navigate(safeReturnTo(returnTo))`; or
-  2. `pushLogin` accepts an optional `onSuccess(destination)` / returns a result the component
-     navigates with.
-Option 1 keeps navigation in the component (where `useNavigate` lives) and the thunk pure of
-routing — preferred. Either way `safeReturnTo` is the single chokepoint.
+
+1. `PublicHome` reads `returnTo` from `useSearchParams()` and, after a successful
+   `pushLogin`, calls `navigate(safeReturnTo(returnTo))`; or
+2. `pushLogin` accepts an optional `onSuccess(destination)` / returns a result the component
+   navigates with.
+   Option 1 keeps navigation in the component (where `useNavigate` lives) and the thunk pure of
+   routing — preferred. Either way `safeReturnTo` is the single chokepoint.
 
 ---
 
@@ -111,13 +115,13 @@ lands on `"/"`, which renders today's logged-in home (`AdminHome` element for an
 user, admin-only routes still admin-gated). No follow-up task filed from planning.
 
 **Rationale**: Spec Assumptions and Out of Scope both place a differentiated standard-user home
-out of scope ("possible follow-up"). FR-009 only requires that non-admins not *see admin
-content*, which the existing per-route `user?.admin` checks already enforce. Changing the home
+out of scope ("possible follow-up"). FR-009 only requires that non-admins not _see admin
+content_, which the existing per-route `user?.admin` checks already enforce. Changing the home
 view here would expand scope (constitution VII / spec Out of Scope).
 
 **Note carried to red-team**: the catch-all `"*"` route currently renders `<AdminHome/>` for any
 signed-in user; confirm with red-team that "AdminHome as the generic logged-in home" exposes no
-admin-only *actions* to non-admins (the admin invitation routes are already separately gated by
+admin-only _actions_ to non-admins (the admin invitation routes are already separately gated by
 `user?.admin`). This is a pre-existing condition, not introduced by this feature, but worth a
 red-team look since the gate now guarantees every `"*"` visitor is authenticated.
 
@@ -129,6 +133,7 @@ red-team look since the gate now guarantees every `"*"` visitor is authenticated
 imported **only** by `MainRouter`, which is imported **only** by `webApp.tsx`. The desktop entry
 `desktopApp.tsx` renders `MainPage` and never imports `MainRouter` or `src/frontend/web/auth/*`.
 This is enforced structurally (no platform flag needed) and asserted by:
+
 - a static import-graph check / unit assertion that `AuthGate`/allowlist modules are not reached
   from the desktop entry; and
 - the unchanged `MainPage.test.tsx` desktop suite continuing to pass.
@@ -140,17 +145,18 @@ This is the cleanest possible satisfaction of FR-012 (desktop entirely auth-free
 desktop code to change and no runtime branch to get wrong.
 
 **Alternatives considered**:
-- *A `PlatformContext`-gated guard rendered in shared code* — rejected: introduces a runtime
+
+- _A `PlatformContext`-gated guard rendered in shared code_ — rejected: introduces a runtime
   platform branch that could regress; the structural separation is stronger and simpler.
 
 ---
 
 ## Summary of resolved decisions
 
-| Item | Decision |
-| ---- | -------- |
-| Flicker on load (R1) | Gate decision on `currentUserSlice.loaded`; show existing `LoadingSnake` until loaded. |
-| Return-to mechanism (R2) | `?returnTo=` query param + pure `safeReturnTo()` sanitizer (in-app paths only). |
-| Logout / expiry (R3) | Next-navigation redirect only; no 401 interceptor (API stays open). |
-| Non-admin home (R4) | Reuse existing shared logged-in home; differentiation out of scope. |
-| Web-only proof (R5) | Guard under `src/frontend/web/auth/`, reached only via `MainRouter`/`webApp.tsx`; desktop untouched. |
+| Item                     | Decision                                                                                             |
+| ------------------------ | ---------------------------------------------------------------------------------------------------- |
+| Flicker on load (R1)     | Gate decision on `currentUserSlice.loaded`; show existing `LoadingSnake` until loaded.               |
+| Return-to mechanism (R2) | `?returnTo=` query param + pure `safeReturnTo()` sanitizer (in-app paths only).                      |
+| Logout / expiry (R3)     | Next-navigation redirect only; no 401 interceptor (API stays open).                                  |
+| Non-admin home (R4)      | Reuse existing shared logged-in home; differentiation out of scope.                                  |
+| Web-only proof (R5)      | Guard under `src/frontend/web/auth/`, reached only via `MainRouter`/`webApp.tsx`; desktop untouched. |

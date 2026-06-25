@@ -202,7 +202,8 @@ paths:
             Cache-Control:
               schema: { type: string, enum: ["no-store"] }
               description: Prevents caching of the retracted invitation's email/invitedByEmail PII (red-team Pass 11).
-          content: { application/json: { schema: { $ref: "#/components/schemas/InvitationSummary" } } }
+          content:
+            { application/json: { schema: { $ref: "#/components/schemas/InvitationSummary" } } }
         "401": { description: Not signed in. }
         "403":
           description: >

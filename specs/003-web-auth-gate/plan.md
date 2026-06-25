@@ -34,6 +34,7 @@ excluded.
 **Performance Goals**: No measurable runtime cost; guard is a synchronous render-time decision
 on top of already-loaded Redux state. No new network calls (session already fetched on mount).
 **Constraints**:
+
 - MUST NOT redirect an already-authenticated user during initial session load — wait for
   `currentUserSlice.loaded` before deciding (FR-010, SC-006; no redirect flicker).
 - Return-to destination MUST be restricted to same-app relative paths; absolute/external URLs
@@ -42,9 +43,9 @@ on top of already-loaded Redux state. No new network calls (session already fetc
   imports (verified — see research.md R5).
 - Default-deny: structurally protect the route subtree so new routes are gated automatically
   (FR-003).
-**Scale/Scope**: Single guard component + one allowlist constant + one pure return-to
-sanitizer + small edits to `MainRouter`, `PublicHome`, and the sign-in thunk path. ~5 source
-files touched/created plus their co-located tests.
+  **Scale/Scope**: Single guard component + one allowlist constant + one pure return-to
+  sanitizer + small edits to `MainRouter`, `PublicHome`, and the sign-in thunk path. ~5 source
+  files touched/created plus their co-located tests.
 
 ## Brainstorm Context
 
@@ -64,19 +65,19 @@ files touched/created plus their co-located tests.
 
 ### Deferred Questions (resolved during planning)
 
-- *Wait for `loaded` before deciding* → The guard reads `currentUserSlice.loaded`; while
+- _Wait for `loaded` before deciding_ → The guard reads `currentUserSlice.loaded`; while
   `false` it renders the existing `LoadingSnake` (the same loading affordance `MainRouter`
   already shows) and makes no redirect decision. Resolved (research.md R1).
-- *Preserve/restore intended destination — router state vs. query param* → Use a `?returnTo=`
+- _Preserve/restore intended destination — router state vs. query param_ → Use a `?returnTo=`
   query param on the sign-in redirect, sanitized to same-app relative paths. Chosen over
   React Router location-state because it survives a full page reload and is inspectable.
   Resolved (research.md R2).
-- *Logout / mid-session expiry: active ejection vs. next-navigation* → Next-navigation only;
+- _Logout / mid-session expiry: active ejection vs. next-navigation_ → Next-navigation only;
   no API 401 interceptor in this feature (the data API stays open). Resolved (research.md R3).
-- *Confirm the shared non-admin home is acceptable* → Yes; differentiating the standard-user
+- _Confirm the shared non-admin home is acceptable_ → Yes; differentiating the standard-user
   home is explicitly out of scope (spec Assumptions + Out of Scope). No follow-up filed here.
   Resolved (research.md R4).
-- *Confirm desktop never imports `MainRouter`/the guard* → Confirmed by grep: only
+- _Confirm desktop never imports `MainRouter`/the guard_ → Confirmed by grep: only
   `webApp.tsx` imports `MainRouter`; desktop entry is `desktopApp.tsx` → `MainPage`. A guard
   test will additionally assert the allowlist/guard module is web-only. Resolved (research.md
   R5).
@@ -85,15 +86,15 @@ files touched/created plus their co-located tests.
 
 _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
-| Principle | Status | Notes |
-| --------- | ------ | ----- |
-| I. Test-First Development (NON-NEGOTIABLE) | PASS (planned) | Pure return-to sanitizer, allowlist membership, and `AuthGate` decision logic are all unit-testable with `renderWithProviders` + `MemoryRouter`. Cypress E2E covers the deep-link return-to flow. Red-green-refactor for every unit; aim for the standing 100% coverage aspiration (≥95% enforced). |
-| II. Type Safety and Static Analysis | PASS (planned) | No `any`; explicit return types on every function; `type`-only imports for types; strict-boolean expressions (e.g. `loaded === false`, `user !== null`, not truthy checks). Allowlist is a typed `readonly` tuple. |
-| III. Code Quality Standards | PASS (planned) | JSDoc on the exported `AuthGate`, the allowlist constant, and the `safeReturnTo` helper. PascalCase component, kebab-case domain concepts mirrored from the glossary. Import order preserved. |
-| IV. Pre-commit Quality Gates | PASS (planned) | `yarn typecheck` + lint-staged (eslint --fix, prettier, jest --findRelatedTests) run on commit; never bypassed. Conventional commits. |
-| V. Warning and Deprecation Policy | PASS (planned) | Zero new warnings; no deprecated APIs introduced (React Router v6 `Navigate`/`Outlet` are current). |
-| VI. Layered Architecture and Dual Deployment Targets | PASS | Change confined to `src/frontend/web/`. `core` untouched (stays isomorphic). No `Persistence` involvement (no domain data). Desktop offline path and the shared API untouched (FR-012, FR-013). The guard's web-only placement *is* the architectural enforcement. |
-| VII. Simplicity and Maintainability | PASS | YAGNI: no 401 interceptor, no new login UI, no new state source. KISS: one guard + one allowlist + one sanitizer. DRY: reuses existing `currentUserSlice`, `LoadingSnake`, `PublicHome`. |
+| Principle                                            | Status         | Notes                                                                                                                                                                                                                                                                                               |
+| ---------------------------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| I. Test-First Development (NON-NEGOTIABLE)           | PASS (planned) | Pure return-to sanitizer, allowlist membership, and `AuthGate` decision logic are all unit-testable with `renderWithProviders` + `MemoryRouter`. Cypress E2E covers the deep-link return-to flow. Red-green-refactor for every unit; aim for the standing 100% coverage aspiration (≥95% enforced). |
+| II. Type Safety and Static Analysis                  | PASS (planned) | No `any`; explicit return types on every function; `type`-only imports for types; strict-boolean expressions (e.g. `loaded === false`, `user !== null`, not truthy checks). Allowlist is a typed `readonly` tuple.                                                                                  |
+| III. Code Quality Standards                          | PASS (planned) | JSDoc on the exported `AuthGate`, the allowlist constant, and the `safeReturnTo` helper. PascalCase component, kebab-case domain concepts mirrored from the glossary. Import order preserved.                                                                                                       |
+| IV. Pre-commit Quality Gates                         | PASS (planned) | `yarn typecheck` + lint-staged (eslint --fix, prettier, jest --findRelatedTests) run on commit; never bypassed. Conventional commits.                                                                                                                                                               |
+| V. Warning and Deprecation Policy                    | PASS (planned) | Zero new warnings; no deprecated APIs introduced (React Router v6 `Navigate`/`Outlet` are current).                                                                                                                                                                                                 |
+| VI. Layered Architecture and Dual Deployment Targets | PASS           | Change confined to `src/frontend/web/`. `core` untouched (stays isomorphic). No `Persistence` involvement (no domain data). Desktop offline path and the shared API untouched (FR-012, FR-013). The guard's web-only placement _is_ the architectural enforcement.                                  |
+| VII. Simplicity and Maintainability                  | PASS           | YAGNI: no 401 interceptor, no new login UI, no new state source. KISS: one guard + one allowlist + one sanitizer. DRY: reuses existing `currentUserSlice`, `LoadingSnake`, `PublicHome`.                                                                                                            |
 
 **Initial gate**: PASS. No violations. Complexity Tracking not required.
 
@@ -153,17 +154,18 @@ is what makes desktop and the shared API provably unaffected (constitution Princ
 > corresponding acceptance spec file created during `sp:05-tasks` under
 > `specs/acceptance-specs/`. The files below are documented here; `sp:05-tasks` creates them.
 
-| User Story | Acceptance Spec File | Scenarios |
-| ---------- | -------------------- | --------- |
-| US1: Sign-in required to use the web app | `specs/acceptance-specs/US01-sign-in-required.txt` | 3 |
-| US2: Return to the requested page after signing in | `specs/acceptance-specs/US02-return-to-after-sign-in.txt` | 3 |
-| US3: Public pages stay reachable without an account | `specs/acceptance-specs/US03-public-pages-reachable.txt` | 2 |
-| US4: Desktop translators keep working without sign-in | `specs/acceptance-specs/US04-desktop-unchanged.txt` | 2 |
+| User Story                                            | Acceptance Spec File                                      | Scenarios |
+| ----------------------------------------------------- | --------------------------------------------------------- | --------- |
+| US1: Sign-in required to use the web app              | `specs/acceptance-specs/US01-sign-in-required.txt`        | 3         |
+| US2: Return to the requested page after signing in    | `specs/acceptance-specs/US02-return-to-after-sign-in.txt` | 3         |
+| US3: Public pages stay reachable without an account   | `specs/acceptance-specs/US03-public-pages-reachable.txt`  | 2         |
+| US4: Desktop translators keep working without sign-in | `specs/acceptance-specs/US04-desktop-unchanged.txt`       | 2         |
 
 **Pipeline**: `specs/acceptance-specs/*.txt` → `acceptance/parse-specs.ts` →
 `acceptance/generate-tests.ts` → `generated-acceptance-tests/*.spec.ts`
 
 **Notes on layer mapping** (for `sp:05-tasks`):
+
 - US1, US2, US3 are verified primarily by component/integration tests
   (`renderWithProviders` + `MemoryRouter`) plus a Cypress E2E for the real deep-link reload of
   US2.
@@ -186,10 +188,10 @@ contextual prompt must be a real visible text element (not color-only), reusing 
 
 ### UI Decisions
 
-| Screen / Component | User Story | Approach | Design Skills |
-| ------------------ | ---------- | -------- | ------------- |
-| Sign-in page "Please sign in to continue" contextual prompt | US1 | Reuse `PublicHome`; add a conditional `Alert`/sub-heading shown only when arriving via redirect (detected from the presence of a sanitized `returnTo`). No new screen. | `/design-clarify` (microcopy) |
-| Loading affordance during session-load window | US1 | Reuse the existing `LoadingSnake` that `MainRouter` already shows while `loaded === false`; no new component. | — |
+| Screen / Component                                          | User Story | Approach                                                                                                                                                               | Design Skills                 |
+| ----------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| Sign-in page "Please sign in to continue" contextual prompt | US1        | Reuse `PublicHome`; add a conditional `Alert`/sub-heading shown only when arriving via redirect (detected from the presence of a sanitized `returnTo`). No new screen. | `/design-clarify` (microcopy) |
+| Loading affordance during session-load window               | US1        | Reuse the existing `LoadingSnake` that `MainRouter` already shows while `loaded === false`; no new component.                                                          | —                             |
 
 No genuinely new screens are introduced. The only user-visible change is one line of contextual
 copy on the existing sign-in page (DESIGN.md / "Field Manual" register: clear, utilitarian).
@@ -253,7 +255,7 @@ target it.
 The attacker-controllable `returnTo` value MUST NOT be rendered into the DOM anywhere — not in
 the "Please sign in to continue" prompt, not in an error message, not in a visible "returning
 you to X" affordance. The contextual prompt is **static copy**; redirect-arrival is detected
-from the *presence* of a (sanitized) `returnTo`, never by displaying its contents. This closes
+from the _presence_ of a (sanitized) `returnTo`, never by displaying its contents. This closes
 the reflected-XSS vector that a `returnTo=<script>`/`returnTo="><img onerror>` would otherwise
 open if the value were echoed. (React escapes by default, but an explicit "never render
 `returnTo`" rule prevents a future `dangerouslySetInnerHTML`/`title=`/`href=` regression.)
@@ -269,7 +271,7 @@ catch-all `"*"` route only when `user === null`. The gate's redirect therefore t
   signed-in user who deep-linked with `returnTo=/` simply lands home — no loop).
 - A redirect to `/` while signed out renders `PublicHome`; the guard MUST NOT also wrap the
   catch-all in `AuthGate` (that would create a redirect loop `/` → `/?returnTo=/` → `/` …). The
-  catch-all and `/invitation/:token` are the *only* ungated routes; all **named content routes**
+  catch-all and `/invitation/:token` are the _only_ ungated routes; all **named content routes**
   (`/translate/:code`, `/lessons/:id`, `/usfmImportResult`, `/languages/.../docStrings`,
   `/update-issues/:lessonId`) are wrapped by the guard. State this loop-freedom invariant as a
   test (`AuthGate` never redirects a public path to itself).
@@ -279,7 +281,7 @@ catch-all `"*"` route only when `user === null`. The gate's redirect therefore t
 ### `returnTo` only honored on the gate-driven sign-in path
 
 The post-login navigation reads `returnTo` and calls `navigate(safeReturnTo(returnTo))`. A
-crafted `returnTo` can at worst send the *authenticated* user to an in-app path they already
+crafted `returnTo` can at worst send the _authenticated_ user to an in-app path they already
 have access to (the sanitizer guarantees in-app-only), so there is no privilege gain — but
 document that `returnTo` confers **no authorization**: it only chooses an in-app destination,
 and every destination is itself still subject to its own route's `user?.admin` checks (FR-009).
@@ -299,7 +301,7 @@ indefinitely — the whole web app is bricked for a transient error. The design 
 - Wrap `loadCurrentUser`'s `getSession()` in try/catch and, on failure, dispatch
   `setUser(null)` (treat an unresolvable session as signed-out, which routes through the gate
   to sign-in) so `loaded` always becomes `true`. This is a real change to an existing thunk and
-  belongs in this feature's scope because the gate newly *depends* on `loaded` becoming true.
+  belongs in this feature's scope because the gate newly _depends_ on `loaded` becoming true.
 - Add a unit test: `getSession` rejection → `loaded === true`, `user === null`, no infinite
   loading.
 
@@ -340,8 +342,8 @@ not mistaken for a correctness fix.
 
 Confirmed in scope: no 401 interceptor (FR-013, API stays open). A session that expires while a
 gated page is mounted is not actively ejected; the next navigation/reload re-evaluates
-`AuthGate`. Because `loadCurrentUser` runs only on mount, a *long-lived SPA session that expires
-without a reload* will keep `user` populated in Redux and the gate will not notice until a
+`AuthGate`. Because `loadCurrentUser` runs only on mount, a _long-lived SPA session that expires
+without a reload_ will keep `user` populated in Redux and the gate will not notice until a
 reload re-runs `getSession`. This is an accepted limitation (the data API stays open, so there
 is no security regression vs. today); document it explicitly so it is a known boundary, not a
 surprise.
@@ -386,7 +388,7 @@ catch-all, which renders `AdminHome` (home) — there is no gate redirect becaus
 authenticated, and `MainRouter`'s post-login effect must fire only on an **in-session login**
 transition, not on a mount that is already signed in. So a hand-crafted `/?returnTo=…` for an
 **already-authenticated** user is inert (it does not auto-forward them). Document this as
-intended: `returnTo` is consumed only on the sign-in *transition*, never on a steady-state
+intended: `returnTo` is consumed only on the sign-in _transition_, never on a steady-state
 signed-in mount, so there is no auto-navigation primitive an attacker can trigger against a
 logged-in user by feeding them a `/?returnTo=…` link. Assert it: a signed-in mount with a
 `returnTo` present does **not** navigate.
@@ -394,7 +396,7 @@ logged-in user by feeding them a `/?returnTo=…` link. Assert it: a signed-in m
 > **CORRECTION (pass 3):** "the post-login effect only fires on the `null → set` transition" is
 > **not a sufficient trigger** — see "Post-login effect must distinguish initial session
 > resolution from in-session login" in Edge Cases below. With the real `currentUserSlice`, the
-> *initial session load of an already-signed-in user* is **also** a `user: null → set`
+> _initial session load of an already-signed-in user_ is **also** a `user: null → set`
 > transition (`loadCurrentUser` dispatches the same `setUser({...})` that `pushLogin` does), so
 > an effect keyed purely on `null → set` would fire on a signed-in cold open of `/?returnTo=…`
 > and auto-forward them — directly contradicting the "does not navigate" assertion above. The
@@ -434,8 +436,8 @@ design MUST disambiguate:
   resolved a session?" ref set true the first time `loaded` becomes `true`) are acceptable as
   long as the **initial `loaded: false → true` resolution never triggers a returnTo navigation**.
 - This is also what keeps FR-007 honest for the in-session case: a user who reaches sign-in via
-  the gate, fails once, then succeeds, navigates to `returnTo`; a user who merely *reloads while
-  signed in* with a stale `?returnTo=` in their URL stays put (no surprise jump).
+  the gate, fails once, then succeeds, navigates to `returnTo`; a user who merely _reloads while
+  signed in_ with a stale `?returnTo=` in their URL stays put (no surprise jump).
 - Add **two** tests that pin the distinction (a single "null → set navigates" test is
   insufficient and would mask the bug): (a) **signed-in cold mount** with `?returnTo=/x`
   present → **no** navigation (initial resolution, `prevLoaded === false`); (b) **gate-driven
@@ -477,7 +479,7 @@ The design MUST:
   "An error occurred. Please try again." (the same copy the existing `catch` uses), so the user
   always gets feedback and can retry. This is a real edit to the existing `pushLogin` thunk and,
   unlike the return-to navigation (which stays out of the thunk per the Design Consistency Note),
-  it is **purely a state dispatch with no routing**, so it correctly belongs *inside* `pushLogin`
+  it is **purely a state dispatch with no routing**, so it correctly belongs _inside_ `pushLogin`
   — it does not reintroduce the "thunk owns navigation" anti-pattern that pass 2 rejected.
 - Add a unit test for the third branch: `signIn.email` resolves to
   `{ error: null, data: {} }` (or `{ data: null }`) → `setError` dispatched, `setUser` **not**
@@ -510,7 +512,7 @@ The design MUST:
 ### Loading affordance is perceivable
 
 The `LoadingSnake` shown while `loaded === false` is a visual spinner. For the session-load
-window (and the new failure path above), ensure it is not the *only* signal — it already gates
+window (and the new failure path above), ensure it is not the _only_ signal — it already gates
 a brief moment, but if the failure path keeps a user waiting, the fallback to sign-in (per the
 edge-case fix) is what prevents a silent hang for SR users. No new affordance required beyond
 ensuring `loaded` always resolves.
@@ -530,7 +532,7 @@ conveyed by text content, satisfying WCAG 1.4.1 (Use of Color).
 
 - **Where the post-login `navigate` lives.** The Source Structure table lists
   `authThunks.ts` as `EDIT` ("sign-in success navigates to sanitized returnTo"), but research R2
-  *prefers Option 1* — keep `pushLogin` pure of routing and do `navigate(safeReturnTo(returnTo))`
+  _prefers Option 1_ — keep `pushLogin` pure of routing and do `navigate(safeReturnTo(returnTo))`
   outside the thunk (where `useNavigate` lives). These disagree on the thunk; resolve to
   **Option 1** (thunk stays routing-free, `pushLogin`'s existing `callbackURL: "/"` is an unused
   better-auth server-redirect hint and can be left as-is). **CORRECTION (pass 2):** the earlier
@@ -548,7 +550,7 @@ conveyed by text content, satisfying WCAG 1.4.1 (Use of Color).
   (post-login return-to navigation) plus a `PublicHome` edit (contextual prompt only) — **no
   routing/`navigate` in `authThunks`** and **no `PublicHome`-owned navigation**. Update the Source
   Structure table accordingly when generating tasks. **NOTE (pass 4):** "no routing in
-  `authThunks`" does **not** mean `authThunks.ts` is untouched — pass 4 adds a *routing-free*
+  `authThunks`" does **not** mean `authThunks.ts` is untouched — pass 4 adds a _routing-free_
   `pushLogin` edit (the branch-3 `setError` fix; see "A successful sign-in that yields no user must
   not silently strand the visitor" in Edge Cases). `loadCurrentUser` is likewise edited (the
   pass-1 `getSession` try/catch). So `authThunks.ts` **is** an `EDIT` target — just for state
@@ -558,7 +560,7 @@ conveyed by text content, satisfying WCAG 1.4.1 (Use of Color).
   paths, but the real public surface is (a) the catch-all `"*"` when signed out and (b)
   `/invitation/:token`. Document that the allowlist's job is to identify which **named** routes
   bypass `AuthGate`, and that the catch-all is structurally public (not listed by literal path).
-  `/invitation/:token` is a parameterized pattern — `isPublicPath` MUST match the *pattern*
+  `/invitation/:token` is a parameterized pattern — `isPublicPath` MUST match the _pattern_
   (prefix `/invitation/`), not a literal string, or a real token path will be gated.
 
 ## Applied Learnings

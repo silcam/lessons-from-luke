@@ -96,12 +96,8 @@ export default function MainRouter() {
             element={<DocStringsPageWrapper />}
           />
           <Route path="/update-issues/:lessonId" element={<UpdateIssuesPageWrapper />} />
-          {user?.admin && (
-            <Route path="/admin/invitations/new" element={<CreateInvitation />} />
-          )}
-          {user?.admin && (
-            <Route path="/admin/invitations" element={<InvitationsList />} />
-          )}
+          {user?.admin && <Route path="/admin/invitations/new" element={<CreateInvitation />} />}
+          {user?.admin && <Route path="/admin/invitations" element={<InvitationsList />} />}
         </Route>
         {/* Public route — anyone with the token URL can redeem (FR-007, FR-011).
             MUST be outside AuthGate to prevent redirect loops. */}

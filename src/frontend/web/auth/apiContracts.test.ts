@@ -11,12 +11,16 @@ import type { InvitationResult, InvitationSummaryRow } from "../../../core/api/A
 
 test("GetRoute is a string subtype (keyof APIGet)", () => {
   const route: GetRoute = "/api/languages";
-  expect(typeof route).toBe("string");
+  // Assign through keyof APIGet so the contract map itself is asserted importable.
+  const key: keyof APIGet = route;
+  expect(typeof key).toBe("string");
 });
 
 test("PostRoute is a string subtype (keyof APIPost)", () => {
   const route: PostRoute = "/api/tStrings";
-  expect(typeof route).toBe("string");
+  // Assign through keyof APIPost so the contract map itself is asserted importable.
+  const key: keyof APIPost = route;
+  expect(typeof key).toBe("string");
 });
 
 test("InvitationResult has expected shape", () => {

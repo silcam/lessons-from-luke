@@ -21,7 +21,7 @@ admin-only screen lists, re-copies, and retracts invitations.
    the password with the existing `passwordHasher.hash` (Argon2id). `auth.ts` is **not** modified.
 2. **Token/link design** — 256-bit `randomBytes` token; store only its **SHA-256 hash**
    (`tokenHash`, unique) for lookup plus an **AES-256-GCM-encrypted** copy (`tokenEnc`, keyed off
-   `cookieSecret`) so the admin can re-copy the *same* link without storing plaintext. Single-use +
+   `cookieSecret`) so the admin can re-copy the _same_ link without storing plaintext. Single-use +
    expiry enforced at lookup (`status='pending' AND expiresAt > now()`).
 3. **Test isolation** — `DELETE FROM "invitation"` added to the `afterEach` in
    `jestSetupAfterEnv.ts` (it is written outside the porsager test transaction).
@@ -83,6 +83,7 @@ Electron app is explicitly out of scope (FR-021).
 **Performance Goals**: SC-001 create+copy < 1 min; SC-002 open→account < 2 min (human-paced, not
 throughput-bound). Token lookup is a single indexed query.
 **Constraints**:
+
 - Server-only isolation (Principle VI): no invitation code in `src/core/` or the desktop path.
 - `auth.ts` / better-auth config NOT modified; `disableSignUp: true` stays global (SC-008).
 - Argon2id password hashing reused from `passwordHasher.ts` (consistent with seed + sign-in).
@@ -90,9 +91,9 @@ throughput-bound). Token lookup is a single indexed query.
 - Store token hash, never plaintext (encrypted `tokenEnc` only for re-copy, keyed off `cookieSecret`).
 - Link origin from `BETTER_AUTH_URL` (https-required in production by `secrets.ts`).
 - New strings added as i18n keys; French may lag (spec Assumption).
-**Scale/Scope**: small admin tool — a handful of admins, low invitation volume. 2 new admin
-endpoints group (create/list/retract/re-copy), 2 anonymous endpoints (lookup/accept), 1 migration,
-1 cleanup edit, ~2 web screens.
+  **Scale/Scope**: small admin tool — a handful of admins, low invitation volume. 2 new admin
+  endpoints group (create/list/retract/re-copy), 2 anonymous endpoints (lookup/accept), 1 migration,
+  1 cleanup edit, ~2 web screens.
 
 ## Presentation Design
 
@@ -107,11 +108,11 @@ public `/invitation/:token` route.
 
 ### UI Decisions
 
-| Screen / Component                       | User Story | Approach                                                                                                   | Design Skills      |
-| ---------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------- | ------------------ |
-| Create-invitation form (email + role + copy-link result) | US1        | React form using `base-components` (TextInput, role select, Button); shows the generated link with a copy affordance; inline validation/error via `Alert` | `/design-clarify`  |
-| Invitations management list (admin)      | US3        | Table/list of invitations with status, dates, creator; per-row Re-copy / Retract for Pending; empty state when none | `/design-onboard` (empty state), `/design-clarify` |
-| Recipient redemption form (`/invitation/:token`) | US2        | Public page: pre-filled, locked email + password + display-name fields; submit → success → redirect to sign-in. Error handling branches on lookup/accept status (red-team Pass 9): `410` → terminal non-leaky "no longer valid" (FR-010); `429` → distinct **transient** "too many attempts, reload shortly" (a valid link must not read as dead); other non-200 → generic "try again" | `/design-clarify`, `/design-onboard` (first-run feel) |
+| Screen / Component                                       | User Story | Approach                                                                                                                                                                                                                                                                                                                                                                               | Design Skills                                         |
+| -------------------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Create-invitation form (email + role + copy-link result) | US1        | React form using `base-components` (TextInput, role select, Button); shows the generated link with a copy affordance; inline validation/error via `Alert`                                                                                                                                                                                                                              | `/design-clarify`                                     |
+| Invitations management list (admin)                      | US3        | Table/list of invitations with status, dates, creator; per-row Re-copy / Retract for Pending; empty state when none                                                                                                                                                                                                                                                                    | `/design-onboard` (empty state), `/design-clarify`    |
+| Recipient redemption form (`/invitation/:token`)         | US2        | Public page: pre-filled, locked email + password + display-name fields; submit → success → redirect to sign-in. Error handling branches on lookup/accept status (red-team Pass 9): `410` → terminal non-leaky "no longer valid" (FR-010); `429` → distinct **transient** "too many attempts, reload shortly" (a valid link must not read as dead); other non-200 → generic "try again" | `/design-clarify`, `/design-onboard` (first-run feel) |
 
 ### Quality Pass
 
@@ -124,22 +125,22 @@ flagship polish pass planned.
 
 _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
-| Principle | Gate | Assessment |
-| --- | --- | --- |
-| **0. Fidelity to Reality** | No simulated progress; behavior matches spec | PASS — single-use/expiry/dup-pending enforced as real DB invariants + transactional accept, not just UI affordances. |
-| **I. Test-First (TDD)** | Tests before implementation; 95%+ coverage; integration + E2E for cross-layer/UI | PASS (planned) — controller/helper unit tests (red-green-refactor), integration tests for the full ESM better-auth flow, Cypress E2E for both screens. See Acceptance Test Strategy. |
-| **II. Type Safety** | strict + all flags, explicit return types, no `any`, `type` imports, 0 warnings | PASS (planned) — new server/frontend code is TS strict; role/status as string-literal unions; no `any`. The isolated pool follows the existing `pg.Pool` remap pattern. |
-| **III. Code Quality** | JSDoc on public APIs; naming; import order; prettier | PASS (planned) — JSDoc on controller/helpers; PascalCase types; conventional structure. |
-| **IV. Pre-commit Gates** | typecheck + lint-staged + related tests; conventional commits | PASS — standard pipeline; `/commit` skill used at end. |
-| **V. Warnings** | zero tolerance | PASS (planned). |
+| Principle                                            | Gate                                                                                                             | Assessment                                                                                                                                                                                               |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **0. Fidelity to Reality**                           | No simulated progress; behavior matches spec                                                                     | PASS — single-use/expiry/dup-pending enforced as real DB invariants + transactional accept, not just UI affordances.                                                                                     |
+| **I. Test-First (TDD)**                              | Tests before implementation; 95%+ coverage; integration + E2E for cross-layer/UI                                 | PASS (planned) — controller/helper unit tests (red-green-refactor), integration tests for the full ESM better-auth flow, Cypress E2E for both screens. See Acceptance Test Strategy.                     |
+| **II. Type Safety**                                  | strict + all flags, explicit return types, no `any`, `type` imports, 0 warnings                                  | PASS (planned) — new server/frontend code is TS strict; role/status as string-literal unions; no `any`. The isolated pool follows the existing `pg.Pool` remap pattern.                                  |
+| **III. Code Quality**                                | JSDoc on public APIs; naming; import order; prettier                                                             | PASS (planned) — JSDoc on controller/helpers; PascalCase types; conventional structure.                                                                                                                  |
+| **IV. Pre-commit Gates**                             | typecheck + lint-staged + related tests; conventional commits                                                    | PASS — standard pipeline; `/commit` skill used at end.                                                                                                                                                   |
+| **V. Warnings**                                      | zero tolerance                                                                                                   | PASS (planned).                                                                                                                                                                                          |
 | **VI. Layered Architecture / Server-only exemption** | domain data via `Persistence`; server-only auth infra may own its storage; isomorphic `core` & desktop untouched | PASS — `invitation` is auth infrastructure on the isolated `pg.Pool` (exemption explicitly covers this); **nothing** added to `src/core/` or the desktop path; domain driver untouched (FR-022, SC-009). |
-| **VII. Simplicity** | YAGNI/KISS/DRY | PASS — reuses existing `requireAdmin`, `passwordHasher`, migration helper, and direct-insert pattern; rejects the heavier better-auth admin plugin and any cron job (research). |
+| **VII. Simplicity**                                  | YAGNI/KISS/DRY                                                                                                   | PASS — reuses existing `requireAdmin`, `passwordHasher`, migration helper, and direct-insert pattern; rejects the heavier better-auth admin plugin and any cron job (research).                          |
 
 **Result**: PASS — no violations. Complexity Tracking section omitted (nothing to justify).
 
 One deliberate, justified nuance recorded for red-team: the `tokenEnc` (encrypted-at-rest token for
 re-copy) is slightly more than the bare "store only a hash" instruction, but it is the minimum
-needed to satisfy the product requirement that re-copy returns the *same* link (FR-016 +
+needed to satisfy the product requirement that re-copy returns the _same_ link (FR-016 +
 spec assumption) without storing plaintext. The rotate-on-recopy alternative (drop `tokenEnc`) is
 documented in research.md Decision 2 as the fallback if red-team prefers strictly-hash-only storage.
 
@@ -209,11 +210,11 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
 > created during `sp:05-tasks`, in `specs/acceptance-specs/`, in the GWT format consumed by the
 > pipeline. Listed here for that phase to create.
 
-| User Story                          | Acceptance Spec File                                       | Scenarios |
-| ----------------------------------- | --------------------------------------------------------- | --------- |
-| US1: Issue an invitation            | `specs/acceptance-specs/US06-issue-invitation.txt`        | 5         |
-| US2: Redeem an invitation           | `specs/acceptance-specs/US07-redeem-invitation.txt`       | 5         |
-| US3: Manage outstanding invitations | `specs/acceptance-specs/US08-manage-invitations.txt`      | 4         |
+| User Story                          | Acceptance Spec File                                 | Scenarios |
+| ----------------------------------- | ---------------------------------------------------- | --------- |
+| US1: Issue an invitation            | `specs/acceptance-specs/US06-issue-invitation.txt`   | 5         |
+| US2: Redeem an invitation           | `specs/acceptance-specs/US07-redeem-invitation.txt`  | 5         |
+| US3: Manage outstanding invitations | `specs/acceptance-specs/US08-manage-invitations.txt` | 4         |
 
 > Note: `specs/acceptance-specs/` already contains `US01`–`US05` from `001-better-auth-migration`.
 > This feature's stories are numbered `US06`–`US08` to avoid filename collisions in the shared
@@ -232,7 +233,7 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
 ### Origin / CSRF protection on the anonymous accept endpoint
 
 - **Threat**: `POST /api/auth/invitation/accept` and `GET /api/auth/invitation/:token` are mounted
-  as plain Express routes registered *before* the `app.all("/api/auth/*", toNodeHandler(...))`
+  as plain Express routes registered _before_ the `app.all("/api/auth/*", toNodeHandler(...))`
   catch-all. They therefore bypass better-auth's `trustedOrigins` / `disableOriginCheck`
   enforcement (which only applies inside `toNodeHandler`). A malicious page on any origin can issue
   a cross-origin `POST` that creates an account from a known/guessed token (account-creation CSRF),
@@ -254,7 +255,7 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
 - **Mitigation**: Add an explicit, DB-backed (shared across Passenger workers) rate limit on both
   anonymous invitation routes — a small per-IP window (e.g. ≤10 requests / 60s, matching the
   existing `/sign-in/email` rule shape). **Validate the token and the password length bounds
-  *before* invoking `passwordHasher.hash`** so an invalid/expired token or an out-of-bounds password
+  _before_ invoking `passwordHasher.hash`** so an invalid/expired token or an out-of-bounds password
   never reaches Argon2id. Disabled under `NODE_ENV=test` (as the better-auth limiter is), gated on by
   the integration server via an env flag so the limit is still exercised by an integration test —
   **and that flag MUST be one the integration server actually sets (red-team Pass 12); reuse the
@@ -269,7 +270,7 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   full URL in the `Referer` header to any third-party sub-resource the redemption page loads.
 - **Mitigation**: (1) Ensure no in-app request logger writes the raw token for
   `/api/auth/invitation/:token` (and the SPA `/invitation/:token` route) — log a placeholder, never
-  the raw token. **(Refined in Pass 3:** the existing `serverApp.ts` logger at line 79 runs *after*
+  the raw token. **(Refined in Pass 3:** the existing `serverApp.ts` logger at line 79 runs _after_
   the better-auth catch-all and so never fires for the anonymous invitation routes, which short-circuit
   earlier; the real residual risk is the upstream proxy/Passenger access log. See the Pass 3 note
   below.) (2) `Referrer-Policy: no-referrer` is **already applied globally** by the existing
@@ -296,7 +297,7 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
 
 ### Account-existence oracle on create (rate-limited, scoped to admins)
 
-- **Note**: The create endpoint returns a *distinct* 409 message for "account already exists"
+- **Note**: The create endpoint returns a _distinct_ 409 message for "account already exists"
   (FR-004) vs "active pending invite exists" (FR-005). This is an account-enumeration oracle, but
   it is reachable **only** behind `requireAdmin`. The spec requires distinct, clear messages so
   admins can diagnose conflicts (FR-004, FR-005). **Remediated in security task 9c7.12** by adding
@@ -343,8 +344,8 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   The deployment-note point below still stands as an additive residual.)** Pass 1 mandated "ensure
   the request logger redacts the token segment." Grounded
   against `serverApp.ts`: the `res.on("finish")` request logger is registered at **line 79**,
-  *after* the better-auth catch-all (line 63). The anonymous invitation routes MUST be registered
-  *before* the catch-all (Decision 1 / routing), and their handlers end the response with
+  _after_ the better-auth catch-all (line 63). The anonymous invitation routes MUST be registered
+  _before_ the catch-all (Decision 1 / routing), and their handlers end the response with
   `res.json(...)` without calling `next()`, so **the line-79 logger never executes for
   `GET /api/auth/invitation/:token` or `POST .../accept`** — the Pass 1 redaction target is a no-op
   for the very routes that carry the token. Two corrections:
@@ -362,11 +363,11 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
      is not mistaken for an in-app bug.
 - **Token-Referer protection is already satisfied globally by helmet — the per-API-response
   `Referrer-Policy` header is redundant and misdirected.** Pass 1 asked for `Referrer-Policy:
-  no-referrer` "on the redemption page response." Grounded against `serverApp.ts`: the app already
+no-referrer` "on the redemption page response." Grounded against `serverApp.ts`: the app already
   mounts `helmet({...})` without disabling `referrerPolicy`, and helmet's **default emits
   `Referrer-Policy: no-referrer` on every response** (verified). The actual Referer leak vector is
   the **SPA HTML document** at `/invitation/:token` (the browser sends `Referer` based on the page
-  the user is *on*, i.e. the URL bar, not the JSON API URL); that HTML response is served by the
+  the user is _on_, i.e. the URL bar, not the JSON API URL); that HTML response is served by the
   existing `app.get("*", ...)` SPA fallback and already carries helmet's global `no-referrer`. So:
   no new per-route header is needed, and the `Referrer-Policy` header declared in the contract on the
   **JSON** `GET /api/auth/invitation/:token` response is ineffective for the real leak path. The
@@ -380,8 +381,8 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
      concurrent requests both read `count = max-1` and both proceed, exceeding the limit (the same
      class of bug the partial-unique-pending index avoids for invitations). The increment MUST be a
      single atomic statement — an `INSERT ... ON CONFLICT (key) DO UPDATE SET count = CASE WHEN
-     lastRequest < window-start THEN 1 ELSE invitationRateLimit.count + 1 END, lastRequest = $now
-     RETURNING count` — and the limit decision MUST read the **returned** post-increment `count`, so
+lastRequest < window-start THEN 1 ELSE invitationRateLimit.count + 1 END, lastRequest = $now
+RETURNING count` — and the limit decision MUST read the **returned** post-increment `count`, so
      the check and the increment are one round-trip with no gap.
   2. **Pruning.** The table grows one row per distinct client IP and never shrinks (unlike the
      invitation table, these rows have **no audit value**, so FR-019's retain-forever does not apply).
@@ -406,7 +407,7 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   `POST /api/admin/invitations/{id}/retract` are plain Express handlers behind `requireAdmin`
   (cookie-session auth), registered at/after `app.use("/api/admin", requireAdmin)` (line 65),
   **not** through `toNodeHandler`. So they too perform **no application-level Origin/CSRF check**.
-  Their *only* CSRF barrier is the better-auth session cookie's `sameSite` attribute. Grounded
+  Their _only_ CSRF barrier is the better-auth session cookie's `sameSite` attribute. Grounded
   against `auth.ts`: the cookie `sameSite` is **not explicitly set** (better-auth's default is
   `lax`), so the protection is implicit and undocumented. A cross-origin `POST` is the higher-value
   CSRF target here than the anonymous accept route: an attacker who lands a signed-in admin on a
@@ -438,9 +439,9 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   `src/server/serverApp.ts`, that reasoning is incorrect and the leak is real.** The path-less
   logger middleware is registered with `app.use((req, res, next) => { res.on("finish", ...); next() })`
   at the block ending the response-logging setup, and the feature's controllers (`languagesController`,
-  …, and the **to-be-added `invitationController`**) are mounted *after* it. A path-less `app.use`
+  …, and the **to-be-added `invitationController`**) are mounted _after_ it. A path-less `app.use`
   logger that precedes a route runs **on every request that reaches that route** — the request first
-  passes through the logger (which attaches the `finish` listener and calls `next()`), *then* reaches
+  passes through the logger (which attaches the `finish` listener and calls `next()`), _then_ reaches
   the invitation handler. The handler ending the response with `res.json(...)` and not calling
   `next()` does **not** un-register the already-attached `finish` listener — `finish` fires when the
   response completes, logging `${req.method} ${req.path} => [${res.statusCode}]`. Since
@@ -467,7 +468,7 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   implementer cannot act on it.** Pass 3 says the `res.on("finish")` logger "never executes" for the
   anonymous invitation routes; Pass 5 reverses this to "the logger DOES run … in-app redaction IS
   required" and marks Pass 3 "WRONG." Grounded against the **actual** `src/server/serverApp.ts`, the
-  truth is narrower than *either* pass and depends on **which** route is in question, because the
+  truth is narrower than _either_ pass and depends on **which** route is in question, because the
   logger's position relative to each route is fixed by the existing file:
   1. The logger middleware is registered at **lines 78-85**, which is **after** the better-auth
      catch-all `app.all("/api/auth/*", ...)` at **line 63** and after `app.use("/api/admin", requireAdmin)`
@@ -504,18 +505,18 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   4. The upstream proxy/Passenger access-log residual (Pass 3 item 2 / Pass 5 item 2) is unaffected by
      this reconciliation and still stands as an additive deployment note for **both** the `/invitation/`
      and `/api/auth/invitation/` path prefixes.
-- **Origin allow-list dev/test relaxation must mirror `auth.ts`'s *actual* `trustedOrigins`, which is
+- **Origin allow-list dev/test relaxation must mirror `auth.ts`'s _actual_ `trustedOrigins`, which is
   conditional on `BETTER_AUTH_URL`.** Pass 4 said the shared Origin middleware should allow-list
   "against `BETTER_AUTH_URL` … including the dev `:8080/:8081/:8082` relaxation." Grounded against
   `auth.ts`: `trustedOrigins` is `[BETTER_AUTH_URL]` **when `BETTER_AUTH_URL` is set**, and falls back
   to the `:8080/:8081/:8082` list **only when `BETTER_AUTH_URL` is unset** (and only in
-  `development`). The two are mutually exclusive — the dev ports are *not* added on top of
+  `development`). The two are mutually exclusive — the dev ports are _not_ added on top of
   `BETTER_AUTH_URL`. The shared invitation Origin middleware MUST reproduce this exact precedence: if
   `BETTER_AUTH_URL` is set, allow only that origin; else if `NODE_ENV=development`, allow the three
   dev ports; else allow nothing (and rely on the `NODE_ENV=test` skip unless
   `BETTER_AUTH_ENFORCE_ORIGIN=1`). If the middleware instead always unioned the dev ports, a
   `BETTER_AUTH_URL`-configured deployment would wrongly trust `localhost:8080/8081/8082`; if it
-  *never* included them, `yarn dev-web` (browser origin `:8080`, API `:8081`) would get `403` on every
+  _never_ included them, `yarn dev-web` (browser origin `:8080`, API `:8081`) would get `403` on every
   admin create/retract and the anonymous accept. Factor this into the **same** shared helper that
   produces better-auth's `trustedOrigins` (or a function that reads it) so the two cannot drift —
   rather than re-deriving the allow-list independently in the invitation middleware.
@@ -572,13 +573,13 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
 
 - **Threat: Pass 7 set `Cache-Control: no-store` on the re-copy `GET /api/admin/invitations/{id}/link`
   (which returns the working single-use link) but NOT on the `POST /api/admin/invitations` `201`
-  response — which returns the *same* working single-use link in its body when the invitation is first
+  response — which returns the _same_ working single-use link in its body when the invitation is first
   minted.** Pass 7 enumerated "three responses [that] carry secrets and are currently cacheable" but
   omitted the create `201`, even though its body contains exactly the credential Pass 7 was protecting
   on the re-copy path. The asymmetry is the gap: the link is `no-store` when re-copied but cacheable
   when first issued. Grounded against `serverApp.ts`: the app sets no cache headers and `helmet()`
   emits none, so the create `201` is left at the proxy/browser default. While most shared caches do not
-  cache a `POST` response **by default**, a `POST` response *is* cacheable when it carries explicit
+  cache a `POST` response **by default**, a `POST` response _is_ cacheable when it carries explicit
   freshness headers (RFC 9111 §4) and, more concretely here, the admin's own browser/XHR layer and any
   intermediary that has been configured to cache POST can retain the live link — the identical residual
   Pass 7 cited as its rationale for the re-copy `GET`. There is no reason to harden the re-copy of the
@@ -717,7 +718,7 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   helmet nor the app sets cache headers" (verified again here against `serverApp.ts`: lines 39-61
   configure `helmet()` with no cache directive, and no route sets one). Pass 8 then declared the set
   of `no-store` responses "complete and symmetric … a reviewer cannot find a link-bearing response
-  that is still cacheable." But Pass 7/8 scoped themselves to *link-bearing* and *single-email*
+  that is still cacheable." But Pass 7/8 scoped themselves to _link-bearing_ and _single-email_
   responses and never considered the **list**, whose body (`InvitationSummary[]`) discloses, per the
   contract, `email` (every invited person's address) and `invitedByEmail` (every administrator's
   address) — a **strictly larger PII set** than the single bound email Pass 7 judged worth
@@ -757,12 +758,12 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
 - **Note — the Pass 1/4/6 Origin-check test opt-in does NOT share this gap.** Those passes specify the
   invitation Origin middleware skips under `NODE_ENV=test` "unless `BETTER_AUTH_ENFORCE_ORIGIN=1`",
   reusing better-auth's existing flag — which `integrationTestServer.js` already sets. So the Origin
-  `403` path *is* reachable from the integration suite as written; only the rate-limit opt-in flag was
+  `403` path _is_ reachable from the integration suite as written; only the rate-limit opt-in flag was
   newly invented and left unwired. The fix below makes the rate-limit path mirror the Origin path's
   (correct) flag-reuse pattern.
 - **Mitigation**: Gate the invitation rate limiter on the **same predicate `auth.ts` already uses for
   better-auth's limiter** — enforce when `process.env.NODE_ENV !== 'test' ||
-  process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT === '1'`. This reuses the flag the integration server
+process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT === '1'`. This reuses the flag the integration server
   already sets (no new wiring, the invitation `429` is exercised by an integration test for free) and
   keeps the invitation limiter and the better-auth limiter on/off together (no second mental model).
   If a dedicated `INVITATION_RATE_LIMIT_ENFORCE` flag is preferred instead for separation of concerns,
@@ -821,7 +822,7 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
 ### Pass 8 — the route-scoped body parser's own errors must be handled (malformed / oversized JSON)
 
 - **The Edge Cases section above mandates a route-scoped `bodyParser.json()` on the accept route, but
-  the failure modes of that parser are unspecified.** `bodyParser.json()` *throws* on (a) malformed
+  the failure modes of that parser are unspecified.** `bodyParser.json()` _throws_ on (a) malformed
   JSON (`SyntaxError`, status 400) and (b) a body over its size limit (`PayloadTooLargeError`, status
   413). Grounded against `serverApp.ts`: the app registers **no custom Express error-handling
   middleware** (no 4-arg `(err, req, res, next)` handler anywhere), so a thrown body-parse error
@@ -855,7 +856,7 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   1. **Test cleanup ordering**: `jestSetupAfterEnv.ts` currently deletes `account` then `user`
      (sparing the seeded admin). The new `DELETE FROM "invitation"` MUST run **before** the
      `user` delete, or non-admin-created invitations referencing a deleted user will raise a
-     `23503` FK violation and break isolation. (Invitations created by the *spared* seeded admin
+     `23503` FK violation and break isolation. (Invitations created by the _spared_ seeded admin
      are removed by the explicit invitation delete.)
   2. **Production constraint**: an admin who has issued invitations cannot be hard-deleted while
      those rows reference them. Account management (including admin deletion) is explicitly Out of
@@ -908,13 +909,13 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   expired → FR-010 non-leaky "no longer valid"), and `429` (per-IP rate limit, Pass 1). The plan and
   contract specify all three on the server, but the **recipient SPA's documented behavior only
   covers the 200/410 split** (Presentation Design: "generic non-leaky error for invalid links"). If
-  the redemption page treats *any* non-200 as the invalid-link state, a `429` — which is entirely
+  the redemption page treats _any_ non-200 as the invalid-link state, a `429` — which is entirely
   plausible for a legitimate recipient behind a shared egress IP (office/NAT), the exact trade-off
   Pass 2 accepted — renders the FR-010 "This invitation is no longer valid" message for a link that
   is actually **valid and still redeemable**. That is a false-negative on the single most important
   conversion step (SC-002): the recipient is wrongly told their good link is dead and has no path
   forward (re-loading only burns more of the rate-limit budget). The 410 message is deliberately
-  non-leaky and terminal-sounding, so it is the *worst* copy to show for a transient throttle.
+  non-leaky and terminal-sounding, so it is the _worst_ copy to show for a transient throttle.
 - **Mitigation**: The `RedeemInvitation` page MUST branch on the lookup status, not collapse all
   failures into the invalid-link state: `410` → the existing non-leaky "no longer valid" terminal
   message (no retry affordance, FR-010); `429` → a **distinct, transient** "too many attempts, please
@@ -967,7 +968,7 @@ no desktop). Migration follows the existing `migrations/` convention. **No files
   `InvitationSummary` returns `invitedByEmail` (the creating admin's email, FR-017 audit), but
   `data-model.md` stores only `invitation.invitedBy` = the admin's `user.id`. So the list query is
   **not** a single-table select of invitation columns — it MUST `JOIN "user" ON "user"."id" =
-  "invitation"."invitedBy"` (an inner join is safe: `invitedBy` is `NOT NULL` with a plain FK and is
+"invitation"."invitedBy"` (an inner join is safe: `invitedBy` is `NOT NULL` with a plain FK and is
   never hard-deleted, per the FK-lifecycle note) and project `"user"."email" AS "invitedByEmail"`.
   This is recorded so `/sp:05-tasks` generates a list-query task that resolves the email rather than
   returning a raw `invitedBy` id the contract does not declare. The same explicit column list still

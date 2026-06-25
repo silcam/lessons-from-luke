@@ -61,43 +61,40 @@ export const acceptInvitation = createAsyncThunk<
   RedemptionAcceptResult,
   { token: string; password: string; name: string },
   { rejectValue: RedemptionError }
->(
-  "invitations/acceptInvitation",
-  async ({ token, password, name }, { rejectWithValue }) => {
-    let response: Response;
-    try {
-      response = await fetch("/api/auth/invitation/accept", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password, name }),
-      });
-    } catch {
-      return rejectWithValue({ code: "network_error", message: "Network error" });
-    }
-
-    if (response.ok) {
-      return (await response.json()) as RedemptionAcceptResult;
-    }
-
-    let body: { error?: string } = {};
-    try {
-      body = await response.json();
-    } catch {
-      /* ignore parse error */
-    }
-
-    const errorText = body.error ?? "";
-
-    if (response.status === 400) {
-      return rejectWithValue({ code: "validation_error", message: errorText });
-    }
-    if (response.status === 410 || response.status === 409) {
-      // 409 = already accepted/retracted while form was open — treat as terminal invalid_link
-      return rejectWithValue({ code: "invalid_link", message: errorText });
-    }
-    if (response.status === 429) {
-      return rejectWithValue({ code: "rate_limited", message: errorText });
-    }
-    return rejectWithValue({ code: "network_error", message: errorText });
+>("invitations/acceptInvitation", async ({ token, password, name }, { rejectWithValue }) => {
+  let response: Response;
+  try {
+    response = await fetch("/api/auth/invitation/accept", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, password, name }),
+    });
+  } catch {
+    return rejectWithValue({ code: "network_error", message: "Network error" });
   }
-);
+
+  if (response.ok) {
+    return (await response.json()) as RedemptionAcceptResult;
+  }
+
+  let body: { error?: string } = {};
+  try {
+    body = await response.json();
+  } catch {
+    /* ignore parse error */
+  }
+
+  const errorText = body.error ?? "";
+
+  if (response.status === 400) {
+    return rejectWithValue({ code: "validation_error", message: errorText });
+  }
+  if (response.status === 410 || response.status === 409) {
+    // 409 = already accepted/retracted while form was open — treat as terminal invalid_link
+    return rejectWithValue({ code: "invalid_link", message: errorText });
+  }
+  if (response.status === 429) {
+    return rejectWithValue({ code: "rate_limited", message: errorText });
+  }
+  return rejectWithValue({ code: "network_error", message: errorText });
+});

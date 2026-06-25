@@ -694,15 +694,15 @@ describe("acceptInvitation(pool, token, password, name)", () => {
   });
 
   // ------------------------------------------------------------------
-  // 5. Already-accepted link → throws AccountCreatedConcurrentlyError (SC-003)
-  //    When the invitation was already redeemed by a prior request, an account
-  //    exists for the bound email. The second attempt detects this and throws
-  //    AccountCreatedConcurrentlyError (409) rather than the generic InvalidLinkError
-  //    (410), so callers can distinguish "already has an account" from
-  //    "link expired/retracted".
+  // 5. Already-accepted link → throws InvalidLinkError (410, SC-003)
+  //    A single-use link that was already redeemed is a consumed/invalid link.
+  //    Per FR-010 the second attempt MUST return the same non-leaky 410 as any
+  //    other invalid link (unknown/retracted/expired); it deliberately does NOT
+  //    probe for an existing account, so the response never leaks whether an
+  //    account exists for the bound email.
   // ------------------------------------------------------------------
 
-  it("throws AccountCreatedConcurrentlyError for an already-accepted link (SC-003)", async () => {
+  it("throws InvalidLinkError for an already-accepted link (SC-003)", async () => {
     const email = "accept-reuse@example.com";
     const created = await createInvitation(pool, {
       email,
@@ -716,11 +716,11 @@ describe("acceptInvitation(pool, token, password, name)", () => {
     // First accept should succeed
     await acceptInvitation(pool, token, "ValidPassword123!", "First Accept");
 
-    // Second accept on the same token must fail with AccountCreatedConcurrentlyError
-    // because the first accept created a user for the bound email.
+    // Second accept on the same token must fail with the non-leaky InvalidLinkError
+    // (410): a consumed single-use link is treated identically to any invalid link.
     await expect(
       acceptInvitation(pool, token, "ValidPassword123!", "Second Accept")
-    ).rejects.toMatchObject({ code: "ACCOUNT_ALREADY_EXISTS" });
+    ).rejects.toMatchObject({ code: "INVALID_LINK" });
   });
 
   // ------------------------------------------------------------------
@@ -873,13 +873,14 @@ describe("acceptInvitation(pool, token, password, name)", () => {
   });
 
   // ------------------------------------------------------------------
-  // 12. Concurrent double-redemption: exactly one account created, other
-  //     gets AccountCreatedConcurrentlyError (SC-003, spec Edge Cases).
-  //     The losing request detects that an account was created by the winner and
-  //     returns AccountCreatedConcurrentlyError (409) rather than InvalidLinkError (410).
+  // 12. Concurrent double-redemption: exactly one account created, the other
+  //     gets InvalidLinkError (410, SC-003, spec Edge Cases — "rejected by the
+  //     single-use rule"). The losing request's conditional UPDATE re-evaluates
+  //     against the winner's committed 'accepted' row and matches 0 rows, so it
+  //     takes the same non-leaky 410 path as any consumed/invalid link (FR-010).
   // ------------------------------------------------------------------
 
-  it("concurrent double-redemption: exactly one account created, the other gets AccountCreatedConcurrentlyError (SC-003)", async () => {
+  it("concurrent double-redemption: exactly one account created, the other gets InvalidLinkError (SC-003)", async () => {
     const email = "accept-concurrent@example.com";
     const created = await createInvitation(pool, {
       email,
@@ -903,7 +904,7 @@ describe("acceptInvitation(pool, token, password, name)", () => {
     expect(fulfilled.length).toBe(1);
     expect(rejected.length).toBe(1);
     expect((rejected[0] as PromiseRejectedResult).reason).toMatchObject({
-      code: "ACCOUNT_ALREADY_EXISTS",
+      code: "INVALID_LINK",
     });
 
     // Exactly one user row was created

@@ -296,6 +296,58 @@ test("Rate limit: 11 rapid requests to GET /api/auth/invitation/:token → 429",
 });
 
 // ------------------------------------------------------------------
+// 5b. Rate limit keys on CF-Connecting-IP, not the edge / socket IP
+// ------------------------------------------------------------------
+
+test("Rate limit keys on CF-Connecting-IP: distinct client IPs are isolated, edge-IP collisions gone", async () => {
+  // Behind Cloudflare both proxy hops APPEND to X-Forwarded-For, so req.ip is a
+  // Cloudflare edge IP shared by many real clients. The limiter must instead key
+  // on CF-Connecting-IP (the real, non-spoofable client IP). Two distinct
+  // invitations are used so the lookup route's token-scoped SECONDARY key never
+  // confounds the per-IP assertion (a reused token accumulates its own bucket
+  // across IPs). 198.51.100.x is TEST-NET-2 (RFC 5737), standing in for clients.
+  const invA = await adminCreateInvitation("integration-cfip-a@example.com");
+  const invB = await adminCreateInvitation("integration-cfip-b@example.com");
+  const tokenA = extractToken(invA.link);
+  const tokenB = extractToken(invB.link);
+
+  const clientIp1 = "198.51.100.10";
+  const clientIp2 = "198.51.100.20";
+
+  // 1. > 10 lookups of token-A from clientIp1 → 429. The bucket is keyed on
+  //    CF-Connecting-IP — every request shares the same loopback socket IP, so
+  //    if req.ip were the key this would still 429, hence steps 2–3 isolate it.
+  let lastStatus = 0;
+  for (let i = 0; i < 12; i++) {
+    const res = await agent()
+      .get(`/api/auth/invitation/${tokenA}`)
+      .set("Origin", serverUrl)
+      .set("CF-Connecting-IP", clientIp1);
+    lastStatus = res.status;
+    if (lastStatus === 429) break;
+  }
+  expect(lastStatus).toBe(429);
+
+  // 2. A different CF-Connecting-IP is a SEPARATE bucket: one lookup of the
+  //    (fresh) token-B from clientIp2 succeeds — not collateral-throttled.
+  await agent()
+    .get(`/api/auth/invitation/${tokenB}`)
+    .set("Origin", serverUrl)
+    .set("CF-Connecting-IP", clientIp2)
+    .expect(200);
+
+  // 3. It is the IP key — not the token — doing the throttling: the SAME fresh
+  //    token-B from the already-throttled clientIp1 still 429s. Proves the 429
+  //    in step 1 follows the CF-Connecting-IP value, not the shared socket IP
+  //    or the token.
+  await agent()
+    .get(`/api/auth/invitation/${tokenB}`)
+    .set("Origin", serverUrl)
+    .set("CF-Connecting-IP", clientIp1)
+    .expect(429);
+});
+
+// ------------------------------------------------------------------
 // 6. CSRF: POST /api/auth/invitation/accept with wrong Origin → 403
 // ------------------------------------------------------------------
 
