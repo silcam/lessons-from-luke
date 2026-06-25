@@ -101,7 +101,15 @@ export async function createInvitation(
 
   const client = await pool.connect();
   try {
-    // 2. Lazy-expire: transition any past-due pending rows to 'expired'
+    // 2. Lazy-expire (scoped to THIS email). The stored `status` is
+    //    denormalized and expiry is lazy (no background job), so a past-due
+    //    invite can still sit in 'pending'. The partial unique index
+    //    uq_invitation_one_pending_email (WHERE status='pending') would make
+    //    the INSERT below collide with that stale row -> a false
+    //    ActivePendingError. Flip this email's past-due pending row(s) to
+    //    'expired' first to unblock the INSERT. Intentionally scoped to this
+    //    email, not a global sweep -- at create time we only care about this
+    //    address. (Derived-status refactor removes this; see #115.)
     await client.query(
       `UPDATE "invitation" SET status='expired'
        WHERE LOWER(email) = $1 AND status = 'pending' AND "expiresAt" <= now()`,
@@ -469,6 +477,9 @@ export async function listInvitations(pool: Pool): Promise<InvitationSummary[]> 
   const client = await pool.connect();
   try {
     // Lazy-expire: flip any pending rows with past expiresAt to 'expired'
+    // (global sweep so the admin list shows correct statuses; this
+    //  denormalized-status maintenance also goes away with the
+    //  derived-status refactor -- see #115)
     await client.query(
       `UPDATE "invitation" SET status='expired'
        WHERE status='pending' AND "expiresAt" <= now()`
