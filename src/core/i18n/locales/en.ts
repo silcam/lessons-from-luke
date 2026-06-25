@@ -95,7 +95,7 @@ const en = {
   Invitation_error_active_pending: "An active invitation already exists for this email address.",
   Invitation_create_heading_ready: "Invitation ready",
   Invitation_share_instructions:
-    "Share this single-use link with the person you invited. It works once and then expires.",
+    "Share this single-use link with the person you invited. It can be used only once.",
   Invitation_create_another: "Create another invitation",
 
   // Invitation feature — Redeem Invitation form (US2)
