@@ -246,36 +246,6 @@ describe("CreateInvitation", () => {
       });
     });
 
-    it("shows a distinct Alert when server returns active_pending (409)", async () => {
-      createInvitation.mockReturnValue(
-        jest.fn().mockResolvedValue({
-          payload: { code: "active_pending" },
-          error: { message: "rejected" },
-        })
-      );
-
-      const { container, getByText } = renderWithProviders(
-        <CreateInvitation />,
-        defaultInitialState
-      );
-
-      await act(async () => {
-        fireEvent.click(createButton());
-      });
-
-      await waitFor(() => {
-        const alerts = container.querySelectorAll("[role='alert'], .alert");
-        const found = Array.from(alerts).some((el) =>
-          /active invitation already exists/i.test(el.textContent || "")
-        );
-        if (!found) {
-          expect(getByText(/active invitation already exists/i)).toBeTruthy();
-        } else {
-          expect(found).toBe(true);
-        }
-      });
-    });
-
     it("shows the friendly email message when server returns malformed_email (400)", async () => {
       createInvitation.mockReturnValue(
         jest.fn().mockResolvedValue({
@@ -336,7 +306,7 @@ describe("CreateInvitation", () => {
       });
     });
 
-    it("the account-exists and active-pending alerts show different messages", async () => {
+    it("the account-exists and malformed-email alerts show different messages", async () => {
       // First render: account_exists
       createInvitation.mockReturnValue(
         jest.fn().mockResolvedValue({
@@ -365,10 +335,10 @@ describe("CreateInvitation", () => {
         expect(msg1.length).toBeGreaterThan(0);
       });
 
-      // Second render: active_pending — unmount first to avoid cross-render confusion
+      // Second render: malformed_email — a distinct error variant
       createInvitation.mockReturnValue(
         jest.fn().mockResolvedValue({
-          payload: { code: "active_pending" },
+          payload: { code: "malformed_email" },
           error: { message: "rejected" },
         })
       );
@@ -387,7 +357,7 @@ describe("CreateInvitation", () => {
       let msg2 = "";
       await waitFor(() => {
         try {
-          msg2 = getByText2(/active invitation already exists/i).textContent || "";
+          msg2 = getByText2(/please enter a valid email address/i).textContent || "";
         } catch {
           /* tolerate */
         }

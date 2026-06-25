@@ -652,18 +652,26 @@ test("FR-004: duplicate account email → 409", async () => {
   expect(res.body.error).toBeDefined();
 });
 
-test("FR-005: second invitation for same email while first is pending → 409", async () => {
+test("FR-005: re-inviting an open email refreshes it → 201, new link, old link dead (#115)", async () => {
   const sharedEmail = "integration-dup-pending@example.com";
 
   // First invitation succeeds
-  await adminCreateInvitation(sharedEmail);
+  const first = await adminCreateInvitation(sharedEmail);
+  const firstToken = extractToken(first.link);
 
-  // Second invitation for the same email while first is pending → 409
+  // Re-inviting the same open email refreshes the invite → 201 with a new link
   const adminAgent = await signedInAdminAgent();
   const res = await adminAgent
     .post("/api/admin/invitations")
     .set("Origin", serverUrl)
     .send({ email: sharedEmail, role: "standard" })
-    .expect(409);
-  expect(res.body.error).toBeDefined();
+    .expect(201);
+  expect(res.body.status).toBe("pending");
+  expect(res.body.link).not.toBe(first.link);
+
+  const secondToken = extractToken(res.body.link);
+
+  // The old link is dead; the refreshed link works
+  await agent().get(`/api/auth/invitation/${firstToken}`).set("Origin", serverUrl).expect(410);
+  await agent().get(`/api/auth/invitation/${secondToken}`).set("Origin", serverUrl).expect(200);
 });

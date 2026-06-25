@@ -86,8 +86,12 @@ async function insertTestUser(email: string): Promise<string> {
   return userId;
 }
 
-/** Insert an expired pending invitation row directly for lazy-expire tests. */
-async function insertExpiredPendingInvitation(email: string, invitedBy: string): Promise<void> {
+/**
+ * Insert an expired (past-due, never accepted/retracted) invitation row directly.
+ * Status is derived, so "expired" just means a past expiresAt with both
+ * acceptedAt and retractedAt null. Returns the row id.
+ */
+async function insertExpiredPendingInvitation(email: string, invitedBy: string): Promise<string> {
   const id = crypto.randomUUID();
   const tokenHash = crypto.randomBytes(32).toString("hex");
   const tokenEnc = "placeholder:placeholder:placeholder";
@@ -97,13 +101,14 @@ async function insertExpiredPendingInvitation(email: string, invitedBy: string):
   try {
     await client.query(
       `INSERT INTO "invitation"
-         ("id","email","role","status","tokenHash","tokenEnc","invitedBy","createdAt","expiresAt")
-       VALUES ($1,$2,'standard','pending',$3,$4,$5,$6,$7)`,
+         ("id","email","role","tokenHash","tokenEnc","invitedBy","createdAt","expiresAt")
+       VALUES ($1,$2,'standard',$3,$4,$5,$6,$7)`,
       [id, email.toLowerCase(), tokenHash, tokenEnc, invitedBy, now, expiredAt]
     );
   } finally {
     client.release();
   }
+  return id;
 }
 
 // ------------------------------------------------------------------
@@ -167,13 +172,15 @@ describe("createInvitation(pool, input)", () => {
   });
 
   // ------------------------------------------------------------------
-  // 3. Rejects when a pending invite already exists for that email (FR-005)
+  // 3. Re-inviting an open email REFRESHES the invite in place (FR-005, #115):
+  //    new token + new expiry, old link dies, refreshed role; still one row.
   // ------------------------------------------------------------------
 
-  it("rejects with 'active pending invite' error when pending invite already exists (FR-005)", async () => {
+  it("refreshes the open invite on re-invite: new link, old link dead, single row (FR-005)", async () => {
     const email = "pending-invite@example.com";
-    // Create the first invitation (should succeed)
-    await createInvitation(pool, {
+
+    // First invitation
+    const first = await createInvitation(pool, {
       email,
       role: "standard",
       invitedBy,
@@ -181,16 +188,38 @@ describe("createInvitation(pool, input)", () => {
       cookieSecret,
     });
 
-    // Second invitation for same email must fail
-    await expect(
-      createInvitation(pool, {
-        email,
-        role: "admin",
-        invitedBy,
-        baseUrl,
-        cookieSecret,
-      })
-    ).rejects.toMatchObject({ code: "PENDING_INVITE_EXISTS" });
+    // Re-inviting the same open email succeeds and refreshes the invite
+    const second = await createInvitation(pool, {
+      email,
+      role: "admin",
+      invitedBy,
+      baseUrl,
+      cookieSecret,
+    });
+
+    expect(second.status).toBe("pending");
+    expect(second.role).toBe("admin");
+    // A fresh token was issued — the link (and its tokenHash) changed
+    expect(second.link).not.toBe(first.link);
+    expect(second.tokenHash).not.toBe(first.tokenHash);
+
+    // The old link no longer looks up; the new one does
+    const oldToken = first.link.split("/").pop()!;
+    const newToken = second.link.split("/").pop()!;
+    expect(await lookupInvitation(pool, oldToken)).toBeNull();
+    expect(await lookupInvitation(pool, newToken)).toEqual({ email: email.toLowerCase() });
+
+    // Still exactly one row for this email (refreshed in place, not duplicated)
+    const client = await pool.connect();
+    try {
+      const res = await client.query<{ count: string }>(
+        `SELECT count(*) FROM "invitation" WHERE LOWER(email) = $1`,
+        [email.toLowerCase()]
+      );
+      expect(parseInt(res.rows[0].count, 10)).toBe(1);
+    } finally {
+      client.release();
+    }
   });
 
   // ------------------------------------------------------------------
@@ -201,8 +230,8 @@ describe("createInvitation(pool, input)", () => {
     const email = "expired-prior@example.com";
     await insertExpiredPendingInvitation(email, invitedBy);
 
-    // Should succeed — the lazy-expire logic transitions the old row to 'expired'
-    // before the partial-unique-pending index check
+    // Should succeed — a past-due open row is still "open" per the partial index,
+    // so the UPSERT refreshes it in place back to a fresh pending invite.
     const result = await createInvitation(pool, {
       email,
       role: "standard",
@@ -269,18 +298,18 @@ describe("createInvitation(pool, input)", () => {
   });
 
   // ------------------------------------------------------------------
-  // 8. On tokenHash collision (23505 on idx_invitation_tokenHash), retries once
-  //    and does NOT map it to the FR-005 PENDING_INVITE_EXISTS error
+  // 8. On tokenHash collision (23505 on the tokenHash unique constraint — NOT
+  //    the open-email ON CONFLICT target), retries once with a fresh token.
   // ------------------------------------------------------------------
 
-  it("retries on tokenHash collision without surfacing PENDING_INVITE_EXISTS", async () => {
+  it("retries on tokenHash collision rather than failing the create", async () => {
     // We cannot easily force a SHA-256 collision, but we can verify that when
-    // the store detects a 23505 on idx_invitation_tokenHash it retries rather
-    // than erroring with PENDING_INVITE_EXISTS.
+    // the store detects a 23505 on the tokenHash unique constraint it retries
+    // (the UPSERT's ON CONFLICT only absorbs the open-email index; a tokenHash
+    // collision against ANOTHER row still surfaces as an error to be retried).
     //
     // Strategy: spy on generateToken to return a colliding hash on the first call,
-    // then a unique one on the retry. This test verifies constraint-name
-    // discrimination (plan.md Pass 11).
+    // then a unique one on the retry.
     //
     // Pre-insert an invitation with a known tokenHash to force the collision.
     const collidingTokenHash = crypto.randomBytes(32).toString("hex");
@@ -291,8 +320,8 @@ describe("createInvitation(pool, input)", () => {
     try {
       await client.query(
         `INSERT INTO "invitation"
-           ("id","email","role","status","tokenHash","tokenEnc","invitedBy","createdAt","expiresAt")
-         VALUES ($1,'collision-seed@example.com','standard','pending',$2,'placeholder:placeholder:placeholder',$3,$4,$5)`,
+           ("id","email","role","tokenHash","tokenEnc","invitedBy","createdAt","expiresAt")
+         VALUES ($1,'collision-seed@example.com','standard',$2,'placeholder:placeholder:placeholder',$3,$4,$5)`,
         [collidingId, collidingTokenHash, invitedBy, now, expiresAt]
       );
     } finally {
@@ -329,7 +358,7 @@ describe("createInvitation(pool, input)", () => {
         baseUrl,
         cookieSecret,
       });
-      // Should succeed after retry — not throw PENDING_INVITE_EXISTS
+      // Should succeed after retry
       expect(result.email).toBe("retry-target@example.com");
       expect(result.status).toBe("pending");
     } finally {
@@ -339,28 +368,15 @@ describe("createInvitation(pool, input)", () => {
   });
 
   // ------------------------------------------------------------------
-  // 9. Lazy-expire: expired pending row transitions to 'expired' before insert
+  // 9. Re-inviting a past-due email refreshes the SAME row in place (no
+  //    duplicate, no stored-status maintenance — status is derived) (#115)
   // ------------------------------------------------------------------
 
-  it("handles lazy-expire: an expired pending row is transitioned to 'expired' before the insert", async () => {
+  it("re-inviting a past-due email refreshes the same row in place (single row, derives pending)", async () => {
     const email = "lazy-expire@example.com";
-    await insertExpiredPendingInvitation(email, invitedBy);
+    const expiredId = await insertExpiredPendingInvitation(email, invitedBy);
 
-    // Verify the old row is in the 'pending' state before the call
-    const clientBefore = await pool.connect();
-    let rowBefore;
-    try {
-      const res = await clientBefore.query(
-        `SELECT status FROM "invitation" WHERE LOWER(email) = $1`,
-        [email.toLowerCase()]
-      );
-      rowBefore = res.rows[0];
-    } finally {
-      clientBefore.release();
-    }
-    expect(rowBefore?.status).toBe("pending");
-
-    // createInvitation should succeed (lazy-expire fires first)
+    // createInvitation should succeed by refreshing the past-due open row
     const result = await createInvitation(pool, {
       email,
       role: "standard",
@@ -369,21 +385,24 @@ describe("createInvitation(pool, input)", () => {
       cookieSecret,
     });
     expect(result.status).toBe("pending");
+    // The refreshed row keeps the same id (UPSERT updated in place)
+    expect(result.id).toBe(expiredId);
 
-    // Verify the old row was transitioned to 'expired'
+    // Exactly one row exists, and its derived status is now pending
     const clientAfter = await pool.connect();
     try {
-      const res = await clientAfter.query(
-        `SELECT status FROM "invitation" WHERE LOWER(email) = $1 ORDER BY "createdAt" ASC`,
+      const res = await clientAfter.query<{ count: string }>(
+        `SELECT count(*) FROM "invitation" WHERE LOWER(email) = $1`,
         [email.toLowerCase()]
       );
-      // Two rows: the expired one (first, by createdAt) and the new pending one
-      expect(res.rows.length).toBe(2);
-      expect(res.rows[0].status).toBe("expired");
-      expect(res.rows[1].status).toBe("pending");
+      expect(parseInt(res.rows[0].count, 10)).toBe(1);
     } finally {
       clientAfter.release();
     }
+
+    const list = await listInvitations(pool);
+    const found = list.find((inv) => inv.email === email.toLowerCase());
+    expect(found?.status).toBe("pending");
   });
 });
 
@@ -448,7 +467,7 @@ describe("lookupInvitation(pool, token)", () => {
     const client = await pool.connect();
     try {
       await client.query(
-        `UPDATE "invitation" SET status='accepted', "acceptedAt"=now() WHERE "id"=$1`,
+        `UPDATE "invitation" SET "acceptedAt"=now() WHERE "id"=$1`,
         [created.id]
       );
     } finally {
@@ -477,7 +496,7 @@ describe("lookupInvitation(pool, token)", () => {
     // Retract the invitation directly
     const client = await pool.connect();
     try {
-      await client.query(`UPDATE "invitation" SET status='retracted' WHERE "id"=$1`, [created.id]);
+      await client.query(`UPDATE "invitation" SET "retractedAt"=now() WHERE "id"=$1`, [created.id]);
     } finally {
       client.release();
     }
@@ -584,7 +603,15 @@ describe("acceptInvitation(pool, token, password, name)", () => {
     const client = await pool.connect();
     try {
       const res = await client.query<{ status: string; acceptedAt: Date | null }>(
-        `SELECT status, "acceptedAt" FROM "invitation" WHERE id=$1 LIMIT 1`,
+        `SELECT
+           CASE
+             WHEN "retractedAt" IS NOT NULL THEN 'retracted'
+             WHEN "acceptedAt"  IS NOT NULL THEN 'accepted'
+             WHEN "expiresAt"   <= now()    THEN 'expired'
+             ELSE 'pending'
+           END AS status,
+           "acceptedAt"
+         FROM "invitation" WHERE id=$1 LIMIT 1`,
         [id]
       );
       return res.rows[0] ?? null;
@@ -740,7 +767,7 @@ describe("acceptInvitation(pool, token, password, name)", () => {
     // Retract the invitation (simulating admin retraction while form was open)
     const client = await pool.connect();
     try {
-      await client.query(`UPDATE "invitation" SET status='retracted' WHERE "id"=$1`, [created.id]);
+      await client.query(`UPDATE "invitation" SET "retractedAt"=now() WHERE "id"=$1`, [created.id]);
     } finally {
       client.release();
     }
@@ -1077,10 +1104,10 @@ describe("listInvitations(pool)", () => {
   });
 
   // ------------------------------------------------------------------
-  // 5. Lazy-expire: pending row with past expiresAt appears as 'expired'
+  // 5. Derived status: a past-due row appears as 'expired' (no sweep needed)
   // ------------------------------------------------------------------
 
-  it("lazy-expire: a pending row with past expiresAt appears as status 'expired'", async () => {
+  it("derives 'expired' for a row with a past expiresAt (no stored status)", async () => {
     const email = "list-lazy-expire@example.com";
     await insertExpiredPendingInvitation(email, invitedBy);
 
@@ -1118,7 +1145,7 @@ describe("listInvitations(pool)", () => {
     const client = await pool.connect();
     try {
       await client.query(
-        `UPDATE "invitation" SET status='accepted', "acceptedAt"=now() WHERE id=$1`,
+        `UPDATE "invitation" SET "acceptedAt"=now() WHERE id=$1`,
         [accepted.id]
       );
     } finally {
@@ -1206,7 +1233,7 @@ describe("retractInvitation(pool, id)", () => {
     const client = await pool.connect();
     try {
       await client.query(
-        `UPDATE "invitation" SET status='accepted', "acceptedAt"=now() WHERE id=$1`,
+        `UPDATE "invitation" SET "acceptedAt"=now() WHERE id=$1`,
         [created.id]
       );
     } finally {
@@ -1260,7 +1287,8 @@ describe("retractInvitation(pool, id)", () => {
     const client = await pool.connect();
     try {
       await client.query(
-        `UPDATE "invitation" SET status='accepted', "acceptedAt"=now() WHERE id=$1 AND status='pending'`,
+        `UPDATE "invitation" SET "acceptedAt"=now()
+         WHERE id=$1 AND "acceptedAt" IS NULL AND "retractedAt" IS NULL AND "expiresAt" > now()`,
         [created.id]
       );
     } finally {
@@ -1275,11 +1303,13 @@ describe("retractInvitation(pool, id)", () => {
     // Confirm the row is still 'accepted' — not overwritten to 'retracted'
     const verifyClient = await pool.connect();
     try {
-      const res = await verifyClient.query<{ status: string }>(
-        `SELECT status FROM "invitation" WHERE id=$1`,
+      const res = await verifyClient.query<{ acceptedAt: Date | null; retractedAt: Date | null }>(
+        `SELECT "acceptedAt", "retractedAt" FROM "invitation" WHERE id=$1`,
         [created.id]
       );
-      expect(res.rows[0].status).toBe("accepted");
+      // Still accepted (acceptedAt set), not overwritten to retracted (retractedAt null)
+      expect(res.rows[0].acceptedAt).not.toBeNull();
+      expect(res.rows[0].retractedAt).toBeNull();
     } finally {
       verifyClient.release();
     }
@@ -1348,7 +1378,7 @@ describe("getInvitationLink(pool, id, cookieSecret)", () => {
     const client = await pool.connect();
     try {
       await client.query(
-        `UPDATE "invitation" SET status='accepted', "acceptedAt"=now() WHERE id=$1`,
+        `UPDATE "invitation" SET "acceptedAt"=now() WHERE id=$1`,
         [created.id]
       );
     } finally {
@@ -1378,6 +1408,104 @@ describe("getInvitationLink(pool, id, cookieSecret)", () => {
     const wrongSecret = "this-is-a-wrong-secret-32-chars!!";
     await expect(getInvitationLink(pool, created.id, baseUrl, wrongSecret)).rejects.toMatchObject({
       code: "DECRYPT_ERROR",
+    });
+  });
+});
+
+// ------------------------------------------------------------------
+// Derived-status rule (STATUS_CASE_SQL) — precedence and each branch (#115)
+//
+// Status is no longer stored; it is derived from (retractedAt, acceptedAt,
+// expiresAt). We seed rows with each timestamp combination and read the derived
+// status back through listInvitations(), which uses the same CASE fragment.
+// Precedence: retracted > accepted > expired > pending.
+// ------------------------------------------------------------------
+
+describe("derived status (STATUS_CASE_SQL precedence)", () => {
+  let invitedBy: string;
+
+  beforeAll(async () => {
+    invitedBy = await getAdminUserId();
+  });
+
+  const future = () => new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+  const past = () => new Date(Date.now() - 1000);
+
+  /** Seed an invitation row with explicit timestamps; returns its id + email. */
+  async function seedRow(opts: {
+    label: string;
+    expiresAt: Date;
+    acceptedAt?: Date | null;
+    retractedAt?: Date | null;
+  }): Promise<{ id: string; email: string }> {
+    const id = crypto.randomUUID();
+    const email = `derived-${opts.label}@example.com`;
+    const tokenHash = crypto.randomBytes(32).toString("hex");
+    const client = await pool.connect();
+    try {
+      await client.query(
+        `INSERT INTO "invitation"
+           ("id","email","role","tokenHash","tokenEnc","invitedBy","createdAt","expiresAt","acceptedAt","retractedAt")
+         VALUES ($1,$2,'standard',$3,'placeholder:placeholder:placeholder',$4,now(),$5,$6,$7)`,
+        [
+          id,
+          email,
+          tokenHash,
+          invitedBy,
+          opts.expiresAt,
+          opts.acceptedAt ?? null,
+          opts.retractedAt ?? null,
+        ]
+      );
+    } finally {
+      client.release();
+    }
+    return { id, email };
+  }
+
+  it("derives each status and applies retracted > accepted > expired > pending precedence", async () => {
+    const cases: Array<{
+      label: string;
+      expiresAt: Date;
+      acceptedAt?: Date | null;
+      retractedAt?: Date | null;
+      expected: string;
+    }> = [
+      // Single-condition rows
+      { label: "pending", expiresAt: future(), expected: "pending" },
+      { label: "expired", expiresAt: past(), expected: "expired" },
+      { label: "accepted", expiresAt: future(), acceptedAt: new Date(), expected: "accepted" },
+      { label: "retracted", expiresAt: future(), retractedAt: new Date(), expected: "retracted" },
+      // Precedence rows
+      {
+        label: "accepted-beats-expired",
+        expiresAt: past(),
+        acceptedAt: new Date(),
+        expected: "accepted",
+      },
+      {
+        label: "retracted-beats-accepted",
+        expiresAt: future(),
+        acceptedAt: new Date(),
+        retractedAt: new Date(),
+        expected: "retracted",
+      },
+      {
+        label: "retracted-beats-all",
+        expiresAt: past(),
+        acceptedAt: new Date(),
+        retractedAt: new Date(),
+        expected: "retracted",
+      },
+    ];
+
+    const seeded = await Promise.all(cases.map((c) => seedRow(c)));
+
+    const list = await listInvitations(pool);
+    const byEmail = new Map(list.map((inv) => [inv.email, inv.status]));
+
+    cases.forEach((c, i) => {
+      expect(byEmail.get(seeded[i].email)).toBe(c.expected);
     });
   });
 });
