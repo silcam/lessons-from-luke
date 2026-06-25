@@ -3,8 +3,10 @@ import { Routes, Route, useParams } from "react-router-dom";
 import TranslateRoute from "../common/translate/TranslateHome";
 import AdminHome from "./home/AdminHome";
 import PublicHome from "./home/PublicHome";
+import SignedInHome from "./home/SignedInHome";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, AppState } from "../common/state/appState";
+import { User } from "../../core/models/User";
 import { loadCurrentUser } from "./auth/authThunks";
 import RootDiv from "../common/base-components/RootDiv";
 import LoadingSnake from "../common/base-components/LoadingSnake";
@@ -46,6 +48,13 @@ function RedeemInvitationWrapper() {
   return <RedeemInvitation token={token!} />;
 }
 
+function renderHome(user: User | null) {
+  if (!user) return <PublicHome />;
+  if (user.admin) return <AdminHome />;
+  // Logged-in non-admins get an interim placeholder (see SignedInHome).
+  return <SignedInHome />;
+}
+
 export default function MainRouter() {
   const { user, loaded } = useSelector((state: AppState) => state.currentUser);
   const dispatch = useDispatch<AppDispatch>();
@@ -73,7 +82,7 @@ export default function MainRouter() {
           <Route path="/invitation/:token" element={<RedeemInvitationWrapper />} />
           {user?.admin && <Route path="/admin/invitations/new" element={<CreateInvitation />} />}
           {user?.admin && <Route path="/admin/invitations" element={<InvitationsList />} />}
-          <Route path="*" element={user ? <AdminHome /> : <PublicHome />} />
+          <Route path="*" element={renderHome(user)} />
         </Routes>
       ) : (
         <LoadingSnake />

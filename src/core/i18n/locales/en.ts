@@ -81,6 +81,9 @@ const en = {
   Update_issues: "Update Issues",
   View_lesson: "View Lesson",
 
+  // Interim signed-in (non-admin) home — see SignedInHome.tsx
+  SignedIn_message: "You're signed in.",
+
   // Invitation feature — Create Invitation form (US1)
   Invitation_email_label: "Recipient Email",
   Invitation_role_label: "Role",
