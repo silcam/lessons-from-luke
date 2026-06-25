@@ -411,21 +411,30 @@ describe("GET /api/auth/invitation/:token", () => {
   });
 
   // -------------------------------------------------------------------------
-  // 4. 403 — Origin not in allow-list (CSRF) when BETTER_AUTH_ENFORCE_ORIGIN=1
+  // 4. The lookup GET is intentionally NOT origin-gated — read-only, no side
+  //    effect, and its body is unreadable cross-origin (no CORS headers), so a
+  //    forced cross-origin GET achieves nothing (plan.md Pass 4/11).
+  //
+  //    Regression test for the production 403: browsers omit Origin on a
+  //    same-origin GET, and helmet's Referrer-Policy: no-referrer strips Referer,
+  //    so requireSameOrigin had no signal and 403'd every real redemption. A
+  //    lookup with NO Origin and NO Referer must succeed even under enforcement.
   // -------------------------------------------------------------------------
-  it("403: foreign Origin header rejected when BETTER_AUTH_ENFORCE_ORIGIN=1", async () => {
+  it("200: valid token succeeds with NO Origin/Referer even when BETTER_AUTH_ENFORCE_ORIGIN=1 (prod redemption repro)", async () => {
     const savedEnv = process.env.BETTER_AUTH_ENFORCE_ORIGIN;
     process.env.BETTER_AUTH_ENFORCE_ORIGIN = "1";
 
     try {
       const agent = plainAgent();
-      const bogusToken = crypto.randomBytes(32).toString("hex");
+      const email = `lookup-no-origin-${crypto.randomUUID()}@example.com`;
+      const token = await createPendingInvitation(authPool, email);
 
-      const res = await agent
-        .get(`/api/auth/invitation/${bogusToken}`)
-        .set("Origin", "https://attacker.example.com");
+      // No .set("Origin", ...) and no Referer — exactly what a same-origin GET
+      // looks like under Referrer-Policy: no-referrer in production.
+      const res = await agent.get(`/api/auth/invitation/${token}`);
 
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ email: email.toLowerCase() });
     } finally {
       process.env.BETTER_AUTH_ENFORCE_ORIGIN = savedEnv;
     }
