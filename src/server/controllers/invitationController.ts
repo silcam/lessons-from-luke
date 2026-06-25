@@ -97,10 +97,23 @@ export function registerAnonymousInvitationRoutes(app: Express, pool: Pool): voi
   });
 
   // GET /api/auth/invitation/:token — look up a pending invitation by token
+  //
+  // Intentionally NOT origin-gated (no requireSameOrigin). This is a read-only
+  // lookup with no side effect, and its JSON body is unreadable cross-origin
+  // under the same-origin policy (the server sets no CORS headers) — so a forced
+  // cross-origin GET achieves nothing an honest read would not (plan.md Pass
+  // 4/11, which reached this same conclusion for read-only GETs).
+  //
+  // It MUST stay un-gated: browsers omit the Origin header on a *same-origin*
+  // GET (contrary to plan.md Pass 1's assumption that Origin is "always" sent),
+  // and helmet's default Referrer-Policy: no-referrer strips the Referer too, so
+  // requireSameOrigin would have no signal in production and 403 every real
+  // redemption — the redemption page's first call. The token in the path is the
+  // capability; tokenRateLimiter still bounds brute force. The state-changing
+  // accept POST below keeps requireSameOrigin (POST always sends Origin).
   app.get(
     "/api/auth/invitation/:token",
     tokenRateLimiter,
-    requireSameOrigin,
     async (req: Request, res: Response, next: NextFunction): Promise<void> => {
       const { token } = req.params;
 
