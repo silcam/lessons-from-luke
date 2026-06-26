@@ -1,0 +1,402 @@
+openapi: 3.0.3
+info:
+  title: Invitation System — Admin-Issued Single-Use Sign-Up Links
+  version: 1.0.0
+  description: >
+    Server-only invitation surface for feature 002-invitation-system. Admin-only management
+    endpoints live under /api/admin/invitations* and inherit the existing
+    `app.use("/api/admin", requireAdmin)` gate (401 unauthenticated, 403 non-admin). The
+    recipient redemption endpoints live under /api/auth/invitation/* and are anonymous —
+    authorization is the single-use token itself. They are registered BEFORE the better-auth
+    catch-all `app.all("/api/auth/*", ...)` so Express matches the specific routes first, and
+    AFTER bodyParser for the POST. Account creation bypasses better-auth's disabled public
+    sign-up by inserting user+account rows directly on the isolated pg.Pool (research Decision 1).
+    Invitation data is auth-owned (constitution Principle VI); the domain driver is untouched.
+    The desktop access-code path is OUT OF SCOPE and unchanged (FR-021).
+
+servers:
+  - url: http://localhost:8081
+    description: Local API (dev / test)
+
+components:
+  schemas:
+    Role:
+      type: string
+      enum: [admin, standard]
+      description: Role the invitation grants (FR-002).
+    InvitationStatus:
+      type: string
+      enum: [pending, accepted, expired, retracted]
+      description: Exactly one of these (FR-014). Expired may be derived from a past-expiry pending row.
+    InvitationSummary:
+      type: object
+      description: An invitation as shown in the admin management list (FR-013). Never includes the token.
+      required: [id, email, role, status, createdAt]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        role: { $ref: "#/components/schemas/Role" }
+        status: { $ref: "#/components/schemas/InvitationStatus" }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        acceptedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Present only when status is accepted (FR-013).
+        invitedByEmail:
+          type: string
+          format: email
+          description: Email of the administrator who created it (FR-017 audit).
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: >
+            Human-readable, non-leaky message. Invalid-link responses MUST NOT reveal which
+            of unknown/accepted/retracted/expired applies (FR-010).
+
+paths:
+  /api/admin/invitations:
+    post:
+      summary: Create an invitation (admin-only) — US1, FR-001..FR-006
+      description: >
+        Creates a single-use, email-bound, role-scoped invitation and returns a copy-pasteable
+        link. The system sends no email (FR-003). The plaintext token is returned exactly once in
+        the link and is otherwise stored only as a hash (+ encrypted for re-copy). Rejects an
+        email that already has an account (FR-004) or that already has an active pending invite
+        (FR-005). Permits re-invite when the prior invite is terminal and no account exists (FR-006).
+
+        SECURITY (red-team Pass 4): this is a plain Express handler behind `requireAdmin`, NOT routed
+        through better-auth's `toNodeHandler`, so it inherits none of better-auth's Origin/CSRF
+        enforcement. Because it is a cookie-authenticated, state-changing POST that can mint an
+        admin-role invitation, it MUST enforce the same Origin/Referer allow-list against
+        BETTER_AUTH_URL as the anonymous accept route (403 on mismatch or on a request with neither
+        header), defending against cross-origin account-/invitation-creation CSRF.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, role]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  maxLength: 254
+                  description: >
+                    Bound recipient email. Capped at 254 chars (RFC 5321 max addressable length,
+                    red-team Pass 6) and rejected with 400 before any DB write; stored lowercased.
+                role: { $ref: "#/components/schemas/Role" }
+      responses:
+        "201":
+          description: >
+            Invitation created (Pending). SECURITY (red-team Pass 8): the response body returns the
+            working single-use link, so the handler MUST set `Cache-Control: no-store` (and defensively
+            `Pragma: no-cache`) — the same protection Pass 7 applied to the re-copy `GET .../{id}/link`,
+            which returns the identical link. Pass 7 hardened the re-copy of the link but omitted this
+            original-mint response; this closes that asymmetry so every link-bearing response is
+            uniformly no-store.
+          headers:
+            Cache-Control:
+              schema: { type: string, enum: ["no-store"] }
+              description: Prevents caching of the freshly-minted working single-use link (red-team Pass 8).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, email, role, status, link, expiresAt]
+                properties:
+                  id: { type: string }
+                  email: { type: string, format: email }
+                  role: { $ref: "#/components/schemas/Role" }
+                  status: { $ref: "#/components/schemas/InvitationStatus" }
+                  link:
+                    type: string
+                    format: uri
+                    description: ${BETTER_AUTH_URL}/invitation/<token> — copy-pasteable (FR-003).
+                  expiresAt: { type: string, format: date-time }
+        "400":
+          description: Malformed email or invalid role (validation).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "401":
+          description: Not signed in (requireAdmin).
+        "403":
+          description: >
+            Signed in but not an administrator (requireAdmin) OR the request's Origin/Referer is not
+            in the BETTER_AUTH_URL allow-list (red-team Pass 4 — cross-origin CSRF defense on this
+            state-changing admin POST, which bypasses better-auth's origin check).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "409":
+          description: >
+            Email already has an account (FR-004) OR an active pending invitation already exists
+            (FR-005). Distinct, clear messages; no invitation recorded. CONSTRAINT MAPPING (red-team
+            Pass 11): the FR-005 "active pending invite" 409 is raised by a `23505` on the partial
+            unique index `uq_invitation_one_pending_email` ONLY — the handler MUST branch on
+            `error.constraint`, NOT blanket-map every `23505`: a `23505` on `idx_invitation_tokenHash`
+            (a token-hash collision) is regenerate-and-retry, never this 409; the FR-004 account-exists
+            case is a pre-insert SELECT on "user" (a different table) and never raises a `23505` here.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    get:
+      summary: List all invitations (admin-only) — US3, FR-013, FR-014
+      description: >
+        Returns every invitation in any state, newest first, for review/audit (FR-019 retained
+        history). Never returns tokens. Returns an empty array (not an error) when none exist.
+      responses:
+        "200":
+          description: >
+            Invitation list (empty array when none exist; never an error). SECURITY (red-team
+            Pass 10): each InvitationSummary carries `email` (every invited person) and
+            `invitedByEmail` (every administrator), so this is the largest PII-bearing response on the
+            surface. Pass 7/8 hardened the single-email and link-bearing responses to no-store but
+            declared closure without this bulk-PII list; the handler MUST set `Cache-Control: no-store`
+            (and defensively `Pragma: no-cache`) so a shared/forward proxy or the admin's browser disk
+            cache cannot retain the full invitee/admin roster. NOTE: `invitedByEmail` is resolved by a
+            JOIN to "user" on invitedBy (the row stores the admin's user.id, not their email).
+          headers:
+            Cache-Control:
+              schema: { type: string, enum: ["no-store"] }
+              description: Prevents caching of the bulk invitee/admin email roster (red-team Pass 10).
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/InvitationSummary" }
+        "401": { description: Not signed in. }
+        "403": { description: Not an administrator. }
+
+  /api/admin/invitations/{id}/retract:
+    post:
+      summary: Retract a Pending invitation (admin-only) — US3, FR-015
+      description: >
+        Transitions a Pending invitation to Retracted; its link stops working immediately (SC-004).
+        Retracting a non-pending invitation is rejected.
+
+        CONCURRENCY (red-team Pass 11): the status check + flip MUST be a single atomic conditional
+        UPDATE — `UPDATE "invitation" SET status='retracted' WHERE id=$1 AND status='pending'
+        RETURNING ...` — NOT a SELECT-then-UPDATE. A non-atomic retract races a concurrent accept on
+        the same pending row and can overwrite an already-accepted row back to retracted (corrupting a
+        terminal state, violating SC-005). 1 row updated → 200; 0 rows → 404 (no such id) or 409
+        (exists but not pending), distinguished by a cheap existence check on the 0-row path.
+
+        SECURITY (red-team Pass 4): like the create POST, this state-changing admin route bypasses
+        better-auth's `toNodeHandler` and so MUST enforce the same Origin/Referer allow-list against
+        BETTER_AUTH_URL (403 on mismatch or neither header) — CSRF defense.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: >
+            Retracted. The body is the full InvitationSummary (carrying `email` and `invitedByEmail`,
+            i.e. PII). SECURITY (red-team Pass 11): set `Cache-Control: no-store` (and defensively
+            `Pragma: no-cache`) — the same protection Pass 7/8/10 applied to every other email-/link-
+            bearing response (create 201, list 200, re-copy link 200, anonymous lookup 200, accept 200);
+            Pass 10's "complete and symmetric" set omitted this retract 200, which returns the identical
+            InvitationSummary PII the list 200 carries. NOTE (red-team Pass 11): like the list, the
+            retract handler resolves `invitedByEmail` via a JOIN to "user" on invitedBy (the row stores
+            the admin's user.id, not their email) — reuse the list's row-mapper.
+          headers:
+            Cache-Control:
+              schema: { type: string, enum: ["no-store"] }
+              description: Prevents caching of the retracted invitation's email/invitedByEmail PII (red-team Pass 11).
+          content:
+            { application/json: { schema: { $ref: "#/components/schemas/InvitationSummary" } } }
+        "401": { description: Not signed in. }
+        "403":
+          description: >
+            Not an administrator (requireAdmin) OR Origin/Referer not in the BETTER_AUTH_URL
+            allow-list (red-team Pass 4 — CSRF defense on this state-changing admin POST).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404": { description: No such invitation. }
+        "409":
+          description: Invitation is not Pending (already accepted/expired/retracted).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /api/admin/invitations/{id}/link:
+    get:
+      summary: Re-copy a Pending invitation's link (admin-only) — US3, FR-016
+      description: >
+        Returns the SAME original link for a Pending invitation (no rotation; spec assumption),
+        by decrypting the stored tokenEnc. Only valid while Pending.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: >
+            The original link. SECURITY (red-team Pass 7): the response body is a working single-use
+            credential, so the handler MUST set `Cache-Control: no-store` (and defensively
+            `Pragma: no-cache`) — neither helmet nor the app sets cache headers, so without this a
+            shared/forward proxy or the admin's browser disk cache WILL retain a live link under
+            default caching rules.
+          headers:
+            Cache-Control:
+              schema: { type: string, enum: ["no-store"] }
+              description: Prevents caching of the working single-use link (red-team Pass 7).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [link]
+                properties:
+                  link: { type: string, format: uri }
+        "401": { description: Not signed in. }
+        "403": { description: Not an administrator. }
+        "404": { description: No such invitation. }
+        "409":
+          description: Invitation is not Pending (no working link).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /api/auth/invitation/{token}:
+    get:
+      summary: Look up an invitation by token to render the redemption form (anonymous) — US2, FR-007, FR-010
+      description: >
+        Returns the bound email (to pre-fill, non-editable) for a VALID (pending, non-expired)
+        token. For any invalid token (unknown, accepted, retracted, expired) returns a single
+        generic 410 with a non-leaky message (FR-010). Registered before the better-auth
+        catch-all so Express matches it first.
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: >
+            Valid pending invitation. NOTE (red-team Pass 3): Referer-based token leakage is already
+            prevented globally by the existing `helmet()` default `Referrer-Policy: no-referrer`,
+            which applies to every response including the SPA HTML redemption page (the actual Referer
+            source). No bespoke per-response Referrer-Policy header is set on this JSON endpoint — the
+            earlier per-route header was redundant/ineffective for the real leak vector. The token also
+            travels in the URL path. NOTE (red-team Pass 6, correcting Pass 5): the in-app
+            `res.on("finish")` logger does NOT run for this JSON route (it is registered before the
+            better-auth catch-all and short-circuits); the real in-app token-in-log leak is the SPA
+            HTML route `GET /invitation/:token` served by the production `app.get("*")` fallback, which
+            the logger MUST redact (`^/invitation/[^/]+$`). The residual upstream proxy/Passenger
+            access-log exposure remains an additive documented deployment note (see plan.md Pass 3/5/6),
+            not an app-level header. NOTE (red-team Pass 7): the response carries the bound recipient
+            email (token→PII), so the handler MUST set `Cache-Control: no-store`; and `role` is removed
+            from this anonymous response (it was disclosed gratuitously — the recipient form needs only
+            `email`; the granted role is applied server-side at accept and never confirmed by the
+            recipient).
+          headers:
+            Cache-Control:
+              schema: { type: string, enum: ["no-store"] }
+              description: Prevents caching of the bound-email lookup response (red-team Pass 7).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [email]
+                properties:
+                  email:
+                    type: string
+                    format: email
+                    description: Bound recipient email to pre-fill and lock (FR-007).
+        "410":
+          description: >
+            Invalid link — unknown, already accepted, retracted, or expired. Identical generic
+            response regardless of which (FR-010, non-leaky).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "429":
+          description: >
+            Rate limit exceeded (red-team Pass 1). The anonymous invitation routes do NOT pass
+            through better-auth's rate limiter, so they carry an explicit DB-backed per-IP limit.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /api/auth/invitation/accept:
+    post:
+      summary: Redeem an invitation and create the account (anonymous) — US2, FR-008..FR-012
+      description: >
+        Validates the token (pending, non-expired) and, in a single transaction, creates the
+        user+credential account with the invitation's role and flips the invitation to Accepted
+        (single-use, FR-009). Password is hashed with the existing Argon2id passwordHasher and
+        bounded by the same 12..128 length policy better-auth enforces. The email is taken from
+        the invitation row, NOT the request body (prevents rebinding to a signed-in user). No
+        session is established — the client is directed to sign in (FR-012). Account creation
+        succeeds even though public sign-up is globally disabled (FR-011).
+
+        SECURITY (red-team Pass 1): this route is a plain Express handler and does NOT pass through
+        better-auth's `toNodeHandler`, so it inherits none of better-auth's origin/CSRF or
+        rate-limit protection. It MUST therefore (a) enforce its own Origin/Referer allow-list
+        against BETTER_AUTH_URL (403 on mismatch — account-creation CSRF defense), (b) carry an
+        explicit DB-backed per-IP rate limit (429), and (c) validate the token and password-length
+        bounds BEFORE invoking the Argon2id hasher so invalid requests never pay the hash cost.
+        The handler also needs a parsed JSON body: because the better-auth catch-all is registered
+        before the global bodyParser in serverApp.ts, JSON parsing MUST be supplied to this route
+        explicitly (route-scoped bodyParser, or move bodyParser ahead of both registrations).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password, name]
+              properties:
+                token:
+                  type: string
+                  description: The single-use token from the link.
+                password:
+                  type: string
+                  minLength: 12
+                  maxLength: 128
+                  description: Bounded by the same policy as sign-in (auth.ts minPasswordLength/maxPasswordLength).
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  description: >
+                    Recipient-chosen display name → user.name (FR-008). Sole attacker-controlled
+                    field persisted from the anonymous accept route (red-team Pass 6): the handler
+                    MUST trim() and reject (400) empty-after-trim, and reject ASCII control chars /
+                    newlines, before invoking the Argon2id hasher. Rendered only through React
+                    auto-escaping (never dangerouslySetInnerHTML).
+      responses:
+        "200":
+          description: >
+            Account created. No session set; client redirects to sign-in (FR-012). SECURITY
+            (red-team Pass 7): set `Cache-Control: no-store` on this response — it is a state-changing
+            account-creation confirmation tied to the bound email and must never be served from cache.
+          headers:
+            Cache-Control:
+              schema: { type: string, enum: ["no-store"] }
+              description: No caching of the account-creation confirmation (red-team Pass 7).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [email]
+                properties:
+                  email:
+                    type: string
+                    format: email
+                    description: The email the recipient should now sign in with.
+        "400":
+          description: >
+            Missing/short/long password, or an invalid name — empty, over-long, empty-after-trim, or
+            containing ASCII control chars/newlines (red-team Pass 6). All validation runs before hashing.
+            Also covers a malformed/oversized JSON body (red-team Pass 8): the route-scoped bodyParser's
+            SyntaxError (malformed JSON) and PayloadTooLargeError (body over the small route limit, e.g.
+            4kb) MUST be caught and mapped to this generic JSON Error response — never allowed to reach
+            Express's default finalhandler, which would emit an HTML page (and a stack trace outside
+            production), violating both this JSON schema and the non-leaky-error posture (FR-010).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "403":
+          description: >
+            Origin/Referer not in the BETTER_AUTH_URL allow-list (red-team Pass 1). Defends against
+            cross-origin account-creation CSRF, since this route bypasses better-auth's origin check.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "409":
+          description: >
+            Race-loser on concurrent double-redemption (single-use enforced) OR an account already
+            exists for the bound email. At most one account is ever created (SC-003, Edge Case).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "410":
+          description: >
+            Invalid link — unknown, already accepted, retracted, or expired (incl. retraction or
+            expiry while the form was open). Generic non-leaky message (FR-010). No account created.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "429":
+          description: >
+            Rate limit exceeded (red-team Pass 1). Explicit DB-backed per-IP limit guards against
+            Argon2id resource-exhaustion DoS, since this route is outside better-auth's rate limiter.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }

@@ -80,6 +80,64 @@ const en = {
   Table_of_Contents: "Table of Contents",
   Update_issues: "Update Issues",
   View_lesson: "View Lesson",
+
+  // Interim signed-in (non-admin) home — see SignedInHome.tsx
+  SignedIn_message: "You're signed in.",
+
+  // Invitation feature — Create Invitation form (US1)
+  Invitation_email_label: "Recipient Email",
+  Invitation_role_label: "Role",
+  Invitation_role_standard: "Standard",
+  Invitation_role_admin: "Administrator",
+  Invitation_submit: "Create Invitation",
+  Invitation_copy_link: "Copy Link",
+  Invitation_copy_success: "Invitation link copied to clipboard",
+  Invitation_error_malformed_email: "Please enter a valid email address.",
+  Invitation_error_invalid_role: "Please select a valid role.",
+  Invitation_error_account_exists: "An account already exists for this email address.",
+  Invitation_create_heading_ready: "Invitation ready",
+  Invitation_share_instructions:
+    "Share this single-use link with the person you invited. It can be used only once.",
+  Invitation_create_another: "Create another invitation",
+
+  // Invitation feature — Redeem Invitation form (US2)
+  Invitation_email_locked_label: "Email",
+  Invitation_email_locked_help: "This is the address your invitation was sent to.",
+  Invitation_password_label: "Password",
+  Invitation_password_help: "Use at least 12 characters.",
+  Invitation_display_name_label: "Display Name",
+  Invitation_redeem_submit: "Create Account",
+  Invitation_redeem_continue: "Continue to sign in",
+  Invitation_go_to_sign_in: "Go to sign in",
+  Invitation_invalid_link_help: "This usually means the link was already used or has expired.",
+  Invitation_redeem_success:
+    "Your account has been created. Please sign in with your new credentials.",
+  Invitation_error_invalid_link:
+    "This invitation link is no longer valid. Please contact your administrator.",
+  Invitation_error_rate_limited: "Too many attempts. Please wait a moment and try again.",
+  Invitation_error_generic: "Something went wrong. Please try again.",
+
+  // Invitation feature — Invitations management list (US3)
+  Invitations_page_heading: "Invitations",
+  Invitations_column_email: "Email",
+  Invitations_column_role: "Role",
+  Invitations_column_status: "Status",
+  Invitations_column_created: "Created",
+  Invitations_column_accepted: "Accepted",
+  Invitations_column_created_by: "Created By",
+  Invitations_status_pending: "Pending",
+  Invitations_status_accepted: "Accepted",
+  Invitations_status_expired: "Expired",
+  Invitations_status_retracted: "Retracted",
+  Invitations_action_recopy: "Re-copy Link",
+  Invitations_action_retract: "Retract",
+  Invitations_action_retract_confirm: "Confirm retract",
+  Invitations_retract_confirm_prompt:
+    "Retract this invitation? The link will stop working immediately.",
+  Invitations_column_actions: "Actions",
+  Invitations_loading: "Loading invitations…",
+  Invitations_load_error: "Couldn't load invitations. Please try again.",
+  Invitations_empty_state: "No invitations yet.",
 };
 
 export type I18nStrings = typeof en;

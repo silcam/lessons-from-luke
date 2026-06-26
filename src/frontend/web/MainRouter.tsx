@@ -3,8 +3,10 @@ import { Routes, Route, useParams } from "react-router-dom";
 import TranslateRoute from "../common/translate/TranslateHome";
 import AdminHome from "./home/AdminHome";
 import PublicHome from "./home/PublicHome";
+import SignedInHome from "./home/SignedInHome";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, AppState } from "../common/state/appState";
+import { User } from "../../core/models/User";
 import { loadCurrentUser } from "./auth/authThunks";
 import RootDiv from "../common/base-components/RootDiv";
 import LoadingSnake from "../common/base-components/LoadingSnake";
@@ -14,6 +16,9 @@ import UsfmImportResultPage from "./languages/UsfmImportResultPage";
 import DocStringsPage from "./lessons/DocStringsPage";
 import UpdateIssuesPage from "./lessons/UpdateIssuesPage";
 import { useClearBannersOnNavigation } from "../common/banners/useClearBannersOnNavigation";
+import CreateInvitation from "./invitations/CreateInvitation";
+import InvitationsList from "./invitations/InvitationsList";
+import RedeemInvitation from "./auth/RedeemInvitation";
 
 function TranslateRouteWrapper() {
   const { code } = useParams<{ code: string }>();
@@ -36,6 +41,18 @@ function DocStringsPageWrapper() {
 function UpdateIssuesPageWrapper() {
   const { lessonId } = useParams<{ lessonId: string }>();
   return <UpdateIssuesPage lessonId={parseInt(lessonId!)} />;
+}
+
+function RedeemInvitationWrapper() {
+  const { token } = useParams<{ token: string }>();
+  return <RedeemInvitation token={token!} />;
+}
+
+function renderHome(user: User | null) {
+  if (!user) return <PublicHome />;
+  if (user.admin) return <AdminHome />;
+  // Logged-in non-admins get an interim placeholder (see SignedInHome).
+  return <SignedInHome />;
 }
 
 export default function MainRouter() {
@@ -61,7 +78,11 @@ export default function MainRouter() {
             element={<DocStringsPageWrapper />}
           />
           <Route path="/update-issues/:lessonId" element={<UpdateIssuesPageWrapper />} />
-          <Route path="*" element={user ? <AdminHome /> : <PublicHome />} />
+          {/* Public route — anyone with the token URL can redeem (FR-007, FR-011) */}
+          <Route path="/invitation/:token" element={<RedeemInvitationWrapper />} />
+          {user?.admin && <Route path="/admin/invitations/new" element={<CreateInvitation />} />}
+          {user?.admin && <Route path="/admin/invitations" element={<InvitationsList />} />}
+          <Route path="*" element={renderHome(user)} />
         </Routes>
       ) : (
         <LoadingSnake />

@@ -11,11 +11,14 @@ import normalizeForwardedProto from "./middle/normalizeForwardedProto";
 import tStringsController from "./controllers/tStringsController";
 import testController from "./controllers/testController";
 import documentsController from "./controllers/documentsController";
+import invitationController, {
+  registerAnonymousInvitationRoutes,
+} from "./controllers/invitationController";
 import PGStorage, { PGTestStorage, PGDevStorage } from "./storage/PGStorage";
 import { Persistence } from "../core/interfaces/Persistence";
 import docStorage from "./storage/docStorage";
 import syncController from "./controllers/syncController";
-import { getAuth } from "./auth/auth";
+import { getAuth, getAuthPool } from "./auth/auth";
 
 const PRODUCTION = process.env.NODE_ENV == "production";
 
@@ -34,13 +37,28 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
     console.log(`[serverApp] NODE_ENV=${process.env.NODE_ENV} storage=${cls}`);
   }
 
-  // Trust one proxy hop for req.protocol/req.ip. NOTE: under Cloudflare +
-  // Passenger there are TWO hops, so req.ip currently resolves to a Cloudflare
-  // edge IP (172.64.0.0/13). Harmless today — no app code reads req.ip — but
-  // before the 002 invitation limiter merges (it keys on req.ip), either set
-  // `trust proxy = 2` AND restrict the origin to Cloudflare's published IP
-  // ranges (otherwise req.ip becomes spoofable), or have that limiter read
-  // `cf-connecting-ip` directly. Left at 1 for now.
+  // Trust one proxy hop for req.protocol/req.ip. Under the deployed topology —
+  // Cloudflare in front of Phusion Passenger — there are TWO hops and BOTH
+  // APPEND to X-Forwarded-For, so req.ip resolves to a Cloudflare EDGE IP
+  // (172.64.0.0/13), not the real client. We deliberately keep this at 1 rather
+  // than `trust proxy = 2`: bumping the hop count only yields the real client IP
+  // if ingress is ALSO firewalled to Cloudflare's published ranges (otherwise
+  // req.ip becomes spoofable), which would couple the app to infra it can't
+  // enforce.
+  //
+  // Instead, both IP-sensitive consumers read Cloudflare's authoritative,
+  // non-spoofable CF-Connecting-IP header directly — falling back to req.ip /
+  // x-forwarded-for when Cloudflare is absent — so they are independent of this
+  // setting:
+  //   - invitation rate limiter: clientIp() in util/clientIp.ts
+  //   - better-auth rate limiting: ipAddressHeaders in auth/auth.ts
+  // Keep those two header orderings in sync so the limiters never key on
+  // different identities.
+  //
+  // Residual risk: a client reaching the origin DIRECTLY (bypassing Cloudflare)
+  // could forge CF-Connecting-IP. Mitigate at the infra layer by firewalling
+  // ingress to Cloudflare's published IP ranges (follow-up; out of scope for
+  // this code change).
   app.set("trust proxy", 1);
 
   // Normalize a doubled X-Forwarded-Proto at the trust boundary. Cloudflare and
@@ -94,6 +112,11 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
     }) as any
   );
 
+  // Anonymous invitation routes (/api/auth/invitation/*) are registered HERE,
+  // BEFORE the better-auth catch-all, so they are not swallowed by it.
+  // The admin route (/api/admin/invitations POST) is mounted below (after bodyParser)
+  // and inherits requireAdmin from app.use('/api/admin', requireAdmin) below.
+  registerAnonymousInvitationRoutes(app, getAuthPool());
   app.all("/api/auth/*", toNodeHandler(getAuth()) as any);
   app.use(bodyParser.json({ limit: "2MB" }) as any);
   app.use("/api/admin", requireAdmin);
@@ -112,9 +135,17 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   // });
 
   if (!opts.silent) {
+    // Logger redaction (plan.md Pass 5/6): the production SPA catch-all
+    // app.get("*") logs GET /invitation/<raw-token>, leaking the token.
+    // Defensively also redact /api/auth/invitation/<token> in case a future
+    // refactor moves those routes after the logger.
+    const TOKEN_PATH_REDACT = /^\/(api\/auth\/)?invitation\/[^/]+$/;
     app.use((req, res, next) => {
       res.on("finish", () => {
-        console.log(`${req.method} ${req.path} => [${res.statusCode}]`);
+        const logPath = TOKEN_PATH_REDACT.test(req.path)
+          ? req.path.replace(/\/[^/]+$/, "/[redacted]")
+          : req.path;
+        console.log(`${req.method} ${logPath} => [${res.statusCode}]`);
       });
       next();
     });
@@ -125,6 +156,7 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   tStringsController(app, storage);
   documentsController(app, storage);
   syncController(app, storage);
+  invitationController(app, getAuthPool());
 
   if (process.env.NODE_ENV === "test") {
     testController(app, storage as PGTestStorage);

@@ -8,6 +8,11 @@ scan it first to discover existing specs before creating new ones.
 Keywords: authentication, auth, login, sign-in, signin, password, Argon2id, password hashing, better-auth, session, session cookie, admin, authorization, 401, 403, invitation-only, no public sign-up, user account, credentials, email login, server-only auth, security migration, cookie-session removal, isolated auth DB driver
 Spec: specs/001-better-auth-migration/spec.md
 
+## Invitation System
+
+Keywords: invitation, invite, invitation link, sign-up link, single-use invite, email-bound invitation, admin-issued invite, onboarding, account creation, redeem invitation, accept invite, retract invitation, revoke invite, expire invitation, 14-day expiry, pending accepted expired retracted, invitation management screen, admin onboarding, role grant, copy link, no email sending, recipient sign-up, server-only auth, stacked on better-auth, 401, 403
+Spec: specs/002-invitation-system/spec.md
+
 ## How to Update This File
 
 - Add one entry per feature spec, before this section.

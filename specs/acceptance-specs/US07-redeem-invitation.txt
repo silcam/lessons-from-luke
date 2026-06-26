@@ -1,0 +1,34 @@
+;=============================================
+; Opening a valid invitation link shows the redemption form with the bound email locked.
+;=============================================
+GIVEN a valid Pending invitation link.
+WHEN the recipient opens it.
+THEN a sign-up form is shown with the bound email pre-filled and not editable.
+
+;=============================================
+; Submitting the redemption form creates an account and sends the recipient to sign in.
+;=============================================
+GIVEN the recipient is on a valid sign-up form.
+WHEN they set a password and display name and submit.
+THEN an account is created with the role specified on the invitation and the invitation becomes Accepted and the recipient is directed to the sign-in page.
+
+;=============================================
+; An already-accepted invitation link cannot be redeemed again.
+;=============================================
+GIVEN an invitation that is already Accepted.
+WHEN its link is opened again.
+THEN a clear non-leaky message is shown and no account can be created.
+
+;=============================================
+; An unknown, retracted, or expired link is rejected without leaking detail.
+;=============================================
+GIVEN an unknown, retracted, or expired link.
+WHEN it is opened.
+THEN a clear non-leaky message is shown and account creation is not allowed.
+
+;=============================================
+; A valid invitation can be redeemed even though public sign-up is disabled.
+;=============================================
+GIVEN public self-service sign-up is disabled.
+WHEN a recipient redeems a valid invitation.
+THEN account creation still succeeds.
