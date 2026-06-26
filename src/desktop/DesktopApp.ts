@@ -25,7 +25,15 @@ import { tForLocale } from "../core/i18n/I18n";
 import { CredentialStore } from "./auth/CredentialStore";
 import { DevicePairing } from "./auth/DevicePairing";
 import Axios from "axios";
-import { ON_PAIRING_ERROR, ON_SYNC_STATE_CHANGE } from "../core/api/IpcChannels";
+import {
+  DEVICE_STATE,
+  ON_PAIRING_ERROR,
+  ON_SYNC_STATE_CHANGE,
+  PAIRING_CANCEL,
+  PAIRING_DISCONNECT,
+  PAIRING_START,
+  PAIRING_USER_CODE,
+} from "../core/api/IpcChannels";
 
 /**
  * Duration of better-auth's `updateAge` (1 day). The session keep-alive call
@@ -70,8 +78,8 @@ export default class DesktopApp {
         // onUserCode fires after startPairing() obtains the code; mainWindow
         // is guaranteed to exist by then (user must interact with the UI).
         // The event is advisory — the renderer also gets the code as the
-        // return value of its invoke("pairingStart") call.
-        onUserCode: (code) => this.mainWindow?.webContents.send("pairingUserCode", code),
+        // return value of its invoke(PAIRING_START) call.
+        onUserCode: (code) => this.mainWindow?.webContents.send(PAIRING_USER_CODE, code),
       });
 
     this.webClient = new WebAPIClientForDesktop(
@@ -211,7 +219,7 @@ export default class DesktopApp {
     // as the code is available.  The polling loop continues in the background;
     // the renderer is notified via ON_SYNC_STATE_CHANGE (approval) or
     // ON_PAIRING_ERROR (declined/expired/error).
-    ipcMain.handle("pairingStart", async () => {
+    ipcMain.handle(PAIRING_START, async () => {
       const handle = await this.devicePairing.startPairing();
 
       // Handle the polling completion in the background so we can return
@@ -249,11 +257,11 @@ export default class DesktopApp {
     // pairingCancel: acknowledges a cancel request from the UI.  Full
     // cancellation of the in-flight polling loop is a future improvement;
     // for now registering the channel prevents "no handler" rejections.
-    ipcMain.handle("pairingCancel", async () => {
+    ipcMain.handle(PAIRING_CANCEL, async () => {
       // No-op stub — polling will terminate naturally on expiry.
     });
 
-    ipcMain.handle("pairingDisconnect", async () => {
+    ipcMain.handle(PAIRING_DISCONNECT, async () => {
       // Capture userId before clearing state for the audit log.
       const userId = this.pairedUserId;
 
@@ -290,7 +298,7 @@ export default class DesktopApp {
       );
     });
 
-    ipcMain.handle("device:state", async () => {
+    ipcMain.handle(DEVICE_STATE, async () => {
       return { paired: this.paired, pairedUserName: this.pairedUserName };
     });
   }

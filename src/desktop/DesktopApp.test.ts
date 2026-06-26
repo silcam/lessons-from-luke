@@ -89,6 +89,12 @@ import DesktopApp from "./DesktopApp";
 import type { CredentialStore } from "./auth/CredentialStore";
 import type { DevicePairing, PairingResult, PairingHandle } from "./auth/DevicePairing";
 import type LocalStorage from "./LocalStorage";
+import {
+  DEVICE_STATE,
+  PAIRING_CANCEL,
+  PAIRING_DISCONNECT,
+  PAIRING_START,
+} from "../core/api/IpcChannels";
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -265,7 +271,7 @@ describe("DesktopApp pairing lifecycle", () => {
   });
 
   // -------------------------------------------------------------------------
-  // device:state IPC handler (not in IpcChannels.ts; queried internally)
+  // DEVICE_STATE IPC handler
   // -------------------------------------------------------------------------
 
   describe("device:state handler", () => {
@@ -274,7 +280,7 @@ describe("DesktopApp pairing lifecycle", () => {
       const dp = makeMockDevicePairing();
       await createApp(cs, dp);
 
-      expect(ipcHandlers["device:state"]).toBeDefined();
+      expect(ipcHandlers[DEVICE_STATE]).toBeDefined();
     });
 
     test("returns { paired: false, pairedUserName: undefined } when unpaired", async () => {
@@ -282,7 +288,7 @@ describe("DesktopApp pairing lifecycle", () => {
       const dp = makeMockDevicePairing();
       await createApp(cs, dp);
 
-      const result = await ipcHandlers["device:state"]({});
+      const result = await ipcHandlers[DEVICE_STATE]({});
       expect(result).toEqual({ paired: false, pairedUserName: undefined });
     });
 
@@ -295,7 +301,7 @@ describe("DesktopApp pairing lifecycle", () => {
       const dp = makeMockDevicePairing();
       await createApp(cs, dp);
 
-      const result = await ipcHandlers["device:state"]({});
+      const result = await ipcHandlers[DEVICE_STATE]({});
       expect(result).toEqual({ paired: true, pairedUserName: "Alice" });
     });
   });
@@ -310,7 +316,7 @@ describe("DesktopApp pairing lifecycle", () => {
       const dp = makeMockDevicePairing();
       await createApp(cs, dp);
 
-      expect(ipcHandlers["pairingStart"]).toBeDefined();
+      expect(ipcHandlers[PAIRING_START]).toBeDefined();
     });
 
     test("calls devicePairing.startPairing()", async () => {
@@ -318,7 +324,7 @@ describe("DesktopApp pairing lifecycle", () => {
       const dp = makeMockDevicePairing({ status: "declined" });
       await createApp(cs, dp);
 
-      await ipcHandlers["pairingStart"]({});
+      await ipcHandlers[PAIRING_START]({});
       expect(dp.startPairing).toHaveBeenCalledTimes(1);
     });
 
@@ -327,7 +333,7 @@ describe("DesktopApp pairing lifecycle", () => {
       const dp = makeMockDevicePairing({ status: "declined" }, "XYZW-1234");
       await createApp(cs, dp);
 
-      const result = await ipcHandlers["pairingStart"]({});
+      const result = await ipcHandlers[PAIRING_START]({});
       expect(result).toEqual({ userCode: "XYZW-1234" });
     });
 
@@ -336,7 +342,7 @@ describe("DesktopApp pairing lifecycle", () => {
       const dp = makeMockDevicePairing({ status: "approved", token: "new-token" });
       await createApp(cs, dp);
 
-      await ipcHandlers["pairingStart"]({});
+      await ipcHandlers[PAIRING_START]({});
       // Give background completion microtask a chance to run.
       await new Promise((r) => setTimeout(r, 0));
       expect(cs.save).toHaveBeenCalledWith("new-token");
@@ -353,7 +359,7 @@ describe("DesktopApp pairing lifecycle", () => {
       const dp2 = makeMockDevicePairing({ status: "approved", token: "new-token" });
       const freshApp = await createApp(cs2, dp2);
 
-      await ipcHandlers["pairingStart"]({});
+      await ipcHandlers[PAIRING_START]({});
       await new Promise((r) => setTimeout(r, 0));
       expect((freshApp as any).paired).toBe(true);
       expect(mockWebClient.setPaired).toHaveBeenCalledWith(true);
@@ -368,11 +374,11 @@ describe("DesktopApp pairing lifecycle", () => {
       const dp = makeMockDevicePairing({ status: "approved", token: "new-token" });
       await createApp(cs, dp);
 
-      await ipcHandlers["pairingStart"]({});
+      await ipcHandlers[PAIRING_START]({});
       await new Promise((r) => setTimeout(r, 0));
       expect(mockWebClient.get).toHaveBeenCalledWith("/api/auth/get-session", {});
 
-      const state = (await ipcHandlers["device:state"]({})) as any;
+      const state = (await ipcHandlers[DEVICE_STATE]({})) as any;
       expect(state.pairedUserName).toBe("newuser@example.com");
     });
 
@@ -385,7 +391,7 @@ describe("DesktopApp pairing lifecycle", () => {
       const dp = makeMockDevicePairing({ status: "approved", token: "tok" });
       await createApp(cs, dp);
 
-      await ipcHandlers["pairingStart"]({});
+      await ipcHandlers[PAIRING_START]({});
       await new Promise((r) => setTimeout(r, 0));
 
       // ON_SYNC_STATE_CHANGE is "onSyncStateChange"
@@ -400,7 +406,7 @@ describe("DesktopApp pairing lifecycle", () => {
       const dp = makeMockDevicePairing({ status: "declined" });
       const freshApp = await createApp(cs, dp);
 
-      await ipcHandlers["pairingStart"]({});
+      await ipcHandlers[PAIRING_START]({});
       await new Promise((r) => setTimeout(r, 0));
       expect(cs.save).not.toHaveBeenCalled();
       expect((freshApp as any).paired).toBe(false);
@@ -411,7 +417,7 @@ describe("DesktopApp pairing lifecycle", () => {
       const dp = makeMockDevicePairing({ status: "declined" });
       await createApp(cs, dp);
 
-      await ipcHandlers["pairingStart"]({});
+      await ipcHandlers[PAIRING_START]({});
       await new Promise((r) => setTimeout(r, 0));
 
       const sentCalls = mockWebContents.send.mock.calls;
@@ -425,7 +431,7 @@ describe("DesktopApp pairing lifecycle", () => {
       const dp = makeMockDevicePairing({ status: "expired" });
       const freshApp = await createApp(cs, dp);
 
-      await ipcHandlers["pairingStart"]({});
+      await ipcHandlers[PAIRING_START]({});
       await new Promise((r) => setTimeout(r, 0));
       expect(cs.save).not.toHaveBeenCalled();
       expect((freshApp as any).paired).toBe(false);
@@ -436,7 +442,7 @@ describe("DesktopApp pairing lifecycle", () => {
       const dp = makeMockDevicePairing({ status: "expired" });
       await createApp(cs, dp);
 
-      await ipcHandlers["pairingStart"]({});
+      await ipcHandlers[PAIRING_START]({});
       await new Promise((r) => setTimeout(r, 0));
 
       const sentCalls = mockWebContents.send.mock.calls;
@@ -456,7 +462,7 @@ describe("DesktopApp pairing lifecycle", () => {
       const dp = makeMockDevicePairing();
       await createApp(cs, dp);
 
-      expect(ipcHandlers["pairingCancel"]).toBeDefined();
+      expect(ipcHandlers[PAIRING_CANCEL]).toBeDefined();
     });
 
     test("invoking pairingCancel does not throw", async () => {
@@ -464,7 +470,7 @@ describe("DesktopApp pairing lifecycle", () => {
       const dp = makeMockDevicePairing();
       await createApp(cs, dp);
 
-      await expect(ipcHandlers["pairingCancel"]({})).resolves.not.toThrow();
+      await expect(ipcHandlers[PAIRING_CANCEL]({})).resolves.not.toThrow();
     });
   });
 
@@ -478,7 +484,7 @@ describe("DesktopApp pairing lifecycle", () => {
       const dp = makeMockDevicePairing();
       await createApp(cs, dp);
 
-      expect(ipcHandlers["pairingDisconnect"]).toBeDefined();
+      expect(ipcHandlers[PAIRING_DISCONNECT]).toBeDefined();
     });
 
     test("clears credential via credentialStore.clear", async () => {
@@ -486,7 +492,7 @@ describe("DesktopApp pairing lifecycle", () => {
       const dp = makeMockDevicePairing();
       await createApp(cs, dp);
 
-      await ipcHandlers["pairingDisconnect"]({});
+      await ipcHandlers[PAIRING_DISCONNECT]({});
       expect(cs.clear).toHaveBeenCalledTimes(1);
     });
 
@@ -495,7 +501,7 @@ describe("DesktopApp pairing lifecycle", () => {
       const dp = makeMockDevicePairing();
       const freshApp = await createApp(cs, dp);
 
-      await ipcHandlers["pairingDisconnect"]({});
+      await ipcHandlers[PAIRING_DISCONNECT]({});
       expect((freshApp as any).paired).toBe(false);
     });
 
@@ -507,7 +513,7 @@ describe("DesktopApp pairing lifecycle", () => {
       // Clear any setPaired calls from init.
       mockWebClient.setPaired.mockClear();
 
-      await ipcHandlers["pairingDisconnect"]({});
+      await ipcHandlers[PAIRING_DISCONNECT]({});
       expect(mockWebClient.setPaired).toHaveBeenCalledWith(false);
     });
 
@@ -522,7 +528,7 @@ describe("DesktopApp pairing lifecycle", () => {
 
       expect((freshApp as any).pairedUserName).toBe("Alice");
 
-      await ipcHandlers["pairingDisconnect"]({});
+      await ipcHandlers[PAIRING_DISCONNECT]({});
       expect((freshApp as any).pairedUserName).toBeUndefined();
     });
 
@@ -531,8 +537,8 @@ describe("DesktopApp pairing lifecycle", () => {
       const dp = makeMockDevicePairing();
       await createApp(cs, dp);
 
-      await ipcHandlers["pairingDisconnect"]({});
-      const result = await ipcHandlers["device:state"]({});
+      await ipcHandlers[PAIRING_DISCONNECT]({});
+      const result = await ipcHandlers[DEVICE_STATE]({});
       expect(result).toEqual({ paired: false, pairedUserName: undefined });
     });
 
@@ -542,7 +548,7 @@ describe("DesktopApp pairing lifecycle", () => {
       const dp = makeMockDevicePairing();
       await createApp(cs, dp);
 
-      await ipcHandlers["pairingDisconnect"]({});
+      await ipcHandlers[PAIRING_DISCONNECT]({});
       expect(mockAxiosPost).toHaveBeenCalledWith(
         expect.stringContaining("/api/auth/sign-out"),
         {},
@@ -558,7 +564,7 @@ describe("DesktopApp pairing lifecycle", () => {
       const dp = makeMockDevicePairing();
       await createApp(cs, dp);
 
-      await ipcHandlers["pairingDisconnect"]({});
+      await ipcHandlers[PAIRING_DISCONNECT]({});
       expect(mockAxiosPost).not.toHaveBeenCalled();
       expect(cs.clear).toHaveBeenCalledTimes(1);
     });
@@ -570,7 +576,7 @@ describe("DesktopApp pairing lifecycle", () => {
       const dp = makeMockDevicePairing();
       await createApp(cs, dp);
 
-      await ipcHandlers["pairingDisconnect"]({});
+      await ipcHandlers[PAIRING_DISCONNECT]({});
       expect(cs.clear).toHaveBeenCalledTimes(1);
     });
 
@@ -585,7 +591,7 @@ describe("DesktopApp pairing lifecycle", () => {
 
       const consoleSpy = jest.spyOn(console, "log").mockImplementation(() => {});
       try {
-        await ipcHandlers["pairingDisconnect"]({});
+        await ipcHandlers[PAIRING_DISCONNECT]({});
 
         const logCalls = consoleSpy.mock.calls
           .map((args) => args[0])
@@ -615,7 +621,7 @@ describe("DesktopApp pairing lifecycle", () => {
 
       const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
       try {
-        await ipcHandlers["pairingDisconnect"]({});
+        await ipcHandlers[PAIRING_DISCONNECT]({});
         expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("expiry"));
       } finally {
         warnSpy.mockRestore();
