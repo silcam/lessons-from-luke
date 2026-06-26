@@ -19,6 +19,9 @@ import { Persistence } from "../core/interfaces/Persistence";
 import docStorage from "./storage/docStorage";
 import syncController from "./controllers/syncController";
 import { getAuth, getAuthPool } from "./auth/auth";
+import requireUserWhenEnforced from "./middle/requireUserWhenEnforced";
+import { requireSameOrigin } from "./middle/requireSameOrigin";
+import { isEnforcementEnabled } from "./util/enforcementFlag";
 
 const PRODUCTION = process.env.NODE_ENV == "production";
 
@@ -127,7 +130,12 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
     app.use(express.static("dist/frontend", { index: false }));
   }
 
-  app.use("/webified", express.static(docStorage.webifyPath()));
+  // Gate the /webified static asset mount behind requireUserWhenEnforced.
+  // The gated GET /api/lessons/:id/webified HTML references images from here;
+  // leaving this mount open would let anonymous callers retrieve curriculum
+  // imagery even when ENFORCE_API_AUTH is set (red-team Security).
+  // When enforcement is OFF this is a no-op and the mount behaves as before.
+  app.use("/webified", requireUserWhenEnforced, express.static(docStorage.webifyPath()));
 
   // Simulate slow server
   // app.use((res, req, next) => {
@@ -150,6 +158,56 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
       next();
     });
   }
+
+  // ─── API authentication enforcement gate (FR-009, FR-010, FR-012) ────────────
+  //
+  // When ENFORCE_API_AUTH is set, all gated domain routes require an authenticated
+  // session (cookie OR bearer token). /api/auth/* is registered above and remains
+  // always public (FR-011). requireUserWhenEnforced is a no-op when the flag is
+  // off, preserving full backward-compatibility (FR-012).
+  //
+  // POST /api/tStrings CSRF guard is registered BEFORE the auth gate so the
+  // bearer bypass is evaluated first:
+  //   - bearer request  → CSRF skipped (bearer is CSRF-safe) → auth checked
+  //   - cookie request, no/bad Origin → 403 before auth (plan.md §CSRF)
+  // The guard is enforcement-conditional: when the flag is off the tStrings route
+  // is unchanged (no CSRF check at all, matching today's behaviour).
+  //
+  // State-changing admin POSTs (POST /api/admin/*) carry requireSameOrigin as a
+  // belt-and-suspenders hold: invitationController already guards its own POSTs;
+  // this catch-all covers languagesController/lessonsController/documentsController
+  // admin POSTs. Intentionally not bearer-bypassed — admin state changes must not
+  // be reachable from a no-Origin bearer caller (plan.md Security §red-team).
+
+  // CSRF guard: POST /api/tStrings only, enforcement-conditional, bearer-bypassed.
+  app.post("/api/tStrings", (req, res, next) => {
+    if (!isEnforcementEnabled()) {
+      next();
+      return;
+    }
+    if (req.headers.authorization?.toLowerCase().startsWith("bearer ")) {
+      next();
+      return;
+    }
+    requireSameOrigin(req, res, next);
+  });
+
+  // Auth enforcement gate: all gated domain route prefixes.
+  app.use("/api/languages", requireUserWhenEnforced);
+  app.use("/api/lessons", requireUserWhenEnforced);
+  app.use("/api/tStrings", requireUserWhenEnforced);
+  app.use("/api/sync", requireUserWhenEnforced);
+
+  // Blanket CSRF guard: all state-changing admin POST routes (audit trail).
+  // Runs after requireAdmin (registered above at line app.use('/api/admin', ...))
+  // so admin authentication is checked first.
+  app.use("/api/admin", (req, res, next) => {
+    if (req.method !== "POST") {
+      next();
+      return;
+    }
+    requireSameOrigin(req, res, next);
+  });
 
   languagesController(app, storage);
   lessonsController(app, storage);
