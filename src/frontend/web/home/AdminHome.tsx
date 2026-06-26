@@ -261,12 +261,8 @@ export default function AdminHome() {
         <Div pad>
           {/* aria-live region: announces success/error outcomes to screen readers */}
           <div role="status" aria-live="polite" aria-atomic="true">
-            {announcement?.type === "success" && (
-              <Alert success>{announcement.message}</Alert>
-            )}
-            {announcement?.type === "error" && (
-              <Alert danger>{announcement.message}</Alert>
-            )}
+            {announcement?.type === "success" && <Alert success>{announcement.message}</Alert>}
+            {announcement?.type === "error" && <Alert danger>{announcement.message}</Alert>}
           </div>
 
           <SectionHeading>{t("AdminHome_users_heading")}</SectionHeading>
@@ -288,9 +284,7 @@ export default function AdminHome() {
         style={dialogStyle}
       >
         <p id="revoke-dialog-title">
-          {confirmUser
-            ? t("AdminHome_revoke_confirm_prompt", { name: confirmUser.name })
-            : ""}
+          {confirmUser ? t("AdminHome_revoke_confirm_prompt", { name: confirmUser.name }) : ""}
         </p>
         <DialogActions>
           <Button

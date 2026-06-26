@@ -32,7 +32,10 @@ export function addGetHandler<T extends DesktopGetRoute>(
 
 export function addPostHandler<T extends DesktopPostRoute>(
   route: T,
-  handler: (params: DesktopAPIPost[T][0], data: DesktopAPIPost[T][1]) => Promise<DesktopAPIPost[T][2]>
+  handler: (
+    params: DesktopAPIPost[T][0],
+    data: DesktopAPIPost[T][1]
+  ) => Promise<DesktopAPIPost[T][2]>
 ) {
   ipcMain.handle(route, async (event, params, data) => {
     try {

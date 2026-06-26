@@ -29,7 +29,7 @@ session cookie **and** an `Authorization: Bearer <session-token>` from the deskt
   preview rendering, document the residual exposure as an explicit accepted tradeoff instead.
 
 (`/api/admin/*` is already gated by `requireAdmin`, so the `ENFORCE_API_AUTH` flag does not change
-its access. **But note (red-team):** installing the global `bearer` plugin *does* change *who*
+its access. **But note (red-team):** installing the global `bearer` plugin _does_ change _who_
 `requireAdmin` accepts — it goes through the same `loadSession`/`getSession` path, so an **admin
 user's desktop bearer token now authenticates `/api/admin/*`** too. State-changing admin POSTs are
 held shut by `requireSameOrigin` (it 403s a no-Origin/Referer request, and a desktop bearer call
@@ -45,18 +45,18 @@ ensure every state-changing admin route carries `requireSameOrigin`. See plan.md
 
 ## Behavior matrix
 
-| Flag | Caller | Expected |
-| --- | --- | --- |
-| OFF (default) | anyone (incl. anonymous) | unchanged — request served as today (FR-012, SC-004) |
-| OFF | desktop with Bearer / web with cookie | served; credential accepted but not required (FR-012) |
-| ON | anonymous (no cookie, no Bearer) | **401 `{ "error": "Unauthorized" }`** (FR-010, SC-003) |
-| ON | web user with valid session cookie | served (FR-010, SC-003) |
-| ON | desktop with valid Bearer session token | served (FR-010, SC-003) |
-| ON | desktop with revoked/expired Bearer | 401 → desktop drops to "not connected, reconnect" |
-| ON | web cookie `POST /api/tStrings` **cross-site** (no/foreign Origin) | **403** (`requireSameOrigin`, red-team) |
-| ON | desktop Bearer `POST /api/tStrings` (no Origin) | served — bearer path is CSRF-safe, not origin-gated |
-| ON | anonymous `GET /webified/*` asset | **401** once the static mount is gated (red-team) |
-| ON (any) | sign-in / invitation / device-pairing routes | served without auth (FR-011, SC-007) |
+| Flag          | Caller                                                             | Expected                                               |
+| ------------- | ------------------------------------------------------------------ | ------------------------------------------------------ |
+| OFF (default) | anyone (incl. anonymous)                                           | unchanged — request served as today (FR-012, SC-004)   |
+| OFF           | desktop with Bearer / web with cookie                              | served; credential accepted but not required (FR-012)  |
+| ON            | anonymous (no cookie, no Bearer)                                   | **401 `{ "error": "Unauthorized" }`** (FR-010, SC-003) |
+| ON            | web user with valid session cookie                                 | served (FR-010, SC-003)                                |
+| ON            | desktop with valid Bearer session token                            | served (FR-010, SC-003)                                |
+| ON            | desktop with revoked/expired Bearer                                | 401 → desktop drops to "not connected, reconnect"      |
+| ON            | web cookie `POST /api/tStrings` **cross-site** (no/foreign Origin) | **403** (`requireSameOrigin`, red-team)                |
+| ON            | desktop Bearer `POST /api/tStrings` (no Origin)                    | served — bearer path is CSRF-safe, not origin-gated    |
+| ON            | anonymous `GET /webified/*` asset                                  | **401** once the static mount is gated (red-team)      |
+| ON (any)      | sign-in / invitation / device-pairing routes                       | served without auth (FR-011, SC-007)                   |
 
 ## Contract tests to generate (Phase: tasks)
 

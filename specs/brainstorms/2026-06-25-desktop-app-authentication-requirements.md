@@ -16,22 +16,22 @@ much, and explicitly deferred both **server-side API gating** and **desktop auth
 "the feature that gives desktop a credential."
 
 **This is that feature.** Giving the Electron desktop app its own credential is what finally lets
-the server *require* authentication on the shared API — closing the real hole the web guard left
+the server _require_ authentication on the shared API — closing the real hole the web guard left
 open. Concretely, this feature does two linked things:
 
 1. **Desktop pairing.** From the desktop app, a translator clicks **"Connect to account,"** the
    desktop shows a **short code** and opens their browser to the website's link page; they log in
-   (if not already), **enter or paste the code**, approve connecting *this* computer, and the
+   (if not already), **enter or paste the code**, approve connecting _this_ computer, and the
    desktop — which has been polling — is connected to their account. **No loopback localhost
    server and no custom URL scheme** (deliberate choice): the desktop only makes outbound HTTPS
    calls.
 2. **API enforcement.** Once a real credential exists for both clients, the server starts
    **requiring authentication on the shared domain `/api/*` routes**, accepting the web app's
-   existing session *and* the paired desktop's credential, and rejecting anonymous callers.
+   existing session _and_ the paired desktop's credential, and rejecting anonymous callers.
 
 Two existing facts make this tractable (confirmed by codebase research):
 
-- The desktop's HTTP calls originate in the **Electron main process** (Node/Axios via IPC), *not*
+- The desktop's HTTP calls originate in the **Electron main process** (Node/Axios via IPC), _not_
   the renderer — so it can set an `Authorization` header free of browser-CORS constraints, making
   a bearer-style credential clean.
 - The invitation system already ships a proven **secret-token recipe** (256-bit random secret →
@@ -74,7 +74,7 @@ flowchart TD
   **displaying a short pairing code** and opening the user's web browser to the website's
   device-link page. The code MUST be easy to read and **copy** from the desktop.
 - R2. In the browser the user MUST authenticate (or already be logged in), **enter or paste the
-  code** shown by the desktop, and then **explicitly approve** connecting *this* computer to their
+  code** shown by the desktop, and then **explicitly approve** connecting _this_ computer to their
   account. The desktop learns the result by **polling** — there MUST be **no loopback localhost
   server and no custom URL scheme**. The link/consent screen MUST follow the existing design
   system (`DESIGN.md` / base-components; consistency over novelty).

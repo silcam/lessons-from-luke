@@ -190,11 +190,11 @@ session up directly (rejected — duplicates what the bearer plugin already does
 
 **Decision**: When the flag is ON, require an authenticated user on the **domain data routes**:
 
-| Gate | Routes |
-| --- | --- |
-| **Gated (require user)** | `/api/languages`, `/api/languages/code/:code`, `/api/languages/:id/lessons/:id/tStrings`, `/api/languages/:id/tStrings`, `/api/languages/:id/tStrings/:ids`, `/api/lessons`, `/api/lessons/:id`, `/api/lessons/:id/webified`, `/api/sync/:timestamp/...`, `POST /api/tStrings` |
-| **Already gated** | everything under `/api/admin/*` (existing `requireAdmin`) |
-| **Always public (never gated)** | `/api/auth/*` (sign-in, get-session, **device** endpoints, invitation lookup/accept) |
+| Gate                            | Routes                                                                                                                                                                                                                                                                         |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Gated (require user)**        | `/api/languages`, `/api/languages/code/:code`, `/api/languages/:id/lessons/:id/tStrings`, `/api/languages/:id/tStrings`, `/api/languages/:id/tStrings/:ids`, `/api/lessons`, `/api/lessons/:id`, `/api/lessons/:id/webified`, `/api/sync/:timestamp/...`, `POST /api/tStrings` |
+| **Already gated**               | everything under `/api/admin/*` (existing `requireAdmin`)                                                                                                                                                                                                                      |
+| **Always public (never gated)** | `/api/auth/*` (sign-in, get-session, **device** endpoints, invitation lookup/accept)                                                                                                                                                                                           |
 
 **Rationale**:
 
@@ -282,15 +282,15 @@ given the operator-controlled flag.
 
 ## Summary of decisions feeding Phase 1
 
-| # | Decision |
-| --- | --- |
-| R1 | Use better-auth `device-authorization` + `bearer` plugins (no bespoke endpoint). |
-| R2 | Credential = better-auth session token, sent as `Authorization: Bearer`. |
-| R3 | `session.expiresIn = 60d`, `updateAge = 1d` (sliding renewal). |
-| R4 | User code `XXXX-XXXX` unambiguous alphabet; 10 min expiry; 5 s poll; auto-open + visible code. |
-| R5 | Desktop at-rest via Electron `safeStorage`, blob under `LocalStorage` base path. |
-| R6 | One gate; `getSession` (via bearer plugin) already accepts cookie + bearer; bearer is CSRF-safe. |
-| R7 | Gate the domain data routes; keep `/api/auth/*` public; confirmed no pre-login domain calls. |
-| R8 | `POST /api/admin/users/:userId/revoke-sessions` → direct SQL delete of user's sessions. |
-| R9 | `ENFORCE_API_AUTH` env flag, default OFF, via `requireUserWhenEnforced` wrapper. |
-| R10 | Flag-gated rollout: server first (off) → desktop release → operator flips flag. |
+| #   | Decision                                                                                         |
+| --- | ------------------------------------------------------------------------------------------------ |
+| R1  | Use better-auth `device-authorization` + `bearer` plugins (no bespoke endpoint).                 |
+| R2  | Credential = better-auth session token, sent as `Authorization: Bearer`.                         |
+| R3  | `session.expiresIn = 60d`, `updateAge = 1d` (sliding renewal).                                   |
+| R4  | User code `XXXX-XXXX` unambiguous alphabet; 10 min expiry; 5 s poll; auto-open + visible code.   |
+| R5  | Desktop at-rest via Electron `safeStorage`, blob under `LocalStorage` base path.                 |
+| R6  | One gate; `getSession` (via bearer plugin) already accepts cookie + bearer; bearer is CSRF-safe. |
+| R7  | Gate the domain data routes; keep `/api/auth/*` public; confirmed no pre-login domain calls.     |
+| R8  | `POST /api/admin/users/:userId/revoke-sessions` → direct SQL delete of user's sessions.          |
+| R9  | `ENFORCE_API_AUTH` env flag, default OFF, via `requireUserWhenEnforced` wrapper.                 |
+| R10 | Flag-gated rollout: server first (off) → desktop release → operator flips flag.                  |

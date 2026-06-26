@@ -499,10 +499,7 @@ describe("WebAPIClientForDesktop", () => {
     });
 
     test("401 does not rethrow — resolves to null", async () => {
-      const client = new WebAPIClientForDesktop(
-        makeLocalStorage(),
-        makeCredentialStore("token")
-      );
+      const client = new WebAPIClientForDesktop(makeLocalStorage(), makeCredentialStore("token"));
       mockWebGet.mockRejectedValue({ type: "HTTP", status: 401 });
 
       await expect(client.get("/api/languages", {})).resolves.toBeNull();
@@ -624,7 +621,11 @@ describe("WebAPIClientForDesktop", () => {
 
     test("keep-alive fires on first watch tick when online and paired, but not again within 24h window", async () => {
       const mockFetcher = makeSessionFetcher();
-      const client = new WebAPIClientForDesktop(makeLocalStorage(), makeCredentialStore("token"), mockFetcher);
+      const client = new WebAPIClientForDesktop(
+        makeLocalStorage(),
+        makeCredentialStore("token"),
+        mockFetcher
+      );
       client.setConnected(true);
       client.setPaired(true);
 
@@ -645,7 +646,11 @@ describe("WebAPIClientForDesktop", () => {
 
     test("keep-alive does not fire when not connected", async () => {
       const mockFetcher = makeSessionFetcher();
-      const client = new WebAPIClientForDesktop(makeLocalStorage(), makeCredentialStore("token"), mockFetcher);
+      const client = new WebAPIClientForDesktop(
+        makeLocalStorage(),
+        makeCredentialStore("token"),
+        mockFetcher
+      );
       client.setConnected(false);
       client.setPaired(true);
 
@@ -659,7 +664,11 @@ describe("WebAPIClientForDesktop", () => {
 
     test("keep-alive does not fire when not paired", async () => {
       const mockFetcher = makeSessionFetcher();
-      const client = new WebAPIClientForDesktop(makeLocalStorage(), makeCredentialStore("token"), mockFetcher);
+      const client = new WebAPIClientForDesktop(
+        makeLocalStorage(),
+        makeCredentialStore("token"),
+        mockFetcher
+      );
       client.setConnected(true);
       client.setPaired(false);
 

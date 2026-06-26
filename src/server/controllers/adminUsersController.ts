@@ -31,28 +31,25 @@ export default function adminUsersController(app: Express, pool: Pool): void {
   //
   // Requires admin session (requireAdmin gate in serverApp.ts).
   // Returns all users: { id, email, name, admin }[].
-  app.get(
-    "/api/admin/users",
-    async (req: Request, res: Response): Promise<void> => {
-      let users: { id: string; email: string; name: string; admin: boolean }[];
-      try {
-        const result = await pool.query<{
-          id: string;
-          email: string;
-          name: string;
-          admin: boolean;
-        }>(`SELECT id, email, name, admin FROM "user" ORDER BY email`);
-        users = result.rows;
-      } catch (err) {
-        console.error("[adminUsersController] DB error listing users:", (err as Error).message);
-        res.status(500).json({ error: "Internal server error" });
-        return;
-      }
-
-      res.setHeader("Cache-Control", "no-store");
-      res.json(users);
+  app.get("/api/admin/users", async (req: Request, res: Response): Promise<void> => {
+    let users: { id: string; email: string; name: string; admin: boolean }[];
+    try {
+      const result = await pool.query<{
+        id: string;
+        email: string;
+        name: string;
+        admin: boolean;
+      }>(`SELECT id, email, name, admin FROM "user" ORDER BY email`);
+      users = result.rows;
+    } catch (err) {
+      console.error("[adminUsersController] DB error listing users:", (err as Error).message);
+      res.status(500).json({ error: "Internal server error" });
+      return;
     }
-  );
+
+    res.setHeader("Cache-Control", "no-store");
+    res.json(users);
+  });
 
   // POST /api/admin/users/:userId/revoke-sessions — revoke a user's device access (FR-017)
   //
@@ -93,10 +90,7 @@ export default function adminUsersController(app: Express, pool: Pool): void {
         const result = await revokeUserSessions(pool, userId);
         revokedCount = result.revokedCount;
       } catch (err) {
-        console.error(
-          "[adminUsersController] DB error revoking sessions:",
-          (err as Error).message
-        );
+        console.error("[adminUsersController] DB error revoking sessions:", (err as Error).message);
         res.status(500).json({ error: "Internal server error" });
         return;
       }

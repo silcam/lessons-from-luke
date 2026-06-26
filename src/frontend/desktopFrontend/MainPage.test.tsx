@@ -243,8 +243,16 @@ describe("DownSyncPage", () => {
   });
 
   it("shows no connect prompt when !paired and !connected (passive offline state)", () => {
-    const store = createTestStore({ loaded: true, language: null, paired: false, connected: false });
-    const { queryByText } = renderWithProviders(<DownSyncPage startTranslating={jest.fn()} />, store);
+    const store = createTestStore({
+      loaded: true,
+      language: null,
+      paired: false,
+      connected: false,
+    });
+    const { queryByText } = renderWithProviders(
+      <DownSyncPage startTranslating={jest.fn()} />,
+      store
+    );
     expect(queryByText(/Not connected/)).toBeNull();
   });
 
@@ -271,7 +279,10 @@ describe("DownSyncPage", () => {
         progress: 50,
       },
     });
-    const { queryByText } = renderWithProviders(<DownSyncPage startTranslating={jest.fn()} />, store);
+    const { queryByText } = renderWithProviders(
+      <DownSyncPage startTranslating={jest.fn()} />,
+      store
+    );
     expect(queryByText(/Not connected/)).toBeNull();
   });
 });

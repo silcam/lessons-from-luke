@@ -134,25 +134,24 @@ export const approveCode = createAsyncThunk<
  * Declines the pairing request. The desktop's next /device/token poll receives
  * access_denied and the deviceCode row is deleted.
  */
-export const denyCode = createAsyncThunk<
-  DenyCodeResult,
-  string,
-  { rejectValue: DeviceLinkError }
->("deviceLink/denyCode", async (userCode, { rejectWithValue }) => {
-  let response: Response;
-  try {
-    response = await fetch("/api/auth/device/deny", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userCode }),
-    });
-  } catch {
-    return rejectWithValue({ code: "network_error", message: "Network error" });
-  }
+export const denyCode = createAsyncThunk<DenyCodeResult, string, { rejectValue: DeviceLinkError }>(
+  "deviceLink/denyCode",
+  async (userCode, { rejectWithValue }) => {
+    let response: Response;
+    try {
+      response = await fetch("/api/auth/device/deny", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userCode }),
+      });
+    } catch {
+      return rejectWithValue({ code: "network_error", message: "Network error" });
+    }
 
-  if (response.ok) {
-    return (await response.json()) as DenyCodeResult;
-  }
+    if (response.ok) {
+      return (await response.json()) as DenyCodeResult;
+    }
 
-  return rejectWithValue(await parseError(response));
-});
+    return rejectWithValue(await parseError(response));
+  }
+);

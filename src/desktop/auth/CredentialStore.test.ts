@@ -25,11 +25,11 @@ beforeEach(() => {
   testDir = fs.mkdtempSync(path.join(os.tmpdir(), "cred-store-test-"));
 
   (safeStorage.isEncryptionAvailable as jest.Mock).mockReturnValue(true);
-  (safeStorage.encryptString as jest.Mock).mockImplementation(
-    (text: string) => Buffer.from(`enc:${text}`)
+  (safeStorage.encryptString as jest.Mock).mockImplementation((text: string) =>
+    Buffer.from(`enc:${text}`)
   );
-  (safeStorage.decryptString as jest.Mock).mockImplementation(
-    (buf: Buffer) => buf.toString().replace("enc:", "")
+  (safeStorage.decryptString as jest.Mock).mockImplementation((buf: Buffer) =>
+    buf.toString().replace("enc:", "")
   );
 
   store = new CredentialStore(testDir);

@@ -115,11 +115,11 @@ describe("ipcPost (context-compatible, shared routes)", () => {
   it("throws an AppError when ipcRenderer.invoke rejects", async () => {
     mockInvoke.mockRejectedValueOnce(new Error("IPC failure"));
 
-    await expect(
-      ipcPost("/api/tStrings", {}, { code: "btg", tStrings: [] })
-    ).rejects.toMatchObject({
-      type: "Unknown",
-    });
+    await expect(ipcPost("/api/tStrings", {}, { code: "btg", tStrings: [] })).rejects.toMatchObject(
+      {
+        type: "Unknown",
+      }
+    );
   });
 });
 
@@ -173,17 +173,13 @@ describe("ipcDesktopPost (desktop-only routes)", () => {
     const error = { type: "HTTP", status: 500 };
     mockInvoke.mockResolvedValueOnce({ error });
 
-    await expect(ipcDesktopPost("/api/syncState/code", {}, { code: "XYZ" })).rejects.toEqual(
-      error
-    );
+    await expect(ipcDesktopPost("/api/syncState/code", {}, { code: "XYZ" })).rejects.toEqual(error);
   });
 
   it("throws an AppError when ipcRenderer.invoke rejects", async () => {
     mockInvoke.mockRejectedValueOnce(new Error("IPC failure"));
 
-    await expect(
-      ipcDesktopPost("/api/syncState/code", {}, { code: "XYZ" })
-    ).rejects.toMatchObject({
+    await expect(ipcDesktopPost("/api/syncState/code", {}, { code: "XYZ" })).rejects.toMatchObject({
       type: "Unknown",
     });
   });

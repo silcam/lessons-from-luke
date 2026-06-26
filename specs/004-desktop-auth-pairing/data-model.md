@@ -14,18 +14,18 @@ locally. There is **no new domain data** and **no `Persistence`-interface change
 A short-lived attempt to connect one desktop (spec "Device pairing request"). The plugin defines
 the schema (`device-authorization/schema.mjs`); we add a migration that creates the matching table.
 
-| Field | Type | Req | Notes |
-| --- | --- | --- | --- |
-| `id` | text PK | yes | plugin-generated id |
-| `deviceCode` | text | yes | the desktop's polling secret. **Never exposed to the browser or any URL** (FR-007). Looked up on `/device/token`. |
-| `userCode` | text | yes | the short human code shown by the desktop and typed in the browser, e.g. `WDJB-MJHT`. Looked up on `/device/approve`. |
-| `userId` | text | no | NULL until approval; set to the approving user's id by `/device/approve`. Binds the credential (FR-005). |
-| `expiresAt` | timestamptz | yes | now + `expiresIn` (10 min). Past-expiry → `expired_token` and row delete. |
-| `status` | text | yes | `pending` → `approved` / `denied`. Drives `/device/token` responses. |
-| `lastPolledAt` | timestamptz | no | updated each `/device/token` poll; enforces `slow_down`. |
-| `pollingInterval` | number | no | echoes the configured `interval` (5 s). |
-| `clientId` | text | no | the desktop client identifier sent on `/device/code`. |
-| `scope` | text | no | unused in v1 (no scopes). |
+| Field             | Type        | Req | Notes                                                                                                                 |
+| ----------------- | ----------- | --- | --------------------------------------------------------------------------------------------------------------------- |
+| `id`              | text PK     | yes | plugin-generated id                                                                                                   |
+| `deviceCode`      | text        | yes | the desktop's polling secret. **Never exposed to the browser or any URL** (FR-007). Looked up on `/device/token`.     |
+| `userCode`        | text        | yes | the short human code shown by the desktop and typed in the browser, e.g. `WDJB-MJHT`. Looked up on `/device/approve`. |
+| `userId`          | text        | no  | NULL until approval; set to the approving user's id by `/device/approve`. Binds the credential (FR-005).              |
+| `expiresAt`       | timestamptz | yes | now + `expiresIn` (10 min). Past-expiry → `expired_token` and row delete.                                             |
+| `status`          | text        | yes | `pending` → `approved` / `denied`. Drives `/device/token` responses.                                                  |
+| `lastPolledAt`    | timestamptz | no  | updated each `/device/token` poll; enforces `slow_down`.                                                              |
+| `pollingInterval` | number      | no  | echoes the configured `interval` (5 s).                                                                               |
+| `clientId`        | text        | no  | the desktop client identifier sent on `/device/code`.                                                                 |
+| `scope`           | text        | no  | unused in v1 (no scopes).                                                                                             |
 
 **Lifecycle / state transitions** (enforced by the plugin; two-step web flow required):
 
@@ -73,13 +73,13 @@ finds no redeemable code and cannot create a surviving session.
 The credential a desktop holds after pairing **is a better-auth session** (research R2). Relevant
 existing columns:
 
-| Field | Notes |
-| --- | --- |
-| `id` / `token` | `token` is the bearer credential the desktop stores and sends as `Authorization: Bearer <token>`. |
-| `userId` | the paired user. A user may hold many sessions → many devices (spec: "more than one device"). |
-| `expiresAt` | 60-day sliding expiry (research R3); refreshed within `updateAge` on use. |
-| `createdAt` / `updatedAt` | renewal bookkeeping. |
-| `ipAddress` / `userAgent` | better-auth metadata; not used to distinguish device vs web in v1. |
+| Field                     | Notes                                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------------------------- |
+| `id` / `token`            | `token` is the bearer credential the desktop stores and sends as `Authorization: Bearer <token>`. |
+| `userId`                  | the paired user. A user may hold many sessions → many devices (spec: "more than one device").     |
+| `expiresAt`               | 60-day sliding expiry (research R3); refreshed within `updateAge` on use.                         |
+| `createdAt` / `updatedAt` | renewal bookkeeping.                                                                              |
+| `ipAddress` / `userAgent` | better-auth metadata; not used to distinguish device vs web in v1.                                |
 
 **States**: _active_ (row exists, not expired) → _revoked_ (row deleted by admin revoke or self
 sign-out) / _expired_ (`expiresAt ≤ now`, treated as no session). The gate's `getSession` returns
@@ -97,15 +97,15 @@ enhancement (research R8).
 
 The opaque bearer token at rest on the desktop.
 
-| Aspect | Decision |
-| --- | --- |
-| Location | a blob (e.g. `credential.bin`) under the existing `LocalStorage` `userData` base path. |
-| Encryption | Electron `safeStorage` (OS keychain / DPAPI) — `encryptString` on write, `decryptString` on read (research R5). |
-| In-memory | decrypted token kept only in the Electron main process; attached as the `Authorization` header by `WebAPIClientForDesktop`. |
-| Cleared by | Disconnect (FR-016), or on a 401 that proves the credential is dead. |
-| Write safety | atomic tmp-file rename (reuse `LocalStorage`'s existing pattern). |
-| Encryption unavailable | **Fail closed** (red-team): if `safeStorage.isEncryptionAvailable()` is false (locked keychain, pre-`app.ready`, Linux without a keyring), do **not** write plaintext — keep the token in memory for the session only and tell the user secure storage is unavailable. A lost laptop must never yield a readable token. |
-| Read/decrypt failure | **Resolve to unpaired** (red-team): a previously-written blob can become undecryptable (OS user changed, keychain reset/locked, file copied to another machine) → `decryptString` **throws**. Wrap the startup load in try/catch; on failure discard the unreadable blob and treat the device as unpaired (drop to "Not connected — reconnect", keep working offline). MUST NOT crash the main process or boot-loop. A decrypt failure is treated identically to "no credential present". |
+| Aspect                 | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Location               | a blob (e.g. `credential.bin`) under the existing `LocalStorage` `userData` base path.                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Encryption             | Electron `safeStorage` (OS keychain / DPAPI) — `encryptString` on write, `decryptString` on read (research R5).                                                                                                                                                                                                                                                                                                                                                                           |
+| In-memory              | decrypted token kept only in the Electron main process; attached as the `Authorization` header by `WebAPIClientForDesktop`.                                                                                                                                                                                                                                                                                                                                                               |
+| Cleared by             | Disconnect (FR-016), or on a 401 that proves the credential is dead.                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Write safety           | atomic tmp-file rename (reuse `LocalStorage`'s existing pattern).                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Encryption unavailable | **Fail closed** (red-team): if `safeStorage.isEncryptionAvailable()` is false (locked keychain, pre-`app.ready`, Linux without a keyring), do **not** write plaintext — keep the token in memory for the session only and tell the user secure storage is unavailable. A lost laptop must never yield a readable token.                                                                                                                                                                   |
+| Read/decrypt failure   | **Resolve to unpaired** (red-team): a previously-written blob can become undecryptable (OS user changed, keychain reset/locked, file copied to another machine) → `decryptString` **throws**. Wrap the startup load in try/catch; on failure discard the unreadable blob and treat the device as unpaired (drop to "Not connected — reconnect", keep working offline). MUST NOT crash the main process or boot-loop. A decrypt failure is treated identically to "no credential present". |
 
 This store is **server-only-auth-free**: it holds an opaque string obtained over HTTP and never
 imports better-auth (FR-018).
@@ -117,19 +117,19 @@ imports better-auth (FR-018).
 The desktop already has `connected: boolean` meaning **network reachability**. We add an
 orthogonal **pairing** dimension so the UI can tell the four states apart (US3):
 
-| New field | Meaning |
-| --- | --- |
-| `paired: boolean` | a credential is present on the device. |
+| New field                                       | Meaning                                                                                 |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `paired: boolean`                               | a credential is present on the device.                                                  |
 | `pairedUserName?: string` \| `pairedUserEmail?` | shown as "connected as <user>" (US1.2). Optional, fetched from `/api/auth/get-session`. |
 
 **Derived UI states** (FR-014, FR-015, US3):
 
-| `paired` | network `connected` | UI |
-| --- | --- | --- |
-| false | false | full offline use from cache; passive. |
-| false | true | "Not connected" + **Connect to account** prompt (no silent sync failure). |
-| true | true | syncing as `<user>` (normal). |
-| true | true, but 401 | drop `paired`→false, clear credential, show "Not connected — reconnect". A 401 mid-sync aborts the remaining sync cleanly and leaves the local cache at its last consistent checkpoint (red-team — no half-applied sync). |
+| `paired` | network `connected` | UI                                                                                                                                                                                                                        |
+| -------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| false    | false               | full offline use from cache; passive.                                                                                                                                                                                     |
+| false    | true                | "Not connected" + **Connect to account** prompt (no silent sync failure).                                                                                                                                                 |
+| true     | true                | syncing as `<user>` (normal).                                                                                                                                                                                             |
+| true     | true, but 401       | drop `paired`→false, clear credential, show "Not connected — reconnect". A 401 mid-sync aborts the remaining sync cleanly and leaves the local cache at its last consistent checkpoint (red-team — no half-applied sync). |
 
 **Session keep-alive** (red-team, see plan.md Edge Cases): because SC-002/FR-013 rely on `updateAge`
 sliding renewal (Entity 2) which may not slide on plain sync GETs, the desktop when online calls
@@ -140,11 +140,11 @@ sliding renewal (Entity 2) which may not slide on plain sync GETs, the desktop w
 
 ## Entity 5: Enforcement setting (server config, NOT stored data)
 
-| Aspect | Decision |
-| --- | --- |
-| Representation | env var `ENFORCE_API_AUTH` (truthy = on), read once at startup (research R9). |
-| Default | OFF (FR-009, FR-012, SC-004). |
-| Effect | when on, `requireUserWhenEnforced` runs `requireUser` on the gated domain routes (research R7). |
+| Aspect         | Decision                                                                                        |
+| -------------- | ----------------------------------------------------------------------------------------------- |
+| Representation | env var `ENFORCE_API_AUTH` (truthy = on), read once at startup (research R9).                   |
+| Default        | OFF (FR-009, FR-012, SC-004).                                                                   |
+| Effect         | when on, `requireUserWhenEnforced` runs `requireUser` on the gated domain routes (research R7). |
 
 Not domain data; never routed through `Persistence`; not stored in any table.
 

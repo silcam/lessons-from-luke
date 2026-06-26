@@ -328,11 +328,9 @@ describe("429 handling", () => {
 // ---------------------------------------------------------------------------
 describe("audit logging", () => {
   test("emits structured audit log on successful pairing with userId — no token value", async () => {
-    mockAxios.post
-      .mockResolvedValueOnce({ data: CODE_RESPONSE })
-      .mockResolvedValueOnce({
-        data: { access_token: "super-secret-token", token_type: "Bearer" },
-      });
+    mockAxios.post.mockResolvedValueOnce({ data: CODE_RESPONSE }).mockResolvedValueOnce({
+      data: { access_token: "super-secret-token", token_type: "Bearer" },
+    });
     mockAxios.get.mockResolvedValueOnce({ data: SESSION_RESPONSE });
 
     const logLines: string[] = [];

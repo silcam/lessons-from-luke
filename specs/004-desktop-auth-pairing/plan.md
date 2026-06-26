@@ -77,15 +77,15 @@ one new web page, desktop connect/disconnect UI, one migration, plugin config, o
 
 _GATE: re-checked after Phase 1 design — still PASS._
 
-| Principle | Status | Notes |
-| --- | --- | --- |
-| **I. Test-First (TDD)** | PASS | Unit TDD for the gate wrapper, revoke store fn, desktop credential store, header injection, and connection-state logic; integration test for the pairing/enforcement flow; Cypress (link page + enforcement) and Playwright+Electron (connect/disconnect/offline) for the user-facing flows (Principle I doc-processing/E2E clause). |
-| **II. Type Safety** | PASS | Strict TS, explicit return types, no `any` (mirror the cast-with-comment pattern already used for better-auth handler types), `type` imports. |
-| **III. Code Quality** | PASS | JSDoc on new public fns; reuse `requireUser`, `requireSameOrigin`, `invitationStore` direct-SQL patterns; import ordering/Prettier. |
-| **IV. Pre-commit Gates** | PASS | `yarn typecheck` + lint-staged + conventional commits; no `--no-verify`. |
-| **V. Warnings** | PASS | Zero-warning; address any better-auth plugin deprecation immediately. |
-| **VI. Layered Architecture / Dual Targets** | PASS | All auth data on the server-only auth pool (exemption); the desktop obtains/uses the credential **over HTTP only** and never imports better-auth (FR-018); `core` stays isomorphic — header passing added as an opaque-string param, no credential logic in `core`; offline-first preserved; the three runtime envs keep their isolation (the new flag is env-scoped, default off). |
-| **VII. Simplicity** | PASS | The headline simplification: reuse the plugin + session-as-credential instead of bespoke crypto and a parallel credential table (YAGNI/DRY/KISS). One new endpoint, one table, one gate wrapper. |
+| Principle                                   | Status | Notes                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **I. Test-First (TDD)**                     | PASS   | Unit TDD for the gate wrapper, revoke store fn, desktop credential store, header injection, and connection-state logic; integration test for the pairing/enforcement flow; Cypress (link page + enforcement) and Playwright+Electron (connect/disconnect/offline) for the user-facing flows (Principle I doc-processing/E2E clause).                                                |
+| **II. Type Safety**                         | PASS   | Strict TS, explicit return types, no `any` (mirror the cast-with-comment pattern already used for better-auth handler types), `type` imports.                                                                                                                                                                                                                                       |
+| **III. Code Quality**                       | PASS   | JSDoc on new public fns; reuse `requireUser`, `requireSameOrigin`, `invitationStore` direct-SQL patterns; import ordering/Prettier.                                                                                                                                                                                                                                                 |
+| **IV. Pre-commit Gates**                    | PASS   | `yarn typecheck` + lint-staged + conventional commits; no `--no-verify`.                                                                                                                                                                                                                                                                                                            |
+| **V. Warnings**                             | PASS   | Zero-warning; address any better-auth plugin deprecation immediately.                                                                                                                                                                                                                                                                                                               |
+| **VI. Layered Architecture / Dual Targets** | PASS   | All auth data on the server-only auth pool (exemption); the desktop obtains/uses the credential **over HTTP only** and never imports better-auth (FR-018); `core` stays isomorphic — header passing added as an opaque-string param, no credential logic in `core`; offline-first preserved; the three runtime envs keep their isolation (the new flag is env-scoped, default off). |
+| **VII. Simplicity**                         | PASS   | The headline simplification: reuse the plugin + session-as-credential instead of bespoke crypto and a parallel credential table (YAGNI/DRY/KISS). One new endpoint, one table, one gate wrapper.                                                                                                                                                                                    |
 
 **No violations** → Complexity Tracking section omitted.
 
@@ -175,12 +175,12 @@ clear status/error text per `PRODUCT.md`).
 
 ### UI Decisions
 
-| Screen / Component | User Story | Approach | Design Skills |
-| --- | --- | --- | --- |
-| Desktop **Connect to account** (idle + code display + "Connected as <user>" + Disconnect) | US1, US4 | New `ConnectAccount.tsx` from base-components; shows copyable `XXXX-XXXX` code, auto-opens browser, polls; Disconnect button | `/design-language-to-daisyui` (map to base-components), `/design-clarify` (status + error copy) |
-| Desktop **not-connected / connect prompt** in DownSync | US3 | Modify `DownSyncPage` empty/disconnected state | `/design-onboard` (first-run / empty state), `/design-clarify` |
-| Web **Device link / approval page** (`/link`): enter/confirm code, Approve / Decline | US1 | New authenticated React route + thunks; pre-fills `?user_code`; requires sign-in (AuthGate) | `/design-language-to-daisyui`, `/design-clarify`, `/design-adapt` (small windows) |
-| Web admin **Revoke device access** control | US4 | Button in `AdminHome` user/invitation area + confirm | `/design-clarify` (destructive-action copy) |
+| Screen / Component                                                                        | User Story | Approach                                                                                                                     | Design Skills                                                                                   |
+| ----------------------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Desktop **Connect to account** (idle + code display + "Connected as <user>" + Disconnect) | US1, US4   | New `ConnectAccount.tsx` from base-components; shows copyable `XXXX-XXXX` code, auto-opens browser, polls; Disconnect button | `/design-language-to-daisyui` (map to base-components), `/design-clarify` (status + error copy) |
+| Desktop **not-connected / connect prompt** in DownSync                                    | US3        | Modify `DownSyncPage` empty/disconnected state                                                                               | `/design-onboard` (first-run / empty state), `/design-clarify`                                  |
+| Web **Device link / approval page** (`/link`): enter/confirm code, Approve / Decline      | US1        | New authenticated React route + thunks; pre-fills `?user_code`; requires sign-in (AuthGate)                                  | `/design-language-to-daisyui`, `/design-clarify`, `/design-adapt` (small windows)               |
+| Web admin **Revoke device access** control                                                | US4        | Button in `AdminHome` user/invitation area + confirm                                                                         | `/design-clarify` (destructive-action copy)                                                     |
 
 ### Quality Pass
 
@@ -198,7 +198,7 @@ clear status/error text per `PRODUCT.md`).
 ### Device-grant approval: anti-phishing consent + brute-force protection (FR-002, FR-003, FR-007)
 
 The RFC 8628 device grant has a well-known phishing/fixation risk: an attacker initiates pairing on
-*their own* desktop, obtains a `user_code`, and socially engineers a victim into approving it on the
+_their own_ desktop, obtains a `user_code`, and socially engineers a victim into approving it on the
 `/link` page — binding the **attacker's** device to the **victim's** account (the credential is
 issued to whoever approves, and the approving user is whoever is signed in). The mirror risk is
 brute-forcing pending `user_code`s on `/device/approve`.
@@ -211,7 +211,7 @@ brute-forcing pending `user_code`s on `/device/approve`.
   device/client context is shown (`client_id`), treat it as **untrusted display only**: `client_id`
   is self-asserted by whoever called `/device/code`, so an attacker can send the official
   `"lessons-from-luke-desktop"` value to look legitimate. The consent copy must therefore anchor the
-  decision on *"did **you** start this on **your** computer?"* and must NOT imply the request is
+  decision on _"did **you** start this on **your** computer?"_ and must NOT imply the request is
   trustworthy because the client looks like the official app.
 - **Rate-limit `/device/approve` and `/device/deny`** per authenticated user and per IP so pending
   `user_code`s cannot be brute-forced or enumerated (without this limit, a malicious authenticated
@@ -272,12 +272,12 @@ session, and the subsequent session delete closes out everything already issued.
 ### Bearer credential widens the admin API surface (second-order of the `bearer` plugin)
 
 The `bearer` plugin is **global**: it makes `getAuth().api.getSession` accept
-`Authorization: Bearer <session-token>` on *every* route that resolves a session, not only the
+`Authorization: Bearer <session-token>` on _every_ route that resolves a session, not only the
 gated domain routes. `requireAdmin` (in `requireUser.ts`) goes through the same `loadSession` →
 `getSession` path, so once `bearer` is installed an **admin user's desktop device credential
 authenticates `/api/admin/*`**. Consequences worth designing for, not just noticing:
 
-- A leaked/stolen *admin* desktop token is now an **admin-API** credential, callable with plain
+- A leaked/stolen _admin_ desktop token is now an **admin-API** credential, callable with plain
   `curl` from outside any browser — strictly more dangerous than the curriculum-data exposure the
   enforcement flag closes. This is the strongest argument for the fail-closed `safeStorage`
   handling below and for treating admin revoke as a first-class operation.
@@ -285,10 +285,10 @@ authenticates `/api/admin/*`**. Consequences worth designing for, not just notic
   request with no `Origin`/`Referer` (it 403s when neither is present — confirmed in
   `requireSameOrigin.ts`), and a desktop bearer call carries neither. So the new
   `POST /api/admin/users/:userId/revoke-sessions` and the existing invitation-**write** admin POSTs
-  are *not* reachable by a no-Origin bearer caller. **Action:** confirm every state-changing admin
+  are _not_ reachable by a no-Origin bearer caller. **Action:** confirm every state-changing admin
   route carries `requireSameOrigin` so this hold is deliberate, not incidental.
 - **Admin GET routes have no such guard**: e.g. the admin invitation **list** is `requireAdmin`
-  only, so an admin bearer token *can* read it via `curl`. **Decision (red-team):** accept this for
+  only, so an admin bearer token _can_ read it via `curl`. **Decision (red-team):** accept this for
   v1 (internal, invitation-only tool; an admin token is already trusted) but record it explicitly
   in the threat model — the admin desktop credential is **admin-equivalent**, and that is the
   reason admin revoke and fail-closed storage matter. Do **not** silently assume admin endpoints
@@ -313,7 +313,7 @@ the artifacts as they stand. Pin it down here so it reaches tasks:
   `sessionRevocation.ts`) MUST NOT record the **bearer/session token**, the **`device_code`
   polling secret**, or the `/device/token` **`access_token`**. Log the `userId`, an event name, and
   timestamps only. (There is no morgan/access-log middleware today — confirmed — so the only
-  leakage paths are the *new* code's own logging; keep it that way.)
+  leakage paths are the _new_ code's own logging; keep it that way.)
 
 ## Edge Cases & Error Handling
 
@@ -401,9 +401,9 @@ every sync request, and measure sync latency with enforcement on before flipping
 (the default-off rollout, R10, makes this measurable safely).
 
 **Caveat (red-team — the cookie cache does NOT cover the heaviest client):** better-auth's
-session *cookie-cache* stores the cached session in a signed **cookie** on the client. The desktop
+session _cookie-cache_ stores the cached session in a signed **cookie** on the client. The desktop
 is the request-heaviest sync client, but it authenticates with `Authorization: Bearer` and keeps no
-cookie jar — the `bearer` plugin reconstructs a cookie from the header *per request* and the desktop
+cookie jar — the `bearer` plugin reconstructs a cookie from the header _per request_ and the desktop
 never persists/returns the cache cookie, so the cookie-cache optimization yields **no** DB savings
 on the desktop path. Every gated desktop `downSync` request therefore still round-trips `getSession`
 to the auth pool. Options: (a) accept it — the user base is small and `downSync` is bursty, not
@@ -460,12 +460,12 @@ live region.
 > Acceptance-spec numbering continues the global sequence (001/002 used US01–US08, 003 used
 > US09–US12), so this feature is **US13–US16**, mapping to the spec's local US1–US4.
 
-| User Story (local) | Acceptance Spec File | Scenarios |
-| --- | --- | --- |
-| US1 — Connect a desktop (P1) | `specs/acceptance-specs/US13-desktop-connect-pairing.txt` | 5 |
-| US2 — Lock down the shared API (P2) | `specs/acceptance-specs/US14-shared-api-enforcement.txt` | 4 |
-| US3 — Stay connected / offline (P2) | `specs/acceptance-specs/US15-stay-connected-offline.txt` | 3 |
-| US4 — Disconnect & admin revoke (P3) | `specs/acceptance-specs/US16-disconnect-and-revoke.txt` | 3 |
+| User Story (local)                   | Acceptance Spec File                                      | Scenarios |
+| ------------------------------------ | --------------------------------------------------------- | --------- |
+| US1 — Connect a desktop (P1)         | `specs/acceptance-specs/US13-desktop-connect-pairing.txt` | 5         |
+| US2 — Lock down the shared API (P2)  | `specs/acceptance-specs/US14-shared-api-enforcement.txt`  | 4         |
+| US3 — Stay connected / offline (P2)  | `specs/acceptance-specs/US15-stay-connected-offline.txt`  | 3         |
+| US4 — Disconnect & admin revoke (P3) | `specs/acceptance-specs/US16-disconnect-and-revoke.txt`   | 3         |
 
 **Pipeline**: `specs/acceptance-specs/*.txt` → `acceptance/parse-specs.ts` →
 `acceptance/generate-tests.ts` → `generated-acceptance-tests/*.spec.ts`
@@ -496,7 +496,7 @@ and `DeviceLinkPage` plan below):
 - `/device/token` body requires `grant_type: "urn:ietf:params:oauth:grant-type:device_code"` (zod
   literal, line 122 of `routes.mjs`) — our contract was missing this field.
 - The web link page **must use a two-step claim-then-approve flow**: `GET /api/auth/device?user_code=
-  XXXX` (`deviceVerify`) is called on page-load to associate the signed-in user's id with the
+XXXX` (`deviceVerify`) is called on page-load to associate the signed-in user's id with the
   deviceCode row (sets `userId`); THEN `POST /api/auth/device/approve` succeeds. Without the prior
   `GET /device` call, `approve` returns `invalid_request: DEVICE_CODE_NOT_CLAIMED`. This flow must
   be reflected in `DeviceLinkPage.tsx` and `deviceLinkThunks.ts`.

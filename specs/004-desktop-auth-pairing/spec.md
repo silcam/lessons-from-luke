@@ -23,7 +23,7 @@
 A translator running the desktop app wants to connect it to their account so it can work with
 the server securely. They click **"Connect to account."** The desktop shows a short code and
 opens their web browser to a link page. They sign in (if not already), enter or paste the code,
-and approve connecting *this* computer. The desktop — which has been quietly checking — becomes
+and approve connecting _this_ computer. The desktop — which has been quietly checking — becomes
 connected as them, with no further steps. The whole handshake uses only outbound calls from the
 desktop: there is no local server it has to run and no special link it has to register with the
 operating system.

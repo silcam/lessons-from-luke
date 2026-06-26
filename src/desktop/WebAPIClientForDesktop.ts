@@ -71,7 +71,9 @@ export default class WebAPIClientForDesktop {
   ): Promise<SharedAPIGet[T][1] | null> {
     if (this.syncAborted) return null;
     const headers = await this.buildAuthHeaders();
-    return this.trackConnection(() => webGet(route, params, this.baseUrl, (msg) => this.log(msg), headers));
+    return this.trackConnection(() =>
+      webGet(route, params, this.baseUrl, (msg) => this.log(msg), headers)
+    );
   }
 
   async post<T extends SharedPostRoute>(

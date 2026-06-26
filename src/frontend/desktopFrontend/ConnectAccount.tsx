@@ -88,22 +88,22 @@ export default function ConnectAccount(): React.ReactElement {
 
   // Clear the copy-feedback timer on unmount to avoid state updates on an
   // unmounted component (unnecessary work; lint warning in strict React tooling).
-  useEffect(() => () => {
-    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    },
+    []
+  );
 
   // Subscribe to pairing-error events pushed from the main process.
   // cancelledRef (not wasCancelled state) is used here so the closure remains
   // stable across renders without needing to re-subscribe.
   useEffect(() => {
-    const unsub = window.electronAPI.on(
-      ON_PAIRING_ERROR,
-      (payload: OnPairingErrorPayload) => {
-        if (!cancelledRef.current) {
-          setFlowState({ kind: "error", reason: payload.reason });
-        }
+    const unsub = window.electronAPI.on(ON_PAIRING_ERROR, (payload: OnPairingErrorPayload) => {
+      if (!cancelledRef.current) {
+        setFlowState({ kind: "error", reason: payload.reason });
       }
-    );
+    });
     return unsub;
   }, []);
 

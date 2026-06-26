@@ -162,9 +162,7 @@ describe("ConnectAccount — pairing in progress", () => {
   });
 
   it("invokes pairingCancel and returns to idle when Cancel is clicked", async () => {
-    mockInvoke
-      .mockResolvedValueOnce({ userCode: "ABCD-EFGH" })
-      .mockResolvedValueOnce(undefined);
+    mockInvoke.mockResolvedValueOnce({ userCode: "ABCD-EFGH" }).mockResolvedValueOnce(undefined);
     renderConnectAccount(createTestStore({}, { paired: false }));
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Connect to account" }));

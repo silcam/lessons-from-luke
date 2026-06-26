@@ -56,10 +56,9 @@ export async function revokeUserSessions(
       revokedCount += deviceCodeResult.rowCount ?? 0;
 
       // 2. Delete all session rows (each row = one paired device or web login).
-      const sessionResult = await client.query<never>(
-        `DELETE FROM "session" WHERE "userId" = $1`,
-        [userId]
-      );
+      const sessionResult = await client.query<never>(`DELETE FROM "session" WHERE "userId" = $1`, [
+        userId,
+      ]);
       revokedCount += sessionResult.rowCount ?? 0;
 
       await client.query("COMMIT");
