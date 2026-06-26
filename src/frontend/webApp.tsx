@@ -5,7 +5,7 @@ import { BrowserRouter } from "react-router-dom";
 import MainRouter from "./web/MainRouter";
 import { Provider } from "react-redux";
 import store from "./common/state/appState";
-import RequestContext from "./common/api/RequestContext";
+import RequestContext, { GetRequest, PostRequest } from "./common/api/RequestContext";
 import { webGet, webPost } from "../core/api/WebAPIClient";
 
 // Wire the per-request CSP nonce (injected by the server as a <meta> tag in the
@@ -21,11 +21,18 @@ if (cspNonce) {
 }
 
 function WebApp() {
+  // webGet / webPost are typed against GetRoute (web-only routes).  RequestContext
+  // uses AllGetRoute so common components can call desktop routes when on desktop.
+  // In the web app, PlatformContext guards prevent desktop-only calls at runtime,
+  // so the cast is safe — no web component calls /api/syncState etc. in practice.
+  const ctxGet = webGet as unknown as GetRequest;
+  const ctxPost = webPost as unknown as PostRequest;
+
   return (
     <Provider store={store}>
       <BrowserRouter>
         <PlatformContext.Provider value="web">
-          <RequestContext.Provider value={{ get: webGet, post: webPost }}>
+          <RequestContext.Provider value={{ get: ctxGet, post: ctxPost }}>
             <MainRouter />
           </RequestContext.Provider>
         </PlatformContext.Provider>

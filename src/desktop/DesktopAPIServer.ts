@@ -1,5 +1,10 @@
 import { ipcMain } from "electron";
-import { GetRoute, PostRoute, APIPost, APIGet } from "../core/api/ApiContracts";
+import {
+  DesktopGetRoute,
+  DesktopPostRoute,
+  DesktopAPIPost,
+  DesktopAPIGet,
+} from "../core/api/ApiContracts";
 import syncStateController from "./controllers/syncStateController";
 import { asAppError, AppError } from "../core/models/AppError";
 import DesktopApp from "./DesktopApp";
@@ -7,9 +12,9 @@ import languagesController from "./controllers/languagesController";
 import lessonsController from "./controllers/lessonsController";
 import tStringsController from "./controllers/tStringsController";
 
-export function addGetHandler<T extends GetRoute>(
+export function addGetHandler<T extends DesktopGetRoute>(
   route: T,
-  handler: (params: APIGet[T][0]) => Promise<APIGet[T][1]>
+  handler: (params: DesktopAPIGet[T][0]) => Promise<DesktopAPIGet[T][1]>
 ) {
   ipcMain.handle(route, async (event, params) => {
     try {
@@ -25,9 +30,9 @@ export function addGetHandler<T extends GetRoute>(
   });
 }
 
-export function addPostHandler<T extends PostRoute>(
+export function addPostHandler<T extends DesktopPostRoute>(
   route: T,
-  handler: (params: APIPost[T][0], data: APIPost[T][1]) => Promise<APIPost[T][2]>
+  handler: (params: DesktopAPIPost[T][0], data: DesktopAPIPost[T][1]) => Promise<DesktopAPIPost[T][2]>
 ) {
   ipcMain.handle(route, async (event, params, data) => {
     try {

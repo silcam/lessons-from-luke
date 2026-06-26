@@ -1,4 +1,4 @@
-import React, { useEffect, useContext, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { StdHeaderBarPage } from "../../common/base-components/HeaderBar";
 import SyncCodeForm from "./SyncCodeForm";
 import { useAppSelector } from "../../common/state/appState";
@@ -6,9 +6,9 @@ import { useDesktopAppSelector } from "../desktopAppState";
 import useTranslation from "../../common/util/useTranslation";
 import MiddleOfPage from "../../common/base-components/MiddleOfPage";
 import Button from "../../common/base-components/Button";
-import RequestContext from "../../common/api/RequestContext";
 import ProgressBar from "../../common/base-components/ProgressBar";
 import { PAIRING_START } from "../../../core/api/IpcChannels";
+import { ipcDesktopGet } from "../desktopAPIClient";
 
 interface IProps {
   startTranslating: () => void;
@@ -16,7 +16,6 @@ interface IProps {
 
 export default function DownSyncPage(props: IProps) {
   const t = useTranslation();
-  const { get } = useContext(RequestContext);
   const syncState = useAppSelector((state) => state.syncState);
   const { paired } = useDesktopAppSelector((state) => state.desktopPairing);
   const progress = syncState.downSync.progress;
@@ -24,7 +23,7 @@ export default function DownSyncPage(props: IProps) {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      get("/api/readyToTranslate", {}).then((data) =>
+      ipcDesktopGet("/api/readyToTranslate", {}).then((data) =>
         setCanTranslate(data?.readyToTranslate || false)
       );
     }, 1000);

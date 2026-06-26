@@ -1,4 +1,9 @@
-import { GetRoute, APIGet, APIPost, PostRoute } from "../core/api/ApiContracts";
+import {
+  SharedAPIGet,
+  SharedAPIPost,
+  SharedGetRoute,
+  SharedPostRoute,
+} from "../core/api/ApiContracts";
 import { webGet, webPost } from "../core/api/WebAPIClient";
 import { AppError, asAppError } from "../core/models/AppError";
 import LocalStorage from "./LocalStorage";
@@ -60,17 +65,20 @@ export default class WebAPIClientForDesktop {
     }
   }
 
-  async get<T extends GetRoute>(route: T, params: APIGet[T][0]): Promise<APIGet[T][1] | null> {
+  async get<T extends SharedGetRoute>(
+    route: T,
+    params: SharedAPIGet[T][0]
+  ): Promise<SharedAPIGet[T][1] | null> {
     if (this.syncAborted) return null;
     const headers = await this.buildAuthHeaders();
     return this.trackConnection(() => webGet(route, params, this.baseUrl, (msg) => this.log(msg), headers));
   }
 
-  async post<T extends PostRoute>(
+  async post<T extends SharedPostRoute>(
     route: T,
-    params: APIPost[T][0],
-    data: APIPost[T][1]
-  ): Promise<APIPost[T][2] | null> {
+    params: SharedAPIPost[T][0],
+    data: SharedAPIPost[T][1]
+  ): Promise<SharedAPIPost[T][2] | null> {
     if (this.syncAborted) return null;
     const headers = await this.buildAuthHeaders();
     return this.trackConnection(() =>
