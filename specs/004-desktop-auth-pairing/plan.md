@@ -118,7 +118,8 @@ src/
 │   │   │                                 #           interval:"5s", verificationUri:"/link" }),
 │   │   │                                 #         rateLimit.customRules: { "/device/token": false,
 │   │   │                                 #           "/device/code":{window:60,max:5},
-│   │   │                                 #           "/device/approve":{window:60,max:5} }
+│   │   │                                 #           "/device/approve":{window:60,max:5},
+│   │   │                                 #           "/device/deny":{window:60,max:5} }
 │   │   └── sessionRevocation.ts          # NEW: revokeUserSessions(pool, userId) — direct SQL
 │   ├── middle/
 │   │   └── requireUserWhenEnforced.ts    # NEW: flag-conditional wrapper around requireUser
@@ -364,6 +365,28 @@ than crashing the main process or boot-looping. A decrypt failure is indistingui
 credential" for UX purposes and MUST resolve to the same safe unpaired state. (Noted in
 `data-model.md` Entity 3.)
 
+### `/link?user_code=` deep link must survive the 003 sign-in round-trip (US1.3, SC-001)
+
+`/link` is a new **authenticated** route, so a not-yet-signed-in user who opens
+`verification_uri_complete` (`/link?user_code=WDJB-MJHT`) is first bounced through the existing 003
+`AuthGate` → sign-in → back. The `?user_code=` prefill (which makes SC-001's "single short code, under
+2 min" and the seamless US1.3 path work) only survives this bounce if the AuthGate encodes the **full**
+current location — path **and** query — into its `returnTo` param with `encodeURIComponent`. If it
+instead builds `returnTo=/link?user_code=XXXX` unencoded, the router parses `user_code` as a separate
+top-level param and `safeReturnTo` returns a bare `/link` (the sanitizer itself is fine — it returns
+`pathname + search`, so a correctly-encoded `returnTo` round-trips the code; the failure is purely in
+how `returnTo` is constructed). Two concrete requirements fall out:
+
+- When `AuthGate` redirects an unauthenticated visitor away from `/link?user_code=…`, it MUST
+  percent-encode the whole `pathname + search` as the `returnTo` value so the code is preserved
+  through sign-in. Add a test asserting `/link?user_code=XXXX` (cold, unauthenticated) lands back on
+  `/link` **with the `user_code` query intact** after login.
+- The prefill is **best-effort, not a dependency**: `DeviceLinkPage` MUST still render an editable
+  code field so a user who arrives at `/link` with no (or a dropped) `user_code` can paste the code
+  the desktop displays (FR-001 copyable code is the fallback). The flow must never dead-end on a
+  missing prefill. (Plan-only — no contract/data-model change; this is web-client behavior at the
+  003↔004 seam.)
+
 ## Performance Considerations
 
 > Added by `/sp:04-red-team`.
@@ -486,7 +509,10 @@ and `DeviceLinkPage` plan below):
   `"/device/token": false` (exclude from rate-limit to be unambiguous) and
   `"/device/code": { window: 60, max: 5 }` (anti-flood) and
   `"/device/approve": { window: 60, max: 5 }` (brute-force; better-auth rate limit keys on IP +
-  path so this is per-IP — adequate for our internal user base and the high code entropy).
+  path so this is per-IP — adequate for our internal user base and the high code entropy) and
+  `"/device/deny": { window: 60, max: 5 }` (symmetry with approve — stops a malicious authenticated
+  user spray-denying / enumerating pending `user_code`s; matches the Security section and
+  `contracts/device-pairing-api.yaml`).
 
 ## Phase 1 — Design & Contracts
 
