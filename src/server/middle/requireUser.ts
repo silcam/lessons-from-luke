@@ -8,15 +8,14 @@ import type { User } from "../../core/models/User";
 declare module "express-serve-static-core" {
   interface Request {
     user?: User;
-    authSession?: { id: string; userId: string; expiresAt: Date };
   }
 }
 
 /**
  * Load the better-auth session for the current request.
  *
- * When a valid session is present, populates req.user and req.authSession
- * and returns the raw session object from better-auth.
+ * When a valid session is present, populates req.user and returns the raw
+ * session object from better-auth.
  *
  * Fails closed: any error from the session store is treated as
  * "no session" and returns null (never lets an error bypass authentication).
@@ -34,11 +33,6 @@ export async function loadSession(req: Request): Promise<unknown> {
       req.user = {
         id: session.user.id,
         admin: Boolean((session.user as { admin?: boolean }).admin),
-      };
-      req.authSession = session.session as {
-        id: string;
-        userId: string;
-        expiresAt: Date;
       };
     }
     return session ?? null;
