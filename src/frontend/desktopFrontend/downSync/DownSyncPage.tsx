@@ -2,6 +2,7 @@ import React, { useEffect, useContext, useState } from "react";
 import { StdHeaderBarPage } from "../../common/base-components/HeaderBar";
 import SyncCodeForm from "./SyncCodeForm";
 import { useAppSelector } from "../../common/state/appState";
+import { useDesktopAppSelector } from "../desktopAppState";
 import useTranslation from "../../common/util/useTranslation";
 import MiddleOfPage from "../../common/base-components/MiddleOfPage";
 import Button from "../../common/base-components/Button";
@@ -17,7 +18,7 @@ export default function DownSyncPage(props: IProps) {
   const t = useTranslation();
   const { get } = useContext(RequestContext);
   const syncState = useAppSelector((state) => state.syncState);
-  const { paired } = useAppSelector((state) => state.desktopPairing);
+  const { paired } = useDesktopAppSelector((state) => state.desktopPairing);
   const progress = syncState.downSync.progress;
   const [canTranslate, setCanTranslate] = useState(false);
 

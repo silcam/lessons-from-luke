@@ -12,7 +12,7 @@ import lessonSlice from "../common/state/lessonSlice";
 import docStringSlice from "../common/state/docStringSlice";
 import tSubSlice from "../common/state/tSubSlice";
 import docPreviewSlice from "../common/state/docPreviewSlice";
-import desktopPairingSlice from "../common/state/desktopPairingSlice";
+import desktopPairingSlice from "./desktopPairingSlice";
 import {
   PAIRING_START,
   PAIRING_CANCEL,

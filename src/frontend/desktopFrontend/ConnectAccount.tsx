@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import styled from "styled-components";
-import { useAppSelector } from "../common/state/appState";
+import { useDesktopAppSelector } from "./desktopAppState";
 import Button from "../common/base-components/Button";
 import P from "../common/base-components/P";
 import Alert from "../common/base-components/Alert";
@@ -75,7 +75,7 @@ const ActionRow = styled.div`
  *   - Errors:           aria-live="assertive".
  */
 export default function ConnectAccount(): React.ReactElement {
-  const { paired, pairedUserName } = useAppSelector((state) => state.desktopPairing);
+  const { paired, pairedUserName } = useDesktopAppSelector((state) => state.desktopPairing);
 
   const [flowState, setFlowState] = useState<PairingFlowState>({ kind: "idle" });
   const [copied, setCopied] = useState(false);

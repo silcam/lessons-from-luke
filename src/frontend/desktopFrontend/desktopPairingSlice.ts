@@ -10,9 +10,7 @@ export interface DesktopPairingState {
  * These fields are intentionally excluded from the isomorphic `SyncState`
  * domain model — they belong only to the Electron desktop layer.
  *
- * Lives in common/state/ so the shared Redux store (appState.ts) can import it
- * without reversing the common→desktopFrontend dependency direction.
- * Pure Redux Toolkit — no Electron imports — so it is safe here.
+ * Pure Redux Toolkit — no Electron imports.
  */
 const desktopPairingSlice = createSlice({
   name: "desktopPairing",
