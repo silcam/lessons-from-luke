@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import styled from "styled-components";
 import { useDesktopAppSelector } from "./desktopAppState";
 import Button from "../common/base-components/Button";
@@ -79,6 +79,13 @@ export default function ConnectAccount(): React.ReactElement {
 
   const [flowState, setFlowState] = useState<PairingFlowState>({ kind: "idle" });
   const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear the copy-feedback timer on unmount to avoid state updates on an
+  // unmounted component (unnecessary work; lint warning in strict React tooling).
+  useEffect(() => () => {
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+  }, []);
 
   // Subscribe to pairing-error events pushed from the main process.
   useEffect(() => {
@@ -117,7 +124,8 @@ export default function ConnectAccount(): React.ReactElement {
     if (flowState.kind !== "pairing") return;
     await navigator.clipboard.writeText(flowState.userCode);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
   }, [flowState]);
 
   const handleRetry = useCallback(() => {
