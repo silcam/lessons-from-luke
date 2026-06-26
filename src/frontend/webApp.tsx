@@ -21,12 +21,20 @@ if (cspNonce) {
 }
 
 function WebApp() {
-  // webGet / webPost are typed against GetRoute (web-only routes).  RequestContext
-  // uses AllGetRoute so common components can call desktop routes when on desktop.
-  // In the web app, PlatformContext guards prevent desktop-only calls at runtime,
-  // so the cast is safe — no web component calls /api/syncState etc. in practice.
-  const ctxGet = webGet as unknown as GetRequest;
-  const ctxPost = webPost as unknown as PostRequest;
+  // webGet / webPost are typed against GetRoute (web-only routes) while RequestContext
+  // uses AllGetRoute so common components can call desktop-only routes on desktop.
+  // In the web app, PlatformContext guards prevent desktop-only calls at runtime —
+  // no web component calls /api/syncState etc. in practice.
+  //
+  // Wrapper functions bridge the GetRoute → AllGetRoute constraint gap without the
+  // `as unknown as` double-cast. The `any`-typed params are intentional: the outer
+  // GetRequest / PostRequest annotations preserve full call-site type safety; only
+  // the implementation side is relaxed to accommodate the narrower webGet signature.
+  //
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ctxGet: GetRequest = (route: any, params: any) => webGet(route, params);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ctxPost: PostRequest = (route: any, params: any, data: any) => webPost(route, params, data);
 
   return (
     <Provider store={store}>
