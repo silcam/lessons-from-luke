@@ -281,7 +281,6 @@ export default function DeviceLinkPage() {
   // ── Ready state: consent copy + Approve / Decline ─────────────────────────
 
   const { userCode, actionError } = state;
-  const working = false; // phase is "ready" here
 
   return (
     <MiddleOfPage>
@@ -312,9 +311,9 @@ export default function DeviceLinkPage() {
         {/* Wrapper div lets us focus the Approve button via querySelector
             (Button base component does not expose a forwardRef). */}
         <div ref={approveWrapperRef} style={{ display: "inline" }}>
-          <Button text="Approve" onClick={handleApprove} disabled={working} />
+          <Button text="Approve" onClick={handleApprove} />
         </div>
-        <Button text="Decline" onClick={handleDecline} disabled={working} red />
+        <Button text="Decline" onClick={handleDecline} red />
       </PDiv>
 
       <HelpText>Code: {userCode}</HelpText>
