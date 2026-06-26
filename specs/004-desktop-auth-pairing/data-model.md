@@ -62,7 +62,9 @@ that user's `deviceCode` rows **regardless of status** — `DELETE FROM "deviceC
 $1`, not a `status = 'pending'` filter (red-team Security hygiene). The dangerous row is an
 `approved`-but-not-yet-redeemed one: if it survives the revoke, the device's next `/device/token`
 poll mints a fresh session and re-grants the just-revoked access. Deleting only `pending` rows would
-leave that bypass open.
+leave that bypass open. **Order the deletes** to avoid a race: delete the `deviceCode` rows **before**
+the `session` rows (or wrap both in one transaction), so a poll arriving between the two deletes
+finds no redeemable code and cannot create a surviving session.
 
 ---
 

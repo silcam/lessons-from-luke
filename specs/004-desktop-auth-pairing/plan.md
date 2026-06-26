@@ -260,6 +260,14 @@ access the admin just revoked — a revocation-bypass window. The delete must th
 (The periodic expiry sweep — see Performance — is a backstop, not a substitute, because it only
 reaps `expiresAt < now`.)
 
+**Ordering/atomicity (red-team, second-order):** the two deletes (sessions + deviceCode rows) must
+not leave a race window. If sessions are deleted **first**, a `/device/token` poll arriving in the
+gap can redeem a still-present `approved` deviceCode row and mint a **new** session that survives the
+revoke. Therefore either run both deletes in a **single transaction**, or — robust regardless of
+isolation level — delete the user's **`deviceCode` rows first, then the `session` rows**: once the
+deviceCode rows are gone, an in-flight poll gets `expired_token`/`invalid_grant` and cannot create a
+session, and the subsequent session delete closes out everything already issued.
+
 ### Bearer credential widens the admin API surface (second-order of the `bearer` plugin)
 
 The `bearer` plugin is **global**: it makes `getAuth().api.getSession` accept
