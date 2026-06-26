@@ -296,6 +296,12 @@ export default class DesktopApp {
       console.log(
         JSON.stringify({ event: "device:disconnect", userId, timestamp: new Date().toISOString() })
       );
+
+      // Notify the renderer so Redux syncState.paired flips to false immediately.
+      this.mainWindow?.webContents.send(ON_SYNC_STATE_CHANGE, {
+        paired: false,
+        pairedUserName: undefined,
+      });
     });
 
     ipcMain.handle(DEVICE_STATE, async () => {

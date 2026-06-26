@@ -627,6 +627,21 @@ describe("DesktopApp pairing lifecycle", () => {
         warnSpy.mockRestore();
       }
     });
+
+    test("sends ON_SYNC_STATE_CHANGE with paired=false to renderer after disconnect", async () => {
+      const cs = makeMockCredentialStore("existing-token");
+      const dp = makeMockDevicePairing();
+      await createApp(cs, dp);
+
+      mockWebContents.send.mockClear();
+
+      await ipcHandlers[PAIRING_DISCONNECT]({});
+
+      const sentCalls = mockWebContents.send.mock.calls;
+      const syncCall = sentCalls.find((c) => c[0] === "onSyncStateChange");
+      expect(syncCall).toBeDefined();
+      expect(syncCall![1]).toEqual({ paired: false, pairedUserName: undefined });
+    });
   });
 
   // -------------------------------------------------------------------------
