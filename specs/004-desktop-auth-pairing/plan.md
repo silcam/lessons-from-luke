@@ -213,8 +213,8 @@ brute-forcing pending `user_code`s on `/device/approve`.
   decision on *"did **you** start this on **your** computer?"* and must NOT imply the request is
   trustworthy because the client looks like the official app.
 - **Rate-limit `/device/approve` and `/device/deny`** per authenticated user and per IP so pending
-  `user_code`s cannot be brute-forced or enumerated (a malicious authenticated user could otherwise
-  spray-`deny` to grief in-flight pairings, the mirror of brute-force `approve`). Reuse the existing
+  `user_code`s cannot be brute-forced or enumerated (without this limit, a malicious authenticated
+  user would spray-`deny` to grief in-flight pairings — the mirror of brute-force `approve`). Reuse the existing
   better-auth `rateLimit` config / the `invitationRateLimit` precedent. User-code entropy (8 chars
   over a 28-symbol ambiguity-free alphabet ≈ 38 bits, R4) is adequate **only when paired with rate
   limiting** per RFC 8628 §5.2.
