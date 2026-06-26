@@ -126,6 +126,45 @@ describe("AuthGate", () => {
       // The redirect URL must carry ?returnTo=%2Ftranslate%2FABC123
       expect(capturedSearch).toBe("?returnTo=%2Ftranslate%2FABC123");
     });
+
+    it("encodes the full path+search for /link?user_code=WDJB-MJHT so the user_code survives the sign-in round-trip (US1.8)", () => {
+      // When an unauthenticated visitor opens /link?user_code=WDJB-MJHT, the
+      // AuthGate must encode pathname + search together so the user_code query
+      // param is preserved after login (FR-002, US1.8).
+      let capturedSearch = "";
+      function CaptureSearch() {
+        const location = useLocation();
+        capturedSearch = location.search;
+        return <div>Sign-in page</div>;
+      }
+
+      const store = buildStore({
+        currentUser: { user: null, loaded: true, locale: "en", error: null },
+      });
+
+      render(
+        <Provider store={store}>
+          <MemoryRouter
+            initialEntries={["/link?user_code=WDJB-MJHT"]}
+            future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+          >
+            <Routes>
+              <Route element={<AuthGate />}>
+                <Route path="/link" element={<div>Link page</div>} />
+              </Route>
+              <Route path="/" element={<CaptureSearch />} />
+            </Routes>
+          </MemoryRouter>
+        </Provider>
+      );
+
+      // The /link page must not be visible — AuthGate redirected
+      expect(screen.queryByText("Link page")).toBeNull();
+      expect(screen.getByText("Sign-in page")).toBeTruthy();
+      // returnTo must encode the full /link?user_code=WDJB-MJHT
+      // %2Flink%3Fuser_code%3DWDJB-MJHT = encodeURIComponent('/link?user_code=WDJB-MJHT')
+      expect(capturedSearch).toBe("?returnTo=%2Flink%3Fuser_code%3DWDJB-MJHT");
+    });
   });
 
   describe("authenticated state (loaded=true, user!=null)", () => {
