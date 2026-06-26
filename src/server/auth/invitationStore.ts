@@ -609,9 +609,10 @@ export async function getInvitationLink(
       id: string;
       status: InvitationStatus;
       tokenEnc: string;
-    }>(`SELECT id, ${STATUS_CASE_SQL} AS status, "tokenEnc" FROM "invitation" WHERE id=$1 LIMIT 1`, [
-      id,
-    ]);
+    }>(
+      `SELECT id, ${STATUS_CASE_SQL} AS status, "tokenEnc" FROM "invitation" WHERE id=$1 LIMIT 1`,
+      [id]
+    );
 
     if (result.rows.length === 0) {
       throw new NotFoundError(id);
