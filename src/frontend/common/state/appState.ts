@@ -11,7 +11,7 @@ import networkSlice from "./networkSlice";
 import docPreviewSlice from "./docPreviewSlice";
 import syncStateSlice from "./syncStateSlice";
 import tSubSlice from "./tSubSlice";
-import desktopPairingSlice from "../../desktopFrontend/state/desktopPairingSlice";
+import desktopPairingSlice from "./desktopPairingSlice";
 
 const reducer = combineReducers({
   languages: languageSlice.reducer,
@@ -25,8 +25,8 @@ const reducer = combineReducers({
   network: networkSlice.reducer,
   docPreview: docPreviewSlice.reducer,
   syncState: syncStateSlice.reducer,
-  // Desktop-pairing state lives in desktopFrontend but is registered here so
-  // that the single shared Redux store includes it for both platforms.
+  // Desktop-pairing state lives in common/state so the shared Redux store can
+  // import it without reversing the common→desktopFrontend dependency direction.
   // Web components never dispatch to desktopPairing — it is always no-op on web.
   desktopPairing: desktopPairingSlice.reducer,
 });

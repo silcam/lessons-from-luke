@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useDispatch } from "react-redux";
 import syncStateSlice from "../../common/state/syncStateSlice";
-import desktopPairingSlice from "../state/desktopPairingSlice";
+import desktopPairingSlice from "../../common/state/desktopPairingSlice";
 import {
   ON_SYNC_STATE_CHANGE,
   OnSyncStateChangePayload,

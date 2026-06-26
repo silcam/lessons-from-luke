@@ -15,7 +15,7 @@ import lessonSlice from "../common/state/lessonSlice";
 import docStringSlice from "../common/state/docStringSlice";
 import tSubSlice from "../common/state/tSubSlice";
 import docPreviewSlice from "../common/state/docPreviewSlice";
-import desktopPairingSlice from "./state/desktopPairingSlice";
+import desktopPairingSlice from "../common/state/desktopPairingSlice";
 import { PAIRING_START } from "../../core/api/IpcChannels";
 
 // Mock useHandleIPCEvents to avoid ipcRenderer side effects in component tests
