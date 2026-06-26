@@ -7,9 +7,23 @@ import { CredentialStore } from "./auth/CredentialStore";
 
 const WATCH_INTERVAL = 3 * 1000;
 
+/** Called to slide the session expiry by hitting the get-session endpoint. Injectable for tests. */
+type SessionFetcher = (url: string, token: string) => Promise<void>;
+
+const defaultSessionFetcher: SessionFetcher = async (url, token) => {
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (response.status === 401) {
+    const err: AppError = { type: "HTTP", status: 401 };
+    throw err;
+  }
+};
+
 export default class WebAPIClientForDesktop {
   private connected: boolean = false;
   private paired: boolean = false;
+  private syncAborted: boolean = false;
+  private lastKeepAliveAt: number | null = null;
+  private readonly KEEP_ALIVE_INTERVAL_MS: number; // ~daily by default, matches better-auth updateAge
   private watchTimerId: ReturnType<typeof setInterval> | undefined;
   private watchLock: boolean = false; // Preventing running watch callback more than once at a time
   private onConnectionChangeListeners: Array<(connected: boolean) => void> = [];
@@ -17,12 +31,20 @@ export default class WebAPIClientForDesktop {
   private baseUrl = "";
   private localStorage: LocalStorage;
   private credentialStore: CredentialStore | null;
+  private sessionFetcher: SessionFetcher;
 
-  constructor(localStorage: LocalStorage, credentialStore?: CredentialStore) {
+  constructor(
+    localStorage: LocalStorage,
+    credentialStore?: CredentialStore,
+    sessionFetcher?: SessionFetcher,
+    keepAliveIntervalMs = 24 * 60 * 60 * 1000
+  ) {
     this.baseUrl = app.isPackaged ? "https://luke.silcameroon.org" : "http://localhost:8081";
     // this.baseUrl = "https://luke.silcameroon.org"; // For testing with real server
     this.localStorage = localStorage;
     this.credentialStore = credentialStore ?? null;
+    this.sessionFetcher = sessionFetcher ?? defaultSessionFetcher;
+    this.KEEP_ALIVE_INTERVAL_MS = keepAliveIntervalMs;
   }
 
   setConnected(connected: boolean) {
@@ -40,6 +62,7 @@ export default class WebAPIClientForDesktop {
   }
 
   async get<T extends GetRoute>(route: T, params: APIGet[T][0]): Promise<APIGet[T][1] | null> {
+    if (this.syncAborted) return null;
     const headers = await this.buildAuthHeaders();
     return this.trackConnection(() => webGet(route, params, this.baseUrl, (msg) => this.log(msg), headers));
   }
@@ -49,6 +72,7 @@ export default class WebAPIClientForDesktop {
     params: APIPost[T][0],
     data: APIPost[T][1]
   ): Promise<APIPost[T][2] | null> {
+    if (this.syncAborted) return null;
     const headers = await this.buildAuthHeaders();
     return this.trackConnection(() =>
       webPost(route, params, data, this.baseUrl, (msg) => this.log(msg), headers)
@@ -89,10 +113,37 @@ export default class WebAPIClientForDesktop {
     this.watchTimerId = setInterval(async () => {
       if (!this.watchLock) {
         this.watchLock = true;
+        this.syncAborted = false; // Reset abort flag for each new sync pass
+        await this.maybeKeepAlive();
         await cb(this);
         this.watchLock = false;
       }
     }, WATCH_INTERVAL);
+  }
+
+  private async maybeKeepAlive(): Promise<void> {
+    if (!this.connected || !this.paired) return;
+    if (this.credentialStore === null) return;
+
+    const now = Date.now();
+    if (this.lastKeepAliveAt !== null && now - this.lastKeepAliveAt < this.KEEP_ALIVE_INTERVAL_MS) {
+      return; // Already refreshed within the updateAge window
+    }
+
+    const token = await this.credentialStore.load();
+    if (!token) return;
+
+    try {
+      await this.sessionFetcher(`${this.baseUrl}/api/auth/get-session`, token);
+      this.lastKeepAliveAt = now;
+    } catch (err) {
+      const error = asAppError(err);
+      if (error.type === "HTTP" && error.status === 401) {
+        await this.credentialStore.clear();
+        this.setPaired(false);
+      }
+      // Other errors (network, server): silently ignore — will retry on next watch tick
+    }
   }
 
   private async buildAuthHeaders(): Promise<Record<string, string> | undefined> {
@@ -118,8 +169,9 @@ export default class WebAPIClientForDesktop {
         this.setConnected(false);
         return null;
       } else if (error.type === "HTTP" && error.status === 401) {
-        // Unauthorized: clear credential and drop the paired state.
+        // Unauthorized: abort remaining sync requests, clear credential, drop paired state.
         // Do NOT log the error — it could contain response text with session info.
+        this.syncAborted = true;
         if (this.credentialStore) {
           await this.credentialStore.clear();
         }
