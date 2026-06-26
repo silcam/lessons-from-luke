@@ -13,8 +13,32 @@ jest.mock("../../common/state/networkSlice", () => ({
 }));
 
 import React from "react";
-import { renderWithProviders, defaultSyncState } from "../../common/testHelpers";
+import { render } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { Provider } from "react-redux";
+import { renderWithProviders, buildStore, defaultSyncState } from "../../common/testHelpers";
 import PublicHome from "./PublicHome";
+
+/**
+ * Render PublicHome at a specific URL path (to simulate ?returnTo query params).
+ */
+function renderPublicHomeAt(path: string, initialState?: Record<string, unknown>) {
+  const store = buildStore({
+    syncState: defaultSyncState,
+    currentUser: { user: null, locale: "en", loaded: false, error: null },
+    ...initialState,
+  });
+  return render(
+    <Provider store={store}>
+      <MemoryRouter
+        initialEntries={[path]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <PublicHome />
+      </MemoryRouter>
+    </Provider>
+  );
+}
 
 // authClient is mapped to src/frontend/__mocks__/authClient.ts via jest moduleNameMapper
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -120,5 +144,39 @@ describe("PublicHome", () => {
     });
 
     expect(container).toBeTruthy();
+  });
+
+  describe("contextual redirect prompt", () => {
+    it("does not show the prompt when no ?returnTo param is present", () => {
+      const { queryByRole } = renderPublicHomeAt("/");
+      // The prompt is rendered as an alert role element
+      expect(queryByRole("alert")).toBeNull();
+    });
+
+    it("shows 'Please sign in to continue' prompt when ?returnTo=/translate/ABC is present", () => {
+      const { getByRole } = renderPublicHomeAt("/?returnTo=/translate/ABC");
+      const alert = getByRole("alert");
+      expect(alert.textContent).toMatch(/please sign in to continue/i);
+    });
+
+    it("shows the prompt when ?returnTo=https://evil.com is present but does not render the URL in DOM", () => {
+      const { getByRole, queryByText } = renderPublicHomeAt("/?returnTo=https://evil.com");
+      // Prompt must appear (presence detection, not value rendering)
+      const alert = getByRole("alert");
+      expect(alert.textContent).toMatch(/please sign in to continue/i);
+      // The evil URL must not appear anywhere in the DOM
+      expect(queryByText(/evil\.com/i)).toBeNull();
+    });
+
+    it("clears stale error state and shows prompt when redirected with ?returnTo present", () => {
+      const { getByRole, queryByText } = renderPublicHomeAt("/?returnTo=/translate/ABC", {
+        currentUser: { user: null, locale: "en", loaded: false, error: "Login failed." },
+      });
+      // Contextual prompt is shown
+      const alert = getByRole("alert");
+      expect(alert.textContent).toMatch(/please sign in to continue/i);
+      // Stale error must be cleared (not rendered)
+      expect(queryByText(/login failed/i)).toBeNull();
+    });
   });
 });

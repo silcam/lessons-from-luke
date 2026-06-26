@@ -1,0 +1,16 @@
+Feature: Public pages stay reachable without an account
+  As an invited user without an account
+  I want to reach the invitation-redemption page and sign-in page without being blocked
+  So that I can complete sign-up and then access the app
+
+  Scenario: Invitation-redemption route is accessible without sign-in
+    Given a visitor who is not signed in
+    When they open the invitation-redemption route (e.g. /invitation/<token>)
+    Then the redemption form is shown
+    And they are not redirected to sign in
+
+  Scenario: Sign-in page is directly reachable without sign-in
+    Given a visitor who is not signed in
+    When they open the sign-in page directly (no returnTo param)
+    Then the sign-in page is shown normally
+    And no contextual "Please sign in to continue" prompt is displayed

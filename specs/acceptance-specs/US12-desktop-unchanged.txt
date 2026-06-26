@@ -1,0 +1,16 @@
+Feature: Desktop translators keep working without sign-in
+  As a translator using the Electron desktop application
+  I want no authentication changes to the desktop experience
+  So that my offline translation and sync workflows are unaffected
+
+  Scenario: Desktop translator works without sign-in (no-regression)
+    Given the desktop application
+    When a translator opens and edits translations and syncs
+    Then no sign-in is required
+    And behavior is identical to before this feature
+
+  Scenario: Shared server data API authentication is unchanged
+    Given this feature is shipped
+    When the shared server data API is used (by web or desktop)
+    Then its authentication requirements are unchanged
+    And existing API tests pass without modification

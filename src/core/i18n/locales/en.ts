@@ -20,6 +20,7 @@ const en = {
     "The translation project is no longer locked to this computer. Please contact the system administrator to continue translation.",
   serverError: "Server Error %{status}",
   Log_in: "Log In",
+  Please_sign_in_to_continue: "Please sign in to continue",
   Email: "Email",
   Username: "Username",
   Password: "Password",

@@ -1,7 +1,9 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useSearchParams } from "react-router-dom";
 import { AppDispatch, AppState } from "../../common/state/appState";
 import { pushLogin } from "../auth/authThunks";
+import currentUserSlice from "../../common/state/currentUserSlice";
 import Button from "../../common/base-components/Button";
 import TextInput from "../../common/base-components/TextInput";
 import MiddleOfPage from "../../common/base-components/MiddleOfPage";
@@ -17,7 +19,21 @@ export default function PublicHome() {
   const [password, setPassword] = useState("");
   const dispatch = useDispatch<AppDispatch>();
   const error = useSelector((state: AppState) => state.currentUser.error);
-  const loginFailed = Boolean(error);
+
+  const [searchParams] = useSearchParams();
+  const hasReturnTo = searchParams.has("returnTo");
+
+  // On redirect-arrival (any ?returnTo present), clear any stale error so a
+  // prior failed-login alert does not bleed onto the contextual prompt.
+  useEffect(() => {
+    if (hasReturnTo && error) {
+      dispatch(currentUserSlice.actions.clearError());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Do not show a stale login-failed alert when arriving via redirect.
+  const loginFailed = Boolean(error) && !hasReturnTo;
 
   const logIn = () => dispatch(pushLogin({ email, password }));
 
@@ -47,6 +63,11 @@ export default function PublicHome() {
           />
         </PDiv>
 
+        {hasReturnTo && (
+          <Alert role="alert" aria-live="assertive">
+            {t("Please_sign_in_to_continue")}
+          </Alert>
+        )}
         {loginFailed && <Alert danger>{t("Log_in_failed")}</Alert>}
         <Button bigger onClick={logIn} text={t("Log_in")} />
       </HandleKey>
