@@ -27,6 +27,33 @@ import { requireSameOrigin } from "../middle/requireSameOrigin";
  * serverApp.ts so this module stays free of singletons.
  */
 export default function adminUsersController(app: Express, pool: Pool): void {
+  // GET /api/admin/users — list all users for the admin revoke-device-access UI (US4.4)
+  //
+  // Requires admin session (requireAdmin gate in serverApp.ts).
+  // Returns all users: { id, email, name, admin }[].
+  app.get(
+    "/api/admin/users",
+    async (req: Request, res: Response): Promise<void> => {
+      let users: { id: string; email: string; name: string; admin: boolean }[];
+      try {
+        const result = await pool.query<{
+          id: string;
+          email: string;
+          name: string;
+          admin: boolean;
+        }>(`SELECT id, email, name, admin FROM "user" ORDER BY email`);
+        users = result.rows;
+      } catch (err) {
+        console.error("[adminUsersController] DB error listing users:", (err as Error).message);
+        res.status(500).json({ error: "Internal server error" });
+        return;
+      }
+
+      res.setHeader("Cache-Control", "no-store");
+      res.json(users);
+    }
+  );
+
   // POST /api/admin/users/:userId/revoke-sessions — revoke a user's device access (FR-017)
   //
   // Requires admin session (requireAdmin gate in serverApp.ts).
