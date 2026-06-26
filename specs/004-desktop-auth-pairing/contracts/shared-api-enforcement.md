@@ -19,7 +19,14 @@ session cookie **and** an `Authorization: Bearer <session-token>` from the deskt
 - `GET  /api/lessons/:lessonId`
 - `GET  /api/lessons/:lessonId/webified`
 - `GET  /api/sync/:timestamp/languages/:languageTimestamps?`
-- `POST /api/tStrings`
+- `POST /api/tStrings` — **also carries `requireSameOrigin`** when enforcement is on (red-team
+  Security): it is the only state-changing gated route, so the cookie (web) path needs CSRF defense;
+  the bearer (desktop) path is CSRF-safe and unaffected. Mirrors the invitation-accept POST pattern.
+- `/webified/*` static asset mount (`app.use("/webified", express.static(...))` in `serverApp.ts`) —
+  **gate behind the same `requireUserWhenEnforced` wrapper** (red-team Security). The gated
+  `GET /api/lessons/:id/webified` HTML references images served from this static mount; leaving the
+  mount anonymous would leak curriculum imagery and partially defeat enforcement. If gating breaks
+  preview rendering, document the residual exposure as an explicit accepted tradeoff instead.
 
 (`/api/admin/*` is already gated by `requireAdmin` and is unaffected.)
 
@@ -39,6 +46,9 @@ session cookie **and** an `Authorization: Bearer <session-token>` from the deskt
 | ON | web user with valid session cookie | served (FR-010, SC-003) |
 | ON | desktop with valid Bearer session token | served (FR-010, SC-003) |
 | ON | desktop with revoked/expired Bearer | 401 → desktop drops to "not connected, reconnect" |
+| ON | web cookie `POST /api/tStrings` **cross-site** (no/foreign Origin) | **403** (`requireSameOrigin`, red-team) |
+| ON | desktop Bearer `POST /api/tStrings` (no Origin) | served — bearer path is CSRF-safe, not origin-gated |
+| ON | anonymous `GET /webified/*` asset | **401** once the static mount is gated (red-team) |
 | ON (any) | sign-in / invitation / device-pairing routes | served without auth (FR-011, SC-007) |
 
 ## Contract tests to generate (Phase: tasks)
@@ -53,3 +63,6 @@ session cookie **and** an `Authorization: Bearer <session-token>` from the deskt
 7. Flag ON: a Bearer token whose session was revoked (admin) → 401 (FR-017, SC-005).
 8. **FR-011 guard**: assert no gated route is referenced by the web app's pre-login (public-allowlist)
    screens — a static check over the AuthGate public allowlist + the redemption/sign-in pages.
+9. Flag ON: cross-site `POST /api/tStrings` with a valid cookie but foreign/absent Origin → 403
+   (`requireSameOrigin`); same request with a Bearer token (no Origin) → 200 (red-team CSRF).
+10. Flag ON: anonymous `GET /webified/<asset>` → 401 once the static mount is gated (red-team).

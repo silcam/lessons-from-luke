@@ -177,6 +177,163 @@ clear status/error text per `PRODUCT.md`).
 **Post-implementation refinement**: `/design-audit` (consistency vs. `DESIGN.md`), `/design-clarify`
 (microcopy for the four desktop states + expiry/decline messages).
 
+## Security Considerations
+
+> Added by `/sp:04-red-team` (adversarial pre-implementation review). These harden the design
+> against device-grant-specific abuse and CSRF; the device-grant phishing and brute-force vectors
+> are the headline risks because the pairing endpoints stay anonymous-reachable even with
+> enforcement on (FR-011).
+
+### Device-grant approval: anti-phishing consent + brute-force protection (FR-002, FR-003, FR-007)
+
+The RFC 8628 device grant has a well-known phishing/fixation risk: an attacker initiates pairing on
+*their own* desktop, obtains a `user_code`, and socially engineers a victim into approving it on the
+`/link` page — binding the **attacker's** device to the **victim's** account (the credential is
+issued to whoever approves, and the approving user is whoever is signed in). The mirror risk is
+brute-forcing pending `user_code`s on `/device/approve`.
+
+- **Consent copy is a security control, not just UX.** The `/link` approval screen MUST state
+  explicitly that the user is authorizing a **new desktop computer to sign in as them**, and warn
+  to continue **only if they personally started this on their own computer** (e.g. "Connect a new
+  desktop? This lets that computer act as your account. Only continue if you started this on your
+  own machine."). No silent / auto-approve — approval is always an explicit click (FR-003). Surface
+  whatever device/client context is available (`client_id`) so the approver sees what they are
+  authorizing.
+- **Rate-limit `/device/approve`** per authenticated user and per IP so pending `user_code`s cannot
+  be brute-forced or enumerated. Reuse the existing better-auth `rateLimit` config / the
+  `invitationRateLimit` precedent. User-code entropy (8 chars over a 28-symbol ambiguity-free
+  alphabet ≈ 38 bits, R4) is adequate **only when paired with rate limiting** per RFC 8628 §5.2.
+- **Rate-limit `/device/code`** per IP to stop anonymous flooding of the `deviceCode` table
+  (DoS / table-growth). This endpoint is anonymous by design (FR-011), so it needs its own ceiling.
+- These per-path limits MUST NOT throttle the legitimate 5 s `/device/token` poll — see
+  Edge Cases (poll-vs-rate-limit). Propagated to `contracts/device-pairing-api.yaml` (429 responses).
+
+### CSRF on the one state-changing gated route: `POST /api/tStrings` (resolves research R7 follow-up)
+
+Bearer (desktop) requests are CSRF-safe by construction (header set by the Electron main process,
+never auto-attached by a browser). The **cookie (web)** path is not. Of the gated domain routes,
+all are reads except `POST /api/tStrings`, which writes translation data. Under enforcement a
+logged-in web user's cookie becomes a CSRF target for that write.
+
+- **Decision (red-team):** apply the existing `requireSameOrigin` middleware to `POST /api/tStrings`
+  when enforcement is on, mirroring the invitation-accept POST (which already pairs
+  `requireSameOrigin` with a state-changing cookie route). GET reads stay un-origin-gated (same as
+  the invitation lookup GET — cross-site GETs cannot read the JSON response).
+- Propagated to `contracts/shared-api-enforcement.md` (403 same-origin row + behavior matrix).
+
+### Static asset mount bypasses the gate: `/webified/*` (data exposure under enforcement)
+
+`serverApp.ts` serves lesson imagery via `app.use("/webified", express.static(...))`, an
+**unguarded** static mount. With enforcement on, `GET /api/lessons/:id/webified` (the HTML) is
+gated, but the `/webified/*` image assets that HTML references remain anonymously fetchable —
+leaking curriculum imagery and partially defeating the lock-down.
+
+- **Decision (red-team):** gate the `/webified` static mount behind the same
+  `requireUserWhenEnforced` wrapper as the domain routes (or, if preview rendering breaks, document
+  the residual exposure as an explicit, accepted tradeoff with rationale). Default to gating.
+- Propagated to `contracts/shared-api-enforcement.md`.
+
+### Admin revoke hygiene (FR-017)
+
+`revokeUserSessions` deletes the user's `session` rows but leaves that user's in-flight `deviceCode`
+rows. Delete (or let expiry sweep — see Performance) the user's pending `deviceCode` rows on revoke
+too, so a revoke cannot be immediately followed by completing an already-approved pairing.
+
+## Edge Cases & Error Handling
+
+> Added by `/sp:04-red-team`.
+
+### Poll vs. rate limit (correctness of the happy path)
+
+The desktop polls `/device/token` every 5 s (R4) — up to ~12 requests/min over a 10-minute code.
+better-auth's global `rateLimit` covers all `/api/auth/*` paths, so a default window could **429 the
+legitimate poll** and surface as a spurious failure. The design MUST give `/device/token` a poll-
+friendly per-path window (or exclude it from the protective limit) while keeping the stricter limits
+on `/device/code` and `/device/approve`. The desktop already honors the plugin's `slow_down`
+backoff; it MUST treat an unexpected `429` distinctly from `slow_down` and surface a clear retry
+rather than a generic error.
+
+### Session keep-alive so daily-use desktops never expire (FR-013, SC-002)
+
+SC-002 ("100% of restarts stay connected") depends on `updateAge` sliding renewal (R3), which the
+research flags as an open spike: it may only slide on certain calls, not on plain authenticated sync
+GETs. Make the keep-alive **explicit** rather than spike-dependent: the desktop, when online, calls
+`GET /api/auth/get-session` with its bearer token on a defined cadence (at least once per online
+session and at most once per `updateAge` window, i.e. ~daily) to slide `expiresAt`. A desktop that
+syncs at all within 60 days therefore never expires; one offline longer than 60 days re-pairs. (Noted
+in `data-model.md` Entity 4.)
+
+### 401 mid-sync: clean abort, no cache corruption (FR-014, US3, SC-006)
+
+A revoke/expiry can land **between** the many requests of one sync. The first `401` MUST abort the
+remaining sync cleanly, leave the local cache at its **last consistent checkpoint** (offline-first:
+the local cache is authoritative for local use), drop `paired → false`, clear the stored credential,
+and transition to "Not connected — reconnect" — never a half-applied sync or a silent failure.
+
+### Secure storage unavailable: fail closed, never plaintext (FR-008)
+
+`safeStorage.isEncryptionAvailable()` can return false (keychain locked, pre-`app.ready`, or a Linux
+box without a keyring backend — R5 caveat). The design MUST **fail closed**: if encryption is
+unavailable, do **not** persist the token in plaintext. Keep it in memory for the current session
+only and tell the user securely storing the connection isn't available on this machine, so a lost
+laptop never yields a readable token (the lost-laptop case is the whole reason revocation exists).
+(Noted in `data-model.md` Entity 3.)
+
+## Performance Considerations
+
+> Added by `/sp:04-red-team`.
+
+### Per-request session lookup under enforcement
+
+With the flag on, every gated domain request now resolves `getSession` against the **auth pool** —
+a DB round-trip that anonymous reads previously skipped. Desktop `downSync` and the web app are
+request-heavy, so this adds measurable auth-pool load and per-request latency. Mitigation: enable
+better-auth's session cookie-cache / short-TTL session caching so the gate does not hit the DB on
+every sync request, and measure sync latency with enforcement on before flipping it in production
+(the default-off rollout, R10, makes this measurable safely).
+
+### `deviceCode` table growth (unbounded without a sweep)
+
+The plugin deletes a `deviceCode` row on token redemption, denial, or an expiry check **during a
+poll** — but an **abandoned** pairing (code requested, desktop killed or browser never opened, so
+the row is never polled) is never deleted and accumulates forever. Add a periodic sweep of
+`expiresAt < now` rows (startup + opportunistic, mirroring how other transient auth rows are reaped),
+so abandoned + anonymous-flood rows (see Security) cannot grow the table without bound. (Noted in
+`data-model.md` Entity 1.)
+
+## Accessibility Requirements
+
+> Added by `/sp:04-red-team`. Target WCAG 2.2 AA (per Presentation Design). These are specific to
+> the new surfaces.
+
+### Pairing code (desktop display + `/link` entry)
+
+- The `XXXX-XXXX` code MUST be announced as **discrete characters**, not read as a word — group with
+  appropriate markup / `aria-label` (e.g. label the field "Pairing code, eight characters") so a
+  screen-reader user can transcribe it.
+- The desktop copy-to-clipboard control MUST have an accessible name and announce success via an
+  `aria-live="polite"` region ("Code copied").
+
+### Pairing status is a live, focus-free state machine
+
+The desktop pairing status changes on its own (waiting for approval → connected as <user> →
+expired / declined) without user action. Render status in an `aria-live="polite"` region (errors
+`assertive`) so the transition is announced **without moving focus**, and keep the same for the
+DownSync "Not connected / Connect" prompt (US3).
+
+### `/link` page focus management
+
+When the page opens with `?user_code` pre-filled, set initial focus to the **Approve** action (or a
+heading describing the consent), not the top of the page, so keyboard and screen-reader users land
+on the decision. Approve/Decline MUST be fully keyboard-operable with a visible focus ring and a
+logical tab order (Decline reachable, not a trap).
+
+### Admin "Revoke device access" (destructive)
+
+The destructive admin control MUST be keyboard-operable, have an accessible confirm dialog with
+focus moved into it and returned on close, and announce the outcome ("Revoked N sessions") via a
+live region.
+
 ## Acceptance Test Strategy
 
 > **ATDD Outer Loop**: `sp:05-tasks` creates these GWT files before the `US<N>` tasks run.

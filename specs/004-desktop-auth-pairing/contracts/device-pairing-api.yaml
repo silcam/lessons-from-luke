@@ -64,6 +64,11 @@ paths:
                     example: 5
         "400":
           description: invalid_request / invalid_client
+        "429":
+          description: >
+            Too many pairing-code requests from this IP (anti-flood / DoS protection for the
+            anonymous deviceCode table — red-team Security). Per-IP rate limit, distinct from the
+            poll-friendly limit on /device/token.
 
   /device/approve:
     post:
@@ -90,6 +95,11 @@ paths:
           description: invalid_request (unknown/expired code)
         "401":
           description: Not signed in (FR-002 — must authenticate first)
+        "429":
+          description: >
+            Too many approve attempts (per-user + per-IP rate limit) — prevents brute-forcing /
+            enumerating pending user_codes (red-team Security, RFC 8628 §5.2). Pairs with the
+            anti-phishing consent copy required on the /link page.
 
   /device/deny:
     post:
@@ -114,6 +124,10 @@ paths:
       description: >
         Called repeatedly by the desktop (every `interval` seconds). On approval returns the bearer
         session token. Single-use deviceCode row is deleted on success, denial, or expiry.
+        NOTE (red-team): the legitimate 5 s poll (~12 req/min) MUST NOT be throttled by the global
+        better-auth rateLimit — give this path a poll-friendly window (or exclude it) so a 429 is
+        never mistaken for a poll state. The desktop treats an unexpected 429 distinctly from the
+        `slow_down` poll state below.
       requestBody:
         required: true
         content:

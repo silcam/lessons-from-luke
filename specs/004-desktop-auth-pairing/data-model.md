@@ -46,6 +46,13 @@ created(pending) ──/device/approve (auth'd browser, sets userId)──▶ ap
 
 **Indexes** (in the migration): unique/lookup index on `deviceCode`, lookup index on `userCode`.
 
+**Row cleanup / unbounded-growth guard** (red-team, see plan.md Performance): the plugin only
+deletes a row during a poll/redemption — an **abandoned** pairing (requested but never polled) and
+anonymous-flood rows are never reaped and grow the table without bound. Add a periodic sweep of
+`expiresAt < now` rows (startup + opportunistic). On admin revoke-by-user, also delete that user's
+pending `deviceCode` rows (red-team Security hygiene) so a revoke cannot be followed by completing an
+already-approved pairing.
+
 ---
 
 ## Entity 2: Device credential — reuses the existing `session` table (NO new table)
@@ -84,6 +91,7 @@ The opaque bearer token at rest on the desktop.
 | In-memory | decrypted token kept only in the Electron main process; attached as the `Authorization` header by `WebAPIClientForDesktop`. |
 | Cleared by | Disconnect (FR-016), or on a 401 that proves the credential is dead. |
 | Write safety | atomic tmp-file rename (reuse `LocalStorage`'s existing pattern). |
+| Encryption unavailable | **Fail closed** (red-team): if `safeStorage.isEncryptionAvailable()` is false (locked keychain, pre-`app.ready`, Linux without a keyring), do **not** write plaintext — keep the token in memory for the session only and tell the user secure storage is unavailable. A lost laptop must never yield a readable token. |
 
 This store is **server-only-auth-free**: it holds an opaque string obtained over HTTP and never
 imports better-auth (FR-018).
@@ -107,7 +115,12 @@ orthogonal **pairing** dimension so the UI can tell the four states apart (US3):
 | false | false | full offline use from cache; passive. |
 | false | true | "Not connected" + **Connect to account** prompt (no silent sync failure). |
 | true | true | syncing as `<user>` (normal). |
-| true | true, but 401 | drop `paired`→false, clear credential, show "Not connected — reconnect". |
+| true | true, but 401 | drop `paired`→false, clear credential, show "Not connected — reconnect". A 401 mid-sync aborts the remaining sync cleanly and leaves the local cache at its last consistent checkpoint (red-team — no half-applied sync). |
+
+**Session keep-alive** (red-team, see plan.md Edge Cases): because SC-002/FR-013 rely on `updateAge`
+sliding renewal (Entity 2) which may not slide on plain sync GETs, the desktop when online calls
+`GET /api/auth/get-session` with its bearer on a defined cadence (≤ once per `updateAge` window,
+~daily) to refresh `expiresAt`, so a desktop that syncs within 60 days never expires.
 
 ---
 
