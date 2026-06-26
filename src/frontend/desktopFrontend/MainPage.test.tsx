@@ -1,5 +1,5 @@
 import React from "react";
-import { render } from "@testing-library/react";
+import { render, fireEvent } from "@testing-library/react";
 import { configureStore, combineReducers } from "@reduxjs/toolkit";
 import { Provider } from "react-redux";
 import { MemoryRouter } from "react-router-dom";
@@ -79,6 +79,12 @@ function createTestStore(syncStateOverrides?: Partial<ReturnType<typeof syncStat
 
 const mockGet = jest.fn().mockResolvedValue(null);
 const mockPost = jest.fn().mockResolvedValue(null);
+const mockElectronInvoke = jest.fn();
+
+beforeEach(() => {
+  mockElectronInvoke.mockReset();
+  window.electronAPI = { invoke: mockElectronInvoke, on: jest.fn().mockReturnValue(jest.fn()) };
+});
 
 function renderWithProviders(ui: React.ReactElement, store = createTestStore()) {
   return render(
@@ -196,6 +202,60 @@ describe("DownSyncPage", () => {
     });
     const { container } = renderWithProviders(<DownSyncPage startTranslating={jest.fn()} />, store);
     expect(container).toBeTruthy();
+  });
+
+  it("shows not-connected prompt when !paired and connected", () => {
+    const store = createTestStore({ loaded: true, language: null, paired: false, connected: true });
+    const { getByText } = renderWithProviders(<DownSyncPage startTranslating={jest.fn()} />, store);
+    expect(getByText(/Not connected/)).toBeTruthy();
+    expect(getByText("Connect to account")).toBeTruthy();
+  });
+
+  it("not-connected prompt is in aria-live=polite region", () => {
+    const store = createTestStore({ loaded: true, language: null, paired: false, connected: true });
+    const { getByText } = renderWithProviders(<DownSyncPage startTranslating={jest.fn()} />, store);
+    const message = getByText(/Not connected/);
+    expect(message.closest('[aria-live="polite"]')).toBeTruthy();
+  });
+
+  it("invokes device:connect IPC when Connect to account is clicked in not-connected state", () => {
+    const store = createTestStore({ loaded: true, language: null, paired: false, connected: true });
+    const { getByText } = renderWithProviders(<DownSyncPage startTranslating={jest.fn()} />, store);
+    fireEvent.click(getByText("Connect to account"));
+    expect(mockElectronInvoke).toHaveBeenCalledWith("device:connect");
+  });
+
+  it("shows no connect prompt when !paired and !connected (passive offline state)", () => {
+    const store = createTestStore({ loaded: true, language: null, paired: false, connected: false });
+    const { queryByText } = renderWithProviders(<DownSyncPage startTranslating={jest.fn()} />, store);
+    expect(queryByText(/Not connected/)).toBeNull();
+  });
+
+  it("does not show not-connected prompt when paired (existing sync behavior unchanged)", () => {
+    const language = {
+      languageId: 1,
+      name: "English",
+      code: "en",
+      motherTongue: false,
+      progress: [],
+      defaultSrcLang: 1,
+    };
+    const store = createTestStore({
+      loaded: true,
+      language,
+      paired: true,
+      connected: true,
+      downSync: {
+        languages: false,
+        baseLessons: false,
+        lessons: [],
+        tStrings: {},
+        timestamp: 1,
+        progress: 50,
+      },
+    });
+    const { queryByText } = renderWithProviders(<DownSyncPage startTranslating={jest.fn()} />, store);
+    expect(queryByText(/Not connected/)).toBeNull();
   });
 });
 

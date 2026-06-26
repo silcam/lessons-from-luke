@@ -32,6 +32,28 @@ export default function DownSyncPage(props: IProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // !paired + connected: device is online but has no account credential.
+  // Show a clear connect prompt so the user knows sync is blocked.
+  if (!syncState.paired && syncState.connected) {
+    return (
+      <StdHeaderBarPage title="Lessons from Luke" logoNoLink>
+        <MiddleOfPage>
+          <div aria-live="polite">
+            <h1>Not connected — connect to sync</h1>
+            <Button
+              bigger
+              text="Connect to account"
+              onClick={() => window.electronAPI.invoke("device:connect")}
+            />
+          </div>
+        </MiddleOfPage>
+      </StdHeaderBarPage>
+    );
+  }
+
+  // !paired + !connected: offline and unpaired — passive state, local cache still usable.
+  // No error shown; fall through to existing sync display.
+
   return (
     <StdHeaderBarPage title="Lessons from Luke" logoNoLink>
       {syncState.language ? (
