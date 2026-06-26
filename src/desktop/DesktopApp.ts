@@ -25,6 +25,7 @@ import { tForLocale } from "../core/i18n/I18n";
 import { CredentialStore } from "./auth/CredentialStore";
 import { DevicePairing } from "./auth/DevicePairing";
 import Axios from "axios";
+import { ON_PAIRING_ERROR, ON_SYNC_STATE_CHANGE } from "../core/api/IpcChannels";
 
 /**
  * Duration of better-auth's `updateAge` (1 day). The session keep-alive call
@@ -58,9 +59,7 @@ export default class DesktopApp {
     devicePairing?: DevicePairing
   ) {
     this.localStorage = localStorage;
-    this.baseUrl = app.isPackaged
-      ? "https://luke.silcameroon.org"
-      : "http://localhost:8081";
+    this.baseUrl = app.isPackaged ? "https://luke.silcameroon.org" : "http://localhost:8081";
 
     this.credentialStore = credentialStore ?? new CredentialStore();
 
@@ -70,8 +69,9 @@ export default class DesktopApp {
         baseUrl: this.baseUrl,
         // onUserCode fires after startPairing() obtains the code; mainWindow
         // is guaranteed to exist by then (user must interact with the UI).
-        onUserCode: (code) =>
-          this.mainWindow?.webContents.send("device:userCode", code),
+        // The event is advisory — the renderer also gets the code as the
+        // return value of its invoke("pairingStart") call.
+        onUserCode: (code) => this.mainWindow?.webContents.send("pairingUserCode", code),
       });
 
     this.webClient = new WebAPIClientForDesktop(localStorage, this.credentialStore);
@@ -185,29 +185,69 @@ export default class DesktopApp {
   }
 
   /**
-   * Register the three device pairing IPC channels:
-   *   - `device:connect`  — run the RFC 8628 flow; save token on approval.
-   *   - `device:disconnect` — sign out (best-effort) then clear credential.
-   *   - `device:state`   — return current `{ paired, pairedUserName }`.
+   * Expose the current pairing state for external consumers (e.g.
+   * syncStateController) without leaking private fields.
+   */
+  getPairedState(): { paired: boolean; pairedUserName: string | undefined } {
+    return { paired: this.paired, pairedUserName: this.pairedUserName };
+  }
+
+  /**
+   * Register device pairing IPC channels (channel names match IpcChannels.ts):
+   *   - `pairingStart`      — begin the RFC 8628 flow; returns { userCode }
+   *                           immediately; saves token on background approval.
+   *   - `pairingCancel`     — acknowledge a cancel request (best-effort).
+   *   - `pairingDisconnect` — sign out (best-effort) then clear credential.
+   *   - `device:state`      — return current `{ paired, pairedUserName }`.
    */
   private registerDeviceIpcHandlers(): void {
-    ipcMain.handle("device:connect", async () => {
-      const result = await this.devicePairing.startPairing();
+    // pairingStart: starts the RFC 8628 flow and returns { userCode } as soon
+    // as the code is available.  The polling loop continues in the background;
+    // the renderer is notified via ON_SYNC_STATE_CHANGE (approval) or
+    // ON_PAIRING_ERROR (declined/expired/error).
+    ipcMain.handle("pairingStart", async () => {
+      const handle = await this.devicePairing.startPairing();
 
-      if (result.status === "approved") {
-        await this.credentialStore.save(result.token);
-        this.paired = true;
-        this.webClient.setPaired(true);
-        // Fetch session so the UI can immediately show "connected as <user>".
-        // Reset lastSessionRefresh so this call is never skipped.
-        this.lastSessionRefresh = 0;
-        await this.refreshSession();
-      }
+      // Handle the polling completion in the background so we can return
+      // { userCode } to the renderer immediately.
+      handle.completion
+        .then(async (result) => {
+          if (result.status === "approved") {
+            await this.credentialStore.save(result.token);
+            this.paired = true;
+            this.webClient.setPaired(true);
+            // Fetch session so the UI can immediately show "connected as <user>".
+            // Reset lastSessionRefresh so this call is never skipped.
+            this.lastSessionRefresh = 0;
+            await this.refreshSession();
 
-      return result;
+            // Notify the renderer so Redux syncState.paired flips to true.
+            this.mainWindow?.webContents.send(ON_SYNC_STATE_CHANGE, {
+              paired: true,
+              pairedUserName: this.pairedUserName,
+            });
+          } else {
+            // declined or expired — notify renderer via the error channel.
+            this.mainWindow?.webContents.send(ON_PAIRING_ERROR, {
+              reason: result.status,
+            });
+          }
+        })
+        .catch(() => {
+          this.mainWindow?.webContents.send(ON_PAIRING_ERROR, { reason: "error" });
+        });
+
+      return { userCode: handle.userCode };
     });
 
-    ipcMain.handle("device:disconnect", async () => {
+    // pairingCancel: acknowledges a cancel request from the UI.  Full
+    // cancellation of the in-flight polling loop is a future improvement;
+    // for now registering the channel prevents "no handler" rejections.
+    ipcMain.handle("pairingCancel", async () => {
+      // No-op stub — polling will terminate naturally on expiry.
+    });
+
+    ipcMain.handle("pairingDisconnect", async () => {
       // Capture userId before clearing state for the audit log.
       const userId = this.pairedUserId;
 

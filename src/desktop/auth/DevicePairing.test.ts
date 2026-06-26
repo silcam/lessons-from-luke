@@ -50,10 +50,12 @@ function makeHttpError(status: number): Error {
 }
 
 /** Create a DevicePairing instance with a no-op sleep so tests run instantly. */
-function makePairing(opts: {
-  onUserCode?: (code: string) => void;
-  log?: (msg: string) => void;
-} = {}): DevicePairing {
+function makePairing(
+  opts: {
+    onUserCode?: (code: string) => void;
+    log?: (msg: string) => void;
+  } = {}
+): DevicePairing {
   return new DevicePairing({
     baseUrl: BASE_URL,
     sleep: () => Promise.resolve(),
@@ -69,6 +71,36 @@ beforeEach(() => {
 });
 
 // ---------------------------------------------------------------------------
+// PairingHandle shape
+// ---------------------------------------------------------------------------
+describe("PairingHandle shape", () => {
+  test("startPairing resolves to a handle with userCode before polling completes", async () => {
+    mockAxios.post
+      .mockResolvedValueOnce({ data: CODE_RESPONSE }) // POST /device/code
+      .mockResolvedValueOnce({ data: { access_token: "tok", token_type: "Bearer" } }); // POST /device/token
+    mockAxios.get.mockResolvedValueOnce({ data: SESSION_RESPONSE });
+
+    const pairing = makePairing();
+    const handle = await pairing.startPairing();
+
+    expect(handle.userCode).toBe("WDJB-MJHT");
+  });
+
+  test("handle.completion resolves to the full PairingResult", async () => {
+    mockAxios.post
+      .mockResolvedValueOnce({ data: CODE_RESPONSE })
+      .mockResolvedValueOnce({ data: { access_token: "session-token-xyz", token_type: "Bearer" } });
+    mockAxios.get.mockResolvedValueOnce({ data: SESSION_RESPONSE });
+
+    const pairing = makePairing();
+    const handle = await pairing.startPairing();
+    const result = await handle.completion;
+
+    expect(result).toEqual({ status: "approved", token: "session-token-xyz" });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Approved path
 // ---------------------------------------------------------------------------
 describe("approved path", () => {
@@ -79,7 +111,8 @@ describe("approved path", () => {
     mockAxios.get.mockResolvedValueOnce({ data: SESSION_RESPONSE }); // GET /get-session
 
     const pairing = makePairing();
-    const result = await pairing.startPairing();
+    const handle = await pairing.startPairing();
+    const result = await handle.completion;
 
     expect(result).toEqual({ status: "approved", token: "session-token-xyz" });
   });
@@ -92,7 +125,8 @@ describe("approved path", () => {
     mockAxios.get.mockResolvedValueOnce({ data: SESSION_RESPONSE });
 
     const pairing = makePairing();
-    const result = await pairing.startPairing();
+    const handle = await pairing.startPairing();
+    const result = await handle.completion;
 
     expect(result).toEqual({ status: "approved", token: "session-token-xyz" });
     // Code was polled twice.
@@ -133,11 +167,9 @@ describe("approved path", () => {
     const pairing = makePairing();
     await pairing.startPairing();
 
-    expect(mockAxios.post).toHaveBeenNthCalledWith(
-      1,
-      `${BASE_URL}/api/auth/device/code`,
-      { client_id: CLIENT_ID }
-    );
+    expect(mockAxios.post).toHaveBeenNthCalledWith(1, `${BASE_URL}/api/auth/device/code`, {
+      client_id: CLIENT_ID,
+    });
   });
 
   test("POSTs to /device/token with grant_type, device_code, and client_id (no logging of device_code)", async () => {
@@ -147,17 +179,14 @@ describe("approved path", () => {
     mockAxios.get.mockResolvedValueOnce({ data: SESSION_RESPONSE });
 
     const pairing = makePairing();
-    await pairing.startPairing();
+    const handle = await pairing.startPairing();
+    await handle.completion;
 
-    expect(mockAxios.post).toHaveBeenNthCalledWith(
-      2,
-      `${BASE_URL}/api/auth/device/token`,
-      {
-        grant_type: DEVICE_GRANT_TYPE,
-        device_code: CODE_RESPONSE.device_code,
-        client_id: CLIENT_ID,
-      }
-    );
+    expect(mockAxios.post).toHaveBeenNthCalledWith(2, `${BASE_URL}/api/auth/device/token`, {
+      grant_type: DEVICE_GRANT_TYPE,
+      device_code: CODE_RESPONSE.device_code,
+      client_id: CLIENT_ID,
+    });
   });
 });
 
@@ -171,7 +200,8 @@ describe("declined path", () => {
       .mockRejectedValueOnce(makeRfc8628Error("access_denied"));
 
     const pairing = makePairing();
-    const result = await pairing.startPairing();
+    const handle = await pairing.startPairing();
+    const result = await handle.completion;
 
     expect(result).toEqual({ status: "declined" });
   });
@@ -187,7 +217,8 @@ describe("expired path", () => {
       .mockRejectedValueOnce(makeRfc8628Error("expired_token"));
 
     const pairing = makePairing();
-    const result = await pairing.startPairing();
+    const handle = await pairing.startPairing();
+    const result = await handle.completion;
 
     expect(result).toEqual({ status: "expired" });
   });
@@ -198,7 +229,8 @@ describe("expired path", () => {
       .mockRejectedValueOnce(makeRfc8628Error("invalid_grant"));
 
     const pairing = makePairing();
-    const result = await pairing.startPairing();
+    const handle = await pairing.startPairing();
+    const result = await handle.completion;
 
     expect(result).toEqual({ status: "expired" });
   });
@@ -224,7 +256,8 @@ describe("slow_down backoff", () => {
         return Promise.resolve();
       },
     });
-    const result = await pairing.startPairing();
+    const handle = await pairing.startPairing();
+    const result = await handle.completion;
 
     expect(result).toEqual({ status: "approved", token: "tok" });
     // First sleep: 5 s, then slow_down raises to 10 s, second sleep: 10 s.
@@ -248,7 +281,8 @@ describe("slow_down backoff", () => {
         return Promise.resolve();
       },
     });
-    await pairing.startPairing();
+    const handle = await pairing.startPairing();
+    await handle.completion;
 
     expect(sleepTimes).toEqual([5000, 10000, 15000]);
   });
@@ -271,7 +305,8 @@ describe("429 handling", () => {
       .mockRejectedValueOnce(makeHttpError(429));
 
     const pairing = makePairing();
-    await expect(pairing.startPairing()).rejects.toBeInstanceOf(PairingRateLimitedError);
+    const handle = await pairing.startPairing();
+    await expect(handle.completion).rejects.toBeInstanceOf(PairingRateLimitedError);
   });
 
   test("PairingRateLimitedError has a user-readable message", async () => {
@@ -295,12 +330,15 @@ describe("audit logging", () => {
   test("emits structured audit log on successful pairing with userId — no token value", async () => {
     mockAxios.post
       .mockResolvedValueOnce({ data: CODE_RESPONSE })
-      .mockResolvedValueOnce({ data: { access_token: "super-secret-token", token_type: "Bearer" } });
+      .mockResolvedValueOnce({
+        data: { access_token: "super-secret-token", token_type: "Bearer" },
+      });
     mockAxios.get.mockResolvedValueOnce({ data: SESSION_RESPONSE });
 
     const logLines: string[] = [];
     const pairing = makePairing({ log: (msg) => logLines.push(msg) });
-    await pairing.startPairing();
+    const handle = await pairing.startPairing();
+    await handle.completion;
 
     expect(logLines).toHaveLength(1);
     const logLine = logLines[0];
@@ -316,12 +354,12 @@ describe("audit logging", () => {
     mockAxios.get.mockResolvedValueOnce({ data: SESSION_RESPONSE });
 
     const pairing = makePairing();
-    await pairing.startPairing();
+    const handle = await pairing.startPairing();
+    await handle.completion;
 
-    expect(mockAxios.get).toHaveBeenCalledWith(
-      `${BASE_URL}/api/auth/get-session`,
-      { headers: { Authorization: "Bearer session-token-xyz" } }
-    );
+    expect(mockAxios.get).toHaveBeenCalledWith(`${BASE_URL}/api/auth/get-session`, {
+      headers: { Authorization: "Bearer session-token-xyz" },
+    });
   });
 
   test("audit log still emits with userId='unknown' if get-session call fails", async () => {
@@ -332,7 +370,8 @@ describe("audit logging", () => {
 
     const logLines: string[] = [];
     const pairing = makePairing({ log: (msg) => logLines.push(msg) });
-    const result = await pairing.startPairing();
+    const handle = await pairing.startPairing();
+    const result = await handle.completion;
 
     // Pairing should still succeed.
     expect(result).toEqual({ status: "approved", token: "tok" });
@@ -349,7 +388,8 @@ describe("audit logging", () => {
 
     const logLines: string[] = [];
     const pairing = makePairing({ log: (msg) => logLines.push(msg) });
-    await pairing.startPairing();
+    const handle = await pairing.startPairing();
+    await handle.completion;
 
     // ISO 8601 timestamp pattern
     expect(logLines[0]).toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
@@ -362,7 +402,8 @@ describe("audit logging", () => {
 
     const logLines: string[] = [];
     const pairing = makePairing({ log: (msg) => logLines.push(msg) });
-    await pairing.startPairing();
+    const handle = await pairing.startPairing();
+    await handle.completion;
 
     expect(logLines).toHaveLength(0);
   });
@@ -374,7 +415,8 @@ describe("audit logging", () => {
 
     const logLines: string[] = [];
     const pairing = makePairing({ log: (msg) => logLines.push(msg) });
-    await pairing.startPairing();
+    const handle = await pairing.startPairing();
+    await handle.completion;
 
     expect(logLines).toHaveLength(0);
   });

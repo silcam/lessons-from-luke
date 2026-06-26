@@ -15,13 +15,25 @@ export type PairingResult =
   | { status: "expired" };
 
 /**
+ * Returned by `startPairing()`.
+ *
+ * `userCode` is available immediately (before polling begins) so callers can
+ * display it in the UI without blocking on the polling loop.
+ * `completion` resolves when the polling loop finishes.
+ */
+export interface PairingHandle {
+  /** The user-facing code to display (e.g. "WDJB-MJHT"). */
+  userCode: string;
+  /** Resolves to the final PairingResult once polling completes. */
+  completion: Promise<PairingResult>;
+}
+
+/**
  * Thrown when the server returns HTTP 429 during a pairing flow.
  * The message is user-readable and safe to display directly.
  */
 export class PairingRateLimitedError extends Error {
-  constructor(
-    message = "Too many requests. Please wait a moment and try again."
-  ) {
+  constructor(message = "Too many requests. Please wait a moment and try again.") {
     super(message);
     this.name = "PairingRateLimitedError";
   }
@@ -127,12 +139,17 @@ export class DevicePairing {
   }
 
   /**
-   * Run the full RFC 8628 device-grant pairing flow.
+   * Run the RFC 8628 device-grant pairing flow.
    *
-   * @returns A PairingResult indicating the outcome.
-   * @throws PairingRateLimitedError when the server returns HTTP 429.
+   * Returns a `PairingHandle` immediately once the user code is available so
+   * callers can display it in the UI. `handle.completion` resolves when the
+   * polling loop finishes.
+   *
+   * @returns A PairingHandle with `userCode` and `completion`.
+   * @throws PairingRateLimitedError when the server returns HTTP 429 on the
+   *   code-request step (before the handle is returned).
    */
-  async startPairing(): Promise<PairingResult> {
+  async startPairing(): Promise<PairingHandle> {
     const codeData = await this.requestCode();
 
     // Expose the user code for display before opening the browser.
@@ -142,7 +159,10 @@ export class DevicePairing {
     // The device_code (polling secret) is carried only in the poll body — never in any URL.
     await shell.openExternal(codeData.verification_uri_complete);
 
-    return this.poll(codeData.device_code, codeData.interval);
+    return {
+      userCode: codeData.user_code,
+      completion: this.poll(codeData.device_code, codeData.interval),
+    };
   }
 
   // ---------------------------------------------------------------------------
@@ -151,10 +171,9 @@ export class DevicePairing {
 
   private async requestCode(): Promise<CodeResponse> {
     try {
-      const response = await Axios.post<CodeResponse>(
-        `${this.baseUrl}/api/auth/device/code`,
-        { client_id: CLIENT_ID }
-      );
+      const response = await Axios.post<CodeResponse>(`${this.baseUrl}/api/auth/device/code`, {
+        client_id: CLIENT_ID,
+      });
       return response.data;
     } catch (err) {
       const axiosErr = err as AxiosError;
@@ -171,10 +190,7 @@ export class DevicePairing {
   // Private: polling loop
   // ---------------------------------------------------------------------------
 
-  private async poll(
-    deviceCode: string,
-    intervalSeconds: number
-  ): Promise<PairingResult> {
+  private async poll(deviceCode: string, intervalSeconds: number): Promise<PairingResult> {
     let currentInterval = intervalSeconds;
 
     for (;;) {
@@ -247,12 +263,10 @@ export class DevicePairing {
   private async emitPairedAuditLog(token: string): Promise<void> {
     let userId = "unknown";
     try {
-      const response = await Axios.get<GetSessionResponse>(
-        `${this.baseUrl}/api/auth/get-session`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      const resolved =
-        response.data?.user?.id ?? response.data?.session?.userId;
+      const response = await Axios.get<GetSessionResponse>(`${this.baseUrl}/api/auth/get-session`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const resolved = response.data?.user?.id ?? response.data?.session?.userId;
       if (resolved) userId = resolved;
     } catch {
       // Best-effort: session fetch failure must not break the pairing result.
