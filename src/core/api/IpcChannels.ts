@@ -4,14 +4,21 @@ import { AppError } from "../models/AppError";
 export const ON_SYNC_STATE_CHANGE = "onSyncStateChange";
 /**
  * IPC payload for sync-state updates pushed from main → renderer.
- * Extends `Partial<SyncState>` with the desktop-pairing fields so that
- * `fullSyncState()` (syncStateController) can include them in the same
- * push without requiring those fields in the isomorphic domain model.
+ * Contains only isomorphic domain fields — desktop-only pairing fields
+ * are kept separate in `DesktopPairingIpcFields`.
  */
-export type OnSyncStateChangePayload = Partial<SyncState> & {
+export type OnSyncStateChangePayload = Partial<SyncState>;
+
+/**
+ * Desktop-only pairing fields carried alongside `OnSyncStateChangePayload`
+ * in the IPC push. Defined here so both the main-process sender
+ * (`syncStateController`) and the renderer receiver (`useHandleIPCEvents`)
+ * share the field names without polluting the isomorphic core type.
+ */
+export interface DesktopPairingIpcFields {
   paired?: boolean;
   pairedUserName?: string;
-};
+}
 
 export const ON_ERROR = "onError";
 export type OnErrorPayload = AppError;

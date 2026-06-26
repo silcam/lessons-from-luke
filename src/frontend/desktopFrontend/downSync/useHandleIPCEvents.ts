@@ -5,6 +5,7 @@ import desktopPairingSlice from "../desktopPairingSlice";
 import {
   ON_SYNC_STATE_CHANGE,
   OnSyncStateChangePayload,
+  DesktopPairingIpcFields,
   OnErrorPayload,
   ON_ERROR,
 } from "../../../core/api/IpcChannels";
@@ -17,7 +18,7 @@ export default function useHandleIPCEvents() {
   useEffect(() => {
     const unsubSync = window.electronAPI.on(
       ON_SYNC_STATE_CHANGE,
-      (syncStateUpdate: OnSyncStateChangePayload) => {
+      (syncStateUpdate: OnSyncStateChangePayload & DesktopPairingIpcFields) => {
         dispatch(syncStateSlice.actions.setSyncState(syncStateUpdate));
         // Desktop-only pairing fields are carried alongside the SyncState fields
         // in the IPC payload. Dispatch them to the desktop-specific slice.
