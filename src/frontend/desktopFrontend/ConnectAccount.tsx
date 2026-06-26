@@ -81,6 +81,11 @@ export default function ConnectAccount(): React.ReactElement {
   const [copied, setCopied] = useState(false);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // cancelledRef mirrors wasCancelled for the stable IPC-listener closure;
+  // wasCancelled is state so it can suppress the render-time paired check.
+  const [wasCancelled, setWasCancelled] = useState(false);
+  const cancelledRef = useRef(false);
+
   // Clear the copy-feedback timer on unmount to avoid state updates on an
   // unmounted component (unnecessary work; lint warning in strict React tooling).
   useEffect(() => () => {
@@ -88,17 +93,39 @@ export default function ConnectAccount(): React.ReactElement {
   }, []);
 
   // Subscribe to pairing-error events pushed from the main process.
+  // cancelledRef (not wasCancelled state) is used here so the closure remains
+  // stable across renders without needing to re-subscribe.
   useEffect(() => {
     const unsub = window.electronAPI.on(
       ON_PAIRING_ERROR,
       (payload: OnPairingErrorPayload) => {
-        setFlowState({ kind: "error", reason: payload.reason });
+        if (!cancelledRef.current) {
+          setFlowState({ kind: "error", reason: payload.reason });
+        }
       }
     );
     return unsub;
   }, []);
 
+  // Auto-disconnect an orphaned session: if the background poll approved while
+  // the user had already cancelled, invoke PAIRING_DISCONNECT and stay idle.
+  // autoDisconnectingRef prevents repeated invocations across re-renders;
+  // wasCancelled intentionally stays true until the next handleConnect so
+  // the "Connected as…" branch never renders during the disconnect window.
+  const autoDisconnectingRef = useRef(false);
+  useEffect(() => {
+    if (paired && wasCancelled && !autoDisconnectingRef.current) {
+      autoDisconnectingRef.current = true;
+      window.electronAPI.invoke(PAIRING_DISCONNECT).catch(() => {});
+    }
+    if (!paired) {
+      autoDisconnectingRef.current = false;
+    }
+  }, [paired, wasCancelled]);
+
   const handleConnect = useCallback(async () => {
+    setWasCancelled(false);
+    cancelledRef.current = false;
     try {
       const result: PairingStartResult = await window.electronAPI.invoke(PAIRING_START);
       setFlowState({ kind: "pairing", userCode: result.userCode });
@@ -108,6 +135,8 @@ export default function ConnectAccount(): React.ReactElement {
   }, []);
 
   const handleCancel = useCallback(async () => {
+    setWasCancelled(true);
+    cancelledRef.current = true;
     await window.electronAPI.invoke(PAIRING_CANCEL);
     setFlowState({ kind: "idle" });
   }, []);
@@ -133,7 +162,9 @@ export default function ConnectAccount(): React.ReactElement {
   }, []);
 
   // --- Connected ---
-  if (paired) {
+  // Suppress "Connected as..." when the session was approved after user cancel;
+  // the auto-disconnect useEffect above will clear it momentarily.
+  if (paired && !wasCancelled) {
     return (
       <div>
         <div aria-live="polite">

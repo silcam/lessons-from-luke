@@ -306,3 +306,55 @@ describe("ConnectAccount — IPC subscription lifecycle", () => {
     expect(unsubscribe).toHaveBeenCalled();
   });
 });
+
+describe("ConnectAccount — cancel guard", () => {
+  function setupWithPairingStartAndCancel() {
+    let capturedCallback: ((payload: { reason: string }) => void) | null = null;
+    mockOn.mockImplementation((channel: string, cb: (payload: { reason: string }) => void) => {
+      if (channel === ON_PAIRING_ERROR) capturedCallback = cb;
+      return jest.fn();
+    });
+    mockInvoke
+      .mockResolvedValueOnce({ userCode: "ABCD-EFGH" }) // PAIRING_START
+      .mockResolvedValueOnce(undefined); // PAIRING_CANCEL
+    const store = createTestStore({}, { paired: false });
+    renderConnectAccount(store);
+    return {
+      store,
+      firePairingError: (reason: string) => capturedCallback!({ reason }),
+    };
+  }
+
+  it("stays in idle state when ON_PAIRING_ERROR fires after cancel", async () => {
+    const { firePairingError } = setupWithPairingStartAndCancel();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Connect to account" }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    });
+    await act(async () => {
+      firePairingError("expired");
+    });
+    expect(screen.getByRole("button", { name: "Connect to account" })).toBeTruthy();
+    expect(screen.queryByText(/expired/i)).toBeNull();
+  });
+
+  it("invokes PAIRING_DISCONNECT and does not show connected UI when approval arrives after cancel", async () => {
+    const { store } = setupWithPairingStartAndCancel();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Connect to account" }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    });
+    // Prepare mock for the auto-disconnect PAIRING_DISCONNECT invoke
+    mockInvoke.mockResolvedValueOnce(undefined);
+    await act(async () => {
+      store.dispatch(desktopPairingSlice.actions.setPaired(true));
+      store.dispatch(desktopPairingSlice.actions.setPairedUser("Alice"));
+    });
+    expect(mockInvoke).toHaveBeenCalledWith(PAIRING_DISCONNECT);
+    expect(screen.queryByText(/Connected as/)).toBeNull();
+  });
+});
