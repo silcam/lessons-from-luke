@@ -123,10 +123,10 @@ export default function AdminHome() {
   // `usersLoading` initialises to true so the first render shows the loading skeleton.
   const load = async () => {
     const action = await dispatch(listAdminUsers());
-    if ((action as { error?: unknown }).error) {
-      setUsersLoadError(true);
+    if (listAdminUsers.fulfilled.match(action)) {
+      setUsers(action.payload);
     } else {
-      setUsers((action as { payload: AdminUserRow[] }).payload);
+      setUsersLoadError(true);
     }
     setUsersLoading(false);
   };
@@ -177,15 +177,14 @@ export default function AdminHome() {
     closeDialog();
 
     const action = await dispatch(revokeUserDeviceAccess(userId));
-    if ((action as { error?: unknown }).error) {
-      setAnnouncement({ type: "error", message: t("AdminHome_revoke_error") });
-    } else {
-      const { revokedCount } = (action as { payload: { userId: string; revokedCount: number } })
-        .payload;
+    if (revokeUserDeviceAccess.fulfilled.match(action)) {
+      const { revokedCount } = action.payload;
       setAnnouncement({
         type: "success",
         message: t("AdminHome_revoke_success", { count: String(revokedCount) }),
       });
+    } else {
+      setAnnouncement({ type: "error", message: t("AdminHome_revoke_error") });
     }
   };
 
