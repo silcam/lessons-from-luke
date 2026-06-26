@@ -8,6 +8,7 @@ import {
   Menu,
   shell,
   dialog,
+  ipcMain,
   MenuItemConstructorOptions,
 } from "electron";
 import contextMenu from "electron-context-menu";
@@ -21,15 +22,58 @@ import { dataUsageReport } from "./util/DataUsage";
 import { I18nKey } from "../core/i18n/locales/en";
 import { resync } from "../core/models/SyncState";
 import { tForLocale } from "../core/i18n/I18n";
+import { CredentialStore } from "./auth/CredentialStore";
+import { DevicePairing } from "./auth/DevicePairing";
+import Axios from "axios";
+
+/**
+ * Duration of better-auth's `updateAge` (1 day). The session keep-alive call
+ * is rate-limited to at most one request per this window so a desktop that
+ * syncs regularly never lets its session expire.
+ */
+const SESSION_UPDATE_AGE_MS = 60 * 60 * 24 * 1000; // 24 hours in ms
 
 export default class DesktopApp {
   localStorage: LocalStorage;
   webClient: WebAPIClientForDesktop;
   mainWindow: BrowserWindow | null = null;
 
-  constructor(localStorage: LocalStorage = new LocalStorage()) {
+  private credentialStore: CredentialStore;
+  private devicePairing: DevicePairing;
+  private paired: boolean = false;
+  private pairedUserName: string | undefined = undefined;
+  private lastSessionRefresh: number = 0;
+  private readonly baseUrl: string;
+
+  /**
+   * Promise that resolves when the async pairing initialisation triggered by
+   * `appReady()` completes. Tests can await this to observe startup state.
+   */
+  protected pairingInit: Promise<void> = Promise.resolve();
+
+  constructor(
+    localStorage: LocalStorage = new LocalStorage(),
+    credentialStore?: CredentialStore,
+    devicePairing?: DevicePairing
+  ) {
     this.localStorage = localStorage;
-    this.webClient = new WebAPIClientForDesktop(localStorage);
+    this.baseUrl = app.isPackaged
+      ? "https://luke.silcameroon.org"
+      : "http://localhost:8081";
+
+    this.credentialStore = credentialStore ?? new CredentialStore();
+
+    this.devicePairing =
+      devicePairing ??
+      new DevicePairing({
+        baseUrl: this.baseUrl,
+        // onUserCode fires after startPairing() obtains the code; mainWindow
+        // is guaranteed to exist by then (user must interact with the UI).
+        onUserCode: (code) =>
+          this.mainWindow?.webContents.send("device:userCode", code),
+      });
+
+    this.webClient = new WebAPIClientForDesktop(localStorage, this.credentialStore);
     this.init();
   }
 
@@ -73,10 +117,119 @@ export default class DesktopApp {
         return new Response("Not Found", { status: 404 });
       }
     });
+
     DesktopAPIServer.listen(this);
+    this.registerDeviceIpcHandlers();
     this.startDownSync();
     this.setupMenu();
     this.createWindow();
+
+    // Kick off async pairing init. Store the promise so tests (and subclasses)
+    // can await it to observe the settled state.
+    this.pairingInit = this.initPairing();
+  }
+
+  /**
+   * Load any persisted credential, set the initial paired state, and fetch
+   * the user's session to populate `pairedUserName` and slide session expiry.
+   *
+   * Called once per app launch from `appReady()`. Never throws — failures are
+   * treated as "no credential / not paired" so the app always starts up.
+   */
+  private async initPairing(): Promise<void> {
+    const token = await this.credentialStore.load();
+    if (!token) {
+      return;
+    }
+
+    // Credential found — mark as paired and fetch session details.
+    this.paired = true;
+    this.webClient.setPaired(true);
+    await this.refreshSession();
+
+    // Mirror webClient's 401 handling back to DesktopApp state so that
+    // `device:state` always reflects the current credential validity.
+    this.webClient.onPairedChange((paired) => {
+      this.paired = paired;
+      if (!paired) {
+        this.pairedUserName = undefined;
+      }
+    });
+  }
+
+  /**
+   * Fetch `/api/auth/get-session` to populate `pairedUserName` and to slide
+   * the session's `expiresAt` forward via better-auth's `updateAge` mechanism.
+   *
+   * Rate-limited to at most one call per `SESSION_UPDATE_AGE_MS` (~24 h).
+   * Best-effort: failures are silently swallowed to prevent startup breakage.
+   */
+  private async refreshSession(): Promise<void> {
+    const now = Date.now();
+    if (now - this.lastSessionRefresh < SESSION_UPDATE_AGE_MS) {
+      return;
+    }
+    this.lastSessionRefresh = now;
+
+    try {
+      const session = await this.webClient.get("/api/auth/get-session", {});
+      if (session?.user) {
+        this.pairedUserName = session.user.name ?? session.user.email;
+      }
+    } catch {
+      // Best-effort — a network failure during startup must not crash the app.
+    }
+  }
+
+  /**
+   * Register the three device pairing IPC channels:
+   *   - `device:connect`  — run the RFC 8628 flow; save token on approval.
+   *   - `device:disconnect` — sign out (best-effort) then clear credential.
+   *   - `device:state`   — return current `{ paired, pairedUserName }`.
+   */
+  private registerDeviceIpcHandlers(): void {
+    ipcMain.handle("device:connect", async () => {
+      const result = await this.devicePairing.startPairing();
+
+      if (result.status === "approved") {
+        await this.credentialStore.save(result.token);
+        this.paired = true;
+        this.webClient.setPaired(true);
+        // Fetch session so the UI can immediately show "connected as <user>".
+        // Reset lastSessionRefresh so this call is never skipped.
+        this.lastSessionRefresh = 0;
+        await this.refreshSession();
+      }
+
+      return result;
+    });
+
+    ipcMain.handle("device:disconnect", async () => {
+      // Best-effort online sign-out (US4.3). Always clear locally regardless.
+      if (this.webClient.isConnected()) {
+        try {
+          const token = await this.credentialStore.load();
+          if (token) {
+            await Axios.post(
+              `${this.baseUrl}/api/auth/sign-out`,
+              {},
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+          }
+        } catch {
+          // Sign-out failure must not prevent local credential removal.
+        }
+      }
+
+      await this.credentialStore.clear();
+      this.paired = false;
+      this.pairedUserName = undefined;
+      this.webClient.setPaired(false);
+    });
+
+    ipcMain.handle("device:state", async () => {
+      return { paired: this.paired, pairedUserName: this.pairedUserName };
+    });
   }
 
   private startDownSync() {
