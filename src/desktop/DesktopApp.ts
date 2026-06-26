@@ -74,7 +74,13 @@ export default class DesktopApp {
         onUserCode: (code) => this.mainWindow?.webContents.send("pairingUserCode", code),
       });
 
-    this.webClient = new WebAPIClientForDesktop(localStorage, this.credentialStore);
+    this.webClient = new WebAPIClientForDesktop(
+      localStorage,
+      this.credentialStore,
+      undefined,
+      undefined,
+      this.baseUrl
+    );
     this.init();
   }
 

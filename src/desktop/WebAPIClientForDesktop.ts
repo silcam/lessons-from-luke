@@ -1,7 +1,6 @@
 import { GetRoute, APIGet, APIPost, PostRoute } from "../core/api/ApiContracts";
 import { webGet, webPost } from "../core/api/WebAPIClient";
 import { AppError, asAppError } from "../core/models/AppError";
-import { app } from "electron";
 import LocalStorage from "./LocalStorage";
 import { CredentialStore } from "./auth/CredentialStore";
 
@@ -37,10 +36,10 @@ export default class WebAPIClientForDesktop {
     localStorage: LocalStorage,
     credentialStore?: CredentialStore,
     sessionFetcher?: SessionFetcher,
-    keepAliveIntervalMs = 24 * 60 * 60 * 1000
+    keepAliveIntervalMs = 24 * 60 * 60 * 1000,
+    baseUrl = ""
   ) {
-    this.baseUrl = app.isPackaged ? "https://luke.silcameroon.org" : "http://localhost:8081";
-    // this.baseUrl = "https://luke.silcameroon.org"; // For testing with real server
+    this.baseUrl = baseUrl;
     this.localStorage = localStorage;
     this.credentialStore = credentialStore ?? null;
     this.sessionFetcher = sessionFetcher ?? defaultSessionFetcher;
