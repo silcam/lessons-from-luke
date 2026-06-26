@@ -18,6 +18,11 @@ Spec: specs/002-invitation-system/spec.md
 Keywords: web authentication gate, require login, require sign-in, authentication required, protected routes, route guard, gated routes, default-deny routing, public allowlist, redirect to login, login redirect, post-login return, return-to URL, deep link sign-in, /translate auth, translation page login, lesson page login, non-admin routes require auth, desktop no auth, desktop unaffected, offline desktop, client-side auth gate, web-only enforcement, session required, sign-in wall, invitation route stays public, 401, 403, stacked on invitation system
 Spec: specs/003-web-auth-gate/spec.md
 
+## Desktop App Authentication (Code-Based Pairing) + Shared-API Enforcement
+
+Keywords: desktop authentication, desktop login, connect desktop to account, device pairing, code-based pairing, pairing code, device grant, OAuth device flow, RFC 8628, polling pairing, no loopback, no localhost server, no custom URL scheme, device credential, bearer token, paired device, disconnect device, revoke device, admin revoke by user, lost laptop, shared API enforcement, require auth on /api, lock down API, 401 anonymous, enforcement flag default off, feature flag rollout, offline-first desktop, Electron auth, stay connected across restarts, sign in then approve, electron main process header, stacked on web-auth-gate
+Spec: specs/004-desktop-auth-pairing/spec.md
+
 ## How to Update This File
 
 - Add one entry per feature spec, before this section.
