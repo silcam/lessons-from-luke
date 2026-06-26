@@ -22,7 +22,7 @@ export default class WebAPIClientForDesktop {
   private paired: boolean = false;
   private syncAborted: boolean = false;
   private lastKeepAliveAt: number | null = null;
-  private readonly KEEP_ALIVE_INTERVAL_MS: number; // ~daily by default, matches better-auth updateAge
+  private readonly keepAliveIntervalMs: number; // ~daily by default, matches better-auth updateAge
   private watchTimerId: ReturnType<typeof setInterval> | undefined;
   private watchLock: boolean = false; // Preventing running watch callback more than once at a time
   private onConnectionChangeListeners: Array<(connected: boolean) => void> = [];
@@ -43,7 +43,7 @@ export default class WebAPIClientForDesktop {
     this.localStorage = localStorage;
     this.credentialStore = credentialStore ?? null;
     this.sessionFetcher = sessionFetcher ?? defaultSessionFetcher;
-    this.KEEP_ALIVE_INTERVAL_MS = keepAliveIntervalMs;
+    this.keepAliveIntervalMs = keepAliveIntervalMs;
   }
 
   setConnected(connected: boolean) {
@@ -125,7 +125,7 @@ export default class WebAPIClientForDesktop {
     if (this.credentialStore === null) return;
 
     const now = Date.now();
-    if (this.lastKeepAliveAt !== null && now - this.lastKeepAliveAt < this.KEEP_ALIVE_INTERVAL_MS) {
+    if (this.lastKeepAliveAt !== null && now - this.lastKeepAliveAt < this.keepAliveIntervalMs) {
       return; // Already refreshed within the updateAge window
     }
 
