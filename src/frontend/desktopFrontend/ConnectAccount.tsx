@@ -91,12 +91,6 @@ export default function ConnectAccount(): React.ReactElement {
     return unsub;
   }, []);
 
-  // When the Redux paired flag flips to true (main process resolved the poll),
-  // return the local flow to idle so the Connected branch renders cleanly.
-  useEffect(() => {
-    if (paired) setFlowState({ kind: "idle" });
-  }, [paired]);
-
   const handleConnect = useCallback(async () => {
     try {
       const result: PairingStartResult = await window.electronAPI.invoke(PAIRING_START);
@@ -112,6 +106,10 @@ export default function ConnectAccount(): React.ReactElement {
   }, []);
 
   const handleDisconnect = useCallback(async () => {
+    // Reset local flow state synchronously before the IPC call so that when
+    // Redux clears the paired flag the component renders Idle, not a stale
+    // Pairing screen.
+    setFlowState({ kind: "idle" });
     await window.electronAPI.invoke(PAIRING_DISCONNECT);
   }, []);
 
