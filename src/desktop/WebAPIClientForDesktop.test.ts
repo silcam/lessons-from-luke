@@ -26,6 +26,14 @@ function makeLocalStorage() {
   } as any;
 }
 
+function makeCredentialStore(token: string | null = null) {
+  return {
+    load: jest.fn().mockResolvedValue(token),
+    save: jest.fn().mockResolvedValue(undefined),
+    clear: jest.fn().mockResolvedValue(undefined),
+  } as any;
+}
+
 describe("WebAPIClientForDesktop", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -295,6 +303,226 @@ describe("WebAPIClientForDesktop", () => {
 
       expect(cb1).not.toHaveBeenCalled();
       expect(cb2).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("isPaired / setPaired / onPairedChange", () => {
+    test("isPaired() starts as false", () => {
+      const client = new WebAPIClientForDesktop(makeLocalStorage());
+      expect(client.isPaired()).toBe(false);
+    });
+
+    test("setPaired(true) changes isPaired to true", () => {
+      const client = new WebAPIClientForDesktop(makeLocalStorage());
+      client.setPaired(true);
+      expect(client.isPaired()).toBe(true);
+    });
+
+    test("setPaired(false) after true changes isPaired to false", () => {
+      const client = new WebAPIClientForDesktop(makeLocalStorage());
+      client.setPaired(true);
+      client.setPaired(false);
+      expect(client.isPaired()).toBe(false);
+    });
+
+    test("setPaired fires listeners when value changes to true", () => {
+      const client = new WebAPIClientForDesktop(makeLocalStorage());
+      const listener = jest.fn();
+      client.onPairedChange(listener);
+      client.setPaired(true);
+      expect(listener).toHaveBeenCalledWith(true);
+      expect(listener).toHaveBeenCalledTimes(1);
+    });
+
+    test("setPaired does not fire listeners if value has not changed", () => {
+      const client = new WebAPIClientForDesktop(makeLocalStorage());
+      const listener = jest.fn();
+      client.onPairedChange(listener);
+      client.setPaired(false); // starts as false — no change
+      expect(listener).not.toHaveBeenCalled();
+    });
+
+    test("removeOnPairedChangeListener stops listener from receiving events", () => {
+      const client = new WebAPIClientForDesktop(makeLocalStorage());
+      const listener = jest.fn();
+      client.onPairedChange(listener);
+      client.removeOnPairedChangeListener(listener);
+      client.setPaired(true);
+      expect(listener).not.toHaveBeenCalled();
+    });
+
+    test("removing one paired listener does not affect other paired listeners", () => {
+      const client = new WebAPIClientForDesktop(makeLocalStorage());
+      const listener1 = jest.fn();
+      const listener2 = jest.fn();
+      client.onPairedChange(listener1);
+      client.onPairedChange(listener2);
+      client.removeOnPairedChangeListener(listener1);
+      client.setPaired(true);
+      expect(listener1).not.toHaveBeenCalled();
+      expect(listener2).toHaveBeenCalledWith(true);
+    });
+  });
+
+  describe("Authorization header injection", () => {
+    test("injects Authorization header in GET when token is present", async () => {
+      const credStore = makeCredentialStore("my-secret-token");
+      const client = new WebAPIClientForDesktop(makeLocalStorage(), credStore);
+      mockWebGet.mockResolvedValue({ languages: [], timestamp: 1 });
+
+      await client.get("/api/languages", {});
+
+      expect(mockWebGet).toHaveBeenCalledWith(
+        "/api/languages",
+        {},
+        expect.any(String),
+        expect.any(Function),
+        { Authorization: "Bearer my-secret-token" }
+      );
+    });
+
+    test("does not inject Authorization header in GET when token is null", async () => {
+      const credStore = makeCredentialStore(null);
+      const client = new WebAPIClientForDesktop(makeLocalStorage(), credStore);
+      mockWebGet.mockResolvedValue({ languages: [], timestamp: 1 });
+
+      await client.get("/api/languages", {});
+
+      expect(mockWebGet).toHaveBeenCalledWith(
+        "/api/languages",
+        {},
+        expect.any(String),
+        expect.any(Function),
+        undefined
+      );
+    });
+
+    test("does not inject Authorization header in GET when no credential store", async () => {
+      const client = new WebAPIClientForDesktop(makeLocalStorage());
+      mockWebGet.mockResolvedValue({ languages: [], timestamp: 1 });
+
+      await client.get("/api/languages", {});
+
+      expect(mockWebGet).toHaveBeenCalledWith(
+        "/api/languages",
+        {},
+        expect.any(String),
+        expect.any(Function),
+        undefined
+      );
+    });
+
+    test("injects Authorization header in POST when token is present", async () => {
+      const credStore = makeCredentialStore("my-secret-token");
+      const client = new WebAPIClientForDesktop(makeLocalStorage(), credStore);
+      mockWebPost.mockResolvedValue([]);
+
+      await client.post("/api/tStrings", {}, { code: "btg", tStrings: [] });
+
+      expect(mockWebPost).toHaveBeenCalledWith(
+        "/api/tStrings",
+        {},
+        { code: "btg", tStrings: [] },
+        expect.any(String),
+        expect.any(Function),
+        { Authorization: "Bearer my-secret-token" }
+      );
+    });
+
+    test("does not inject Authorization header in POST when token is null", async () => {
+      const credStore = makeCredentialStore(null);
+      const client = new WebAPIClientForDesktop(makeLocalStorage(), credStore);
+      mockWebPost.mockResolvedValue([]);
+
+      await client.post("/api/tStrings", {}, { code: "btg", tStrings: [] });
+
+      expect(mockWebPost).toHaveBeenCalledWith(
+        "/api/tStrings",
+        {},
+        { code: "btg", tStrings: [] },
+        expect.any(String),
+        expect.any(Function),
+        undefined
+      );
+    });
+
+    test("does not inject Authorization header in POST when no credential store", async () => {
+      const client = new WebAPIClientForDesktop(makeLocalStorage());
+      mockWebPost.mockResolvedValue([]);
+
+      await client.post("/api/tStrings", {}, { code: "btg", tStrings: [] });
+
+      expect(mockWebPost).toHaveBeenCalledWith(
+        "/api/tStrings",
+        {},
+        { code: "btg", tStrings: [] },
+        expect.any(String),
+        expect.any(Function),
+        undefined
+      );
+    });
+  });
+
+  describe("401 handling", () => {
+    test("401 GET response clears credential and sets paired=false, returns null", async () => {
+      const credStore = makeCredentialStore("my-secret-token");
+      const client = new WebAPIClientForDesktop(makeLocalStorage(), credStore);
+      client.setPaired(true);
+      mockWebGet.mockRejectedValue({ type: "HTTP", status: 401 });
+
+      const listener = jest.fn();
+      client.onPairedChange(listener);
+
+      const result = await client.get("/api/languages", {});
+
+      expect(result).toBeNull();
+      expect(credStore.clear).toHaveBeenCalled();
+      expect(client.isPaired()).toBe(false);
+      expect(listener).toHaveBeenCalledWith(false);
+    });
+
+    test("401 POST response clears credential and sets paired=false, returns null", async () => {
+      const credStore = makeCredentialStore("my-secret-token");
+      const client = new WebAPIClientForDesktop(makeLocalStorage(), credStore);
+      client.setPaired(true);
+      mockWebPost.mockRejectedValue({ type: "HTTP", status: 401 });
+
+      const result = await client.post("/api/tStrings", {}, { code: "btg", tStrings: [] });
+
+      expect(result).toBeNull();
+      expect(credStore.clear).toHaveBeenCalled();
+      expect(client.isPaired()).toBe(false);
+    });
+
+    test("401 does not rethrow — resolves to null", async () => {
+      const client = new WebAPIClientForDesktop(
+        makeLocalStorage(),
+        makeCredentialStore("token")
+      );
+      mockWebGet.mockRejectedValue({ type: "HTTP", status: 401 });
+
+      await expect(client.get("/api/languages", {})).resolves.toBeNull();
+    });
+
+    test("401 without credential store still sets paired=false and returns null", async () => {
+      const client = new WebAPIClientForDesktop(makeLocalStorage());
+      client.setPaired(true);
+      mockWebGet.mockRejectedValue({ type: "HTTP", status: 401 });
+
+      const result = await client.get("/api/languages", {});
+
+      expect(result).toBeNull();
+      expect(client.isPaired()).toBe(false);
+    });
+
+    test("non-401 HTTP error still rethrows (e.g. 404)", async () => {
+      const client = new WebAPIClientForDesktop(makeLocalStorage());
+      mockWebGet.mockRejectedValue({ type: "HTTP", status: 404 });
+
+      await expect(client.get("/api/languages", {})).rejects.toMatchObject({
+        type: "HTTP",
+        status: 404,
+      });
     });
   });
 });
