@@ -1,0 +1,46 @@
+openapi: 3.0.3
+info:
+  title: Admin Device-Access Revocation API
+  version: 1.0.0
+  description: >
+    One NEW hand-written admin endpoint (FR-017). Mounted under the existing
+    `app.use("/api/admin", requireAdmin)` guard in serverApp.ts and protected by `requireSameOrigin`
+    (state-changing POST). Revokes by USER: deletes all of the user's sessions via direct SQL on the
+    shared auth pool (getAuthPool()), so every connected device of that user is rejected on its next
+    online request. Blunt-but-simple per spec: this also ends the user's web sessions.
+
+servers:
+  - url: /api/admin
+
+paths:
+  /users/{userId}/revoke-sessions:
+    post:
+      summary: Revoke a user's device access (FR-017, SC-005)
+      description: >
+        Admin-only. `DELETE FROM "session" WHERE "userId" = $1`. After this, the gate's getSession
+        returns null for the user's devices → 401 on next request; the device must re-pair.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Sessions revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userId:
+                    type: string
+                  revokedCount:
+                    type: integer
+                    description: Number of session rows deleted.
+        "401":
+          description: Not signed in
+        "403":
+          description: Signed in but not admin (requireAdmin) / failed same-origin check
+        "404":
+          description: No such user

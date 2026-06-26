@@ -1,0 +1,180 @@
+openapi: 3.0.3
+info:
+  title: Desktop Device Pairing API (RFC 8628 device grant)
+  version: 1.0.0
+  description: >
+    Endpoints provided by the better-auth `device-authorization` plugin and served by the existing
+    `app.all("/api/auth/*", toNodeHandler(getAuth()))` mount in serverApp.ts. These are listed here
+    as the binding contract for the desktop and the web link page; they are NOT hand-written
+    controllers. The credential returned is a better-auth session token presented thereafter as
+    `Authorization: Bearer <token>` (the `bearer` plugin makes getSession accept it).
+    All four paths remain anonymous-reachable even when ENFORCE_API_AUTH is on (FR-011).
+
+servers:
+  - url: /api/auth
+
+paths:
+  /device/code:
+    post:
+      summary: Desktop requests a pairing code (FR-001, FR-004)
+      description: >
+        Called by the Electron main process (Node Axios, no browser Origin). Returns the user code
+        to display, the verification URI to open, and the device code (polling secret) the browser
+        never sees.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [client_id]
+              properties:
+                client_id:
+                  type: string
+                  description: Desktop client identifier (e.g. "lessons-from-luke-desktop").
+                scope:
+                  type: string
+                  description: Unused in v1.
+      responses:
+        "200":
+          description: Pairing initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  device_code:
+                    type: string
+                    description: Polling secret. MUST stay in the desktop only (FR-007).
+                  user_code:
+                    type: string
+                    example: WDJB-MJHT
+                    description: Short, readable, copyable code shown by the desktop (FR-001).
+                  verification_uri:
+                    type: string
+                    example: https://luke.silcameroon.org/link
+                  verification_uri_complete:
+                    type: string
+                    example: https://luke.silcameroon.org/link?user_code=WDJB-MJHT
+                  expires_in:
+                    type: integer
+                    example: 600
+                  interval:
+                    type: integer
+                    example: 5
+        "400":
+          description: invalid_request / invalid_client
+
+  /device/approve:
+    post:
+      summary: Browser approves a pairing (FR-002, FR-003, FR-005)
+      description: >
+        Called by the web device-link page. REQUIRES an authenticated browser session (cookie); the
+        plugin reads the session and stamps the approving user's id onto the deviceCode row. Subject
+        to better-auth trustedOrigins/CSRF enforcement automatically.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userCode]
+              properties:
+                userCode:
+                  type: string
+                  example: WDJB-MJHT
+      responses:
+        "200":
+          description: Approved; desktop's next poll will receive the token.
+        "400":
+          description: invalid_request (unknown/expired code)
+        "401":
+          description: Not signed in (FR-002 — must authenticate first)
+
+  /device/deny:
+    post:
+      summary: Browser declines a pairing (FR-006, US1.4)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userCode]
+              properties:
+                userCode:
+                  type: string
+      responses:
+        "200":
+          description: Denied; desktop's next poll receives access_denied.
+
+  /device/token:
+    post:
+      summary: Desktop polls for the credential (FR-004, FR-005)
+      description: >
+        Called repeatedly by the desktop (every `interval` seconds). On approval returns the bearer
+        session token. Single-use deviceCode row is deleted on success, denial, or expiry.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [device_code, client_id]
+              properties:
+                device_code:
+                  type: string
+                client_id:
+                  type: string
+      responses:
+        "200":
+          description: Approved — credential issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                    description: better-auth session token. Store encrypted; send as Bearer (FR-008).
+                  token_type:
+                    type: string
+                    example: Bearer
+                  expires_in:
+                    type: integer
+                    example: 5184000
+                  scope:
+                    type: string
+        "400":
+          description: >
+            RFC 8628 poll states / terminal errors:
+            authorization_pending | slow_down | expired_token | access_denied | invalid_grant.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    enum:
+                      [
+                        authorization_pending,
+                        slow_down,
+                        expired_token,
+                        access_denied,
+                        invalid_request,
+                        invalid_grant,
+                      ]
+                  error_description:
+                    type: string
+
+  /sign-out:
+    post:
+      summary: Desktop "Disconnect" while online — self sign-out (FR-016)
+      description: >
+        Existing better-auth endpoint. Desktop calls it with its Bearer credential to invalidate the
+        session server-side, then clears the local credential. Offline, the desktop skips this call
+        and clears the local credential immediately.
+      responses:
+        "200":
+          description: Session invalidated.
