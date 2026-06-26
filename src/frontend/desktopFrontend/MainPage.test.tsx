@@ -15,6 +15,7 @@ import lessonSlice from "../common/state/lessonSlice";
 import docStringSlice from "../common/state/docStringSlice";
 import tSubSlice from "../common/state/tSubSlice";
 import docPreviewSlice from "../common/state/docPreviewSlice";
+import { PAIRING_START } from "../../core/api/IpcChannels";
 
 // Mock useHandleIPCEvents to avoid ipcRenderer side effects in component tests
 jest.mock("./downSync/useHandleIPCEvents", () => ({
@@ -218,11 +219,11 @@ describe("DownSyncPage", () => {
     expect(message.closest('[aria-live="polite"]')).toBeTruthy();
   });
 
-  it("invokes device:connect IPC when Connect to account is clicked in not-connected state", () => {
+  it("invokes pairingStart IPC when Connect to account is clicked in not-connected state", () => {
     const store = createTestStore({ loaded: true, language: null, paired: false, connected: true });
     const { getByText } = renderWithProviders(<DownSyncPage startTranslating={jest.fn()} />, store);
     fireEvent.click(getByText("Connect to account"));
-    expect(mockElectronInvoke).toHaveBeenCalledWith("device:connect");
+    expect(mockElectronInvoke).toHaveBeenCalledWith(PAIRING_START);
   });
 
   it("shows no connect prompt when !paired and !connected (passive offline state)", () => {

@@ -7,6 +7,7 @@ import MiddleOfPage from "../../common/base-components/MiddleOfPage";
 import Button from "../../common/base-components/Button";
 import RequestContext from "../../common/api/RequestContext";
 import ProgressBar from "../../common/base-components/ProgressBar";
+import { PAIRING_START } from "../../../core/api/IpcChannels";
 
 interface IProps {
   startTranslating: () => void;
@@ -43,7 +44,7 @@ export default function DownSyncPage(props: IProps) {
             <Button
               bigger
               text="Connect to account"
-              onClick={() => window.electronAPI.invoke("device:connect")}
+              onClick={() => window.electronAPI.invoke(PAIRING_START)}
             />
           </div>
         </MiddleOfPage>

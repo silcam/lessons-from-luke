@@ -33,14 +33,13 @@ const CodeFieldWrapper = styled.div`
 `;
 
 const StyledCodeInput = styled.input<React.InputHTMLAttributes<HTMLInputElement>>`
-  font-family: monospace;
   font-size: 2em;
   letter-spacing: 0.15em;
   text-align: center;
   padding: 0.25em 0.5em;
   border: 1px solid ${Colors.lightGrey};
   border-radius: 0.25em;
-  background-color: #f9f9f9;
+  background-color: white;
   cursor: default;
   width: 100%;
   box-sizing: border-box;

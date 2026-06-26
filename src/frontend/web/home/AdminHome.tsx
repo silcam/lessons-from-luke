@@ -39,8 +39,8 @@ import { listAdminUsers, revokeUserDeviceAccess, type AdminUserRow } from "./adm
 // ---------------------------------------------------------------------------
 
 const SectionHeading = styled.h2`
-  font-size: 1.1em;
-  font-weight: 600;
+  font-size: 1.5em;
+  font-weight: 700;
   margin: 1em 0 0.5em;
 `;
 
