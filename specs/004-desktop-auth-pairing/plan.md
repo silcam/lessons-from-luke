@@ -206,13 +206,18 @@ brute-forcing pending `user_code`s on `/device/approve`.
   explicitly that the user is authorizing a **new desktop computer to sign in as them**, and warn
   to continue **only if they personally started this on their own computer** (e.g. "Connect a new
   desktop? This lets that computer act as your account. Only continue if you started this on your
-  own machine."). No silent / auto-approve — approval is always an explicit click (FR-003). Surface
-  whatever device/client context is available (`client_id`) so the approver sees what they are
-  authorizing.
-- **Rate-limit `/device/approve`** per authenticated user and per IP so pending `user_code`s cannot
-  be brute-forced or enumerated. Reuse the existing better-auth `rateLimit` config / the
-  `invitationRateLimit` precedent. User-code entropy (8 chars over a 28-symbol ambiguity-free
-  alphabet ≈ 38 bits, R4) is adequate **only when paired with rate limiting** per RFC 8628 §5.2.
+  own machine."). No silent / auto-approve — approval is always an explicit click (FR-003). If any
+  device/client context is shown (`client_id`), treat it as **untrusted display only**: `client_id`
+  is self-asserted by whoever called `/device/code`, so an attacker can send the official
+  `"lessons-from-luke-desktop"` value to look legitimate. The consent copy must therefore anchor the
+  decision on *"did **you** start this on **your** computer?"* and must NOT imply the request is
+  trustworthy because the client looks like the official app.
+- **Rate-limit `/device/approve` and `/device/deny`** per authenticated user and per IP so pending
+  `user_code`s cannot be brute-forced or enumerated (a malicious authenticated user could otherwise
+  spray-`deny` to grief in-flight pairings, the mirror of brute-force `approve`). Reuse the existing
+  better-auth `rateLimit` config / the `invitationRateLimit` precedent. User-code entropy (8 chars
+  over a 28-symbol ambiguity-free alphabet ≈ 38 bits, R4) is adequate **only when paired with rate
+  limiting** per RFC 8628 §5.2.
 - **Rate-limit `/device/code`** per IP to stop anonymous flooding of the `deviceCode` table
   (DoS / table-growth). This endpoint is anonymous by design (FR-011), so it needs its own ceiling.
 - These per-path limits MUST NOT throttle the legitimate 5 s `/device/token` poll — see
@@ -246,8 +251,60 @@ leaking curriculum imagery and partially defeating the lock-down.
 ### Admin revoke hygiene (FR-017)
 
 `revokeUserSessions` deletes the user's `session` rows but leaves that user's in-flight `deviceCode`
-rows. Delete (or let expiry sweep — see Performance) the user's pending `deviceCode` rows on revoke
-too, so a revoke cannot be immediately followed by completing an already-approved pairing.
+rows. On revoke, delete **all** of that user's `deviceCode` rows **regardless of status** — not just
+`pending` ones. An `approved`-but-not-yet-redeemed row (status flipped by `/device/approve`, token
+not yet pulled by the desktop poll) is the dangerous case: if it survives the revoke, the device's
+very next `/device/token` poll mints a **fresh** session for the user and silently re-grants the
+access the admin just revoked — a revocation-bypass window. The delete must therefore be
+`DELETE FROM "deviceCode" WHERE "userId" = $1` (every status), not a `status = 'pending'` filter.
+(The periodic expiry sweep — see Performance — is a backstop, not a substitute, because it only
+reaps `expiresAt < now`.)
+
+### Bearer credential widens the admin API surface (second-order of the `bearer` plugin)
+
+The `bearer` plugin is **global**: it makes `getAuth().api.getSession` accept
+`Authorization: Bearer <session-token>` on *every* route that resolves a session, not only the
+gated domain routes. `requireAdmin` (in `requireUser.ts`) goes through the same `loadSession` →
+`getSession` path, so once `bearer` is installed an **admin user's desktop device credential
+authenticates `/api/admin/*`**. Consequences worth designing for, not just noticing:
+
+- A leaked/stolen *admin* desktop token is now an **admin-API** credential, callable with plain
+  `curl` from outside any browser — strictly more dangerous than the curriculum-data exposure the
+  enforcement flag closes. This is the strongest argument for the fail-closed `safeStorage`
+  handling below and for treating admin revoke as a first-class operation.
+- **State-changing admin routes are partially protected already**: `requireSameOrigin` rejects a
+  request with no `Origin`/`Referer` (it 403s when neither is present — confirmed in
+  `requireSameOrigin.ts`), and a desktop bearer call carries neither. So the new
+  `POST /api/admin/users/:userId/revoke-sessions` and the existing invitation-**write** admin POSTs
+  are *not* reachable by a no-Origin bearer caller. **Action:** confirm every state-changing admin
+  route carries `requireSameOrigin` so this hold is deliberate, not incidental.
+- **Admin GET routes have no such guard**: e.g. the admin invitation **list** is `requireAdmin`
+  only, so an admin bearer token *can* read it via `curl`. **Decision (red-team):** accept this for
+  v1 (internal, invitation-only tool; an admin token is already trusted) but record it explicitly
+  in the threat model — the admin desktop credential is **admin-equivalent**, and that is the
+  reason admin revoke and fail-closed storage matter. Do **not** silently assume admin endpoints
+  stay cookie-only after `bearer` ships.
+
+### Audit trail & secret redaction (FR-021)
+
+FR-021 ("pairing approvals, desktop disconnects, and admin revocations MUST be recorded") has **no
+home** in the current plan/contracts/data-model — `/sp:05-tasks` would generate no audit work from
+the artifacts as they stand. Pin it down here so it reaches tasks:
+
+- **Where:** emit a structured audit log line (consistent with existing auth/invitation event
+  logging) at three points — the desktop's successful token redemption / first connected sync
+  (approval), `POST /api/auth/sign-out` from the desktop (disconnect), and the
+  `revoke-sessions` admin endpoint (revocation, including `revokedCount`). The
+  `device-authorization` plugin owns approval server-side; if it does not already log, the
+  redemption is observable via the new session row's creation — prefer an explicit log line in the
+  admin endpoint and on the desktop connect transition rather than inventing an audit table (no new
+  domain/auth schema — Principle VII).
+- **Redaction is mandatory:** the audit records and any debug logging added to the new auth code
+  (`DevicePairing.ts`, `CredentialStore.ts`, `WebAPIClientForDesktop` header injection,
+  `sessionRevocation.ts`) MUST NOT record the **bearer/session token**, the **`device_code`
+  polling secret**, or the `/device/token` **`access_token`**. Log the `userId`, an event name, and
+  timestamps only. (There is no morgan/access-log middleware today — confirmed — so the only
+  leakage paths are the *new* code's own logging; keep it that way.)
 
 ## Edge Cases & Error Handling
 
@@ -290,6 +347,15 @@ only and tell the user securely storing the connection isn't available on this m
 laptop never yields a readable token (the lost-laptop case is the whole reason revocation exists).
 (Noted in `data-model.md` Entity 3.)
 
+The mirror case is the **read path**: a `credential.bin` written on a previous run can later become
+**undecryptable** — the OS user changed, the keychain was reset, the login keyring is locked, or the
+file was copied to another machine. `safeStorage.decryptString` then **throws**. Startup credential
+load MUST wrap the decrypt in try/catch and, on failure, treat the device as **unpaired** (discard
+the unreadable blob, drop to "Not connected — reconnect", keep working offline from cache) rather
+than crashing the main process or boot-looping. A decrypt failure is indistinguishable from "no
+credential" for UX purposes and MUST resolve to the same safe unpaired state. (Noted in
+`data-model.md` Entity 3.)
+
 ## Performance Considerations
 
 > Added by `/sp:04-red-team`.
@@ -302,6 +368,18 @@ request-heavy, so this adds measurable auth-pool load and per-request latency. M
 better-auth's session cookie-cache / short-TTL session caching so the gate does not hit the DB on
 every sync request, and measure sync latency with enforcement on before flipping it in production
 (the default-off rollout, R10, makes this measurable safely).
+
+**Caveat (red-team — the cookie cache does NOT cover the heaviest client):** better-auth's
+session *cookie-cache* stores the cached session in a signed **cookie** on the client. The desktop
+is the request-heaviest sync client, but it authenticates with `Authorization: Bearer` and keeps no
+cookie jar — the `bearer` plugin reconstructs a cookie from the header *per request* and the desktop
+never persists/returns the cache cookie, so the cookie-cache optimization yields **no** DB savings
+on the desktop path. Every gated desktop `downSync` request therefore still round-trips `getSession`
+to the auth pool. Options: (a) accept it — the user base is small and `downSync` is bursty, not
+sustained, so the added auth-pool load is likely negligible (measure under the default-off rollout
+before deciding); or (b) configure server-side session caching via better-auth `secondaryStorage`,
+which caches the lookup **server-side** and so benefits the bearer path too. Default to (a) +
+measure; reach for (b) only if measurement shows auth-pool pressure.
 
 ### `deviceCode` table growth (unbounded without a sweep)
 

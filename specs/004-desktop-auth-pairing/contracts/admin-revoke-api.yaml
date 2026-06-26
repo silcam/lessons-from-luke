@@ -9,6 +9,20 @@ info:
     shared auth pool (getAuthPool()), so every connected device of that user is rejected on its next
     online request. Blunt-but-simple per spec: this also ends the user's web sessions.
 
+    Red-team hygiene: in the SAME operation also delete ALL of the user's deviceCode rows regardless
+    of status (DELETE FROM "deviceCode" WHERE "userId" = $1) -- not just `pending`. An
+    approved-but-unredeemed row would otherwise let the device's next /device/token poll mint a fresh
+    session and re-grant the just-revoked access (revocation-bypass window).
+
+    Audit (FR-021): emit a structured audit log line for the revocation (userId + revokedCount +
+    timestamp), consistent with existing auth/invitation event logging. The log line MUST NOT include
+    any session token / bearer credential / device_code (red-team secret-redaction).
+
+    Reachability note: this is a state-changing POST guarded by requireSameOrigin, which 403s a
+    request with neither Origin nor Referer. A desktop bearer call carries neither, so even an admin
+    user's desktop credential (which the global `bearer` plugin would otherwise let authenticate
+    /api/admin/*) cannot invoke this endpoint -- it is reachable only from the web admin UI.
+
 servers:
   - url: /api/admin
 

@@ -20,6 +20,13 @@ info:
       "/device/code": { window: 60, max: 5 }   -- anti-flood for anonymous table-grow DoS
       "/device/approve": { window: 60, max: 5 } -- brute-force protection (per-IP, adequate for
                                                    small user base + 38-bit code entropy)
+      "/device/deny": { window: 60, max: 5 }    -- symmetry with approve: stops a malicious authed
+                                                   user spray-denying / enumerating pending codes
+
+    client_id note (red-team): client_id on /device/code is self-asserted by the caller and is NOT a
+    trust signal. An attacker can send the official "lessons-from-luke-desktop" value. The /link
+    consent screen MUST treat any displayed client context as untrusted and anchor approval on
+    "did you start this on your own computer?" (see plan.md Security anti-phishing).
 
     Web link page two-step approve flow (concrete, from plugin source routes.mjs):
       1. GET /api/auth/device?user_code=XXXX  -- claims code (sets userId if authenticated)
@@ -170,6 +177,11 @@ paths:
       responses:
         "200":
           description: Denied; desktop's next poll receives access_denied.
+        "429":
+          description: >
+            Too many deny attempts (per-user + per-IP rate limit) — symmetry with /device/approve;
+            stops a malicious authenticated user from spray-denying or enumerating pending user_codes
+            (red-team Security).
 
   /device/token:
     post:

@@ -28,7 +28,14 @@ session cookie **and** an `Authorization: Bearer <session-token>` from the deskt
   mount anonymous would leak curriculum imagery and partially defeat enforcement. If gating breaks
   preview rendering, document the residual exposure as an explicit accepted tradeoff instead.
 
-(`/api/admin/*` is already gated by `requireAdmin` and is unaffected.)
+(`/api/admin/*` is already gated by `requireAdmin`, so the `ENFORCE_API_AUTH` flag does not change
+its access. **But note (red-team):** installing the global `bearer` plugin *does* change *who*
+`requireAdmin` accepts — it goes through the same `loadSession`/`getSession` path, so an **admin
+user's desktop bearer token now authenticates `/api/admin/*`** too. State-changing admin POSTs are
+held shut by `requireSameOrigin` (it 403s a no-Origin/Referer request, and a desktop bearer call
+has neither); admin **GET** routes (e.g. invitation list) become bearer-reachable by an admin token.
+Accepted for v1 — the admin desktop credential is treated as admin-equivalent in the threat model;
+ensure every state-changing admin route carries `requireSameOrigin`. See plan.md Security.)
 
 ## Always-public routes (never gated — pre-login surface, FR-011)
 
@@ -66,3 +73,7 @@ session cookie **and** an `Authorization: Bearer <session-token>` from the deskt
 9. Flag ON: cross-site `POST /api/tStrings` with a valid cookie but foreign/absent Origin → 403
    (`requireSameOrigin`); same request with a Bearer token (no Origin) → 200 (red-team CSRF).
 10. Flag ON: anonymous `GET /webified/<asset>` → 401 once the static mount is gated (red-team).
+11. Bearer-on-admin (red-team): an **admin** user's device bearer token → `GET` admin route (e.g.
+    invitation list) **200** (documents the accepted surface expansion); the same bearer token →
+    `POST /api/admin/users/:id/revoke-sessions` (no Origin) → **403** via `requireSameOrigin`
+    (state-changing admin POSTs stay shut to no-Origin bearer callers).

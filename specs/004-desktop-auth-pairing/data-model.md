@@ -57,9 +57,12 @@ NOTE: POST /device/approve fails with DEVICE_CODE_NOT_CLAIMED if GET /device was
 **Row cleanup / unbounded-growth guard** (red-team, see plan.md Performance): the plugin only
 deletes a row during a poll/redemption — an **abandoned** pairing (requested but never polled) and
 anonymous-flood rows are never reaped and grow the table without bound. Add a periodic sweep of
-`expiresAt < now` rows (startup + opportunistic). On admin revoke-by-user, also delete that user's
-pending `deviceCode` rows (red-team Security hygiene) so a revoke cannot be followed by completing an
-already-approved pairing.
+`expiresAt < now` rows (startup + opportunistic). On admin revoke-by-user, also delete **all** of
+that user's `deviceCode` rows **regardless of status** — `DELETE FROM "deviceCode" WHERE "userId" =
+$1`, not a `status = 'pending'` filter (red-team Security hygiene). The dangerous row is an
+`approved`-but-not-yet-redeemed one: if it survives the revoke, the device's next `/device/token`
+poll mints a fresh session and re-grants the just-revoked access. Deleting only `pending` rows would
+leave that bypass open.
 
 ---
 
@@ -100,6 +103,7 @@ The opaque bearer token at rest on the desktop.
 | Cleared by | Disconnect (FR-016), or on a 401 that proves the credential is dead. |
 | Write safety | atomic tmp-file rename (reuse `LocalStorage`'s existing pattern). |
 | Encryption unavailable | **Fail closed** (red-team): if `safeStorage.isEncryptionAvailable()` is false (locked keychain, pre-`app.ready`, Linux without a keyring), do **not** write plaintext — keep the token in memory for the session only and tell the user secure storage is unavailable. A lost laptop must never yield a readable token. |
+| Read/decrypt failure | **Resolve to unpaired** (red-team): a previously-written blob can become undecryptable (OS user changed, keychain reset/locked, file copied to another machine) → `decryptString` **throws**. Wrap the startup load in try/catch; on failure discard the unreadable blob and treat the device as unpaired (drop to "Not connected — reconnect", keep working offline). MUST NOT crash the main process or boot-loop. A decrypt failure is treated identically to "no credential present". |
 
 This store is **server-only-auth-free**: it holds an opaque string obtained over HTTP and never
 imports better-auth (FR-018).
