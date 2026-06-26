@@ -466,10 +466,7 @@ describe("lookupInvitation(pool, token)", () => {
     // Mark the invitation as accepted directly in the DB
     const client = await pool.connect();
     try {
-      await client.query(
-        `UPDATE "invitation" SET "acceptedAt"=now() WHERE "id"=$1`,
-        [created.id]
-      );
+      await client.query(`UPDATE "invitation" SET "acceptedAt"=now() WHERE "id"=$1`, [created.id]);
     } finally {
       client.release();
     }
@@ -1144,10 +1141,7 @@ describe("listInvitations(pool)", () => {
     // Mark the second one as accepted with an acceptedAt timestamp
     const client = await pool.connect();
     try {
-      await client.query(
-        `UPDATE "invitation" SET "acceptedAt"=now() WHERE id=$1`,
-        [accepted.id]
-      );
+      await client.query(`UPDATE "invitation" SET "acceptedAt"=now() WHERE id=$1`, [accepted.id]);
     } finally {
       client.release();
     }
@@ -1232,10 +1226,7 @@ describe("retractInvitation(pool, id)", () => {
 
     const client = await pool.connect();
     try {
-      await client.query(
-        `UPDATE "invitation" SET "acceptedAt"=now() WHERE id=$1`,
-        [created.id]
-      );
+      await client.query(`UPDATE "invitation" SET "acceptedAt"=now() WHERE id=$1`, [created.id]);
     } finally {
       client.release();
     }
@@ -1377,10 +1368,7 @@ describe("getInvitationLink(pool, id, cookieSecret)", () => {
 
     const client = await pool.connect();
     try {
-      await client.query(
-        `UPDATE "invitation" SET "acceptedAt"=now() WHERE id=$1`,
-        [created.id]
-      );
+      await client.query(`UPDATE "invitation" SET "acceptedAt"=now() WHERE id=$1`, [created.id]);
     } finally {
       client.release();
     }

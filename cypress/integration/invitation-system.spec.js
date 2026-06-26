@@ -100,10 +100,7 @@ describe("US1 — Admin issues an invitation", () => {
 
       // The refreshed link is shown (and differs from the original)
       cy.contains("button", "Copy Link").should("exist");
-      cy.get("p")
-        .invoke("text")
-        .should("include", "/invitation/")
-        .and("not.include", firstToken);
+      cy.get("p").invoke("text").should("include", "/invitation/").and("not.include", firstToken);
     });
   });
 });
