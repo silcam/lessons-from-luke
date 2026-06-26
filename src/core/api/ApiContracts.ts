@@ -35,8 +35,32 @@ export interface InvitationSummaryRow {
 
 // ---------------------------------------------------------------------------
 // HTTP API contract maps — typed route → [params, body, response] tuples.
-// These live here (api layer) rather than in core/interfaces/ because they
-// encode HTTP route strings as type keys, which is an infrastructure concern.
+//
+// ARCHITECTURAL DECISION (2026-06-26, sp:architecture-review):
+//
+// These maps encode HTTP route path strings as TypeScript interface keys, which
+// is an infrastructure concern rather than a domain concern. Despite the
+// four-layer architecture (core / server / frontend / desktop), they live in
+// the core API layer — not server — by deliberate team decision:
+//
+//   • The route-typed client pattern (webGet<T extends GetRoute>) requires a
+//     registry visible to ALL consumers: server route registration, the web API
+//     client, the IPC-based desktop client, and the React RequestContext.
+//
+//   • Moving to src/server/api/ would force desktop/ and frontend/ to import
+//     server-layer types, creating a worse layer violation in the other
+//     direction.
+//
+//   • Creating a new src/shared/ composite TS project to house purely
+//     cross-cutting transport types is architecturally cleaner but adds
+//     significant build complexity (new tsconfig, reference updates in four
+//     projects, 11 import-site updates) for limited practical benefit.
+//
+//   • src/core/api/ is already home to other cross-cutting transport types
+//     (WebAPIClient, IpcChannels); the directory name signals infrastructure.
+//
+// Trade-off accepted. Revisit only if a transport other than HTTP/IPC is
+// introduced, at which point a src/shared/ split becomes worthwhile.
 // ---------------------------------------------------------------------------
 
 export interface APIGet {
