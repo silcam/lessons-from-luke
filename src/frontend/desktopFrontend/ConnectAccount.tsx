@@ -17,7 +17,7 @@ import {
 
 // ---------------------------------------------------------------------------
 // Local state type — tracks the transient pairing handshake. The durable
-// "paired" credential lives in Redux (syncStateSlice / SyncState.paired).
+// "paired" credential lives in Redux (desktopPairingSlice / state.desktopPairing).
 // ---------------------------------------------------------------------------
 type PairingFlowState =
   | { kind: "idle" }
@@ -75,7 +75,7 @@ const ActionRow = styled.div`
  *   - Errors:           aria-live="assertive".
  */
 export default function ConnectAccount(): React.ReactElement {
-  const { paired, pairedUserName } = useAppSelector((state) => state.syncState);
+  const { paired, pairedUserName } = useAppSelector((state) => state.desktopPairing);
 
   const [flowState, setFlowState] = useState<PairingFlowState>({ kind: "idle" });
   const [copied, setCopied] = useState(false);
@@ -107,8 +107,8 @@ export default function ConnectAccount(): React.ReactElement {
 
   const handleDisconnect = useCallback(async () => {
     // Reset local flow state synchronously before the IPC call so that when
-    // Redux clears the paired flag the component renders Idle, not a stale
-    // Pairing screen.
+    // Redux clears the paired flag (desktopPairing.paired) the component
+    // renders Idle, not a stale Pairing screen.
     setFlowState({ kind: "idle" });
     await window.electronAPI.invoke(PAIRING_DISCONNECT);
   }, []);

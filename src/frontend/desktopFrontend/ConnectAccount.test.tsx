@@ -12,6 +12,7 @@ import lessonSlice from "../common/state/lessonSlice";
 import docStringSlice from "../common/state/docStringSlice";
 import tSubSlice from "../common/state/tSubSlice";
 import docPreviewSlice from "../common/state/docPreviewSlice";
+import desktopPairingSlice from "./state/desktopPairingSlice";
 import {
   PAIRING_START,
   PAIRING_CANCEL,
@@ -49,7 +50,12 @@ beforeEach(() => {
 });
 
 // ---------- test helpers ----------
-function createTestStore(syncStateOverrides: Partial<ReturnType<typeof syncStateSlice.reducer>> = {}) {
+type PairingOverrides = { paired?: boolean; pairedUserName?: string };
+
+function createTestStore(
+  syncStateOverrides: Partial<ReturnType<typeof syncStateSlice.reducer>> = {},
+  pairingOverrides: PairingOverrides = {}
+) {
   const networkSlice = require("../common/state/networkSlice").default;
   const reducer = combineReducers({
     syncState: syncStateSlice.reducer,
@@ -63,10 +69,17 @@ function createTestStore(syncStateOverrides: Partial<ReturnType<typeof syncState
     lessons: lessonSlice.reducer,
     docStrings: docStringSlice.reducer,
     docPreview: docPreviewSlice.reducer,
+    desktopPairing: desktopPairingSlice.reducer,
   });
   const store = configureStore({ reducer });
   if (Object.keys(syncStateOverrides).length > 0) {
     store.dispatch(syncStateSlice.actions.setSyncState(syncStateOverrides));
+  }
+  if (pairingOverrides.paired !== undefined) {
+    store.dispatch(desktopPairingSlice.actions.setPaired(pairingOverrides.paired));
+  }
+  if (pairingOverrides.pairedUserName !== undefined) {
+    store.dispatch(desktopPairingSlice.actions.setPairedUser(pairingOverrides.pairedUserName));
   }
   return store;
 }
@@ -84,12 +97,12 @@ function renderConnectAccount(store = createTestStore()) {
 
 describe("ConnectAccount — idle state (not paired)", () => {
   it('shows "Connect to account" button', () => {
-    renderConnectAccount(createTestStore({ paired: false }));
+    renderConnectAccount(createTestStore({}, { paired: false }));
     expect(screen.getByRole("button", { name: "Connect to account" })).toBeTruthy();
   });
 
   it("does not show the pairing code or connected-user text", () => {
-    renderConnectAccount(createTestStore({ paired: false }));
+    renderConnectAccount(createTestStore({}, { paired: false }));
     expect(screen.queryByLabelText("Pairing code, eight characters")).toBeNull();
     expect(screen.queryByText(/Connected as/)).toBeNull();
   });
@@ -98,7 +111,7 @@ describe("ConnectAccount — idle state (not paired)", () => {
 describe("ConnectAccount — pairing in progress", () => {
   it('invokes pairingStart when "Connect to account" is clicked', async () => {
     mockInvoke.mockResolvedValueOnce({ userCode: "ABCD-EFGH" });
-    renderConnectAccount(createTestStore({ paired: false }));
+    renderConnectAccount(createTestStore({}, { paired: false }));
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Connect to account" }));
     });
@@ -107,7 +120,7 @@ describe("ConnectAccount — pairing in progress", () => {
 
   it("shows the pairing code field labeled with the code after pairingStart", async () => {
     mockInvoke.mockResolvedValueOnce({ userCode: "ABCD-EFGH" });
-    renderConnectAccount(createTestStore({ paired: false }));
+    renderConnectAccount(createTestStore({}, { paired: false }));
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Connect to account" }));
     });
@@ -119,7 +132,7 @@ describe("ConnectAccount — pairing in progress", () => {
 
   it('code field has aria-label "Pairing code, eight characters"', async () => {
     mockInvoke.mockResolvedValueOnce({ userCode: "ABCD-EFGH" });
-    renderConnectAccount(createTestStore({ paired: false }));
+    renderConnectAccount(createTestStore({}, { paired: false }));
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Connect to account" }));
     });
@@ -131,7 +144,7 @@ describe("ConnectAccount — pairing in progress", () => {
 
   it('shows "Waiting for browser approval..." in an aria-live="polite" region', async () => {
     mockInvoke.mockResolvedValueOnce({ userCode: "ABCD-EFGH" });
-    renderConnectAccount(createTestStore({ paired: false }));
+    renderConnectAccount(createTestStore({}, { paired: false }));
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Connect to account" }));
     });
@@ -141,7 +154,7 @@ describe("ConnectAccount — pairing in progress", () => {
 
   it("shows a Cancel button during pairing", async () => {
     mockInvoke.mockResolvedValueOnce({ userCode: "ABCD-EFGH" });
-    renderConnectAccount(createTestStore({ paired: false }));
+    renderConnectAccount(createTestStore({}, { paired: false }));
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Connect to account" }));
     });
@@ -152,7 +165,7 @@ describe("ConnectAccount — pairing in progress", () => {
     mockInvoke
       .mockResolvedValueOnce({ userCode: "ABCD-EFGH" })
       .mockResolvedValueOnce(undefined);
-    renderConnectAccount(createTestStore({ paired: false }));
+    renderConnectAccount(createTestStore({}, { paired: false }));
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Connect to account" }));
     });
@@ -166,7 +179,7 @@ describe("ConnectAccount — pairing in progress", () => {
   it('announces "Code copied" in an aria-live="polite" region when copy button is clicked', async () => {
     mockInvoke.mockResolvedValueOnce({ userCode: "ABCD-EFGH" });
     mockWriteText.mockResolvedValueOnce(undefined);
-    renderConnectAccount(createTestStore({ paired: false }));
+    renderConnectAccount(createTestStore({}, { paired: false }));
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Connect to account" }));
     });
@@ -181,7 +194,7 @@ describe("ConnectAccount — pairing in progress", () => {
   it("writes the pairing code to the clipboard when copy is clicked", async () => {
     mockInvoke.mockResolvedValueOnce({ userCode: "ABCD-EFGH" });
     mockWriteText.mockResolvedValueOnce(undefined);
-    renderConnectAccount(createTestStore({ paired: false }));
+    renderConnectAccount(createTestStore({}, { paired: false }));
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Connect to account" }));
     });
@@ -194,27 +207,27 @@ describe("ConnectAccount — pairing in progress", () => {
 
 describe("ConnectAccount — connected state (paired=true)", () => {
   it('shows "Connected as <user>" when paired', () => {
-    const store = createTestStore({ paired: true, pairedUserName: "Alice" });
+    const store = createTestStore({}, { paired: true, pairedUserName: "Alice" });
     renderConnectAccount(store);
     expect(screen.getByText("Connected as Alice")).toBeTruthy();
   });
 
   it('"Connected as <user>" is in an aria-live="polite" region', () => {
-    const store = createTestStore({ paired: true, pairedUserName: "Alice" });
+    const store = createTestStore({}, { paired: true, pairedUserName: "Alice" });
     renderConnectAccount(store);
     const connectedText = screen.getByText("Connected as Alice");
     expect(connectedText.closest('[aria-live="polite"]')).toBeTruthy();
   });
 
   it("shows Disconnect button when paired", () => {
-    const store = createTestStore({ paired: true, pairedUserName: "Alice" });
+    const store = createTestStore({}, { paired: true, pairedUserName: "Alice" });
     renderConnectAccount(store);
     expect(screen.getByRole("button", { name: "Disconnect" })).toBeTruthy();
   });
 
   it("invokes pairingDisconnect when Disconnect is clicked", async () => {
     mockInvoke.mockResolvedValueOnce(undefined);
-    const store = createTestStore({ paired: true, pairedUserName: "Alice" });
+    const store = createTestStore({}, { paired: true, pairedUserName: "Alice" });
     renderConnectAccount(store);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
@@ -230,7 +243,7 @@ describe("ConnectAccount — error state", () => {
       if (channel === ON_PAIRING_ERROR) capturedCallback = cb;
       return jest.fn();
     });
-    const result = renderConnectAccount(createTestStore({ paired: false }));
+    const result = renderConnectAccount(createTestStore({}, { paired: false }));
     return { ...result, firePairingError: (reason: string) => capturedCallback!({ reason }) };
   }
 
@@ -281,14 +294,14 @@ describe("ConnectAccount — error state", () => {
 
 describe("ConnectAccount — IPC subscription lifecycle", () => {
   it("subscribes to ON_PAIRING_ERROR on mount", () => {
-    renderConnectAccount(createTestStore({ paired: false }));
+    renderConnectAccount(createTestStore({}, { paired: false }));
     expect(mockOn).toHaveBeenCalledWith(ON_PAIRING_ERROR, expect.any(Function));
   });
 
   it("unsubscribes from ON_PAIRING_ERROR on unmount", () => {
     const unsubscribe = jest.fn();
     mockOn.mockReturnValue(unsubscribe);
-    const { unmount } = renderConnectAccount(createTestStore({ paired: false }));
+    const { unmount } = renderConnectAccount(createTestStore({}, { paired: false }));
     unmount();
     expect(unsubscribe).toHaveBeenCalled();
   });

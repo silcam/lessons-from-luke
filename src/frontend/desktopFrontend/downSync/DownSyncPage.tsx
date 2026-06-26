@@ -17,6 +17,7 @@ export default function DownSyncPage(props: IProps) {
   const t = useTranslation();
   const { get } = useContext(RequestContext);
   const syncState = useAppSelector((state) => state.syncState);
+  const { paired } = useAppSelector((state) => state.desktopPairing);
   const progress = syncState.downSync.progress;
   const [canTranslate, setCanTranslate] = useState(false);
 
@@ -35,7 +36,7 @@ export default function DownSyncPage(props: IProps) {
 
   // !paired + connected: device is online but has no account credential.
   // Show a clear connect prompt so the user knows sync is blocked.
-  if (!syncState.paired && syncState.connected) {
+  if (!paired && syncState.connected) {
     return (
       <StdHeaderBarPage title="Lessons from Luke" logoNoLink>
         <MiddleOfPage>
@@ -54,6 +55,7 @@ export default function DownSyncPage(props: IProps) {
 
   // !paired + !connected: offline and unpaired — passive state, local cache still usable.
   // No error shown; fall through to existing sync display.
+  // (paired from state.desktopPairing; connected from state.syncState)
 
   return (
     <StdHeaderBarPage title="Lessons from Luke" logoNoLink>

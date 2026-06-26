@@ -15,6 +15,7 @@ import lessonSlice from "../common/state/lessonSlice";
 import docStringSlice from "../common/state/docStringSlice";
 import tSubSlice from "../common/state/tSubSlice";
 import docPreviewSlice from "../common/state/docPreviewSlice";
+import desktopPairingSlice from "./state/desktopPairingSlice";
 import { PAIRING_START } from "../../core/api/IpcChannels";
 
 // Mock useHandleIPCEvents to avoid ipcRenderer side effects in component tests
@@ -52,7 +53,12 @@ jest.mock("../common/state/networkSlice", () => {
   };
 });
 
-function createTestStore(syncStateOverrides?: Partial<ReturnType<typeof syncStateSlice.reducer>>) {
+type SyncAndPairingOverrides = Partial<ReturnType<typeof syncStateSlice.reducer>> & {
+  paired?: boolean;
+  pairedUserName?: string;
+};
+
+function createTestStore(overrides?: SyncAndPairingOverrides) {
   // Import networkSlice after mock is set up
 
   const networkSlice = require("../common/state/networkSlice").default;
@@ -69,11 +75,21 @@ function createTestStore(syncStateOverrides?: Partial<ReturnType<typeof syncStat
     lessons: lessonSlice.reducer,
     docStrings: docStringSlice.reducer,
     docPreview: docPreviewSlice.reducer,
+    desktopPairing: desktopPairingSlice.reducer,
   });
 
   const store = configureStore({ reducer });
-  if (syncStateOverrides) {
-    store.dispatch(syncStateSlice.actions.setSyncState(syncStateOverrides));
+  if (overrides) {
+    const { paired, pairedUserName, ...syncStateFields } = overrides;
+    if (Object.keys(syncStateFields).length > 0) {
+      store.dispatch(syncStateSlice.actions.setSyncState(syncStateFields));
+    }
+    if (paired !== undefined) {
+      store.dispatch(desktopPairingSlice.actions.setPaired(paired));
+    }
+    if (pairedUserName !== undefined) {
+      store.dispatch(desktopPairingSlice.actions.setPairedUser(pairedUserName));
+    }
   }
   return store;
 }
