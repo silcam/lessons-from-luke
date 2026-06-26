@@ -524,6 +524,48 @@ describe("DesktopApp pairing lifecycle", () => {
       await ipcHandlers["device:disconnect"]({});
       expect(cs.clear).toHaveBeenCalledTimes(1);
     });
+
+    test("emits structured audit log on disconnect with userId and timestamp but not token", async () => {
+      mockWebClient.get.mockResolvedValueOnce({
+        user: { id: "user-123", admin: false, name: "Alice", email: "alice@example.com" },
+        session: { id: "s1", userId: "user-123", expiresAt: "2027-01-01" },
+      });
+      const cs = makeMockCredentialStore("secret-token");
+      const dp = makeMockDevicePairing();
+      await createApp(cs, dp);
+
+      const consoleSpy = jest.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        await ipcHandlers["device:disconnect"]({});
+
+        const logCalls = consoleSpy.mock.calls.map((args) => args[0]).filter((s) => {
+          try { return JSON.parse(s)?.event === "device:disconnect"; } catch { return false; }
+        });
+        expect(logCalls).toHaveLength(1);
+        const parsed = JSON.parse(logCalls[0]);
+        expect(parsed.userId).toBe("user-123");
+        expect(parsed.timestamp).toBeDefined();
+        expect(logCalls[0]).not.toContain("secret-token");
+      } finally {
+        consoleSpy.mockRestore();
+      }
+    });
+
+    test("logs warning when sign-out POST fails about server-side invalidation via expiry", async () => {
+      mockWebClient.isConnected.mockReturnValue(true);
+      mockAxiosPost.mockRejectedValueOnce(new Error("network error"));
+      const cs = makeMockCredentialStore("existing-token");
+      const dp = makeMockDevicePairing();
+      await createApp(cs, dp);
+
+      const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        await ipcHandlers["device:disconnect"]({});
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("expiry"));
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
   });
 
   // -------------------------------------------------------------------------

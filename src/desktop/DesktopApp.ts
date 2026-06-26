@@ -42,6 +42,7 @@ export default class DesktopApp {
   private devicePairing: DevicePairing;
   private paired: boolean = false;
   private pairedUserName: string | undefined = undefined;
+  private pairedUserId: string | undefined = undefined;
   private lastSessionRefresh: number = 0;
   private readonly baseUrl: string;
 
@@ -153,6 +154,7 @@ export default class DesktopApp {
       this.paired = paired;
       if (!paired) {
         this.pairedUserName = undefined;
+        this.pairedUserId = undefined;
       }
     });
   }
@@ -175,6 +177,7 @@ export default class DesktopApp {
       const session = await this.webClient.get("/api/auth/get-session", {});
       if (session?.user) {
         this.pairedUserName = session.user.name ?? session.user.email;
+        this.pairedUserId = session.user.id;
       }
     } catch {
       // Best-effort — a network failure during startup must not crash the app.
@@ -205,6 +208,9 @@ export default class DesktopApp {
     });
 
     ipcMain.handle("device:disconnect", async () => {
+      // Capture userId before clearing state for the audit log.
+      const userId = this.pairedUserId;
+
       // Best-effort online sign-out (US4.3). Always clear locally regardless.
       if (this.webClient.isConnected()) {
         try {
@@ -218,13 +224,24 @@ export default class DesktopApp {
           }
         } catch {
           // Sign-out failure must not prevent local credential removal.
+          // Server-side session will be invalidated via expiry or admin revoke.
+          console.warn(
+            "[DesktopApp] sign-out request failed; server-side session " +
+              "will be invalidated via session expiry or admin revoke"
+          );
         }
       }
 
       await this.credentialStore.clear();
       this.paired = false;
       this.pairedUserName = undefined;
+      this.pairedUserId = undefined;
       this.webClient.setPaired(false);
+
+      // FR-021 audit log: structured disconnect event (no token value logged).
+      console.log(
+        JSON.stringify({ event: "device:disconnect", userId, timestamp: new Date().toISOString() })
+      );
     });
 
     ipcMain.handle("device:state", async () => {
