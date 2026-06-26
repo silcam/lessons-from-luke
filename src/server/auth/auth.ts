@@ -47,6 +47,7 @@ export function getAuthPool(): Pool {
  *
  * FR-001, FR-002, FR-006, FR-010, FR-012
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getAuth(): ReturnType<typeof betterAuth<any>> {
   if (authInstance) {
     return authInstance;
