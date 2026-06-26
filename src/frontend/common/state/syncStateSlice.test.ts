@@ -20,10 +20,103 @@ function makeInitialState(): SyncState {
     ...initalStoredSyncState(),
     connected: false,
     loaded: false,
+    paired: false,
   };
 }
 
 describe("syncStateSlice reducers", () => {
+  describe("setPaired", () => {
+    it("sets paired to true", () => {
+      const initial = makeInitialState();
+      const state = syncStateSlice.reducer(initial, syncStateSlice.actions.setPaired(true));
+      expect(state.paired).toBe(true);
+    });
+
+    it("sets paired to false", () => {
+      const initial = { ...makeInitialState(), paired: true, pairedUserName: "John" };
+      const state = syncStateSlice.reducer(initial, syncStateSlice.actions.setPaired(false));
+      expect(state.paired).toBe(false);
+    });
+
+    it("clears pairedUserName when setting paired to false", () => {
+      const initial = { ...makeInitialState(), paired: true, pairedUserName: "John" };
+      const state = syncStateSlice.reducer(initial, syncStateSlice.actions.setPaired(false));
+      expect(state.pairedUserName).toBeUndefined();
+    });
+
+    it("preserves pairedUserName when setting paired to true", () => {
+      const initial = { ...makeInitialState(), pairedUserName: "John" };
+      const state = syncStateSlice.reducer(initial, syncStateSlice.actions.setPaired(true));
+      expect(state.pairedUserName).toBe("John");
+    });
+  });
+
+  describe("setPairedUser", () => {
+    it("sets pairedUserName to a string", () => {
+      const initial = makeInitialState();
+      const state = syncStateSlice.reducer(initial, syncStateSlice.actions.setPairedUser("John"));
+      expect(state.pairedUserName).toBe("John");
+    });
+
+    it("clears pairedUserName when called with undefined", () => {
+      const initial = { ...makeInitialState(), pairedUserName: "John" };
+      const state = syncStateSlice.reducer(
+        initial,
+        syncStateSlice.actions.setPairedUser(undefined)
+      );
+      expect(state.pairedUserName).toBeUndefined();
+    });
+  });
+
+  describe("four derived UI state transitions", () => {
+    it("(a) !paired + !connected: offline cache, passive", () => {
+      const state = makeInitialState();
+      expect(state.paired).toBe(false);
+      expect(state.connected).toBe(false);
+    });
+
+    it("(b) !paired + connected: shows 'Not connected' + connect prompt", () => {
+      const state = syncStateSlice.reducer(
+        makeInitialState(),
+        syncStateSlice.actions.setSyncState({ connected: true })
+      );
+      expect(state.paired).toBe(false);
+      expect(state.connected).toBe(true);
+    });
+
+    it("(c) paired + connected: syncing as named user", () => {
+      let state = syncStateSlice.reducer(
+        makeInitialState(),
+        syncStateSlice.actions.setPaired(true)
+      );
+      state = syncStateSlice.reducer(state, syncStateSlice.actions.setPairedUser("Jane Doe"));
+      state = syncStateSlice.reducer(
+        state,
+        syncStateSlice.actions.setSyncState({ connected: true })
+      );
+      expect(state.paired).toBe(true);
+      expect(state.pairedUserName).toBe("Jane Doe");
+      expect(state.connected).toBe(true);
+    });
+
+    it("(d) paired+connected+401: drops paired, clears pairedUserName, keeps network connected", () => {
+      // Start in paired+connected state
+      let state = syncStateSlice.reducer(makeInitialState(), syncStateSlice.actions.setPaired(true));
+      state = syncStateSlice.reducer(state, syncStateSlice.actions.setPairedUser("Jane Doe"));
+      state = syncStateSlice.reducer(
+        state,
+        syncStateSlice.actions.setSyncState({ connected: true })
+      );
+
+      // 401 mid-sync: drop paired (which clears credential and pairedUserName)
+      state = syncStateSlice.reducer(state, syncStateSlice.actions.setPaired(false));
+
+      expect(state.paired).toBe(false);
+      expect(state.pairedUserName).toBeUndefined();
+      expect(state.connected).toBe(true); // network still up; only credential dropped
+    });
+  });
+
   describe("setSyncState", () => {
     it("merges partial sync state into current state", () => {
       const initial = makeInitialState();
@@ -78,6 +171,7 @@ describe("syncStateSlice thunks", () => {
         ...initalStoredSyncState(),
         connected: true,
         loaded: true,
+        paired: false,
       };
       const get = jest.fn().mockResolvedValue(syncState);
       const dispatch = jest.fn();
@@ -96,6 +190,7 @@ describe("syncStateSlice thunks", () => {
         language: lang,
         connected: true,
         loaded: true,
+        paired: false,
       };
       const get = jest.fn().mockResolvedValue(syncState);
       const dispatch = jest.fn();
@@ -111,6 +206,7 @@ describe("syncStateSlice thunks", () => {
         language: null,
         connected: true,
         loaded: true,
+        paired: false,
       };
       const get = jest.fn().mockResolvedValue(syncState);
       const dispatch = jest.fn();
@@ -142,6 +238,7 @@ describe("syncStateSlice thunks", () => {
         ...initalStoredSyncState(),
         connected: true,
         loaded: true,
+        paired: false,
       };
       const post = jest.fn().mockResolvedValue(syncState);
       const dispatch = jest.fn();
@@ -170,6 +267,7 @@ describe("syncStateSlice thunks", () => {
         locale: "fr",
         connected: true,
         loaded: true,
+        paired: false,
       };
       const post = jest.fn().mockResolvedValue(syncState);
       const dispatch = jest.fn();

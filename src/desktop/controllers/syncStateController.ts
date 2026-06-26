@@ -62,6 +62,7 @@ function fullSyncState(localStorage: LocalStorage, webClient: WebAPIClientForDes
     ...localStorage.getSyncState(),
     connected: webClient.isConnected(),
     loaded: true,
+    paired: false,
   };
 }
 

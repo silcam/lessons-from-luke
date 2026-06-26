@@ -18,6 +18,8 @@ export interface StoredSyncState {
 export interface SyncState extends StoredSyncState {
   loaded: boolean;
   connected: boolean;
+  paired: boolean;
+  pairedUserName?: string;
 }
 
 export interface ContinuousSyncPackage {

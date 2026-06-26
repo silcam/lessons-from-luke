@@ -10,12 +10,23 @@ const syncStateSlice = createSlice({
     ...initalStoredSyncState(),
     connected: false,
     loaded: false,
+    paired: false,
+    pairedUserName: undefined,
   } as SyncState,
   reducers: {
     setSyncState: (state, action: PayloadAction<Partial<SyncState>>) => ({
       ...state,
       ...action.payload,
     }),
+    setPaired: (state, action: PayloadAction<boolean>) => {
+      state.paired = action.payload;
+      if (!action.payload) {
+        state.pairedUserName = undefined;
+      }
+    },
+    setPairedUser: (state, action: PayloadAction<string | undefined>) => {
+      state.pairedUserName = action.payload;
+    },
   },
 });
 
