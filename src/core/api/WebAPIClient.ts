@@ -7,12 +7,15 @@ export async function webGet<T extends GetRoute>(
   route: T,
   params: APIGet[T][0],
   baseUrl: string = "",
-  log: (message: string) => void = console.log
+  log: (message: string) => void = console.log,
+  headers?: Record<string, string>
 ): Promise<APIGet[T][1] | null> {
   const finalRoute = interpolateParams(route, params);
   try {
     log(`GET ${finalRoute}`);
-    const response = await Axios.get(baseUrl + finalRoute);
+    const response = headers
+      ? await Axios.get(baseUrl + finalRoute, { headers })
+      : await Axios.get(baseUrl + finalRoute);
     log(`RESPONSE SIZE ${response.headers["content-length"]}`);
     return response.data;
   } catch (err) {
@@ -25,12 +28,15 @@ export async function webPost<T extends PostRoute>(
   params: APIPost[T][0],
   data: APIPost[T][1],
   baseUrl: string = "",
-  log: (message: string) => void = console.log
+  log: (message: string) => void = console.log,
+  headers?: Record<string, string>
 ): Promise<APIPost[T][2] | null> {
   const finalRoute = interpolateParams(route, params);
   try {
     log(`POST ${finalRoute} ${JSON.stringify(data)}`);
-    const response = await Axios.post(baseUrl + finalRoute, data);
+    const response = headers
+      ? await Axios.post(baseUrl + finalRoute, data, { headers })
+      : await Axios.post(baseUrl + finalRoute, data);
     log(`RESPONSE SIZE ${response.headers["content-length"]}`);
     return response.data;
   } catch (err) {
