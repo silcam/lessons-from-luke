@@ -8,12 +8,65 @@ info:
     as the binding contract for the desktop and the web link page; they are NOT hand-written
     controllers. The credential returned is a better-auth session token presented thereafter as
     `Authorization: Bearer <token>` (the `bearer` plugin makes getSession accept it).
-    All four paths remain anonymous-reachable even when ENFORCE_API_AUTH is on (FR-011).
+    All five paths remain anonymous-reachable even when ENFORCE_API_AUTH is on (FR-011).
+
+    Plugin configuration (in auth.ts):
+      deviceAuthorization({ expiresIn: "10m", interval: "5s", verificationUri: "/link" })
+    The `verificationUri: "/link"` is required so the returned verification_uri points at our SPA
+    route, not the plugin's default "/device" path.
+
+    Rate-limit customRules to add in auth.ts rateLimit config (resolved from spike R4/red-team):
+      "/device/token": false          -- exclude poll path from all rate limiting (explicit safety)
+      "/device/code": { window: 60, max: 5 }   -- anti-flood for anonymous table-grow DoS
+      "/device/approve": { window: 60, max: 5 } -- brute-force protection (per-IP, adequate for
+                                                   small user base + 38-bit code entropy)
+
+    Web link page two-step approve flow (concrete, from plugin source routes.mjs):
+      1. GET /api/auth/device?user_code=XXXX  -- claims code (sets userId if authenticated)
+      2. POST /api/auth/device/approve        -- approves (fails with DEVICE_CODE_NOT_CLAIMED if
+                                                  step 1 was skipped or user not authenticated)
+    DeviceLinkPage must call GET /device on mount BEFORE rendering the consent form.
 
 servers:
   - url: /api/auth
 
 paths:
+  /device:
+    get:
+      summary: Web link page claims the deviceCode row (step 1 of 2-step approve flow)
+      description: >
+        Called by the DeviceLinkPage on mount (before showing the consent screen). If the caller
+        has an authenticated session cookie, the plugin stamps that user's id onto the deviceCode
+        row (sets `userId`). This "claim" step is REQUIRED before POST /device/approve will succeed;
+        without it, approve returns `invalid_request: DEVICE_CODE_NOT_CLAIMED`. Also returns the
+        current status so the page can detect an expired or already-processed code early.
+        NOT called by the desktop (desktop never uses the browser link flow).
+        Source: `deviceVerify` in routes.mjs; always-public (no auth required — the AuthGate on the
+        /link SPA route handles the redirect-to-sign-in if the user is not yet authenticated).
+      parameters:
+        - name: user_code
+          in: query
+          required: true
+          schema:
+            type: string
+            example: WDJB-MJHT
+          description: The user code from the desktop (dashes stripped before DB lookup).
+      responses:
+        "200":
+          description: Code status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_code:
+                    type: string
+                  status:
+                    type: string
+                    enum: [pending, approved, denied]
+        "400":
+          description: invalid_request (unknown code) or expired_token
+
   /device/code:
     post:
       summary: Desktop requests a pairing code (FR-001, FR-004)
@@ -134,8 +187,15 @@ paths:
           application/json:
             schema:
               type: object
-              required: [device_code, client_id]
+              required: [grant_type, device_code, client_id]
               properties:
+                grant_type:
+                  type: string
+                  enum: ["urn:ietf:params:oauth:grant-type:device_code"]
+                  description: >
+                    RFC 8628 grant type literal. REQUIRED by the better-auth plugin (validated
+                    as a Zod literal). Must be sent exactly as
+                    "urn:ietf:params:oauth:grant-type:device_code".
                 device_code:
                   type: string
                 client_id:

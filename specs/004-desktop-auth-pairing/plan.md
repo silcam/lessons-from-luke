@@ -113,7 +113,12 @@ src/
 ├── server/
 │   ├── auth/
 │   │   ├── auth.ts                       # MODIFY: add deviceAuthorization() + bearer() plugins,
-│   │   │                                 #         session{expiresIn:60d,updateAge:1d}, userCode gen
+│   │   │                                 #         session{expiresIn:60d,updateAge:1d},
+│   │   │                                 #         deviceAuthorization({ expiresIn:"10m",
+│   │   │                                 #           interval:"5s", verificationUri:"/link" }),
+│   │   │                                 #         rateLimit.customRules: { "/device/token": false,
+│   │   │                                 #           "/device/code":{window:60,max:5},
+│   │   │                                 #           "/device/approve":{window:60,max:5} }
 │   │   └── sessionRevocation.ts          # NEW: revokeUserSessions(pool, userId) — direct SQL
 │   ├── middle/
 │   │   └── requireUserWhenEnforced.ts    # NEW: flag-conditional wrapper around requireUser
@@ -136,7 +141,12 @@ src/
     ├── web/
     │   └── deviceLink/
     │       ├── DeviceLinkPage.tsx        # NEW: enter/confirm code + Approve/Decline (authed route)
-    │       └── deviceLinkThunks.ts       # NEW: calls /api/auth/device/approve|deny
+    │       │                             #   On mount: GET /api/auth/device?user_code=XXXX
+    │       │                             #   (claims deviceCode row — required before approve/deny).
+    │       │                             #   Approve → POST /device/approve; Decline → POST /device/deny.
+    │       └── deviceLinkThunks.ts       # NEW: claimCode(userCode) → GET /api/auth/device?user_code=;
+    │                                     #       approveCode(userCode) → POST /api/auth/device/approve;
+    │                                     #       denyCode(userCode) → POST /api/auth/device/deny
     ├── web/MainRouter.tsx                # MODIFY: add /link as an authenticated (gated) route
     ├── web/home/AdminHome.tsx            # MODIFY: "Revoke device access" control
     └── desktopFrontend/
@@ -245,13 +255,14 @@ too, so a revoke cannot be immediately followed by completing an already-approve
 
 ### Poll vs. rate limit (correctness of the happy path)
 
-The desktop polls `/device/token` every 5 s (R4) — up to ~12 requests/min over a 10-minute code.
-better-auth's global `rateLimit` covers all `/api/auth/*` paths, so a default window could **429 the
-legitimate poll** and surface as a spurious failure. The design MUST give `/device/token` a poll-
-friendly per-path window (or exclude it from the protective limit) while keeping the stricter limits
-on `/device/code` and `/device/approve`. The desktop already honors the plugin's `slow_down`
-backoff; it MUST treat an unexpected `429` distinctly from `slow_down` and surface a clear retry
-rather than a generic error.
+The desktop polls `/device/token` every 5 s (R4) — up to ~12 requests/min (≤ 2 per 10 s window)
+over a 10-minute code. The better-auth global `rateLimit` default is 100 req/10 s per IP, far above
+the poll rate, so the global limit does **not** threaten the legitimate poll under normal usage.
+However, to make this unambiguous and future-proof (in case per-path rules are added later), the
+implementation adds `"/device/token": false` to `rateLimit.customRules` to explicitly exclude the
+poll path from rate limiting. The desktop already honors the plugin's `slow_down` backoff; it MUST
+treat an unexpected `429` distinctly from `slow_down` and surface a clear retry rather than a
+generic error (defensive programming).
 
 ### Session keep-alive so daily-use desktops never expire (FR-013, SC-002)
 
@@ -353,9 +364,43 @@ live region.
 ## Phase 0 — Outline & Research
 
 Complete. All "Deferred to Planning" items resolved in [research.md](./research.md) (R1–R10). No
-remaining NEEDS CLARIFICATION. Two non-blocking implementation spikes are flagged: (a) confirm
-`updateAge` sliding renewal triggers on plain authenticated GETs (R3); (b) confirm Origin-less
-`/device/code` and `/device/token` are not 403'd under `BETTER_AUTH_ENFORCE_ORIGIN=1` (R6).
+remaining open questions. Implementation spikes from R3 and R6 are now resolved by reading the
+installed better-auth source (`^1.6.14`):
+
+**(a) `updateAge` session renewal** (R3): Renewal fires **only** in the `GET /api/auth/get-session`
+handler (`api/routes/session.mjs`, `needsRefresh` check). Domain API calls (`/api/languages`, sync
+routes, etc.) go through `requireUser`/`loadSession` which queries the session but does **not**
+extend `expiresAt`. The desktop explicit keep-alive call (`GET /api/auth/get-session` once per
+`updateAge` window, ~daily) is therefore **required, not optional** to prevent 60-day expiry on
+actively-syncing desktops (confirmed design decision, no spike needed at implementation time).
+
+**(b) Origin check for Origin-less `/device/code` and `/device/token`** (R6):
+`validateOrigin()` in `api/middlewares/origin-check.mjs` (line 102) returns immediately when the
+request has no `Cookie` header and `Sec-Fetch-*` headers are absent: `if (!(forceValidate ||
+useCookies)) return`. Desktop Electron main process calls via Axios carry neither header, so they
+pass the origin middleware untouched even when `BETTER_AUTH_ENFORCE_ORIGIN=1` (`disableOriginCheck:
+false`). Safe — no configuration change needed.
+
+**Additional concrete findings from plugin source** (propagated to `contracts/device-pairing-api.yaml`
+and `DeviceLinkPage` plan below):
+
+- `/device/token` body requires `grant_type: "urn:ietf:params:oauth:grant-type:device_code"` (zod
+  literal, line 122 of `routes.mjs`) — our contract was missing this field.
+- The web link page **must use a two-step claim-then-approve flow**: `GET /api/auth/device?user_code=
+  XXXX` (`deviceVerify`) is called on page-load to associate the signed-in user's id with the
+  deviceCode row (sets `userId`); THEN `POST /api/auth/device/approve` succeeds. Without the prior
+  `GET /device` call, `approve` returns `invalid_request: DEVICE_CODE_NOT_CLAIMED`. This flow must
+  be reflected in `DeviceLinkPage.tsx` and `deviceLinkThunks.ts`.
+- The `verificationUri` plugin option must be set to `"/link"` (relative) so the returned
+  `verification_uri` / `verification_uri_complete` point at our SPA page, not the plugin's default
+  `"/device"` path.
+- Rate limiting: the global rateLimit default (100 req/10 s per IP) does not throttle the 5 s poll
+  (at most 2 req/10 s window). The throttle risk in the Poll vs. rate limit edge case is therefore
+  eliminated with the defaults. We still add explicit custom rules to lock in the guarantee:
+  `"/device/token": false` (exclude from rate-limit to be unambiguous) and
+  `"/device/code": { window: 60, max: 5 }` (anti-flood) and
+  `"/device/approve": { window: 60, max: 5 }` (brute-force; better-auth rate limit keys on IP +
+  path so this is per-IP — adequate for our internal user base and the high code entropy).
 
 ## Phase 1 — Design & Contracts
 

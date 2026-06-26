@@ -27,13 +27,21 @@ the schema (`device-authorization/schema.mjs`); we add a migration that creates 
 | `clientId` | text | no | the desktop client identifier sent on `/device/code`. |
 | `scope` | text | no | unused in v1 (no scopes). |
 
-**Lifecycle / state transitions** (enforced entirely by the plugin):
+**Lifecycle / state transitions** (enforced by the plugin; two-step web flow required):
 
 ```
-created(pending) ──/device/approve (auth'd browser, sets userId)──▶ approved ──/device/token──▶ session issued, row DELETED (single-use)
-       │                                                                                          ▲
-       ├──/device/deny──▶ denied ──/device/token──▶ access_denied, row DELETED                    │
-       └──expiresAt ≤ now──▶ /device/token ▶ expired_token, row DELETED ──────────────────────────┘
+created(pending, userId=null)
+       │
+       ├── GET /device?user_code=XXXX (DeviceLinkPage mount, auth'd browser)
+       │       ── sets userId on row (the "claim" step) ──▶ pending, userId=<user>
+       │                │
+       │                ├── POST /device/approve ──▶ approved ──POST /device/token──▶ session issued, row DELETED
+       │                └── POST /device/deny    ──▶ denied   ──POST /device/token──▶ access_denied, row DELETED
+       │
+       └── expiresAt ≤ now ──▶ POST /device/token ──▶ expired_token, row DELETED
+
+NOTE: POST /device/approve fails with DEVICE_CODE_NOT_CLAIMED if GET /device was not called first
+(userId is still null). DeviceLinkPage MUST call GET /device on mount before rendering the form.
 ```
 
 **Validation rules** (plugin-provided, mapped to spec):
