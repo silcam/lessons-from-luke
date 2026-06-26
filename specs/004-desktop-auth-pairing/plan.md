@@ -458,14 +458,14 @@ live region.
 
 > **ATDD Outer Loop**: `sp:05-tasks` creates these GWT files before the `US<N>` tasks run.
 > Acceptance-spec numbering continues the global sequence (001/002 used US01–US08, 003 used
-> US09–US10), so this feature is **US11–US14**, mapping to the spec's local US1–US4.
+> US09–US12), so this feature is **US13–US16**, mapping to the spec's local US1–US4.
 
 | User Story (local) | Acceptance Spec File | Scenarios |
 | --- | --- | --- |
-| US1 — Connect a desktop (P1) | `specs/acceptance-specs/US11-desktop-connect-pairing.txt` | 5 |
-| US2 — Lock down the shared API (P2) | `specs/acceptance-specs/US12-shared-api-enforcement.txt` | 4 |
-| US3 — Stay connected / offline (P2) | `specs/acceptance-specs/US13-stay-connected-offline.txt` | 3 |
-| US4 — Disconnect & admin revoke (P3) | `specs/acceptance-specs/US14-disconnect-and-revoke.txt` | 3 |
+| US1 — Connect a desktop (P1) | `specs/acceptance-specs/US13-desktop-connect-pairing.txt` | 5 |
+| US2 — Lock down the shared API (P2) | `specs/acceptance-specs/US14-shared-api-enforcement.txt` | 4 |
+| US3 — Stay connected / offline (P2) | `specs/acceptance-specs/US15-stay-connected-offline.txt` | 3 |
+| US4 — Disconnect & admin revoke (P3) | `specs/acceptance-specs/US16-disconnect-and-revoke.txt` | 3 |
 
 **Pipeline**: `specs/acceptance-specs/*.txt` → `acceptance/parse-specs.ts` →
 `acceptance/generate-tests.ts` → `generated-acceptance-tests/*.spec.ts`
