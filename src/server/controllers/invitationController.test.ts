@@ -255,9 +255,10 @@ describe("POST /api/admin/invitations", () => {
   });
 
   // -------------------------------------------------------------------------
-  // 9. 409 — active pending invite already exists (FR-005 ActivePendingError)
+  // 9. 201 — re-inviting an open email REFRESHES it (FR-005, #115): new link,
+  //    refreshed role, old link dead. No ActivePendingError.
   // -------------------------------------------------------------------------
-  it("409: rejects when an active pending invitation already exists for this email (FR-005)", async () => {
+  it("201: re-inviting an open email refreshes it with a new link (FR-005)", async () => {
     const agent = await loggedInAgent();
     const email = `pending-conflict-${crypto.randomUUID()}@example.com`;
 
@@ -265,11 +266,22 @@ describe("POST /api/admin/invitations", () => {
     const first = await agent.post("/api/admin/invitations").send({ email, role: "standard" });
     expect(first.status).toBe(201);
 
-    // Create a second invitation for the same email — should conflict
+    // Re-invite the same open email — refreshes the invite (now with role 'admin')
     const second = await agent.post("/api/admin/invitations").send({ email, role: "admin" });
 
-    expect(second.status).toBe(409);
-    expect(second.body).toMatchObject({ error: expect.any(String), code: "PENDING_INVITE_EXISTS" });
+    expect(second.status).toBe(201);
+    expect(second.body).toMatchObject({
+      email: email.toLowerCase(),
+      role: "admin",
+      status: "pending",
+    });
+    expect(second.body.link).not.toBe(first.body.link);
+
+    // The old link no longer resolves; the refreshed one does
+    const firstToken = new URL(first.body.link).pathname.split("/").pop();
+    const secondToken = new URL(second.body.link).pathname.split("/").pop();
+    await plainAgent().get(`/api/auth/invitation/${firstToken}`).expect(410);
+    await plainAgent().get(`/api/auth/invitation/${secondToken}`).expect(200);
   });
 
   // -------------------------------------------------------------------------
@@ -937,8 +949,8 @@ describe("GET /api/admin/invitations/:id/link", () => {
     const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
 
     await authPool.query(
-      `INSERT INTO "invitation" (id, email, role, status, "tokenHash", "tokenEnc", "invitedBy", "createdAt", "expiresAt")
-       VALUES ($1, $2, 'standard', 'pending', $3, $4, $5, $6, $7)`,
+      `INSERT INTO "invitation" (id, email, role, "tokenHash", "tokenEnc", "invitedBy", "createdAt", "expiresAt")
+       VALUES ($1, $2, 'standard', $3, $4, $5, $6, $7)`,
       [invitationId, email, tokenHash, garbageTokenEnc, invitedBy, createdAt, expiresAt]
     );
 

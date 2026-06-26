@@ -95,7 +95,6 @@ const en = {
   Invitation_error_malformed_email: "Please enter a valid email address.",
   Invitation_error_invalid_role: "Please select a valid role.",
   Invitation_error_account_exists: "An account already exists for this email address.",
-  Invitation_error_active_pending: "An active invitation already exists for this email address.",
   Invitation_create_heading_ready: "Invitation ready",
   Invitation_share_instructions:
     "Share this single-use link with the person you invited. It can be used only once.",
