@@ -7,7 +7,7 @@ import useTranslation from "../../common/util/useTranslation";
 import MiddleOfPage from "../../common/base-components/MiddleOfPage";
 import Button from "../../common/base-components/Button";
 import ProgressBar from "../../common/base-components/ProgressBar";
-import { PAIRING_START } from "../../../core/api/IpcChannels";
+import ConnectAccount from "../ConnectAccount";
 import { ipcDesktopGet } from "../desktopAPIClient";
 
 interface IProps {
@@ -40,14 +40,7 @@ export default function DownSyncPage(props: IProps) {
     return (
       <StdHeaderBarPage title="Lessons from Luke" logoNoLink>
         <MiddleOfPage>
-          <div aria-live="polite">
-            <h1>Not connected — connect to sync</h1>
-            <Button
-              bigger
-              text="Connect to account"
-              onClick={() => window.electronAPI.invoke(PAIRING_START)}
-            />
-          </div>
+          <ConnectAccount />
         </MiddleOfPage>
       </StdHeaderBarPage>
     );

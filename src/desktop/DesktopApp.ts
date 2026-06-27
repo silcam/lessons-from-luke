@@ -263,50 +263,61 @@ export default class DesktopApp {
     });
 
     ipcMain.handle(PAIRING_DISCONNECT, async () => {
-      // Capture userId before clearing state for the audit log.
-      const userId = this.pairedUserId;
-
-      // Best-effort online sign-out (US4.3). Always clear locally regardless.
-      if (this.webClient.isConnected()) {
-        try {
-          const token = await this.credentialStore.load();
-          if (token) {
-            await Axios.post(
-              `${this.baseUrl}/api/auth/sign-out`,
-              {},
-              { headers: { Authorization: `Bearer ${token}` } }
-            );
-          }
-        } catch {
-          // Sign-out failure must not prevent local credential removal.
-          // Server-side session will be invalidated via expiry or admin revoke.
-          console.warn(
-            "[DesktopApp] sign-out request failed; server-side session " +
-              "will be invalidated via session expiry or admin revoke"
-          );
-        }
-      }
-
-      await this.credentialStore.clear();
-      this.paired = false;
-      this.pairedUserName = undefined;
-      this.pairedUserId = undefined;
-      this.webClient.setPaired(false);
-
-      // FR-021 audit log: structured disconnect event (no token value logged).
-      console.log(
-        JSON.stringify({ event: "device:disconnect", userId, timestamp: new Date().toISOString() })
-      );
-
-      // Notify the renderer so Redux syncState.paired flips to false immediately.
-      this.mainWindow?.webContents.send(ON_SYNC_STATE_CHANGE, {
-        paired: false,
-        pairedUserName: undefined,
-      });
+      await this.disconnectDevice();
     });
 
     ipcMain.handle(DEVICE_STATE, async () => {
       return { paired: this.paired, pairedUserName: this.pairedUserName };
+    });
+  }
+
+  /**
+   * Un-pair this device (FR-016): best-effort server sign-out, then clear the
+   * local credential, reset paired state, and push `paired:false` to the
+   * renderer. Shared by the `pairingDisconnect` IPC handler and the Admin →
+   * "Disconnect Account" menu item. Idempotent: a call while unpaired clears
+   * nothing and pushes the same `paired:false` state.
+   */
+  private async disconnectDevice(): Promise<void> {
+    // Capture userId before clearing state for the audit log.
+    const userId = this.pairedUserId;
+
+    // Best-effort online sign-out (US4.3). Always clear locally regardless.
+    if (this.webClient.isConnected()) {
+      try {
+        const token = await this.credentialStore.load();
+        if (token) {
+          await Axios.post(
+            `${this.baseUrl}/api/auth/sign-out`,
+            {},
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+        }
+      } catch {
+        // Sign-out failure must not prevent local credential removal.
+        // Server-side session will be invalidated via expiry or admin revoke.
+        console.warn(
+          "[DesktopApp] sign-out request failed; server-side session " +
+            "will be invalidated via session expiry or admin revoke"
+        );
+      }
+    }
+
+    await this.credentialStore.clear();
+    this.paired = false;
+    this.pairedUserName = undefined;
+    this.pairedUserId = undefined;
+    this.webClient.setPaired(false);
+
+    // FR-021 audit log: structured disconnect event (no token value logged).
+    console.log(
+      JSON.stringify({ event: "device:disconnect", userId, timestamp: new Date().toISOString() })
+    );
+
+    // Notify the renderer so Redux syncState.paired flips to false immediately.
+    this.mainWindow?.webContents.send(ON_SYNC_STATE_CHANGE, {
+      paired: false,
+      pairedUserName: undefined,
     });
   }
 
@@ -349,6 +360,15 @@ export default class DesktopApp {
             });
             if (choice.response == 0)
               this.localStorage.setSyncState(resync(this.localStorage.getSyncState()), this);
+          },
+        },
+        {
+          // FR-016: always-enabled un-pair entry point. Idempotent when
+          // unpaired (no token to clear), so no need to rebuild the menu on
+          // every pairing-state change.
+          label: "Disconnect Account",
+          click: () => {
+            this.disconnectDevice();
           },
         },
       ],

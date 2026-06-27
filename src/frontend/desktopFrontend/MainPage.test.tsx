@@ -221,18 +221,14 @@ describe("DownSyncPage", () => {
     expect(container).toBeTruthy();
   });
 
-  it("shows not-connected prompt when !paired and connected", () => {
+  it("renders the ConnectAccount connect prompt when !paired and connected", () => {
+    // The not-connected gate now mounts <ConnectAccount />, whose idle state
+    // shows the "Connect to account" button. ConnectAccount's own aria-live
+    // accessibility (pairing / connected / error states) is covered standalone
+    // in ConnectAccount.test.tsx.
     const store = createTestStore({ loaded: true, language: null, paired: false, connected: true });
     const { getByText } = renderWithProviders(<DownSyncPage startTranslating={jest.fn()} />, store);
-    expect(getByText(/Not connected/)).toBeTruthy();
     expect(getByText("Connect to account")).toBeTruthy();
-  });
-
-  it("not-connected prompt is in aria-live=polite region", () => {
-    const store = createTestStore({ loaded: true, language: null, paired: false, connected: true });
-    const { getByText } = renderWithProviders(<DownSyncPage startTranslating={jest.fn()} />, store);
-    const message = getByText(/Not connected/);
-    expect(message.closest('[aria-live="polite"]')).toBeTruthy();
   });
 
   it("invokes pairingStart IPC when Connect to account is clicked in not-connected state", () => {
@@ -253,7 +249,7 @@ describe("DownSyncPage", () => {
       <DownSyncPage startTranslating={jest.fn()} />,
       store
     );
-    expect(queryByText(/Not connected/)).toBeNull();
+    expect(queryByText("Connect to account")).toBeNull();
   });
 
   it("does not show not-connected prompt when paired (existing sync behavior unchanged)", () => {
@@ -283,7 +279,7 @@ describe("DownSyncPage", () => {
       <DownSyncPage startTranslating={jest.fn()} />,
       store
     );
-    expect(queryByText(/Not connected/)).toBeNull();
+    expect(queryByText("Connect to account")).toBeNull();
   });
 });
 
