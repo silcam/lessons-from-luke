@@ -8,6 +8,7 @@ import {
   Menu,
   shell,
   dialog,
+  ipcMain,
   MenuItemConstructorOptions,
 } from "electron";
 import contextMenu from "electron-context-menu";
@@ -21,15 +22,74 @@ import { dataUsageReport } from "./util/DataUsage";
 import { I18nKey } from "../core/i18n/locales/en";
 import { resync } from "../core/models/SyncState";
 import { tForLocale } from "../core/i18n/I18n";
+import { CredentialStore } from "./auth/CredentialStore";
+import { StubCredentialStore } from "./auth/StubCredentialStore";
+import { DevicePairing } from "./auth/DevicePairing";
+import Axios from "axios";
+import {
+  DEVICE_STATE,
+  ON_PAIRING_ERROR,
+  ON_SYNC_STATE_CHANGE,
+  PAIRING_CANCEL,
+  PAIRING_DISCONNECT,
+  PAIRING_START,
+  PAIRING_USER_CODE,
+} from "../core/api/IpcChannels";
+
+/**
+ * Duration of better-auth's `updateAge` (1 day). The session keep-alive call
+ * is rate-limited to at most one request per this window so a desktop that
+ * syncs regularly never lets its session expire.
+ */
+const SESSION_UPDATE_AGE_MS = 60 * 60 * 24 * 1000; // 24 hours in ms
 
 export default class DesktopApp {
   localStorage: LocalStorage;
   webClient: WebAPIClientForDesktop;
   mainWindow: BrowserWindow | null = null;
 
-  constructor(localStorage: LocalStorage = new LocalStorage()) {
+  private credentialStore: CredentialStore;
+  private devicePairing: DevicePairing;
+  private paired: boolean = false;
+  private pairedUserName: string | undefined = undefined;
+  private pairedUserId: string | undefined = undefined;
+  private lastSessionRefresh: number = 0;
+  private readonly baseUrl: string;
+
+  /**
+   * Promise that resolves when the async pairing initialisation triggered by
+   * `appReady()` completes. Tests can await this to observe startup state.
+   */
+  protected pairingInit: Promise<void> = Promise.resolve();
+
+  constructor(
+    localStorage: LocalStorage = new LocalStorage(),
+    credentialStore?: CredentialStore,
+    devicePairing?: DevicePairing
+  ) {
     this.localStorage = localStorage;
-    this.webClient = new WebAPIClientForDesktop(localStorage);
+    this.baseUrl = app.isPackaged ? "https://luke.silcameroon.org" : "http://localhost:8081";
+
+    this.credentialStore = credentialStore ?? new CredentialStore();
+
+    this.devicePairing =
+      devicePairing ??
+      new DevicePairing({
+        baseUrl: this.baseUrl,
+        // onUserCode fires after startPairing() obtains the code; mainWindow
+        // is guaranteed to exist by then (user must interact with the UI).
+        // The event is advisory — the renderer also gets the code as the
+        // return value of its invoke(PAIRING_START) call.
+        onUserCode: (code) => this.mainWindow?.webContents.send(PAIRING_USER_CODE, code),
+      });
+
+    this.webClient = new WebAPIClientForDesktop(
+      localStorage,
+      this.credentialStore,
+      undefined,
+      undefined,
+      this.baseUrl
+    );
     this.init();
   }
 
@@ -73,10 +133,192 @@ export default class DesktopApp {
         return new Response("Not Found", { status: 404 });
       }
     });
+
     DesktopAPIServer.listen(this);
+    this.registerDeviceIpcHandlers();
     this.startDownSync();
     this.setupMenu();
     this.createWindow();
+
+    // Kick off async pairing init. Store the promise so tests (and subclasses)
+    // can await it to observe the settled state.
+    this.pairingInit = this.initPairing();
+  }
+
+  /**
+   * Load any persisted credential, set the initial paired state, and fetch
+   * the user's session to populate `pairedUserName` and slide session expiry.
+   *
+   * Called once per app launch from `appReady()`. Never throws — failures are
+   * treated as "no credential / not paired" so the app always starts up.
+   */
+  private async initPairing(): Promise<void> {
+    const token = await this.credentialStore.load();
+    if (!token) {
+      return;
+    }
+
+    // Credential found — mark as paired and fetch session details.
+    this.paired = true;
+    this.webClient.setPaired(true);
+    await this.refreshSession();
+
+    // Mirror webClient's 401 handling back to DesktopApp state so that
+    // `device:state` always reflects the current credential validity.
+    this.webClient.onPairedChange((paired) => {
+      this.paired = paired;
+      if (!paired) {
+        this.pairedUserName = undefined;
+        this.pairedUserId = undefined;
+      }
+    });
+  }
+
+  /**
+   * Fetch `/api/auth/get-session` to populate `pairedUserName` and to slide
+   * the session's `expiresAt` forward via better-auth's `updateAge` mechanism.
+   *
+   * Rate-limited to at most one call per `SESSION_UPDATE_AGE_MS` (~24 h).
+   * Best-effort: failures are silently swallowed to prevent startup breakage.
+   */
+  private async refreshSession(): Promise<void> {
+    const now = Date.now();
+    if (now - this.lastSessionRefresh < SESSION_UPDATE_AGE_MS) {
+      return;
+    }
+    this.lastSessionRefresh = now;
+
+    try {
+      const session = await this.webClient.get("/api/auth/get-session", {});
+      if (session?.user) {
+        this.pairedUserName = session.user.name ?? session.user.email;
+        this.pairedUserId = session.user.id;
+      }
+    } catch {
+      // Best-effort — a network failure during startup must not crash the app.
+    }
+  }
+
+  /**
+   * Expose the current pairing state for external consumers (e.g.
+   * syncStateController) without leaking private fields.
+   */
+  getPairedState(): { paired: boolean; pairedUserName: string | undefined } {
+    return { paired: this.paired, pairedUserName: this.pairedUserName };
+  }
+
+  /**
+   * Register device pairing IPC channels (channel names match IpcChannels.ts):
+   *   - `pairingStart`      — begin the RFC 8628 flow; returns { userCode }
+   *                           immediately; saves token on background approval.
+   *   - `pairingCancel`     — acknowledge a cancel request (best-effort).
+   *   - `pairingDisconnect` — sign out (best-effort) then clear credential.
+   *   - `device:state`      — return current `{ paired, pairedUserName }`.
+   */
+  private registerDeviceIpcHandlers(): void {
+    // pairingStart: starts the RFC 8628 flow and returns { userCode } as soon
+    // as the code is available.  The polling loop continues in the background;
+    // the renderer is notified via ON_SYNC_STATE_CHANGE (approval) or
+    // ON_PAIRING_ERROR (declined/expired/error).
+    ipcMain.handle(PAIRING_START, async () => {
+      const handle = await this.devicePairing.startPairing();
+
+      // Handle the polling completion in the background so we can return
+      // { userCode } to the renderer immediately.
+      handle.completion
+        .then(async (result) => {
+          if (result.status === "approved") {
+            await this.credentialStore.save(result.token);
+            this.paired = true;
+            this.webClient.setPaired(true);
+            // Fetch session so the UI can immediately show "connected as <user>".
+            // Reset lastSessionRefresh so this call is never skipped.
+            this.lastSessionRefresh = 0;
+            await this.refreshSession();
+
+            // Notify the renderer so Redux syncState.paired flips to true.
+            this.mainWindow?.webContents.send(ON_SYNC_STATE_CHANGE, {
+              paired: true,
+              pairedUserName: this.pairedUserName,
+            });
+          } else {
+            // declined or expired — notify renderer via the error channel.
+            this.mainWindow?.webContents.send(ON_PAIRING_ERROR, {
+              reason: result.status,
+            });
+          }
+        })
+        .catch(() => {
+          this.mainWindow?.webContents.send(ON_PAIRING_ERROR, { reason: "error" });
+        });
+
+      return { userCode: handle.userCode };
+    });
+
+    // pairingCancel: acknowledges a cancel request from the UI.  Full
+    // cancellation of the in-flight polling loop is a future improvement;
+    // for now registering the channel prevents "no handler" rejections.
+    ipcMain.handle(PAIRING_CANCEL, async () => {
+      // No-op stub — polling will terminate naturally on expiry.
+    });
+
+    ipcMain.handle(PAIRING_DISCONNECT, async () => {
+      await this.disconnectDevice();
+    });
+
+    ipcMain.handle(DEVICE_STATE, async () => {
+      return { paired: this.paired, pairedUserName: this.pairedUserName };
+    });
+  }
+
+  /**
+   * Un-pair this device (FR-016): best-effort server sign-out, then clear the
+   * local credential, reset paired state, and push `paired:false` to the
+   * renderer. Shared by the `pairingDisconnect` IPC handler and the Admin →
+   * "Disconnect Account" menu item. Idempotent: a call while unpaired clears
+   * nothing and pushes the same `paired:false` state.
+   */
+  private async disconnectDevice(): Promise<void> {
+    // Capture userId before clearing state for the audit log.
+    const userId = this.pairedUserId;
+
+    // Best-effort online sign-out (US4.3). Always clear locally regardless.
+    if (this.webClient.isConnected()) {
+      try {
+        const token = await this.credentialStore.load();
+        if (token) {
+          await Axios.post(
+            `${this.baseUrl}/api/auth/sign-out`,
+            {},
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+        }
+      } catch {
+        // Sign-out failure must not prevent local credential removal.
+        // Server-side session will be invalidated via expiry or admin revoke.
+        console.warn(
+          "[DesktopApp] sign-out request failed; server-side session " +
+            "will be invalidated via session expiry or admin revoke"
+        );
+      }
+    }
+
+    await this.credentialStore.clear();
+    this.paired = false;
+    this.pairedUserName = undefined;
+    this.pairedUserId = undefined;
+    this.webClient.setPaired(false);
+
+    // FR-021 audit log: structured disconnect event (no token value logged).
+    console.log(
+      JSON.stringify({ event: "device:disconnect", userId, timestamp: new Date().toISOString() })
+    );
+
+    // Notify the renderer so Redux syncState.paired flips to false immediately.
+    this.mainWindow?.webContents.send(ON_SYNC_STATE_CHANGE, {
+      paired: false,
+      pairedUserName: undefined,
+    });
   }
 
   private startDownSync() {
@@ -118,6 +360,15 @@ export default class DesktopApp {
             });
             if (choice.response == 0)
               this.localStorage.setSyncState(resync(this.localStorage.getSyncState()), this);
+          },
+        },
+        {
+          // FR-016: always-enabled un-pair entry point. Idempotent when
+          // unpaired (no token to clear), so no need to rebuild the menu on
+          // every pairing-state change.
+          label: "Disconnect Account",
+          click: () => {
+            this.disconnectDevice();
           },
         },
       ],
@@ -182,7 +433,13 @@ export class TestDesktopApp extends DesktopApp {
     // TestLocalStorage.loadFixtures(); // Load app with a blank slate
     // TestLocalStorage.loadFixtures("batanga-synced"); // Load app with Batanga synced
     const localStorage = new TestLocalStorage();
-    super(localStorage);
+    // e2e seam: when DESKTOP_E2E_TOKEN is provided, start in a paired state with
+    // that (real) better-auth session token so the post-pairing sync/translate
+    // UI can be exercised without the browser-side device-approval handshake.
+    // Absent the env var, the app boots unpaired exactly as in production.
+    const e2eToken = process.env.DESKTOP_E2E_TOKEN;
+    const credentialStore = e2eToken ? new StubCredentialStore(e2eToken) : undefined;
+    super(localStorage, credentialStore);
     this.localStorage = localStorage;
   }
 }

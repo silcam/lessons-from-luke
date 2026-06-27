@@ -1,0 +1,62 @@
+openapi: 3.0.3
+info:
+  title: Admin Device-Access Revocation API
+  version: 1.0.0
+  description: >
+    One NEW hand-written admin endpoint (FR-017). Mounted under the existing
+    `app.use("/api/admin", requireAdmin)` guard in serverApp.ts and protected by `requireSameOrigin`
+    (state-changing POST). Revokes by USER: deletes all of the user's sessions via direct SQL on the
+    shared auth pool (getAuthPool()), so every connected device of that user is rejected on its next
+    online request. Blunt-but-simple per spec: this also ends the user's web sessions.
+
+    Red-team hygiene: in the SAME operation also delete ALL of the user's deviceCode rows regardless
+    of status (DELETE FROM "deviceCode" WHERE "userId" = $1) -- not just `pending`. An
+    approved-but-unredeemed row would otherwise let the device's next /device/token poll mint a fresh
+    session and re-grant the just-revoked access (revocation-bypass window). Order the deletes to
+    avoid a race: delete the deviceCode rows BEFORE the session rows (or wrap both in one
+    transaction), so a poll arriving between the two deletes cannot create a surviving session.
+
+    Audit (FR-021): emit a structured audit log line for the revocation (userId + revokedCount +
+    timestamp), consistent with existing auth/invitation event logging. The log line MUST NOT include
+    any session token / bearer credential / device_code (red-team secret-redaction).
+
+    Reachability note: this is a state-changing POST guarded by requireSameOrigin, which 403s a
+    request with neither Origin nor Referer. A desktop bearer call carries neither, so even an admin
+    user's desktop credential (which the global `bearer` plugin would otherwise let authenticate
+    /api/admin/*) cannot invoke this endpoint -- it is reachable only from the web admin UI.
+
+servers:
+  - url: /api/admin
+
+paths:
+  /users/{userId}/revoke-sessions:
+    post:
+      summary: Revoke a user's device access (FR-017, SC-005)
+      description: >
+        Admin-only. `DELETE FROM "session" WHERE "userId" = $1`. After this, the gate's getSession
+        returns null for the user's devices → 401 on next request; the device must re-pair.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Sessions revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userId:
+                    type: string
+                  revokedCount:
+                    type: integer
+                    description: Number of session rows deleted.
+        "401":
+          description: Not signed in
+        "403":
+          description: Signed in but not admin (requireAdmin) / failed same-origin check
+        "404":
+          description: No such user

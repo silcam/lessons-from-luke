@@ -1,7 +1,11 @@
 import { addGetHandler, addPostHandler } from "../DesktopAPIServer";
 import WebAPIClientForDesktop from "../WebAPIClientForDesktop";
 import DesktopApp from "../DesktopApp";
-import { ON_SYNC_STATE_CHANGE, OnSyncStateChangePayload } from "../../core/api/IpcChannels";
+import {
+  ON_SYNC_STATE_CHANGE,
+  OnSyncStateChangePayload,
+  DesktopPairingIpcFields,
+} from "../../core/api/IpcChannels";
 import { downSyncTStrings } from "./downSync";
 import LocalStorage from "../LocalStorage";
 import { localeByLanguageId } from "../../core/i18n/I18n";
@@ -9,7 +13,7 @@ import { localeByLanguageId } from "../../core/i18n/I18n";
 export default function syncStateController(app: DesktopApp) {
   const { webClient, localStorage, getWindow } = app;
   addGetHandler("/api/syncState", async () => {
-    return fullSyncState(localStorage, webClient);
+    return fullSyncState(localStorage, webClient, app);
   });
 
   addGetHandler("/api/readyToTranslate", async () => {
@@ -33,12 +37,12 @@ export default function syncStateController(app: DesktopApp) {
       );
     }
     downSyncTStrings(app);
-    return fullSyncState(localStorage, webClient);
+    return fullSyncState(localStorage, webClient, app);
   });
 
   addPostHandler("/api/syncState/locale", async (_, { locale }) => {
     localStorage.setSyncState({ locale }, null);
-    return fullSyncState(localStorage, webClient);
+    return fullSyncState(localStorage, webClient, app);
   });
 
   addPostHandler("/api/syncState/progress", async (_, lessonProgress) => {
@@ -52,16 +56,22 @@ export default function syncStateController(app: DesktopApp) {
 
   // Update connection status in interface
   webClient.onConnectionChange((_connected) => {
-    const payload: OnSyncStateChangePayload = fullSyncState(localStorage, webClient);
+    type FullPayload = OnSyncStateChangePayload & DesktopPairingIpcFields;
+    const payload: FullPayload = fullSyncState(localStorage, webClient, app);
     getWindow().webContents.send(ON_SYNC_STATE_CHANGE, payload);
   });
 }
 
-function fullSyncState(localStorage: LocalStorage, webClient: WebAPIClientForDesktop) {
+function fullSyncState(
+  localStorage: LocalStorage,
+  webClient: WebAPIClientForDesktop,
+  app: DesktopApp
+) {
   return {
     ...localStorage.getSyncState(),
     connected: webClient.isConnected(),
     loaded: true,
+    ...app.getPairedState(),
   };
 }
 

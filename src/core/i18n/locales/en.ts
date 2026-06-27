@@ -118,6 +118,17 @@ const en = {
   Invitation_error_rate_limited: "Too many attempts. Please wait a moment and try again.",
   Invitation_error_generic: "Something went wrong. Please try again.",
 
+  // Desktop auth pairing — Admin: Revoke device access (US4.4)
+  AdminHome_users_heading: "Users",
+  AdminHome_revoke_device_access: "Revoke device access",
+  AdminHome_revoke_confirm_prompt:
+    "Revoke device access for %{name}? This will sign them out of all connected devices and their web session.",
+  AdminHome_revoke_confirm_button: "Revoke",
+  AdminHome_revoke_success: "Revoked %{count} sessions",
+  AdminHome_revoke_error: "Failed to revoke sessions. Please try again.",
+  AdminHome_users_loading: "Loading users…",
+  AdminHome_users_load_error: "Couldn't load users. Please try again.",
+
   // Invitation feature — Invitations management list (US3)
   Invitations_page_heading: "Invitations",
   Invitations_column_email: "Email",

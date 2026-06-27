@@ -1,5 +1,5 @@
 import React from "react";
-import { render } from "@testing-library/react";
+import { render, fireEvent } from "@testing-library/react";
 import { configureStore, combineReducers } from "@reduxjs/toolkit";
 import { Provider } from "react-redux";
 import { MemoryRouter } from "react-router-dom";
@@ -15,6 +15,8 @@ import lessonSlice from "../common/state/lessonSlice";
 import docStringSlice from "../common/state/docStringSlice";
 import tSubSlice from "../common/state/tSubSlice";
 import docPreviewSlice from "../common/state/docPreviewSlice";
+import desktopPairingSlice from "./desktopPairingSlice";
+import { PAIRING_START } from "../../core/api/IpcChannels";
 
 // Mock useHandleIPCEvents to avoid ipcRenderer side effects in component tests
 jest.mock("./downSync/useHandleIPCEvents", () => ({
@@ -51,7 +53,12 @@ jest.mock("../common/state/networkSlice", () => {
   };
 });
 
-function createTestStore(syncStateOverrides?: Partial<ReturnType<typeof syncStateSlice.reducer>>) {
+type SyncAndPairingOverrides = Partial<ReturnType<typeof syncStateSlice.reducer>> & {
+  paired?: boolean;
+  pairedUserName?: string;
+};
+
+function createTestStore(overrides?: SyncAndPairingOverrides) {
   // Import networkSlice after mock is set up
 
   const networkSlice = require("../common/state/networkSlice").default;
@@ -68,17 +75,33 @@ function createTestStore(syncStateOverrides?: Partial<ReturnType<typeof syncStat
     lessons: lessonSlice.reducer,
     docStrings: docStringSlice.reducer,
     docPreview: docPreviewSlice.reducer,
+    desktopPairing: desktopPairingSlice.reducer,
   });
 
   const store = configureStore({ reducer });
-  if (syncStateOverrides) {
-    store.dispatch(syncStateSlice.actions.setSyncState(syncStateOverrides));
+  if (overrides) {
+    const { paired, pairedUserName, ...syncStateFields } = overrides;
+    if (Object.keys(syncStateFields).length > 0) {
+      store.dispatch(syncStateSlice.actions.setSyncState(syncStateFields));
+    }
+    if (paired !== undefined) {
+      store.dispatch(desktopPairingSlice.actions.setPaired(paired));
+    }
+    if (pairedUserName !== undefined) {
+      store.dispatch(desktopPairingSlice.actions.setPairedUser(pairedUserName));
+    }
   }
   return store;
 }
 
 const mockGet = jest.fn().mockResolvedValue(null);
 const mockPost = jest.fn().mockResolvedValue(null);
+const mockElectronInvoke = jest.fn();
+
+beforeEach(() => {
+  mockElectronInvoke.mockReset();
+  window.electronAPI = { invoke: mockElectronInvoke, on: jest.fn().mockReturnValue(jest.fn()) };
+});
 
 function renderWithProviders(ui: React.ReactElement, store = createTestStore()) {
   return render(
@@ -196,6 +219,67 @@ describe("DownSyncPage", () => {
     });
     const { container } = renderWithProviders(<DownSyncPage startTranslating={jest.fn()} />, store);
     expect(container).toBeTruthy();
+  });
+
+  it("renders the ConnectAccount connect prompt when !paired and connected", () => {
+    // The not-connected gate now mounts <ConnectAccount />, whose idle state
+    // shows the "Connect to account" button. ConnectAccount's own aria-live
+    // accessibility (pairing / connected / error states) is covered standalone
+    // in ConnectAccount.test.tsx.
+    const store = createTestStore({ loaded: true, language: null, paired: false, connected: true });
+    const { getByText } = renderWithProviders(<DownSyncPage startTranslating={jest.fn()} />, store);
+    expect(getByText("Connect to account")).toBeTruthy();
+  });
+
+  it("invokes pairingStart IPC when Connect to account is clicked in not-connected state", () => {
+    const store = createTestStore({ loaded: true, language: null, paired: false, connected: true });
+    const { getByText } = renderWithProviders(<DownSyncPage startTranslating={jest.fn()} />, store);
+    fireEvent.click(getByText("Connect to account"));
+    expect(mockElectronInvoke).toHaveBeenCalledWith(PAIRING_START);
+  });
+
+  it("shows no connect prompt when !paired and !connected (passive offline state)", () => {
+    const store = createTestStore({
+      loaded: true,
+      language: null,
+      paired: false,
+      connected: false,
+    });
+    const { queryByText } = renderWithProviders(
+      <DownSyncPage startTranslating={jest.fn()} />,
+      store
+    );
+    expect(queryByText("Connect to account")).toBeNull();
+  });
+
+  it("does not show not-connected prompt when paired (existing sync behavior unchanged)", () => {
+    const language = {
+      languageId: 1,
+      name: "English",
+      code: "en",
+      motherTongue: false,
+      progress: [],
+      defaultSrcLang: 1,
+    };
+    const store = createTestStore({
+      loaded: true,
+      language,
+      paired: true,
+      connected: true,
+      downSync: {
+        languages: false,
+        baseLessons: false,
+        lessons: [],
+        tStrings: {},
+        timestamp: 1,
+        progress: 50,
+      },
+    });
+    const { queryByText } = renderWithProviders(
+      <DownSyncPage startTranslating={jest.fn()} />,
+      store
+    );
+    expect(queryByText("Connect to account")).toBeNull();
   });
 });
 

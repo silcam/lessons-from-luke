@@ -1,0 +1,24 @@
+;=============================================
+; Online disconnect clears credential and invalidates server-side.
+;=============================================
+GIVEN a connected desktop that is online.
+WHEN the user clicks Disconnect.
+THEN the desktop returns to the unconnected state.
+THEN its local credential is cleared.
+THEN that credential no longer works against the server.
+
+;=============================================
+; Offline disconnect clears local credential immediately.
+;=============================================
+GIVEN a connected desktop that is offline.
+WHEN the user clicks Disconnect.
+THEN the local credential is cleared immediately.
+THEN server-side invalidation happens later via expiry or admin revoke.
+
+;=============================================
+; Admin revoke cuts off all of a user's connected devices.
+;=============================================
+GIVEN a user with one or more connected devices.
+WHEN an admin revokes that user's device access.
+THEN each of that user's devices is rejected on its next online request.
+THEN the device must re-connect to regain access.

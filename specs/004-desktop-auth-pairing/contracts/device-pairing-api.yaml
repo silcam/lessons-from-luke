@@ -1,0 +1,266 @@
+openapi: 3.0.3
+info:
+  title: Desktop Device Pairing API (RFC 8628 device grant)
+  version: 1.0.0
+  description: >
+    Endpoints provided by the better-auth `device-authorization` plugin and served by the existing
+    `app.all("/api/auth/*", toNodeHandler(getAuth()))` mount in serverApp.ts. These are listed here
+    as the binding contract for the desktop and the web link page; they are NOT hand-written
+    controllers. The credential returned is a better-auth session token presented thereafter as
+    `Authorization: Bearer <token>` (the `bearer` plugin makes getSession accept it).
+    All five paths remain anonymous-reachable even when ENFORCE_API_AUTH is on (FR-011).
+
+    Plugin configuration (in auth.ts):
+      deviceAuthorization({ expiresIn: "10m", interval: "5s", verificationUri: "/link" })
+    The `verificationUri: "/link"` is required so the returned verification_uri points at our SPA
+    route, not the plugin's default "/device" path.
+
+    Rate-limit customRules to add in auth.ts rateLimit config (resolved from spike R4/red-team):
+      "/device/token": false          -- exclude poll path from all rate limiting (explicit safety)
+      "/device/code": { window: 60, max: 5 }   -- anti-flood for anonymous table-grow DoS
+      "/device/approve": { window: 60, max: 5 } -- brute-force protection (per-IP, adequate for
+                                                   small user base + 38-bit code entropy)
+      "/device/deny": { window: 60, max: 5 }    -- symmetry with approve: stops a malicious authed
+                                                   user spray-denying / enumerating pending codes
+
+    client_id note (red-team): client_id on /device/code is self-asserted by the caller and is NOT a
+    trust signal. An attacker can send the official "lessons-from-luke-desktop" value. The /link
+    consent screen MUST treat any displayed client context as untrusted and anchor approval on
+    "did you start this on your own computer?" (see plan.md Security anti-phishing).
+
+    Web link page two-step approve flow (concrete, from plugin source routes.mjs):
+      1. GET /api/auth/device?user_code=XXXX  -- claims code (sets userId if authenticated)
+      2. POST /api/auth/device/approve        -- approves (fails with DEVICE_CODE_NOT_CLAIMED if
+                                                  step 1 was skipped or user not authenticated)
+    DeviceLinkPage must call GET /device on mount BEFORE rendering the consent form.
+
+servers:
+  - url: /api/auth
+
+paths:
+  /device:
+    get:
+      summary: Web link page claims the deviceCode row (step 1 of 2-step approve flow)
+      description: >
+        Called by the DeviceLinkPage on mount (before showing the consent screen). If the caller
+        has an authenticated session cookie, the plugin stamps that user's id onto the deviceCode
+        row (sets `userId`). This "claim" step is REQUIRED before POST /device/approve will succeed;
+        without it, approve returns `invalid_request: DEVICE_CODE_NOT_CLAIMED`. Also returns the
+        current status so the page can detect an expired or already-processed code early.
+        NOT called by the desktop (desktop never uses the browser link flow).
+        Source: `deviceVerify` in routes.mjs; always-public (no auth required — the AuthGate on the
+        /link SPA route handles the redirect-to-sign-in if the user is not yet authenticated).
+      parameters:
+        - name: user_code
+          in: query
+          required: true
+          schema:
+            type: string
+            example: WDJB-MJHT
+          description: The user code from the desktop (dashes stripped before DB lookup).
+      responses:
+        "200":
+          description: Code status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_code:
+                    type: string
+                  status:
+                    type: string
+                    enum: [pending, approved, denied]
+        "400":
+          description: invalid_request (unknown code) or expired_token
+
+  /device/code:
+    post:
+      summary: Desktop requests a pairing code (FR-001, FR-004)
+      description: >
+        Called by the Electron main process (Node Axios, no browser Origin). Returns the user code
+        to display, the verification URI to open, and the device code (polling secret) the browser
+        never sees.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [client_id]
+              properties:
+                client_id:
+                  type: string
+                  description: Desktop client identifier (e.g. "lessons-from-luke-desktop").
+                scope:
+                  type: string
+                  description: Unused in v1.
+      responses:
+        "200":
+          description: Pairing initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  device_code:
+                    type: string
+                    description: Polling secret. MUST stay in the desktop only (FR-007).
+                  user_code:
+                    type: string
+                    example: WDJB-MJHT
+                    description: Short, readable, copyable code shown by the desktop (FR-001).
+                  verification_uri:
+                    type: string
+                    example: https://luke.silcameroon.org/link
+                  verification_uri_complete:
+                    type: string
+                    example: https://luke.silcameroon.org/link?user_code=WDJB-MJHT
+                  expires_in:
+                    type: integer
+                    example: 600
+                  interval:
+                    type: integer
+                    example: 5
+        "400":
+          description: invalid_request / invalid_client
+        "429":
+          description: >
+            Too many pairing-code requests from this IP (anti-flood / DoS protection for the
+            anonymous deviceCode table — red-team Security). Per-IP rate limit, distinct from the
+            poll-friendly limit on /device/token.
+
+  /device/approve:
+    post:
+      summary: Browser approves a pairing (FR-002, FR-003, FR-005)
+      description: >
+        Called by the web device-link page. REQUIRES an authenticated browser session (cookie); the
+        plugin reads the session and stamps the approving user's id onto the deviceCode row. Subject
+        to better-auth trustedOrigins/CSRF enforcement automatically.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userCode]
+              properties:
+                userCode:
+                  type: string
+                  example: WDJB-MJHT
+      responses:
+        "200":
+          description: Approved; desktop's next poll will receive the token.
+        "400":
+          description: invalid_request (unknown/expired code)
+        "401":
+          description: Not signed in (FR-002 — must authenticate first)
+        "429":
+          description: >
+            Too many approve attempts (per-user + per-IP rate limit) — prevents brute-forcing /
+            enumerating pending user_codes (red-team Security, RFC 8628 §5.2). Pairs with the
+            anti-phishing consent copy required on the /link page.
+
+  /device/deny:
+    post:
+      summary: Browser declines a pairing (FR-006, US1.4)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userCode]
+              properties:
+                userCode:
+                  type: string
+      responses:
+        "200":
+          description: Denied; desktop's next poll receives access_denied.
+        "429":
+          description: >
+            Too many deny attempts (per-user + per-IP rate limit) — symmetry with /device/approve;
+            stops a malicious authenticated user from spray-denying or enumerating pending user_codes
+            (red-team Security).
+
+  /device/token:
+    post:
+      summary: Desktop polls for the credential (FR-004, FR-005)
+      description: >
+        Called repeatedly by the desktop (every `interval` seconds). On approval returns the bearer
+        session token. Single-use deviceCode row is deleted on success, denial, or expiry.
+        NOTE (red-team): the legitimate 5 s poll (~12 req/min) MUST NOT be throttled by the global
+        better-auth rateLimit — give this path a poll-friendly window (or exclude it) so a 429 is
+        never mistaken for a poll state. The desktop treats an unexpected 429 distinctly from the
+        `slow_down` poll state below.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [grant_type, device_code, client_id]
+              properties:
+                grant_type:
+                  type: string
+                  enum: ["urn:ietf:params:oauth:grant-type:device_code"]
+                  description: >
+                    RFC 8628 grant type literal. REQUIRED by the better-auth plugin (validated
+                    as a Zod literal). Must be sent exactly as
+                    "urn:ietf:params:oauth:grant-type:device_code".
+                device_code:
+                  type: string
+                client_id:
+                  type: string
+      responses:
+        "200":
+          description: Approved — credential issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                    description: better-auth session token. Store encrypted; send as Bearer (FR-008).
+                  token_type:
+                    type: string
+                    example: Bearer
+                  expires_in:
+                    type: integer
+                    example: 5184000
+                  scope:
+                    type: string
+        "400":
+          description: >
+            RFC 8628 poll states / terminal errors:
+            authorization_pending | slow_down | expired_token | access_denied | invalid_grant.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    enum:
+                      [
+                        authorization_pending,
+                        slow_down,
+                        expired_token,
+                        access_denied,
+                        invalid_request,
+                        invalid_grant,
+                      ]
+                  error_description:
+                    type: string
+
+  /sign-out:
+    post:
+      summary: Desktop "Disconnect" while online — self sign-out (FR-016)
+      description: >
+        Existing better-auth endpoint. Desktop calls it with its Bearer credential to invalidate the
+        session server-side, then clears the local credential. Offline, the desktop skips this call
+        and clears the local credential immediately.
+      responses:
+        "200":
+          description: Session invalidated.

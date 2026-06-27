@@ -20,6 +20,7 @@ import InvitationsList from "./invitations/InvitationsList";
 import RedeemInvitation from "./auth/RedeemInvitation";
 import AuthGate from "./auth/AuthGate";
 import { safeReturnTo } from "./auth/safeReturnTo";
+import DeviceLinkPage from "./deviceLink/DeviceLinkPage";
 
 function TranslateRouteWrapper() {
   const { code } = useParams<{ code: string }>();
@@ -107,6 +108,11 @@ export default function MainRouter() {
           <Route path="/update-issues/:lessonId" element={<UpdateIssuesPageWrapper />} />
           {user?.admin && <Route path="/admin/invitations/new" element={<CreateInvitation />} />}
           {user?.admin && <Route path="/admin/invitations" element={<InvitationsList />} />}
+          {/* Device pairing approval — requires auth so the session is known when
+              approving/denying (FR-002); unauthenticated visitors are redirected
+              to sign-in with returnTo encoding the full path+search so the
+              user_code survives the sign-in round-trip (US1.8). */}
+          <Route path="/link" element={<DeviceLinkPage />} />
         </Route>
         {/* Public route — anyone with the token URL can redeem (FR-007, FR-011).
             MUST be outside AuthGate to prevent redirect loops. */}
