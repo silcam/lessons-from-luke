@@ -4,19 +4,21 @@ import { configureStore, combineReducers } from "@reduxjs/toolkit";
 import { Provider } from "react-redux";
 import useHandleIPCEvents from "./useHandleIPCEvents";
 import syncStateSlice from "../../common/state/syncStateSlice";
+import desktopPairingSlice from "../desktopPairingSlice";
 import bannerSlice from "../../common/banners/bannerSlice";
 import languageSlice from "../../common/state/languageSlice";
 import loadingSlice from "../../common/api/loadingSlice";
-import { ON_SYNC_STATE_CHANGE, ON_ERROR } from "../../../core/api/IpcChannels";
+import { ON_SYNC_STATE_CHANGE, ON_ERROR, DEVICE_STATE } from "../../../core/api/IpcChannels";
 
 // Mocks for window.electronAPI.on — each call returns a unique unsubscribe fn
 const mockUnsubSync = jest.fn();
 const mockUnsubError = jest.fn();
 const mockOn = jest.fn();
+const mockInvoke = jest.fn();
 
 beforeAll(() => {
   Object.defineProperty(window, "electronAPI", {
-    value: { invoke: jest.fn(), on: mockOn },
+    value: { invoke: mockInvoke, on: mockOn },
     writable: true,
   });
 });
@@ -25,6 +27,8 @@ beforeEach(() => {
   jest.clearAllMocks();
   // Return distinct unsubscribe functions based on call order
   mockOn.mockReturnValueOnce(mockUnsubSync).mockReturnValueOnce(mockUnsubError);
+  // Default: device:state query resolves to "unpaired" so existing cases are unaffected.
+  mockInvoke.mockResolvedValue({ paired: false, pairedUserName: undefined });
 });
 
 // Build a minimal store with only the slices that useHandleIPCEvents dispatches to
@@ -32,6 +36,7 @@ function createTestStore() {
   return configureStore({
     reducer: combineReducers({
       syncState: syncStateSlice.reducer,
+      desktopPairing: desktopPairingSlice.reducer,
       banners: bannerSlice.reducer,
       languages: languageSlice.reducer,
       loading: loadingSlice.reducer,
@@ -69,6 +74,20 @@ describe("useHandleIPCEvents", () => {
 
     expect(mockUnsubSync).toHaveBeenCalled();
     expect(mockUnsubError).toHaveBeenCalled();
+  });
+
+  it("queries device:state on mount and dispatches the pairing state", async () => {
+    mockInvoke.mockResolvedValue({ paired: true, pairedUserName: "Ada" });
+    const store = createTestStore();
+
+    await act(async () => {
+      renderHarnessWithStore(store);
+    });
+
+    expect(mockInvoke).toHaveBeenCalledWith(DEVICE_STATE);
+    const pairing = store.getState().desktopPairing;
+    expect(pairing.paired).toBe(true);
+    expect(pairing.pairedUserName).toBe("Ada");
   });
 
   it("dispatches setSyncState when ON_SYNC_STATE_CHANGE fires", () => {

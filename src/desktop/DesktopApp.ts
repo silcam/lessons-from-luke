@@ -23,6 +23,7 @@ import { I18nKey } from "../core/i18n/locales/en";
 import { resync } from "../core/models/SyncState";
 import { tForLocale } from "../core/i18n/I18n";
 import { CredentialStore } from "./auth/CredentialStore";
+import { StubCredentialStore } from "./auth/StubCredentialStore";
 import { DevicePairing } from "./auth/DevicePairing";
 import Axios from "axios";
 import {
@@ -412,7 +413,13 @@ export class TestDesktopApp extends DesktopApp {
     // TestLocalStorage.loadFixtures(); // Load app with a blank slate
     // TestLocalStorage.loadFixtures("batanga-synced"); // Load app with Batanga synced
     const localStorage = new TestLocalStorage();
-    super(localStorage);
+    // e2e seam: when DESKTOP_E2E_TOKEN is provided, start in a paired state with
+    // that (real) better-auth session token so the post-pairing sync/translate
+    // UI can be exercised without the browser-side device-approval handshake.
+    // Absent the env var, the app boots unpaired exactly as in production.
+    const e2eToken = process.env.DESKTOP_E2E_TOKEN;
+    const credentialStore = e2eToken ? new StubCredentialStore(e2eToken) : undefined;
+    super(localStorage, credentialStore);
     this.localStorage = localStorage;
   }
 }
