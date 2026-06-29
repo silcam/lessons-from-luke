@@ -66,11 +66,22 @@ beforeAll(async () => {
   desktopToken = token;
 });
 
+// The e2e harness runs the API on :8081 and the desktop webpack dev server on
+// :8082 — there is no :8080 web dev server (which interactive dev-desktop relies
+// on for the pairing verification_uri). DESKTOP_E2E_BASE_URL points the app's
+// API base directly at the running API server so sync/online calls succeed.
+const DESKTOP_E2E_BASE_URL = API_BASE;
+
 // Launch the desktop already paired (post-pairing flow: code entry → sync → translate).
 function launchPaired() {
   return electron.launch({
     args: [MAIN, ...ELECTRON_TEST_ARGS],
-    env: { ...process.env, FIXTURES: "fresh-install", DESKTOP_E2E_TOKEN: desktopToken },
+    env: {
+      ...process.env,
+      FIXTURES: "fresh-install",
+      DESKTOP_E2E_TOKEN: desktopToken,
+      DESKTOP_E2E_BASE_URL,
+    },
   });
 }
 
@@ -78,7 +89,7 @@ function launchPaired() {
 function launchUnpaired() {
   return electron.launch({
     args: [MAIN, ...ELECTRON_TEST_ARGS],
-    env: { ...process.env, FIXTURES: "fresh-install" },
+    env: { ...process.env, FIXTURES: "fresh-install", DESKTOP_E2E_BASE_URL },
   });
 }
 

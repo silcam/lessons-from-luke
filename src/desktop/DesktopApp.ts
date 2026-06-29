@@ -65,7 +65,8 @@ export default class DesktopApp {
   constructor(
     localStorage: LocalStorage = new LocalStorage(),
     credentialStore?: CredentialStore,
-    devicePairing?: DevicePairing
+    devicePairing?: DevicePairing,
+    baseUrl?: string
   ) {
     this.localStorage = localStorage;
     // In dev (not packaged) point at the webpack dev server (:8080) which
@@ -74,7 +75,15 @@ export default class DesktopApp {
     // webpack historyApiFallback) instead of :8081/link (404 in dev).
     // BETTER_AUTH_URL must also be set to http://localhost:8080 in serve-dev
     // (package.json) so the two values stay in sync.  See bug wgr.28.
-    this.baseUrl = app.isPackaged ? "https://luke.silcameroon.org" : "http://localhost:8080";
+    //
+    // `baseUrl` override: the Playwright Electron e2e harness starts only the
+    // API server (:8081) and the desktop webpack dev server (:8082) — there is
+    // no :8080 web dev server — so it injects DESKTOP_E2E_BASE_URL=:8081 (via
+    // TestDesktopApp) to talk to the API directly. The e2e stubs the pairing
+    // handshake (DESKTOP_E2E_TOKEN), so the :8080 verification_uri convenience
+    // is irrelevant there. Interactive dev-desktop leaves it unset → :8080.
+    this.baseUrl =
+      baseUrl ?? (app.isPackaged ? "https://luke.silcameroon.org" : "http://localhost:8080");
 
     this.credentialStore = credentialStore ?? new CredentialStore();
 
@@ -445,7 +454,12 @@ export class TestDesktopApp extends DesktopApp {
     // Absent the env var, the app boots unpaired exactly as in production.
     const e2eToken = process.env.DESKTOP_E2E_TOKEN;
     const credentialStore = e2eToken ? new StubCredentialStore(e2eToken) : undefined;
-    super(localStorage, credentialStore);
+    // e2e seam: the Playwright harness runs the API on :8081 with no :8080 web
+    // dev server, so it sets DESKTOP_E2E_BASE_URL=:8081 to point the app's API
+    // base directly at the running server. Unset in interactive dev-desktop, so
+    // the base class falls back to the :8080 webpack proxy (pairing flow).
+    const e2eBaseUrl = process.env.DESKTOP_E2E_BASE_URL;
+    super(localStorage, credentialStore, undefined, e2eBaseUrl);
     this.localStorage = localStorage;
   }
 }
