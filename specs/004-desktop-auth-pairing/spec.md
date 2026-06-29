@@ -324,6 +324,43 @@ confirm that user's connected desktop is rejected on its next online request.
 - The precise admin surface for revoke-by-user (new endpoint vs. extension of existing admin user
   tooling) and how it locates a user's credentials.
 
+## Security Considerations
+
+### Known: User-code existence and status disclosure via `GET /api/auth/device`
+
+**Status: Accepted, low severity.**
+
+The unauthenticated status-lookup endpoint `GET /api/auth/device?user_code=<code>` (built into
+better-auth's `deviceAuthorization` plugin for the browser verification page) acts as an existence
+oracle for pending device-pairing codes: a valid-but-pending code returns `200 {"status":"pending"}`
+while an invalid or expired code returns `400 {"error":"invalid_request"}`. No authentication is
+required to call this endpoint.
+
+**Why this is inherent**: The verification page the user visits in their browser must be able to
+validate the code without the user being signed in yet (sign-in may happen on that page). The
+endpoint is part of better-auth's standard RFC 8628-like flow and cannot be removed without forking
+the plugin.
+
+**Why the risk is low**:
+
+- `POST /api/auth/device/approve` and `/deny` both require an authenticated session; an attacker who
+  discovers a pending code cannot act on it.
+- The pairing-code space is 8 uppercase alphanumeric characters (~2.8 × 10¹¹ combinations), codes
+  expire after 10 minutes, and `/api/auth/device/code` (which mints new codes) is rate-limited to
+  5 requests per IP per 60 seconds — brute-force enumeration is impractical.
+- The disclosure is limited to: "this code exists and is pending." No user data is exposed.
+
+**What is NOT done in v1**: The `GET /api/auth/device` status endpoint is not independently
+rate-limited and does not require authentication. These are accepted tradeoffs given the low
+practical impact.
+
+**If a future operator requires tighter posture**: add a per-IP rate limit to
+`GET /api/auth/device` (e.g. 20 req/min) at the Express layer, or gate the endpoint behind session
+authentication (requiring the user to sign in before the code-entry form submits). Either change
+closes the oracle but requires modifications to the better-auth plugin or a wrapping middleware.
+
+---
+
 ## Out of Scope
 
 - **Per-user / per-language authorization** (which user may edit which language) — future feature.
