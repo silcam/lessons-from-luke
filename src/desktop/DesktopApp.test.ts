@@ -658,4 +658,27 @@ describe("DesktopApp pairing lifecycle", () => {
       expect(DesktopAPIServer.listen).toHaveBeenCalledTimes(1);
     });
   });
+
+  // -------------------------------------------------------------------------
+  // dev baseUrl: must route through webpack proxy (:8080) so that
+  // verification_uri_complete built by better-auth resolves to :8080/link
+  // (served by webpack historyApiFallback), not :8081/link (404 in dev).
+  // See: bug wgr.28, trustedOrigins.ts DEFAULT_BASE_URL comment.
+  // -------------------------------------------------------------------------
+
+  describe("dev baseUrl (bug wgr.28)", () => {
+    test("uses webpack proxy (:8080) as dev baseUrl when app is not packaged", async () => {
+      // app.isPackaged === false (set in the electron mock above).
+      // The webpack dev server on :8080 proxies /api and /webified to :8081,
+      // so all API calls still reach the API server. Using :8080 as baseUrl
+      // causes better-auth (via BETTER_AUTH_URL=http://localhost:8080 in
+      // serve-dev) to build verification_uri_complete pointing to :8080/link,
+      // which webpack serves via historyApiFallback (not 404 as :8081/link).
+      const cs = makeMockCredentialStore(null);
+      const dp = makeMockDevicePairing();
+      const app = await createApp(cs, dp);
+
+      expect((app as any).baseUrl).toBe("http://localhost:8080");
+    });
+  });
 });

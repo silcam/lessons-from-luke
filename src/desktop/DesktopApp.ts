@@ -68,7 +68,13 @@ export default class DesktopApp {
     devicePairing?: DevicePairing
   ) {
     this.localStorage = localStorage;
-    this.baseUrl = app.isPackaged ? "https://luke.silcameroon.org" : "http://localhost:8081";
+    // In dev (not packaged) point at the webpack dev server (:8080) which
+    // proxies /api and /webified to the API server (:8081).  This makes
+    // better-auth's verification_uri_complete point to :8080/link (served by
+    // webpack historyApiFallback) instead of :8081/link (404 in dev).
+    // BETTER_AUTH_URL must also be set to http://localhost:8080 in serve-dev
+    // (package.json) so the two values stay in sync.  See bug wgr.28.
+    this.baseUrl = app.isPackaged ? "https://luke.silcameroon.org" : "http://localhost:8080";
 
     this.credentialStore = credentialStore ?? new CredentialStore();
 

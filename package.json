@@ -32,7 +32,7 @@
     "wpDevServerWeb": "webpack-dev-server --config webpack/web.development.config.js --host 0.0.0.0",
     "wpDevServerDesktop": "webpack-dev-server --config webpack/desktop.development.config.js",
     "serve": "NODE_ENV=test nodemon -w dist/server/ --exec \"node dist/server/server.js\"",
-    "serve-dev": "NODE_ENV=development nodemon -w dist/server/ --exec \"node dist/server/server.js\"",
+    "serve-dev": "BETTER_AUTH_URL=http://localhost:8080 NODE_ENV=development nodemon -w dist/server/ --exec \"node dist/server/server.js\"",
     "serve-prod": "BETTER_AUTH_URL=https://localhost:8081 NODE_ENV=production node dist/server/server/server.js",
     "run-test-desktop": "nodemon -w dist/desktop/ --exec yarn electron dist/desktop/main-test.js",
     "migrate": "node scripts/migrate.js",
