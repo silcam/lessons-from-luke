@@ -9,7 +9,7 @@
  * Acceptance:
  *   - 'Revoke device access' button per user
  *   - Confirm dialog with destructive copy + Revoke + Cancel buttons
- *   - Success announces 'Revoked N sessions' via aria-live
+ *   - Success announces 'Revoked access (N credentials removed)' via aria-live
  *   - Error shows error in live region
  *   - yarn typecheck passes
  */
@@ -290,7 +290,7 @@ describe("AdminHome — Revoke confirm dialog", () => {
       if (revokeBtn) fireEvent.click(revokeBtn);
     });
 
-    await findByText(/Revoked 2 sessions/);
+    await findByText(/Revoked access \(2 credentials removed\)/);
   });
 
   it("shows error in live region when revoke fails", async () => {
