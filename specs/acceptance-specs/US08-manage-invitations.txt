@@ -1,0 +1,27 @@
+;=============================================
+; The management screen shows all invitations with full details.
+;=============================================
+GIVEN several invitations in different states.
+WHEN an administrator opens the management screen.
+THEN each invitation shows recipient email and granted role and status and creation date and acceptance date for Accepted invitations and the administrator who created it.
+
+;=============================================
+; Re-copying a pending invitation link returns the same working link.
+;=============================================
+GIVEN a Pending invitation.
+WHEN an administrator re-copies its link.
+THEN the same working link is provided again.
+
+;=============================================
+; Retracting a pending invitation immediately kills the link.
+;=============================================
+GIVEN a Pending invitation.
+WHEN an administrator retracts it.
+THEN its status becomes Retracted and its link stops working immediately.
+
+;=============================================
+; Terminal-state invitations remain listed for history without redemption actions.
+;=============================================
+GIVEN an Accepted, Expired, or Retracted invitation.
+WHEN an administrator views the list.
+THEN it remains listed for history and offers no redemption.

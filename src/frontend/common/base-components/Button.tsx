@@ -33,6 +33,14 @@ const StyledButton = styled.button<SBProps>`
     outline: none;
   }
 
+  /* Keyboard focus indicator (WCAG 2.1 AA 2.4.7). The 2px offset places the
+     ring on the white page around the button, so a single blue ring reads
+     clearly on both primary and danger buttons. Mouse presses (:active) blur. */
+  &:focus-visible {
+    outline: 2px solid ${Colors.primary};
+    outline-offset: 2px;
+  }
+
   &:disabled {
     cursor: default;
     background-color: ${(props) => faded(props.red ? Colors.danger : Colors.primary)};
@@ -53,6 +61,12 @@ const LinkStyledButton = styled.button<SBProps>`
 
   &:active {
     color: ${(props) => darker(props.red ? Colors.danger : Colors.primary)};
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${Colors.primary};
+    outline-offset: 2px;
+    border-radius: 0.25em;
   }
 
   ${(props) => (props.unButton ? UnButton : "")}

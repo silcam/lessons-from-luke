@@ -2,23 +2,25 @@ import { betterAuth } from "better-auth";
 import { Pool } from "pg";
 import secrets from "../util/secrets";
 import * as passwordHasher from "./passwordHasher";
+import { DEFAULT_BASE_URL, getTrustedOrigins } from "./trustedOrigins";
+import { CF_CONNECTING_IP } from "../util/clientIp";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let authInstance: ReturnType<typeof betterAuth<any>> | null = null;
+let authPoolInstance: Pool | null = null;
 
 /**
- * Returns the singleton better-auth instance, creating it on first call.
+ * Returns the singleton pg.Pool used by better-auth and invitation routes.
  *
- * The pg.Pool is isolated from the domain porsager driver. Pool size is
- * capped at 5 so the combined ceiling stays well under postgres
- * max_connections=100 (porsager defaults to os.cpus() ≤4 on this VPS).
- *
- * FR-001, FR-002, FR-006, FR-010, FR-012
+ * The pool is isolated from the domain porsager driver. Pool size is capped at
+ * 5 so the combined ceiling stays well under postgres max_connections=100.
+ * Sharing a single Pool between better-auth and invitation routes means only
+ * one pool exists for auth-database operations at runtime (FR-001 architecture
+ * requirement).
  */
-export function getAuth(): ReturnType<typeof betterAuth<any>> {
-  // eslint-disable-line @typescript-eslint/no-explicit-any
-  if (authInstance) {
-    return authInstance;
+export function getAuthPool(): Pool {
+  if (authPoolInstance) {
+    return authPoolInstance;
   }
 
   const dbConfig =
@@ -31,12 +33,29 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> {
   // porsager/postgres uses "username" but pg/Pool (used by better-auth) uses "user".
   // Remap so the pool connects with the correct credentials.
   const { username, ...restDbConfig } = dbConfig as typeof dbConfig & { username?: string };
-  const pool = new Pool({ ...restDbConfig, user: username, max: 5 });
+  authPoolInstance = new Pool({ ...restDbConfig, user: username, max: 5 });
+  return authPoolInstance;
+}
+
+/**
+ * Returns the singleton better-auth instance, creating it on first call.
+ *
+ * Uses getAuthPool() so better-auth and invitation routes share a single
+ * pg.Pool instance for all auth-database operations.
+ *
+ * FR-001, FR-002, FR-006, FR-010, FR-012
+ */
+export function getAuth(): ReturnType<typeof betterAuth<any>> {
+  if (authInstance) {
+    return authInstance;
+  }
+
+  const pool = getAuthPool();
 
   authInstance = betterAuth({
     database: pool,
     secret: secrets.cookieSecret,
-    baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:8081",
+    baseURL: process.env.BETTER_AUTH_URL ?? DEFAULT_BASE_URL,
     // Pin trusted origins to the explicit public URL so better-auth's
     // origin/CSRF checks are never silently widened by a misconfigured proxy.
     // In production the SPA is served from the same origin as BETTER_AUTH_URL,
@@ -45,11 +64,9 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> {
     // API (:8081) and proxies /api to it, so the browser's Origin is :8080/:8082;
     // trust those (plus the API origin) so cross-origin dev login isn't rejected
     // with "Invalid origin". NODE_ENV=test skips origin checks entirely.
-    trustedOrigins: process.env.BETTER_AUTH_URL
-      ? [process.env.BETTER_AUTH_URL]
-      : process.env.NODE_ENV === "development"
-        ? ["http://localhost:8080", "http://localhost:8081", "http://localhost:8082"]
-        : [],
+    // The allow-list is sourced from trustedOrigins.ts so it stays in sync with
+    // the CSRF middleware in invitationController.ts (architecture-review 9c7.13).
+    trustedOrigins: getTrustedOrigins() ?? [],
     advanced: {
       // Explicitly enforce Secure cookies in production regardless of
       // baseURL scheme detection, so a misconfigured proxy can't silently
@@ -63,14 +80,15 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> {
       // production, skipped in test/dev so cross-origin dev login still works).
       disableOriginCheck: process.env.BETTER_AUTH_ENFORCE_ORIGIN === "1" ? false : undefined,
       // Key rate-limiting on the real, non-spoofable client IP. better-auth
-      // derives the client IP itself (it ignores Express req.ip), defaulting to
-      // the leftmost x-forwarded-for token — which Cloudflare PREPENDS any
-      // client-supplied value to, so it's spoofable. cf-connecting-ip is
-      // Cloudflare's authoritative client IP; the first header yielding a valid
-      // IP wins. Cloudflare ON → cf-connecting-ip; Cloudflare OFF (or supertest,
-      // where neither header is present) → falls back to x-forwarded-for / the
-      // socket IP. Independent of Express's `trust proxy`.
-      ipAddress: { ipAddressHeaders: ["cf-connecting-ip", "x-forwarded-for"] },
+      // derives the client IP itself (it ignores Express req.ip); the first
+      // header yielding a valid IP wins. CF_CONNECTING_IP is the shared constant
+      // (util/clientIp.ts) so this never drifts from the in-app clientIp()
+      // helper. The "x-forwarded-for" entry is better-auth's lib-level fallback
+      // for when cf-connecting-ip is absent (supertest / Cloudflare OFF) — the
+      // intentional divergence from clientIp(), which falls back to the
+      // trust-proxy-aware req.ip (unavailable to better-auth) instead.
+      // Independent of Express's `trust proxy`.
+      ipAddress: { ipAddressHeaders: [CF_CONNECTING_IP, "x-forwarded-for"] },
     },
     emailAndPassword: {
       enabled: true,
@@ -118,9 +136,10 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> {
 }
 
 /**
- * Nulls out the singleton so the next getAuth() call creates a fresh instance
- * with a new pool. Used for test isolation only.
+ * Nulls out the singletons so the next getAuth()/getAuthPool() call creates a
+ * fresh instance with a new pool. Used for test isolation only.
  */
 export function resetAuth(): void {
   authInstance = null;
+  authPoolInstance = null;
 }

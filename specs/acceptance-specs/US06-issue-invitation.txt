@@ -1,0 +1,34 @@
+;=============================================
+; Admin creates a standard invitation and gets a link.
+;=============================================
+GIVEN an administrator is signed in.
+WHEN they create an invitation for a new email address and select the standard role.
+THEN the invitation is recorded as Pending and a copy-pasteable link is shown.
+
+;=============================================
+; Admin creates an administrator invitation.
+;=============================================
+GIVEN an administrator is signed in.
+WHEN they create an invitation and select the administrator role.
+THEN the invitation is recorded as Pending granting the administrator role.
+
+;=============================================
+; Creating an invitation for an existing account is rejected.
+;=============================================
+GIVEN an email address that already has an account.
+WHEN an administrator tries to create an invitation for it.
+THEN creation is rejected with a clear message and no invitation is recorded.
+
+;=============================================
+; Creating a duplicate invitation for an active pending invite is rejected.
+;=============================================
+GIVEN an email already has an active Pending non-expired invitation.
+WHEN an administrator tries to create a second invitation for it.
+THEN creation is rejected with a clear message.
+
+;=============================================
+; Re-inviting an email whose prior invitation expired or was retracted succeeds.
+;=============================================
+GIVEN an email whose prior invitation has expired or been retracted and no account exists.
+WHEN an administrator creates a new invitation for it.
+THEN creation succeeds and a new link is shown.
