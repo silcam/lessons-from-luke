@@ -64,7 +64,11 @@ export const revokeUserDeviceAccess = createAsyncThunk<
   }
 
   if (response.ok) {
-    const body = (await response.json()) as { success: boolean; userId: string; revokedCount: number };
+    const body = (await response.json()) as {
+      success: boolean;
+      userId: string;
+      revokedCount: number;
+    };
     return { userId: body.userId ?? userId, revokedCount: body.revokedCount };
   }
 
