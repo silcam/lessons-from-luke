@@ -124,7 +124,7 @@ const en = {
   AdminHome_revoke_confirm_prompt:
     "Revoke device access for %{name}? This will sign them out of all connected devices and their web session.",
   AdminHome_revoke_confirm_button: "Revoke",
-  AdminHome_revoke_success: "Revoked %{count} sessions",
+  AdminHome_revoke_success: "Revoked access (%{count} credentials removed)",
   AdminHome_revoke_error: "Failed to revoke sessions. Please try again.",
   AdminHome_users_loading: "Loading users…",
   AdminHome_users_load_error: "Couldn't load users. Please try again.",

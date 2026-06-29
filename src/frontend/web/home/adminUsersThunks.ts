@@ -6,7 +6,7 @@
  *       (frontend/web/home/AdminHome.tsx)
  *
  * GET  /api/admin/users                              → AdminUserRow[]
- * POST /api/admin/users/:userId/revoke-sessions      → { success, revokedCount }
+ * POST /api/admin/users/:userId/revoke-sessions      → { success, userId, revokedCount }
  */
 
 import { createAsyncThunk } from "@reduxjs/toolkit";
@@ -64,8 +64,8 @@ export const revokeUserDeviceAccess = createAsyncThunk<
   }
 
   if (response.ok) {
-    const body = (await response.json()) as { success: boolean; revokedCount: number };
-    return { userId, revokedCount: body.revokedCount };
+    const body = (await response.json()) as { success: boolean; userId: string; revokedCount: number };
+    return { userId: body.userId ?? userId, revokedCount: body.revokedCount };
   }
 
   let body: { error?: string } = {};

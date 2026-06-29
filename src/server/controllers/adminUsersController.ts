@@ -96,7 +96,7 @@ export default function adminUsersController(app: Express, pool: Pool): void {
       }
 
       res.setHeader("Cache-Control", "no-store");
-      res.json({ success: true, revokedCount });
+      res.json({ success: true, userId, revokedCount });
     }
   );
 }

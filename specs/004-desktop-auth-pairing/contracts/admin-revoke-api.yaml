@@ -49,11 +49,16 @@ paths:
               schema:
                 type: object
                 properties:
+                  success:
+                    type: boolean
                   userId:
                     type: string
                   revokedCount:
                     type: integer
-                    description: Number of session rows deleted.
+                    description: >
+                      Total credential rows deleted (deviceCode rows deleted first,
+                      then session rows). Combined count reflects all revoked access —
+                      both active sessions and pending/approved device-authorization codes.
         "401":
           description: Not signed in
         "403":

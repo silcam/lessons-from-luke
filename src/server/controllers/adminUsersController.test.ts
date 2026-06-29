@@ -122,6 +122,7 @@ describe("POST /api/admin/users/:userId/revoke-sessions", () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
       success: true,
+      userId,
       revokedCount: 1,
     });
   });
@@ -139,6 +140,7 @@ describe("POST /api/admin/users/:userId/revoke-sessions", () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
       success: true,
+      userId,
       revokedCount: 0,
     });
   });
