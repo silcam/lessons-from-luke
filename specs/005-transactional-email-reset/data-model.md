@@ -137,6 +137,12 @@ Holds the single-use, time-limited password-reset token.
      leave two live tokens. Either reject any non-most-recent `reset-password` row for the
      user at `/reset-password` validation time, or perform invalidate+issue atomically
      (transaction / conditional delete keyed on `value = user.id`).
+  3. **Keep all of it off the awaited request path** (red-team Pass 6). The throttle check,
+     the supersession decision, and the suppressed-row cleanup are DB round-trips that run
+     only for existing accounts; performing them synchronously in `sendResetPassword` would
+     re-open the Pass 2 enumeration timing oracle (a smaller, local-DB delta). They must run
+     inside the **same fire-and-forget background task** as the send, so `sendResetPassword`
+     returns in account-existence-independent time.
 
 ### session (existing — better-auth)
 

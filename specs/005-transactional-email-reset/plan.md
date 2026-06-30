@@ -552,6 +552,32 @@ feature-001/002 locations.
   SUPERSEDED transition so `/sp:05-tasks` implements supersession as a guarantee, not
   a best-effort delete.
 
+### Account-conditional DB work re-opens the timing oracle (Pass 6)
+
+- This is the **second-order effect of the Pass 5 mitigation itself**. Pass 2
+  closed the enumeration timing oracle by moving the *network send* off the awaited
+  request path, "so the endpoint returns in account-existence-independent time."
+  But Pass 5 adds new work that lives in `sendResetPassword` and runs **only for
+  accounts that exist**: the per-address throttle check, the conditional
+  supersession decision, and (when suppressed) the delete of the just-written
+  `verification` row — all DB round-trips. Pass 2 only ever backgrounded the *send*;
+  it did not anticipate that supersession (Pass 2) and now the throttle/cleanup
+  (Pass 5) would put **awaited DB work** on the known-account path. If
+  `sendResetPassword` performs that DB work synchronously before returning, a
+  known-account request again takes measurably longer than an unknown-email request
+  (for which better-auth never calls `sendResetPassword` at all) — a residual timing
+  oracle that partially re-opens the very enumeration Pass 2 closed, just with a
+  smaller (local-DB rather than network) delta.
+- **Mitigation**: make the Pass 2 background task the home for **all**
+  account-conditional work, not just the send. `sendResetPassword` MUST return
+  effectively immediately, scheduling the throttle check, the supersession decision,
+  the row cleanup, **and** the send together into the fire-and-forget background
+  task (each still inside the bounded timeout + redaction-aware `.catch`), so the
+  synchronous request-handler path does identical, near-zero work regardless of
+  whether the account exists. Extend the Pass 2 integration assertion (reset
+  response time independent of account existence) to hold **with** the throttle and
+  supersession logic active, not just with the bare send backgrounded.
+
 ## Accessibility Requirements
 
 > Added by `/sp:04-red-team` (Pass 1). Extends the WCAG 2.2 AA target already
