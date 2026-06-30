@@ -236,7 +236,16 @@ describe("secrets — FR-011 fail-fast validation", () => {
     process.env.NODE_ENV = "production";
     process.env.BETTER_AUTH_URL = "https://example.com";
 
-    fs.writeFileSync(secretsJsonPath, JSON.stringify(validSecrets), "utf8");
+    // Include a valid email block so the FR-002 production email guard does not fire.
+    const prodSecrets = {
+      ...validSecrets,
+      email: {
+        apiKey: "real-mg-api-key-00000000000000000000000000000000-00000000-0000",
+        domain: "mg.real-domain.com",
+        fromAddress: "noreply@mg.real-domain.com",
+      },
+    };
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(prodSecrets), "utf8");
 
     jest.resetModules();
 
