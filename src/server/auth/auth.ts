@@ -215,13 +215,24 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> {
             }
             const throttled = count > maxPerWindow;
 
+            // Compute the hashed identifier for the just-written row once — used in
+            // both the throttled (4a, delete just-written) and non-throttled (4b,
+            // exclude just-written from supersession delete) paths.
+            //
+            // MUST match better-auth's storeIdentifier: "hashed" encoding exactly
+            // (verification-token-storage.mjs: base64url(SHA-256(identifier)) without
+            // padding). Node's Buffer.toString("base64url") produces the same encoding:
+            // no `+`/`/` chars, no `=` padding — identical to @better-auth/utils/base64
+            // base64Url.encode(new Uint8Array(hash), { padding: false }).
+            const justWrittenIdentifier = createHash("sha256")
+              .update(`reset-password:${token}`)
+              .digest()
+              .toString("base64url");
+
             if (throttled) {
               // 4a. Over-limit: delete the just-written verification row to prevent
               //     it lingering to expiry (Pass 5 — coupled supersession). Do NOT
               //     delete prior rows (no supersession on a suppressed request).
-              const justWrittenIdentifier = createHash("sha256")
-                .update(`reset-password:${token}`)
-                .digest("hex");
               await pool.query(`DELETE FROM "verification" WHERE identifier = $1`, [
                 justWrittenIdentifier,
               ]);
@@ -229,10 +240,15 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> {
             }
 
             // 4b. Under-limit: supersede all prior verification rows for this user
-            //     (Pass 2). DELETE WHERE value = userId removes all rows including
-            //     any stale un-consumed tokens, so the just-sent link is the only
-            //     surviving one.
-            await pool.query(`DELETE FROM "verification" WHERE value = $1`, [user.id]);
+            //     (Pass 2). DELETE all rows WHERE value = userId EXCEPT the one just
+            //     written (identifier = justWrittenIdentifier), so the just-sent link
+            //     is the only surviving one. The just-written row must be excluded so
+            //     the token in the outgoing email remains valid when better-auth
+            //     validates it at /reset-password.
+            await pool.query(
+              `DELETE FROM "verification" WHERE value = $1 AND identifier != $2`,
+              [user.id, justWrittenIdentifier],
+            );
 
             // Build and send the password reset email.
             // Errors are logged (to + subject + error only — no text/html, Pass 1)

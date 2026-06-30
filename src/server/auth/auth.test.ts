@@ -76,10 +76,15 @@ function expectedThrottleKey(email: string): string {
 
 /**
  * Hash a verification identifier for storeIdentifier:"hashed" storage.
- * better-auth applies SHA-256 before writing identifier to the verification table.
+ * better-auth hashes via SHA-256 then base64url-encodes without padding:
+ *   base64url(SHA-256(identifier))
+ * (src: better-auth/dist/db/verification-token-storage.mjs defaultKeyHasher)
+ *
+ * Node's Buffer.toString("base64url") matches @better-auth/utils/base64
+ * base64Url.encode(new Uint8Array(hash), { padding: false }) exactly.
  */
 function hashVerificationIdentifier(identifier: string): string {
-  return createHash("sha256").update(identifier).digest("hex");
+  return createHash("sha256").update(identifier).digest().toString("base64url");
 }
 
 /**
@@ -169,14 +174,24 @@ describe("sendResetPassword", () => {
   // -------------------------------------------------------------------------
 
   it("returns immediately without awaiting the email send (Pass 2/6)", async () => {
-    // Transport never resolves — if sendResetPassword awaits it, this test
-    // would hang/timeout. Fire-and-forget means the callback returns first.
+    // Transport blocks until explicitly drained (drainChain()). This proves the
+    // callback returns without awaiting send, AND prevents the background chain from
+    // leaking into subsequent tests. Without draining, this test's chain ("chain A")
+    // would reach getEmailTransport().send() lazily AFTER the supersession test sets
+    // its own resolving transport, triggering sendDone prematurely before chain B's
+    // DELETE has run (race condition observed when running auth tests with other files).
     let sendStarted = false;
+    let drainChain!: () => void;
+    const drainDone = new Promise<void>((resolve) => {
+      drainChain = resolve;
+    });
     const transport: EmailTransport = {
       send: jest.fn().mockImplementation(async () => {
         sendStarted = true;
-        // Never resolves — hangs if awaited synchronously by the callback.
-        return new Promise<void>(() => {});
+        // Blocks until drainChain() is called below — never-resolving from the
+        // callback's perspective, but manually released at test end so chain A
+        // does not outlive this test.
+        await drainDone;
       }),
     };
     setEmailTransport(transport);
@@ -184,7 +199,7 @@ describe("sendResetPassword", () => {
     const callback = getSendResetPassword();
     expect(typeof callback).toBe("function");
 
-    // This must resolve quickly (before the never-resolving transport).
+    // This must resolve quickly (before the blocking transport).
     const start = Date.now();
     await callback!({ user: MOCK_USER, url: "http://ignored.example.com/", token: MOCK_TOKEN });
     const elapsed = Date.now() - start;
@@ -196,13 +211,19 @@ describe("sendResetPassword", () => {
     // send may or may not have been called yet (depends on microtask scheduling);
     // the important assertion is that the callback returned before it finished.
     void sendStarted; // referenced to suppress unused-variable lint
+
+    // Drain chain A: unblock the send so the background IIFE can complete
+    // (including rateLimit cleanup) before afterEach runs. Without this, chain A
+    // can call the next test's transport and cause a non-deterministic failure.
+    drainChain();
+    await waitForBackground(400);
   });
 
   // -------------------------------------------------------------------------
-  // Supersession — DELETE prior verification rows before send (Pass 2)
+  // Supersession — DELETE prior verification rows, keep just-written (Pass 2)
   // -------------------------------------------------------------------------
 
-  it("issues supersession DELETE (WHERE value = userId) before send when not throttled (Pass 2)", async () => {
+  it("supersession: deletes prior verification rows but preserves the just-written row (WHERE value=userId AND identifier!=justWritten) before send when not throttled (Pass 2)", async () => {
     // Signal from transport so we can wait for the background chain.
     let resolveSend!: () => void;
     const sendDone = new Promise<void>((resolve) => {
@@ -215,13 +236,22 @@ describe("sendResetPassword", () => {
     };
     setEmailTransport(transport);
 
-    // Insert a prior un-consumed verification row for the user.
-    // With storeIdentifier:"hashed" the identifier column stores a SHA-256 hash.
+    // Insert a prior un-consumed verification row for the user (to be superseded).
+    // With storeIdentifier:"hashed" the identifier column stores a base64url(SHA-256) hash.
     const priorIdentifier = hashVerificationIdentifier("reset-password:prior-old-token");
     await testPool.query(
       `INSERT INTO "verification" (id, identifier, value, "expiresAt", "createdAt", "updatedAt")
        VALUES ($1, $2, $3, NOW() + INTERVAL '1 hour', NOW(), NOW())`,
       ["verify-prior-sup-001", priorIdentifier, MOCK_USER.id]
+    );
+
+    // Also insert the "just-written" row (simulating better-auth's INSERT before
+    // calling sendResetPassword). This row must SURVIVE the supersession DELETE.
+    const justWrittenIdentifier = hashVerificationIdentifier(`reset-password:${MOCK_TOKEN}`);
+    await testPool.query(
+      `INSERT INTO "verification" (id, identifier, value, "expiresAt", "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, NOW() + INTERVAL '1 hour', NOW(), NOW())`,
+      ["verify-just-written-sup-001", justWrittenIdentifier, MOCK_USER.id]
     );
 
     const callback = getSendResetPassword();
@@ -232,12 +262,20 @@ describe("sendResetPassword", () => {
     // Wait for the background task (includes the supersession DELETE + send).
     await sendDone;
 
-    // All verification rows for this user must be gone (supersession enforced).
-    const remaining = await testPool.query(
-      `SELECT id FROM "verification" WHERE value = $1`,
-      [MOCK_USER.id]
+    // Prior row must be deleted (supersession enforced).
+    const priorRows = await testPool.query(
+      `SELECT id FROM "verification" WHERE id = $1`,
+      ["verify-prior-sup-001"]
     );
-    expect(remaining.rows).toHaveLength(0);
+    expect(priorRows.rows).toHaveLength(0);
+
+    // Just-written row must SURVIVE — it holds the token that was just emailed.
+    // (Prior impl deleted all rows; this is the bug fix: exclude justWrittenIdentifier.)
+    const justWrittenRows = await testPool.query(
+      `SELECT id FROM "verification" WHERE id = $1`,
+      ["verify-just-written-sup-001"]
+    );
+    expect(justWrittenRows.rows).toHaveLength(1);
 
     // Transport must have been called exactly once.
     expect(transport.send).toHaveBeenCalledTimes(1);
