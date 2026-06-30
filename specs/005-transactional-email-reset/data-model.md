@@ -53,6 +53,13 @@ Implementations:
 
 - **Selection**: `getEmailTransport()` singleton chooses by `NODE_ENV` (mirrors
   `getAuth()`); `setEmailTransport()` / `resetEmailTransport()` for test isolation.
+- **Fail-closed selection** (red-team Pass 2): selection must not let a wrong/unset
+  `NODE_ENV` silently pick `LogEmailTransport` in production (which would log reset/invitation
+  links and send no mail — a silent failure of the recovery flow). Tie selection and the
+  FR-002 startup fail-fast to the **same predicate**: whenever production-shaped `Secrets.email`
+  is present/required, `getEmailTransport()` MUST return `MailgunEmailTransport` and validation
+  MUST have passed — a `LogEmailTransport` is unreachable when real email config exists. Unit-test
+  that production-shaped config yields the Mailgun transport, never Log.
 - **`MailgunEmailTransport` hardening** (red-team Pass 1):
   - Build the `application/x-www-form-urlencoded` body with `URLSearchParams` (never
     hand-concatenated `key=value&`) so a field value containing `&`/`=` cannot inject
@@ -110,6 +117,12 @@ Holds the single-use, time-limited password-reset token.
 - **State transition**: created on `/request-password-reset` (only when the user exists);
   **deleted** on successful `/reset-password` (single use, FR-010/SC-006). An expired or
   already-deleted row ⇒ `INVALID_TOKEN` (FR-010).
+- **Supersession** (red-team Pass 2): issuing a new reset token for a user must invalidate
+  that user's prior **un-consumed** `reset-password:*` rows, so an older still-unused link
+  stops working (spec §Edge Cases "Superseded reset link"). Confirm whether better-auth does
+  this by default; if not, `sendResetPassword` deletes the user's existing `reset-password`
+  verification rows before/while issuing the new token. See the SUPERSEDED edge in the state
+  machine below.
 
 ### session (existing — better-auth)
 
@@ -127,6 +140,14 @@ Holds the single-use, time-limited password-reset token.
 
 - Backs the new `customRules` for `/request-password-reset` and `/reset-password`
   (research.md §D8). No schema change — already in use for `/sign-in/email`.
+- **Per-invitation resend throttle storage** (red-team Pass 2): the Pass 1 per-invitation
+  resend throttle needs a counter keyed on the **invitation id**, which `customRules`
+  (keyed by request path + IP) cannot express. To keep "no new table": `invitationController`
+  performs a manual check against this `rateLimit` table using a synthetic key
+  (e.g. `resend:<invitationId>`). Acceptable single-process fallback: a bounded in-process
+  `Map`/LRU, with the documented caveat that it is per-process and resets on restart (the
+  per-IP `invitationRateLimit` stays the durable floor). The implementing task must build
+  this counter rather than assume one exists.
 
 ### invitation (existing — feature 002)
 
@@ -144,6 +165,9 @@ Holds the single-use, time-limited password-reset token.
    │  POST /api/auth/request-password-reset  (user exists)
    ▼
 PENDING ── expiresAt reached ──▶ EXPIRED ──▶ POST /reset-password ⇒ 400 INVALID_TOKEN (FR-010)
+   │
+   │  newer /request-password-reset for same user ⇒ SUPERSEDED (prior row invalidated,
+   │      red-team Pass 2) ──▶ POST /reset-password ⇒ 400 INVALID_TOKEN (spec §Edge Cases)
    │
    │  POST /api/auth/reset-password (valid token, policy-valid newPassword)
    ▼

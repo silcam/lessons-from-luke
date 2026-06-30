@@ -277,9 +277,31 @@ feature-001/002 locations.
   URL-encoded in the query string. The `text` body stays plain (the link
   verbatim, per `data-model.md`).
 
-## Edge Cases & Error Handling
+### Timing side-channel account enumeration on reset request (Pass 2)
 
-> Added by `/sp:04-red-team` (Pass 1).
+- FR-007/SC-004 make the `/api/auth/request-password-reset` **response body**
+  identical for known and unknown emails. But the work behind it is not: for a
+  **known** account better-auth generates a token, writes the `verification` row,
+  and runs `sendResetPassword`; for an **unknown** email it short-circuits and
+  returns immediately. The "Email-provider latency / hang" edge case below notes
+  better-auth **awaits** `sendResetPassword`, so the response for a real account
+  is delayed by the full transport round-trip (now bounded to ~10 s by the Pass 1
+  timeout) while an unknown email answers instantly. That latency delta is a
+  **timing oracle** that re-introduces the very account enumeration FR-007 closes
+  in the body — a direct second-order interaction with the Pass 1 timeout
+  mitigation.
+- **Mitigation**: on the **reset path**, dispatch the actual `transport.send` as
+  a **fire-and-forget background task** (not awaited by the request handler) so
+  the endpoint returns in account-existence-independent time. The background task
+  still applies the bounded timeout and the redaction-aware failure log (FR-013),
+  but its latency never reaches the client. (If better-auth's
+  `runInBackgroundOrAwait` cannot be forced to background, perform the send
+  outside the awaited path — e.g. `void transport.send(...).catch(logRedacted)` —
+  inside `sendResetPassword`.) This also **subsumes** the request-blocking half of
+  the latency edge case *for the reset path*: that concern now applies only to the
+  invitation create/resend path, which must await to populate `emailSent`. Add an
+  integration assertion that the reset response time does not materially differ
+  between a known and an unknown email.
 
 ### Email-provider latency / hang (request-blocking)
 
@@ -295,6 +317,12 @@ feature-001/002 locations.
   failure (throw) — which the reset flow swallows (FR-013) and the invitation
   flow surfaces as `emailSent: false` (FR-017). Unit-test the timeout path with
   a stubbed never-resolving `fetch`.
+- **Reconciliation (Pass 2)**: the Pass 2 timing-safety mitigation moves the
+  **reset** send off the awaited request path (fire-and-forget), so this
+  request-blocking concern no longer applies to the forgot-password response —
+  the timeout there only bounds the background task. The **invitation**
+  create/resend path still awaits (it must populate `emailSent`), so the bounded
+  timeout remains its protection against a hung Mailgun connection.
 
 ### Invitation resend as an email-bomb amplifier
 
@@ -307,6 +335,80 @@ feature-001/002 locations.
   keyed on the invitation id, in addition to the per-IP limit) so a single
   invitation cannot be weaponised as an inbox flooder; a throttled resend returns
   429. Documented in `contracts/invitation-email-api.yaml`.
+
+### Superseded reset link must actually stop working (Pass 2)
+
+- Spec §Edge Cases requires: "If a newer reset request is made, an older
+  still-unused link is treated as no longer valid and rejected." But the
+  `data-model.md` token model keys each reset token as its **own** `verification`
+  row (`reset-password:<token>`) and only describes deletion on *successful
+  reset*. As written, **two** un-consumed reset rows can coexist for one account,
+  so an older link (e.g. one forwarded or left in an inbox) keeps working after
+  the user requests a fresh one — contradicting the spec edge case and widening
+  the single-use window an attacker can exploit. This gap is invisible in the
+  current artifacts because nothing models supersession.
+- **Mitigation**: confirm whether better-auth invalidates prior
+  `reset-password` verification rows for a user on a new
+  `request-password-reset`. If it does **not** (the likely default), enforce it
+  in `sendResetPassword`: before/while issuing the new token, invalidate any
+  existing un-consumed `reset-password:*` rows for that `user.id` so only the most
+  recent link is live. Add a SUPERSEDED transition to the `data-model.md` state
+  machine and an integration test that a first link returns `INVALID_TOKEN` once a
+  second reset has been requested. (If better-auth genuinely cannot supersede,
+  that is a spec deviation that must be raised, not silently accepted.)
+
+### Where the per-invitation resend throttle counter lives (Pass 2)
+
+- The Pass 1 per-invitation resend throttle introduced a new piece of **state**
+  (a per-`{id}` counter) that the artifacts do not place. The hard "no new table /
+  no migration" constraint plus better-auth's `rateLimit` rules being keyed by
+  **request path + IP** (not by a route param) means there is no obvious home for
+  a counter keyed on the invitation id, so the mitigation is currently
+  under-specified for `/sp:05-tasks`.
+- **Mitigation**: pin the storage explicitly. Preferred: reuse the auth-owned
+  `rateLimit` table via a manual check in `invitationController` using a synthetic
+  key (e.g. `resend:<invitationId>`), keeping "no new table" intact. Acceptable
+  fallback given this app's single-process deployment: a bounded in-process
+  `Map`/LRU, with the documented caveat that the throttle is per-process and
+  resets on restart (the per-IP `invitationRateLimit` remains the durable floor).
+  Whichever is chosen, state the mechanism in `data-model.md` so the task that
+  implements resend builds the counter rather than discovering the gap.
+
+### Fail-closed transport selection in production (Pass 2)
+
+- `getEmailTransport()` selects by `NODE_ENV` (`production`→Mailgun,
+  `development`→Log, `test`→Memory). The danger is the **misconfigured-but-running**
+  case: a production deploy where `NODE_ENV` is unset or not exactly `production`
+  would silently select `LogEmailTransport`, which writes the reset/invitation
+  **link to the log and sends no mail** — a silent failure of the one flow whose
+  entire purpose is recovery, and (worse) reset tokens landing in a prod log. The
+  FR-002 startup fail-fast guards *missing config*, but a wrong-`NODE_ENV` selector
+  can dodge it.
+- **Mitigation**: make selection **fail-closed and config-driven**, not merely
+  `NODE_ENV`-driven. Tie the production fail-fast and the Mailgun-transport
+  selection to the **same predicate**: if `Secrets.email` is present/required,
+  `getEmailTransport()` MUST return `MailgunEmailTransport` (and validation MUST
+  have passed at startup); a `LogEmailTransport` must be unreachable whenever real
+  email config exists. Add a unit test asserting that with production-shaped
+  config present, the selected transport is the Mailgun one — never Log.
+
+### Transactional email locale (signed-out / no-account recipients) (Pass 2)
+
+- This is a translation product whose users and invitees are frequently **not**
+  English speakers, yet both new emails go to recipients with **no usable locale
+  signal**: the forgot-password requester is signed out, and an invitee has no
+  account yet. The message builders (`passwordResetEmail`, `passwordChangedEmail`,
+  `invitationEmail`) have no defined locale input, so they would silently hardcode
+  English — a real first-touch usability gap for the product's core audience, and
+  an under-specified builder signature for `/sp:05-tasks`.
+- **Mitigation**: make the locale an **explicit, decided** input to the builders
+  rather than an accident. At minimum, render against a single configured default
+  locale consistent with the app's primary language and document that choice; if a
+  per-recipient locale is desired (e.g. the requester's `Accept-Language`, or an
+  invitation's intended language), pass it explicitly into the builder. Either way
+  the builder signature must name a `locale` (or equivalent) parameter so the
+  decision is visible and testable. (Full multi-locale email content can remain a
+  deliberate follow-up, but the *seam* must exist now.)
 
 ## Accessibility Requirements
 
