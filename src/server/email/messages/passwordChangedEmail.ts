@@ -1,12 +1,12 @@
 /**
  * passwordChangedEmail — builds the "your password was changed" notification email.
  *
- * Stub implementation — RED task (lessons-from-luke-5qjl.5.3.1).
- * The full implementation ships in the GREEN task (lessons-from-luke-5qjl.5.3.2).
- *
  * Spec: specs/005-transactional-email-reset/data-model.md §EmailMessage
  * Research: research.md §D7 — out-of-band security notice to the real account owner
  * Security: plan.md §Security (Pass 4 — onPasswordReset best-effort, self-caught)
+ *
+ * This message MUST NOT contain the reset link or token (D7 spec).
+ * It is a link-free confirmation email per D7.
  */
 
 import type { EmailMessage } from "../EmailTransport";
@@ -24,9 +24,17 @@ import type { EmailMessage } from "../EmailTransport";
  * @returns A ready-to-send EmailMessage.
  */
 export function buildPasswordChangedEmail(to: string, locale: string): EmailMessage {
-  // Stub — returns wrong values so the RED tests fail on assertion.
-  // Replace with a real implementation in the GREEN task.
-  void locale;
-  void to;
-  return { to: "", subject: "", text: "" };
+  void locale; // Locale seam — content is currently hardcoded English.
+
+  const text = [
+    "Your password was just changed.",
+    "",
+    "If this wasn't you, please contact an administrator immediately.",
+  ].join("\n");
+
+  return {
+    to,
+    subject: "Your password was changed",
+    text,
+  };
 }
