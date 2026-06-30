@@ -341,7 +341,7 @@ feature-001/002 locations.
   - **Response that contradicts state**: research §D4 confirms better-auth swallows
     `sendResetPassword` errors via `runInBackgroundOrAwait`, but it does **not**
     confirm the same swallow for `onPasswordReset`. If the confirmation send throws
-    and better-auth propagates it, the user could receive a 4xx/5xx **even though
+    and better-auth propagates it, the user would receive a 4xx/5xx **even though
     their password was changed and every session was revoked** — a confusing,
     lockout-adjacent failure where the error contradicts the actual account state.
 - **Mitigation**: the `onPasswordReset` callback MUST (1) **self-catch** its own
