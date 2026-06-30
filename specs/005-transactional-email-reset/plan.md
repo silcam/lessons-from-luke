@@ -196,11 +196,11 @@ feature-001/002 locations.
 
 | User Story | Acceptance Spec File                                        | Scenarios |
 | ---------- | ---------------------------------------------------------- | --------- |
-| US1: Reset a forgotten password | `specs/acceptance-specs/US08-reset-forgotten-password.txt` | 6 |
-| US2: Receive an invitation by email | `specs/acceptance-specs/US09-invitation-by-email.txt`      | 5 |
-| US3: Safe, environment-aware email delivery | `specs/acceptance-specs/US10-environment-aware-email.txt`   | 3 |
+| US1: Reset a forgotten password | `specs/acceptance-specs/US09-reset-forgotten-password.txt` | 6 |
+| US2: Receive an invitation by email | `specs/acceptance-specs/US10-invitation-by-email.txt`      | 5 |
+| US3: Safe, environment-aware email delivery | `specs/acceptance-specs/US11-environment-aware-email.txt`   | 3 |
 
-(US numbering continues from the existing `specs/acceptance-specs/US01..US07` set.)
+(US numbering continues from the existing `specs/acceptance-specs/US01..US08` set.)
 
 **Pipeline**: `specs/acceptance-specs/*.txt` → `acceptance/parse-specs.ts` →
 `acceptance/generate-tests.ts` → `generated-acceptance-tests/*.spec.ts`
