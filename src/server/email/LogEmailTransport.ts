@@ -6,10 +6,14 @@
  * Spec: specs/005-transactional-email-reset/data-model.md §EmailTransport (LogEmailTransport row)
  */
 
-import { EmailTransport, EmailMessage } from "./EmailTransport";
+import { EmailTransport, EmailMessage, assertSingleRecipient } from "./EmailTransport";
 
 export class LogEmailTransport implements EmailTransport {
   async send(message: EmailMessage): Promise<void> {
+    // Single-recipient guard (red-team Pass 10): enforced identically across every
+    // EmailTransport implementation — see EmailTransport.ts.
+    assertSingleRecipient(message.to);
+
     console.log("LogEmailTransport: [EMAIL NOT SENT — dev mode]", {
       to: message.to,
       subject: message.subject,

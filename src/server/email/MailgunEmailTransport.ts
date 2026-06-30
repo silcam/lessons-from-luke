@@ -6,7 +6,7 @@
  *   Pass 10 (single-recipient guard)
  */
 
-import { EmailTransport, EmailMessage } from "./EmailTransport";
+import { EmailTransport, EmailMessage, assertSingleRecipient } from "./EmailTransport";
 
 export interface MailgunConfig {
   apiKey: string;
@@ -56,13 +56,9 @@ export class MailgunEmailTransport implements EmailTransport {
   private async _sendCore(message: EmailMessage): Promise<void> {
     // Single-recipient guard (red-team Pass 10): reject list separators before the
     // network call. Mailgun splits `to` on commas, and URLSearchParams encoding does
-    // not neutralize a comma inside a field value.
-    if (message.to.includes(",") || message.to.includes(";")) {
-      throw new Error(
-        "EmailMessage.to must be a single recipient address. " +
-          "List separators (comma, semicolon) are not allowed."
-      );
-    }
+    // not neutralize a comma inside a field value. Shared across all EmailTransport
+    // implementations — see EmailTransport.ts.
+    assertSingleRecipient(message.to);
 
     const url = `${this.baseUrl}/v3/${this.domain}/messages`;
     const authHeader = "Basic " + Buffer.from(`api:${this.apiKey}`).toString("base64");

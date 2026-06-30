@@ -10,13 +10,17 @@
  * in `jestSetupAfterEnv.ts`'s `afterEach` (mirrors the existing `DELETE FROM "invitation"` cleanup).
  */
 
-import { EmailTransport, EmailMessage, SentEmail } from "./EmailTransport";
+import { EmailTransport, EmailMessage, SentEmail, assertSingleRecipient } from "./EmailTransport";
 
 /** In-process buffer of all emails sent during the current test. */
 export const sentEmails: SentEmail[] = [];
 
 export class MemoryEmailTransport implements EmailTransport {
   async send(message: EmailMessage): Promise<void> {
+    // Single-recipient guard (red-team Pass 10): enforced identically across every
+    // EmailTransport implementation — see EmailTransport.ts.
+    assertSingleRecipient(message.to);
+
     const record: SentEmail = {
       to: message.to,
       subject: message.subject,
