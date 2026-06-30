@@ -488,6 +488,70 @@ feature-001/002 locations.
   decision is visible and testable. (Full multi-locale email content can remain a
   deliberate follow-up, but the *seam* must exist now.)
 
+### Suppressed-but-superseding reset request enables targeted denial-of-reset (Pass 5)
+
+- This is a **second-order interaction between two prior mitigations** that each
+  earlier pass reasoned about in isolation:
+  - **Pass 2 supersession** invalidates a user's prior un-consumed
+    `reset-password` token whenever a new `request-password-reset` is issued, so
+    only the newest link is live.
+  - **Pass 3 per-address throttle** *suppresses the email* for an over-limit
+    address but explicitly accepts that better-auth "has already written the new
+    `verification` row" and lets supersession invalidate the prior row, on the
+    stated assumption that the prior row is "the unused new token [that] simply
+    expires."
+- That assumption has a blind spot. In the **targeted-victim** scenario the prior
+  row is **not** the attacker's junk — it is the victim's *own legitimately-
+  requested, actively-in-use* reset link. An attacker who only knows the victim's
+  email can POST `request-password-reset` repeatedly from **rotating IPs** (the
+  exact premise that motivated Pass 3): the per-IP `customRule` is bypassed by IP
+  rotation, and the per-address throttle only suppresses the *email* — it does
+  **not** stop better-auth from generating a fresh token and does **not** stop
+  supersession from invalidating the victim's live link. Each suppressed-but-still-
+  generated attacker request therefore **supersedes the victim's real link**, so
+  that link is dead by the time the victim clicks it. While the attack is sustained
+  the victim can **never complete a reset** — a remote, unauthenticated, indefinite
+  denial-of-recovery that directly defeats SC-001 / FR-005 on the one flow whose
+  entire purpose is recovery. Pass 3 actually cited supersession as a *mitigating*
+  factor ("impact is harassment + provider cost, not token multiplication"); it is
+  in fact the *amplifier* that turns harassment into denial-of-reset, and burns no
+  provider quota (the sends are suppressed), so the attack is cheap.
+- **Mitigation**: **couple supersession to an actual send, not to a mere request.**
+  The Pass 2 supersession enforcement runs in *our* `sendResetPassword` callback,
+  so we control the coupling: evaluate the Pass 3 per-address throttle **first**,
+  and when it is over-limit (send suppressed) **do not** invalidate the user's prior
+  un-consumed `reset-password` rows, and **delete the just-written new row** instead,
+  so a suppressed flood request neither emails nor supersedes — the victim's live
+  link survives and the just-created token does not even linger to expiry. Only a
+  request that actually emails a new link may supersede the prior one. (If
+  better-auth performs supersession *itself, before* the callback and it cannot be
+  prevented, that is a design constraint that must be **raised, not silently
+  accepted**: it would mean Pass 2's "if better-auth does not do this by default"
+  branch is the only safe configuration, and we would additionally have to re-issue
+  the victim's link or record the residual gap explicitly.) Add an integration test:
+  a known address driven over the per-address window from rotating origins must
+  **not** invalidate a separately-issued, still-live reset token for that account.
+
+### Concurrent reset requests can leave two live tokens (supersession race) (Pass 5)
+
+- The Pass 2 supersession enforcement (delete the user's prior un-consumed
+  `reset-password` rows, then issue the new token) is **read-then-write** and not
+  atomic. Two near-simultaneous *legitimate* `request-password-reset` calls for the
+  same account can interleave so neither deletion sees the other's row, leaving
+  **two** live tokens — the opposite of the supersession guarantee ("only the newest
+  link works"). Impact is low (both links go to the same account holder's inbox) but
+  it widens the single-use window the spec edge case ("Superseded reset link") means
+  to close, and it is invisible in the current artifacts because supersession is
+  modelled as a best-effort delete rather than an invariant.
+- **Mitigation**: make supersession **authoritative rather than racy** — prefer
+  enforcing it at *validation* time (on `/reset-password`, reject any
+  `reset-password` row for the user that is not the most-recently-issued one) so the
+  guarantee holds regardless of write interleaving; or perform the prior-row
+  invalidation and new-row insert under a single transaction / conditional delete
+  keyed on `value = user.id`. Record the chosen approach in the data-model
+  SUPERSEDED transition so `/sp:05-tasks` implements supersession as a guarantee, not
+  a best-effort delete.
+
 ## Accessibility Requirements
 
 > Added by `/sp:04-red-team` (Pass 1). Extends the WCAG 2.2 AA target already

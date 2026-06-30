@@ -123,6 +123,20 @@ Holds the single-use, time-limited password-reset token.
   this by default; if not, `sendResetPassword` deletes the user's existing `reset-password`
   verification rows before/while issuing the new token. See the SUPERSEDED edge in the state
   machine below.
+- **Supersession coupled to actual send + made an invariant** (red-team Pass 5): two
+  refinements to the Pass 2 supersession, both required before `/sp:05-tasks` builds it:
+  1. **Couple supersession to a real send.** Because the Pass 3 per-address throttle only
+     suppresses the *email* (not token generation), an unconditional supersession lets an
+     IP-rotating attacker who knows a victim's address repeatedly invalidate the victim's
+     own live link with zero mail sent — an indefinite remote denial-of-reset. Evaluate the
+     per-address throttle **first**; when over-limit (send suppressed), do **not** invalidate
+     the user's prior `reset-password` rows and **delete the just-written new row** instead.
+     Only a request that actually emails a new link supersedes the prior one.
+  2. **Make supersession an invariant, not a racy delete.** The read-then-write
+     "delete prior rows, then issue" is not atomic; two concurrent legitimate requests can
+     leave two live tokens. Either reject any non-most-recent `reset-password` row for the
+     user at `/reset-password` validation time, or perform invalidate+issue atomically
+     (transaction / conditional delete keyed on `value = user.id`).
 
 ### session (existing — better-auth)
 
@@ -157,8 +171,10 @@ Holds the single-use, time-limited password-reset token.
   `sendResetPassword`** (which runs only for accounts that exist). An over-limit address
   **suppresses the send** while the endpoint still returns the generic, timing-safe 200
   (enumeration- and timing-safe: the check rides the already-backgrounded send path from the
-  Pass 2 timing mitigation; the new `verification` row may already be written and simply
-  expires unused). Acceptable single-process fallback: the same bounded in-process `Map`/LRU
+  Pass 2 timing mitigation). When the throttle suppresses the send it MUST **also skip
+  supersession and delete the just-written `verification` row** (red-team Pass 5), so a
+  suppressed flood request cannot invalidate a victim's live reset link (denial-of-reset);
+  the just-created token must not linger. Acceptable single-process fallback: the same bounded in-process `Map`/LRU
   with the per-process/reset-on-restart caveat. The implementing task must build this counter,
   or the team must record an explicit decision that per-IP is the accepted scope.
 
