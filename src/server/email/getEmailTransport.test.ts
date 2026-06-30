@@ -113,3 +113,107 @@ describe("getEmailTransport() — env-selected singleton", () => {
     expect(getEmailTransport()).toBeInstanceOf(MemoryEmailTransport);
   });
 });
+
+/**
+ * Fail-closed selection — placeholder-shaped email config gap — RED (task
+ * lessons-from-luke-5qjl.5.5.1)
+ *
+ * These tests are INTENTIONALLY FAILING at commit time. `createDefaultTransport()`
+ * currently selects Mailgun whenever `secrets.email` is merely *present* (`if
+ * (secrets.email)`), which is also true for `defaultSecrets.email` — the placeholder
+ * object secrets.ts falls back to when no secrets.json exists on disk (apiKey
+ * "your-mailgun-api-key-here", domain "mg.example.com", fromAddress
+ * "noreply@mg.example.com"). So in development/test with NO real secrets.json, the
+ * selector wrongly picks MailgunEmailTransport instead of Log/MemoryEmailTransport —
+ * the opposite of fail-closed (Pass 2): dev/test would attempt a live Mailgun call
+ * with junk credentials rather than safely logging. They drive the GREEN task
+ * (lessons-from-luke-5qjl.5.5.2), which must make the selection predicate
+ * config-driven (only "production-shaped" — i.e. genuinely valid, non-placeholder —
+ * email config selects Mailgun).
+ *
+ * Spec: specs/005-transactional-email-reset/data-model.md §EmailTransport (selection + fail-closed)
+ * research.md §D3; plan.md §Security (Pass 2 fail-closed selection)
+ */
+describe("getEmailTransport() — fail-closed selection must ignore placeholder-shaped email config", () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+
+  afterEach(() => {
+    if (originalNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
+    jest.resetModules();
+    resetEmailTransport();
+  });
+
+  /**
+   * The exact placeholder shape `defaultSecrets.email` carries in secrets.ts when no
+   * secrets.json is present on disk — present (truthy) but NOT real production config.
+   */
+  const placeholderEmailConfig = {
+    apiKey: "your-mailgun-api-key-here",
+    domain: "mg.example.com",
+    fromAddress: "noreply@mg.example.com",
+  };
+
+  function mockSecretsWith(nodeEnv: string, email: Record<string, string>) {
+    process.env.NODE_ENV = nodeEnv;
+    jest.doMock("../util/secrets", () => ({
+      __esModule: true,
+      default: {
+        cookieSecret: "a-long-enough-cookie-secret-value-for-testing",
+        adminEmail: "admin@example.com",
+        adminUsername: "admin",
+        adminPassword: "adminpassword123",
+        db: { database: "db", username: "u", password: "p" },
+        testDb: { database: "testdb", username: "u", password: "p" },
+        devDb: { database: "devdb", username: "u", password: "p" },
+        email,
+      },
+    }));
+  }
+
+  it("returns MemoryEmailTransport in NODE_ENV=test when secrets.email is only the placeholder default (no real production secrets)", () => {
+    jest.resetModules();
+    mockSecretsWith("test", placeholderEmailConfig);
+
+    const { getEmailTransport: freshGet } = require("./getEmailTransport");
+    const { MemoryEmailTransport: FreshMemory } = require("./MemoryEmailTransport");
+    const { MailgunEmailTransport: FreshMailgun } = require("./MailgunEmailTransport");
+
+    const transport = freshGet();
+    expect(transport).toBeInstanceOf(FreshMemory);
+    expect(transport).not.toBeInstanceOf(FreshMailgun);
+  });
+
+  it("returns LogEmailTransport in NODE_ENV=development when secrets.email is only the placeholder default (no real production secrets)", () => {
+    jest.resetModules();
+    mockSecretsWith("development", placeholderEmailConfig);
+
+    const { getEmailTransport: freshGet } = require("./getEmailTransport");
+    const { LogEmailTransport: FreshLog } = require("./LogEmailTransport");
+    const { MailgunEmailTransport: FreshMailgun } = require("./MailgunEmailTransport");
+
+    const transport = freshGet();
+    expect(transport).toBeInstanceOf(FreshLog);
+    expect(transport).not.toBeInstanceOf(FreshMailgun);
+  });
+
+  it("returns MailgunEmailTransport for valid production-shaped secrets regardless of NODE_ENV value (e.g. NODE_ENV=development)", () => {
+    jest.resetModules();
+    mockSecretsWith("development", {
+      apiKey: "unit-test-api-key-not-a-real-credential",
+      domain: "mg.real-domain.com",
+      fromAddress: "noreply@mg.real-domain.com",
+    });
+
+    const { getEmailTransport: freshGet } = require("./getEmailTransport");
+    const { MailgunEmailTransport: FreshMailgun } = require("./MailgunEmailTransport");
+    const { LogEmailTransport: FreshLog } = require("./LogEmailTransport");
+
+    const transport = freshGet();
+    expect(transport).toBeInstanceOf(FreshMailgun);
+    expect(transport).not.toBeInstanceOf(FreshLog);
+  });
+});
