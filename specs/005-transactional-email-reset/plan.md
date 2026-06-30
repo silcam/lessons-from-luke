@@ -217,7 +217,7 @@ feature-001/002 locations.
   `data-model.md` stops SMTP **header** injection but does **not** stop Mailgun
   **form-parameter** injection: a field value containing `&`/`=` (e.g. an
   admin-typed invitee address `victim@x.org&bcc=attacker@evil.org`, or a
-  mis-set `fromAddress`) could append unintended Mailgun parameters
+  mis-set `fromAddress`) can append unintended Mailgun parameters
   (`bcc`, `cc`, `o:tag`, a `from` override for phishing) if the body is built by
   string concatenation.
 - **Mitigation**: `MailgunEmailTransport` MUST build the body with
@@ -247,7 +247,7 @@ feature-001/002 locations.
   client) an optional `redirectTo` (see the request schema in
   `contracts/auth-password-reset-api.yaml`). If the implementation ever used
   that `url`/`redirectTo` to build the emailed link, a caller-supplied
-  `redirectTo` could poison the link's origin (reset-link / open-redirect
+  `redirectTo` would poison the link's origin (reset-link / open-redirect
   poisoning) and turn a real reset email into a phishing vector.
 - **Mitigation** (already the design intent in D5 — now made explicit and
   testable): the emitted link MUST be built solely server-side as
@@ -327,7 +327,7 @@ feature-001/002 locations.
 ### Invitation resend as an email-bomb amplifier
 
 - `POST /api/admin/invitations/:id/resend` carries only the existing per-IP
-  `invitationRateLimit`. A malicious or compromised admin session could resend a
+  `invitationRateLimit`. A malicious or compromised admin session can resend a
   single pending invitation repeatedly to flood the bound invitee's inbox (and
   burn provider quota) faster than per-IP limits intend, since one invitation can
   be resent over and over.
