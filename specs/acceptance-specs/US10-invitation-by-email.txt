@@ -1,0 +1,37 @@
+;=============================================
+; Creating an invitation auto-emails the link and shows it in the UI.
+;=============================================
+GIVEN an administrator creates an invitation for a new email.
+WHEN the invitation is recorded.
+THEN the invitation link is automatically emailed to that address.
+THEN the same link is shown in the administrator interface.
+
+;=============================================
+; Administrator can resend the email for a pending invitation.
+;=============================================
+GIVEN a pending invitation.
+WHEN the administrator chooses Resend email.
+THEN the invitation link is emailed again to the bound address.
+
+;=============================================
+; Failed email send does not block invitation creation and is surfaced to the admin.
+;=============================================
+GIVEN an invitation whose automatic email failed to send.
+WHEN the administrator views it.
+THEN the invitation still exists.
+THEN the link is still available to copy.
+THEN the administrator is informed the email could not be sent.
+
+;=============================================
+; Resend email action is not available for non-pending invitations.
+;=============================================
+GIVEN an invitation that is accepted expired or retracted.
+WHEN the administrator views it.
+THEN the Resend email action is not available.
+
+;=============================================
+; Invitation email link works for account creation exactly as before.
+;=============================================
+GIVEN an invitee receives the invitation email.
+WHEN they open the link and complete account creation.
+THEN their account is created exactly as it is today.
