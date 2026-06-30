@@ -117,6 +117,31 @@ const en = {
   Invitation_error_rate_limited: "Too many attempts. Please wait a moment and try again.",
   Invitation_error_generic: "Something went wrong. Please try again.",
 
+  // Password reset flow (US1 — transactional email reset)
+  ForgotPassword_heading: "Forgot password",
+  ForgotPassword_email_label: "Email address",
+  ForgotPassword_submit: "Send reset link",
+  ForgotPassword_confirmation_heading: "Check your email",
+  ForgotPassword_confirmation_message:
+    "If that address is registered, we've sent a password reset link. Check your email.",
+  ForgotPassword_error_generic: "Something went wrong. Please try again.",
+  ForgotPassword_forgot_link: "Forgot password?",
+
+  ResetPassword_heading: "Reset your password",
+  ResetPassword_new_password_label: "New password",
+  ResetPassword_new_password_help: "Use at least 12 characters.",
+  ResetPassword_submit: "Set new password",
+  ResetPassword_success_heading: "Password changed",
+  ResetPassword_success_message:
+    "Your password has been successfully reset. You can now sign in with your new password.",
+  ResetPassword_continue_to_sign_in: "Continue to sign in",
+  ResetPassword_invalid_token_heading: "Link expired",
+  ResetPassword_invalid_token_message:
+    "This reset link is no longer valid. It may have already been used or has expired.",
+  ResetPassword_request_new_link: "Request a new link",
+  ResetPassword_error_too_short: "Password must be at least 12 characters.",
+  ResetPassword_error_generic: "Something went wrong. Please try again.",
+
   // Invitation feature — Invitations management list (US3)
   Invitations_page_heading: "Invitations",
   Invitations_column_email: "Email",

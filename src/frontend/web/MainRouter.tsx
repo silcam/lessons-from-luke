@@ -19,6 +19,8 @@ import { useClearBannersOnNavigation } from "../common/banners/useClearBannersOn
 import CreateInvitation from "./invitations/CreateInvitation";
 import InvitationsList from "./invitations/InvitationsList";
 import RedeemInvitation from "./auth/RedeemInvitation";
+import ForgotPassword from "./auth/ForgotPassword";
+import ResetPassword from "./auth/ResetPassword";
 
 function TranslateRouteWrapper() {
   const { code } = useParams<{ code: string }>();
@@ -80,6 +82,9 @@ export default function MainRouter() {
           <Route path="/update-issues/:lessonId" element={<UpdateIssuesPageWrapper />} />
           {/* Public route — anyone with the token URL can redeem (FR-007, FR-011) */}
           <Route path="/invitation/:token" element={<RedeemInvitationWrapper />} />
+          {/* Public routes — self-service password reset (US1) */}
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           {user?.admin && <Route path="/admin/invitations/new" element={<CreateInvitation />} />}
           {user?.admin && <Route path="/admin/invitations" element={<InvitationsList />} />}
           <Route path="*" element={renderHome(user)} />
