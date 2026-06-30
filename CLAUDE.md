@@ -238,6 +238,8 @@ Helper scripts:
 Use subagents liberally and aggressively to conserve the main context window. Avoid performing tasks directly: instead, orchestrate subagents.
 
 ## Active Technologies
+- TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + better-auth `^1.6.14` (built-in password reset via `getAuth()`), (005-transactional-email-reset)
+- No new tables / no migration. Reuses better-auth auth-owned `pg.Pool` tables: (005-transactional-email-reset)
 
 - TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) — isomorphic four-layer architecture (`core` / `server` / `frontend` / `desktop`).
 - PostgreSQL with **two isolated drivers**: domain data via porsager `postgres@1.0.2` (`PGStorage`, through the `Persistence` interface); server-only authentication via better-auth on its own `pg` (node-postgres) `Pool` (singleton exported as `getAuthPool()` from `auth.ts`). (001-better-auth-migration)

@@ -1,0 +1,94 @@
+openapi: 3.0.3
+info:
+  title: Invitation Auto-Delivery & Resend API (delta over feature 002)
+  version: 1.0.0
+  description: >
+    This feature extends the existing admin invitation endpoints
+    (src/server/controllers/invitationController.ts). The create response gains
+    an `emailSent` flag; a new resend endpoint is added. All admin routes are
+    behind `app.use('/api/admin', requireAdmin)` and carry requireSameOrigin +
+    the per-IP invitationRateLimit, identical to the existing routes.
+
+paths:
+  /api/admin/invitations:
+    post:
+      summary: Create an invitation AND auto-email the link (FR-014, FR-015, FR-017)
+      description: >
+        Unchanged creation semantics. After the invitation is recorded, the
+        controller sends the invitation email via the shared transport. The
+        copyable `link` is still returned (FR-015). A send failure does NOT fail
+        creation: the 201 is returned with `emailSent: false` (FR-017).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, role]
+              properties:
+                email: { type: string, format: email }
+                role: { type: string, enum: [admin, standard] }
+      responses:
+        "201":
+          description: Invitation created (and email send attempted)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, email, role, status, link, expiresAt, emailSent]
+                properties:
+                  id: { type: string }
+                  email: { type: string }
+                  role: { type: string }
+                  status: { type: string, example: pending }
+                  link:
+                    type: string
+                    description: Copyable invitation URL (always returned — FR-015)
+                  expiresAt: { type: string, format: date-time }
+                  emailSent:
+                    type: boolean
+                    description: >
+                      true if the invitation email was accepted for delivery;
+                      false if sending failed (invitation still valid — FR-017)
+        "409":
+          description: ACCOUNT_EXISTS — an account already exists for this email
+        "400":
+          description: INVALID_EMAIL / INVALID_ROLE
+        "429":
+          description: Rate limited
+
+  /api/admin/invitations/{id}/resend:
+    post:
+      summary: Resend the invitation email for a PENDING invitation (FR-016)
+      description: >
+        Re-derives the existing link via getInvitationLink (decrypts the stored
+        tokenEnc; issues no new token and does NOT change expiresAt — edge case
+        "Repeated resend") and re-sends the invitation email to the bound
+        address. Only pending invitations are eligible (FR-016); accepted,
+        expired, or retracted ⇒ 409. State-changing/side-effecting POST ⇒
+        requireSameOrigin + rate limit.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Email resend attempted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [emailSent]
+                properties:
+                  emailSent:
+                    type: boolean
+                    description: true if accepted for delivery, false on send failure
+        "404":
+          description: Invitation not found
+        "409":
+          description: >
+            Invitation is not pending (accepted/expired/retracted) — resend
+            unavailable (FR-016, edge case)
+        "429":
+          description: Rate limited
