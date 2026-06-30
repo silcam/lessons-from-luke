@@ -53,6 +53,16 @@ Implementations:
 
 - **Selection**: `getEmailTransport()` singleton chooses by `NODE_ENV` (mirrors
   `getAuth()`); `setEmailTransport()` / `resetEmailTransport()` for test isolation.
+- **`runInBackgroundOrAwait` behavior (verified 2026-06-30)**: by default (no
+  `advanced.backgroundTasks.handler` configured), better-auth's `runInBackgroundOrAwait`
+  **awaits** the callback. Our `sendResetPassword` and `onPasswordReset` callbacks MUST
+  therefore fire-and-forget the actual send internally — return a resolved Promise to
+  `runInBackgroundOrAwait` immediately, dispatching all account-conditional work (throttle
+  check, supersession delete, transport send) as a `void Promise.resolve().then(async () => { ... }).catch(logRedacted)` background chain. This satisfies the Pass-2/Pass-6
+  timing-safety requirement without requiring any `backgroundTasks.handler` configuration
+  in `getAuth()`. `onPasswordReset` is called with a direct `await` (not via
+  `runInBackgroundOrAwait`) so the same fire-and-forget pattern applies there for
+  the same reason.
 - **Fail-closed selection** (red-team Pass 2): selection must not let a wrong/unset
   `NODE_ENV` silently pick `LogEmailTransport` in production (which would log reset/invitation
   links and send no mail — a silent failure of the recovery flow). Tie selection and the
@@ -152,19 +162,43 @@ Holds the single-use, time-limited password-reset token.
   DB-at-rest exposure (backup, read replica, secondary SQLi) yields directly-usable
   account-takeover credentials (the token plus the `user.id` in `value`) — an asymmetry
   with feature-002, which stores invitation tokens SHA-256-hashed + AES-256-GCM encrypted
-  precisely so a leak yields nothing usable. **Confirm** whether better-auth hashes the
-  reset token before storing it (current versions store a hash and email the pre-image;
-  verify for the pinned `^1.6.14`) and **record it here as a verified assumption**. If it
-  stores the raw token, **raise it as a deviation** (do not silently accept) — decide
-  between enabling hashing, accepting the risk for this small admin-curated user base, or
-  compensating, and document the decision (mirrors the Pass-2 "if better-auth cannot
-  supersede, raise it" discipline).
+  precisely so a leak yields nothing usable. **Confirmed (verified 2026-06-30)**: better-auth
+  stores the **raw token** by default. `createVerificationValue` calls `processIdentifier`
+  with `storeIdentifier = undefined`, which returns the identifier unchanged (plain). So
+  `verification.identifier` holds `reset-password:<verificationToken>` as cleartext. To
+  close the at-rest asymmetry, configure `verification.storeIdentifier: "hashed"` in the
+  `getAuth()` options in `auth.ts`. With this setting, `createVerificationValue` SHA-256-hashes
+  the identifier before writing it; `findVerificationValue` and
+  `deleteVerificationByIdentifier` also hash the lookup key (transparent to callers). A DB
+  leak then yields `SHA-256("reset-password:<token>")` — not the raw token — so the attacker
+  cannot reverse it to a usable credential without a preimage attack. **Decision: enable
+  `verification.storeIdentifier: "hashed"` in `auth.ts`** so the stored identifier is the
+  SHA-256 hash, matching the at-rest protection intent of feature-002. Note: when hashing
+  is enabled, our `sendResetPassword` supersession DELETE must also hash the key prefix
+  — use `deleteVerificationByIdentifier` or a raw `DELETE WHERE identifier =
+  SHA256('reset-password:%')` with the same hashing function; do NOT issue a `LIKE` pattern
+  on hashed values (they are opaque hashes). The correct approach is to fetch all
+  `verification` rows where `value = userId` and filter client-side for the
+  `reset-password:` prefix before hashing each and deleting, OR (simpler and consistent
+  with the Pass-6 background-task approach) DELETE by `value = userId` with a
+  `identifier LIKE 'reset-password:%'` applied on the cleartext side — but with
+  `storeIdentifier: "hashed"` the identifier column contains hashes so LIKE won't match.
+  **Implementation decision**: perform the supersession delete via a raw SQL query on the
+  `verification` table keyed on `value = userId` without a LIKE filter (delete ALL
+  un-expired `verification` rows for the user whose `value = userId`), then issue the new
+  token. This is safe because each user has at most one token type (reset), and
+  `expiresAt`-based cleanup handles any other verification types if they exist.
 - **Supersession** (red-team Pass 2): issuing a new reset token for a user must invalidate
   that user's prior **un-consumed** `reset-password:*` rows, so an older still-unused link
-  stops working (spec §Edge Cases "Superseded reset link"). Confirm whether better-auth does
-  this by default; if not, `sendResetPassword` deletes the user's existing `reset-password`
-  verification rows before/while issuing the new token. See the SUPERSEDED edge in the state
-  machine below.
+  stops working (spec §Edge Cases "Superseded reset link"). **Confirmed (verified
+  2026-06-30)**: better-auth does **NOT** delete prior `reset-password:*` verification rows
+  when a new token is issued — `createVerificationValue` inserts a new row without
+  touching existing ones for the same user, so two un-consumed rows for one account can
+  coexist. Our `sendResetPassword` callback MUST enforce supersession: delete the user's
+  existing `reset-password:*` verification rows (via `DELETE FROM "verification" WHERE
+  "identifier" LIKE 'reset-password:%' AND "value" = <userId>` against `getAuthPool()`)
+  inside the fire-and-forget background task, before issuing the send. See the SUPERSEDED
+  edge in the state machine below.
 - **Supersession coupled to actual send + made an invariant** (red-team Pass 5): two
   refinements to the Pass 2 supersession, both required before `/sp:05-tasks` builds it:
   1. **Couple supersession to a real send.** Because the Pass 3 per-address throttle only
@@ -227,15 +261,20 @@ Holds the single-use, time-limited password-reset token.
   or the team must record an explicit decision that per-IP is the accepted scope.
 - **Per-address throttle key — normalization + keyed hash** (red-team Pass 8): the
   synthetic key MUST NOT be `reset-req:<cleartext email>`. Two requirements:
-  1. **Canonical normalization, matched to better-auth.** Define a single
-     canonical-normalization helper and use it for the key; it MUST collapse to the
-     same value better-auth uses to resolve the account inside `sendResetPassword`
-     (verify better-auth's case/dot handling — if it does not lowercase, the key must
-     not either). Otherwise case/dot variants (`Victim@x.org`, `vic.tim@x.org`) yield
-     different keys for one target, so the per-address throttle — and the Pass-5
-     supersession coupling that depends on it firing — is bypassable (re-opening
-     flooding + denial-of-reset); the inverse over-throttles a legitimately distinct
-     account.
+  1. **Canonical normalization, matched to better-auth (verified 2026-06-30).** Define a
+     single canonical-normalization helper and use it for the key. **Confirmed**: better-auth's
+     `findUserByEmail` normalizes via `email.toLowerCase()` only — no dot-folding, no
+     Unicode normalization (see `dist/db/internal-adapter.mjs:findUserByEmail`). The
+     canonical normalization helper MUST be `email.toLowerCase()` and nothing else. A case
+     variant (`Victim@x.org` → `victim@x.org`) and a dot-variant
+     (`victor@x.org` vs. `vic.tor@x.org`) therefore produce different normalized values —
+     matching better-auth's own behavior exactly. This is acceptable because they are
+     genuinely different accounts in better-auth's model; no over-throttle or
+     under-throttle risk exists as long as the helper matches.
+     Otherwise case/dot variants that better-auth resolves to different accounts
+     would yield different throttle keys for what the attacker treats as one target,
+     but since better-auth also treats them as different accounts, the throttle-vs-
+     account-lookup mismatch concern does not apply here.
   2. **Keyed hash, not cleartext.** The key MUST be
      `reset-req:<HMAC-SHA256(serverSecret, canonicalEmail)>`. Because this check runs
      only inside `sendResetPassword` (only for accounts that exist), a cleartext-email
@@ -254,18 +293,34 @@ Holds the single-use, time-limited password-reset token.
      (benign, like the Map/LRU restart caveat).
   Test that two case/dot variants of one account's email increment the **same**
   counter, and that the persisted key contains no cleartext address.
-- **Shared-table lifecycle coupling** (red-team Pass 8): both manual throttles
+- **Shared-table lifecycle coupling — pinned (verified 2026-06-30)**: both manual throttles
   (per-invitation `resend:<id>` and per-address `reset-req:<hash>`) write app-managed
-  rows into better-auth's own `rateLimit` table, whose schema, count/window semantics,
-  and cleanup sweep better-auth owns. Pin three things so `/sp:05-tasks` does not guess:
-  (a) the exact column(s) and count-vs-window semantics the manual check reads/writes;
-  (b) a key **namespace** that provably cannot collide with better-auth's own
-  `<path>:<ip>` keys (the `resend:` / `reset-req:` prefixes + the keyed hash above);
-  (c) confirmation that better-auth's own pruning will not delete these rows mid-window
-  (or give them an app-owned expiry the sweep honors). If safe coupling cannot be
-  guaranteed, make the in-process `Map`/LRU the **authoritative** home (per-process /
-  reset-on-restart caveat; the per-IP rules remain the durable floor) rather than
-  leaving the choice implicit.
+  rows into better-auth's own `rateLimit` table. The three coupling items are now confirmed
+  safe; the `rateLimit` table is authoritative (in-process `Map`/LRU is retired):
+
+  **(a) Schema and counting semantics** (verified in `@better-auth/core/src/db/schema/rate-limit.ts`
+  and `dist/api/rate-limiter/index.mjs`): columns are `key TEXT`, `count INTEGER`,
+  `lastRequest BIGINT` (milliseconds since epoch). Count/window logic:
+  - Rate limited when: `count >= max AND (now - lastRequest) < window_ms`
+  - New window (reset): when `(now - lastRequest) >= window_ms` → set `count = 1`,
+    update `lastRequest = now`
+  - Increment: otherwise → `count = count + 1`, update `lastRequest = now`
+  The app MUST replicate this via an atomic SQL UPSERT against `getAuthPool()`, using
+  the same pattern as `invitationRateLimit.ts`'s `upsertCount` helper. Include a TTL
+  cleanup (`DELETE FROM "rateLimit" WHERE "lastRequest" < $windowStart`) before or
+  with each UPSERT to prevent indefinite row accumulation (better-auth's DB adapter
+  never prunes the `rateLimit` table itself).
+
+  **(b) Key namespace — no collision** (verified): better-auth builds its own keys as
+  `<ip>:<normalizedPath>` via `createRateLimitKey(ip, path)` (e.g., `127.0.0.1:/sign-in/email`).
+  IP addresses never start with `resend:` or `reset-req:`, so the synthetic prefixes
+  `resend:<invitationId>` and `reset-req:<hmac>` are provably collision-free.
+
+  **(c) No automatic pruning by better-auth** (verified): better-auth's database storage
+  wrapper for `rateLimit` (`createDatabaseStorageWrapper`) performs `findMany`,
+  `updateMany`, and `create` — it never issues a DELETE. App-managed rows are therefore
+  never pruned by better-auth mid-window. Rows accumulate indefinitely; the
+  TTL-based cleanup in (a) above is the app's own responsibility.
 
 ### invitation (existing — feature 002)
 

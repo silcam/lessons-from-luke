@@ -425,15 +425,19 @@ feature-001/002 locations.
   the user requests a fresh one — contradicting the spec edge case and widening
   the single-use window an attacker can exploit. This gap is invisible in the
   current artifacts because nothing models supersession.
-- **Mitigation**: confirm whether better-auth invalidates prior
-  `reset-password` verification rows for a user on a new
-  `request-password-reset`. If it does **not** (the likely default), enforce it
-  in `sendResetPassword`: before/while issuing the new token, invalidate any
-  existing un-consumed `reset-password:*` rows for that `user.id` so only the most
-  recent link is live. Add a SUPERSEDED transition to the `data-model.md` state
-  machine and an integration test that a first link returns `INVALID_TOKEN` once a
-  second reset has been requested. (If better-auth genuinely cannot supersede,
-  that is a spec deviation that must be raised, not silently accepted.)
+- **Mitigation (confirmed 2026-06-30)**: better-auth does **not** invalidate prior
+  `reset-password` verification rows. `requestPasswordReset` calls
+  `createVerificationValue` without any cleanup of existing rows for the same user.
+  Our `sendResetPassword` callback MUST enforce supersession: inside the fire-and-forget
+  background task, before sending, DELETE all non-expired `verification` rows for the
+  user (`DELETE FROM "verification" WHERE "value" = userId` against `getAuthPool()`).
+  With `verification.storeIdentifier: "hashed"` (the decision in `data-model.md`), the
+  stored identifier is an opaque hash, so LIKE patterns on the identifier column are not
+  viable — the `value = userId` filter is the correct mechanism. Reject any
+  non-most-recent token at `/reset-password` validation time as the invariant backstop
+  (per the Pass-5 atomic-supersession requirement in `data-model.md`). Add the
+  SUPERSEDED transition to the `data-model.md` state machine and an integration test
+  that a first link returns `INVALID_TOKEN` once a second reset has been requested.
 
 ### Where the per-invitation resend throttle counter lives (Pass 2)
 
@@ -746,37 +750,36 @@ feature-001/002 locations.
   deliberately stores invitation tokens **SHA-256-hashed for lookup + AES-256-GCM
   encrypted at rest** precisely so a DB leak yields nothing usable. The plan never
   states whether the reset token enjoys the same at-rest protection.
-- **Mitigation**: confirm whether better-auth **hashes the reset token before
-  storing it** in `verification` (current better-auth stores a hash and emails the
-  pre-image; verify for the pinned `^1.6.14`). If it does, **record that as a
-  verified assumption** in `data-model.md` so the asymmetry is closed-by-fact. If it
-  stores the raw token, **raise it as a deviation** (do not silently accept):
-  decide explicitly between enabling token hashing, accepting the risk for this
-  small admin-curated user base, or compensating — and document the decision. This
-  mirrors the Pass-2 "if better-auth cannot supersede, raise it" discipline.
+- **Mitigation (confirmed 2026-06-30)**: better-auth `^1.6.14` stores the **raw
+  token** by default — `processIdentifier` with no `storeIdentifier` config returns
+  the identifier unchanged, so `verification.identifier` holds
+  `reset-password:<verificationToken>` in plaintext. **Decision**: enable
+  `verification.storeIdentifier: "hashed"` in `getAuth()` in `auth.ts`. This
+  SHA-256-hashes the identifier before storage; lookups and deletes hash the key
+  transparently. A DB leak then yields `SHA-256("reset-password:<token>")` — not
+  a usable credential. See `data-model.md` (verification, Token confidentiality at
+  rest) for the supersession-delete implication (use `WHERE "value" = userId`, not
+  a LIKE on the now-hashed identifier column).
 
 ### App-managed counters share better-auth's `rateLimit` table lifecycle (Pass 8)
 
 - The Pass-2 (per-invitation) and Pass-3 (per-address) throttles both write
   **app-managed** synthetic-key rows into better-auth's **own** `rateLimit` table
-  to honor "no new table." That table's **schema, counting semantics, and
-  cleanup/sweep are owned by better-auth**, so the manual writes have three
-  unstated coupling risks the artifacts gloss over: (1) better-auth's own periodic
-  pruning of "expired" rateLimit rows could **delete the app's counters** out from
-  under the window; (2) the column the app increments may carry **count-vs-window
-  semantics** that differ from what a per-address/per-invitation window needs,
-  producing mis-counts; (3) the synthetic keys could **collide** with better-auth's
-  own `<path>:<ip>` key scheme. None of this is decided, so `/sp:05-tasks` would
-  implement against assumptions.
-- **Mitigation**: pin the coupling explicitly in `data-model.md` (rateLimit):
-  state the exact column(s) and counting semantics the manual check uses, choose a
-  key **namespace** that provably cannot collide with better-auth's own keys
-  (the `resend:` / `reset-req:` prefixes plus the Pass-8 keyed-hash already help),
-  and confirm better-auth's cleanup will not clobber these rows (or give them an
-  app-owned expiry the sweep respects). If that coupling cannot be made safe, adopt
-  the already-named **in-process `Map`/LRU** fallback as the *authoritative* home
-  (with its per-process/reset-on-restart caveat) rather than leaving the choice to
-  implementation discovery. State which mechanism is authoritative.
+  to honor "no new table." That table's schema, counting semantics, and
+  cleanup/sweep are owned by better-auth, raising three coupling risks: (1) pruning
+  of rateLimit rows could delete app counters mid-window; (2) the count/window
+  semantics might not match; (3) key collision with better-auth's own
+  `<ip>:<path>` scheme. **All three verified safe (2026-06-30)**:
+- **Resolution**: (1) better-auth's DB adapter (`createDatabaseStorageWrapper`) never
+  deletes rateLimit rows — no pruning concern; (2) `data-model.md` pins the exact
+  schema (`key TEXT`, `count INTEGER`, `lastRequest BIGINT ms`) and the identical
+  count/window UPSERT semantics (reset when window expired, increment otherwise),
+  plus a TTL-cleanup DELETE the app issues itself; (3) better-auth's own keys are
+  `<ip>:<path>` (e.g., `127.0.0.1:/sign-in/email`) — the `resend:` and `reset-req:`
+  prefixes are collision-free since an IP address never begins with those strings.
+  **The `rateLimit` table is authoritative**; the in-process `Map`/LRU fallback
+  is retired. See `data-model.md` (rateLimit, Shared-table lifecycle coupling) for
+  the complete pinned spec `/sp:05-tasks` implements against.
 
 ### The throttle-key HMAC secret must reuse a validated existing secret (Pass 9)
 
