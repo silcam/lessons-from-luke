@@ -61,8 +61,9 @@ TITLE=$(br show "$ID" --json 2>/dev/null | jq -r '.[0].title' 2>/dev/null)
 
 if [ "$STATUS" = "closed" ]; then
   # Exemptions: a no-op Refactor or an assertion-only acceptance gate close
+  # (titled "Verify acceptance test passes …" or "VERIFY: …" per /sp:05-tasks)
   # legitimately without a commit. Skip the HEAD-advance assertion.
-  if printf '%s' "$TITLE" | grep -Eiq '^(Refactor:|Verify acceptance test passes)'; then
+  if printf '%s' "$TITLE" | grep -Eiq '^(Refactor:|Verify acceptance test passes|VERIFY:)'; then
     flush_beads
     echo "VERIFIED"
     exit 0
