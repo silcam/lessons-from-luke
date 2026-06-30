@@ -9,6 +9,8 @@
  *   (authClient.getSession as jest.Mock).mockResolvedValue(...)
  *   (authClient.signIn.email as jest.Mock).mockResolvedValue(...)
  *   (authClient.signOut as jest.Mock).mockResolvedValue(...)
+ *   (authClient.requestPasswordReset as jest.Mock).mockResolvedValue(...)
+ *   (authClient.resetPassword as jest.Mock).mockResolvedValue(...)
  *
  * jest.clearAllMocks() in beforeEach resets call counts and return values
  * between tests.
@@ -20,4 +22,8 @@ export const authClient = {
     email: jest.fn(),
   },
   signOut: jest.fn(),
+  /** Request a password-reset link (better-auth built-in, US1). */
+  requestPasswordReset: jest.fn(),
+  /** Set a new password via a reset token (better-auth built-in, US1). */
+  resetPassword: jest.fn(),
 };
