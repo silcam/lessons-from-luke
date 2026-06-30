@@ -40,23 +40,29 @@ describe("getEmailTransport() — env-selected singleton", () => {
   it("returns MailgunEmailTransport when production-shaped Secrets.email is present (never LogEmailTransport)", () => {
     // Load a fresh module with production-shaped secrets mocked
     jest.resetModules();
-    jest.doMock("../util/secrets", () => ({
-      __esModule: true,
-      default: {
-        cookieSecret: "a-long-enough-cookie-secret-value-for-testing",
-        adminEmail: "admin@example.com",
-        adminUsername: "admin",
-        adminPassword: "adminpassword123",
-        db: { database: "db", username: "u", password: "p" },
-        testDb: { database: "testdb", username: "u", password: "p" },
-        devDb: { database: "devdb", username: "u", password: "p" },
-        email: {
-          apiKey: "unit-test-api-key-not-a-real-credential",
-          domain: "mg.real-domain.com",
-          fromAddress: "noreply@mg.real-domain.com",
+    jest.doMock("../util/secrets", () => {
+      const actual = jest.requireActual("../util/secrets");
+      return {
+        __esModule: true,
+        default: {
+          cookieSecret: "a-long-enough-cookie-secret-value-for-testing",
+          adminEmail: "admin@example.com",
+          adminUsername: "admin",
+          adminPassword: "adminpassword123",
+          db: { database: "db", username: "u", password: "p" },
+          testDb: { database: "testdb", username: "u", password: "p" },
+          devDb: { database: "devdb", username: "u", password: "p" },
+          email: {
+            apiKey: "unit-test-api-key-not-a-real-credential",
+            domain: "mg.real-domain.com",
+            fromAddress: "noreply@mg.real-domain.com",
+          },
         },
-      },
-    }));
+        // Real defaultSecrets — getEmailTransport derives PLACEHOLDER_EMAIL from
+        // this single source of truth (task lessons-from-luke-5qjl.7).
+        defaultSecrets: actual.defaultSecrets,
+      };
+    });
 
     const { getEmailTransport: freshGet } = require("./getEmailTransport");
     const { MailgunEmailTransport: FreshMailgun } = require("./MailgunEmailTransport");
@@ -159,19 +165,25 @@ describe("getEmailTransport() — fail-closed selection must ignore placeholder-
 
   function mockSecretsWith(nodeEnv: string, email: Record<string, string>) {
     process.env.NODE_ENV = nodeEnv;
-    jest.doMock("../util/secrets", () => ({
-      __esModule: true,
-      default: {
-        cookieSecret: "a-long-enough-cookie-secret-value-for-testing",
-        adminEmail: "admin@example.com",
-        adminUsername: "admin",
-        adminPassword: "adminpassword123",
-        db: { database: "db", username: "u", password: "p" },
-        testDb: { database: "testdb", username: "u", password: "p" },
-        devDb: { database: "devdb", username: "u", password: "p" },
-        email,
-      },
-    }));
+    jest.doMock("../util/secrets", () => {
+      const actual = jest.requireActual("../util/secrets");
+      return {
+        __esModule: true,
+        default: {
+          cookieSecret: "a-long-enough-cookie-secret-value-for-testing",
+          adminEmail: "admin@example.com",
+          adminUsername: "admin",
+          adminPassword: "adminpassword123",
+          db: { database: "db", username: "u", password: "p" },
+          testDb: { database: "testdb", username: "u", password: "p" },
+          devDb: { database: "devdb", username: "u", password: "p" },
+          email,
+        },
+        // Real defaultSecrets — getEmailTransport derives PLACEHOLDER_EMAIL from
+        // this single source of truth (task lessons-from-luke-5qjl.7).
+        defaultSecrets: actual.defaultSecrets,
+      };
+    });
   }
 
   it("returns MemoryEmailTransport in NODE_ENV=test when secrets.email is only the placeholder default (no real production secrets)", () => {
@@ -215,5 +227,58 @@ describe("getEmailTransport() — fail-closed selection must ignore placeholder-
     const transport = freshGet();
     expect(transport).toBeInstanceOf(FreshMailgun);
     expect(transport).not.toBeInstanceOf(FreshLog);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Single source of truth — task lessons-from-luke-5qjl.7
+  //
+  // getEmailTransport must derive its placeholder-detection literal from
+  // secrets.ts's exported `defaultSecrets.email`, NOT an independently
+  // hand-copied literal. Proof: mock secrets.ts so `defaultSecrets.email`
+  // carries placeholder VALUES THAT DIFFER from the historical hardcoded
+  // literal ("your-mailgun-api-key-here" / "mg.example.com" /
+  // "noreply@mg.example.com"). If getEmailTransport still had its own
+  // independent copy of those historical values, this mocked placeholder
+  // would fail to match it and would be wrongly treated as production-shaped
+  // (selecting MailgunEmailTransport). Only sourcing PLACEHOLDER_EMAIL from
+  // the imported `defaultSecrets.email` makes this pass.
+  // ---------------------------------------------------------------------------
+
+  it("derives its placeholder literal from secrets.ts's exported defaultSecrets.email, not an independent copy", () => {
+    jest.resetModules();
+
+    const mockPlaceholder = {
+      apiKey: "mock-placeholder-api-key-distinct-from-historical-literal",
+      domain: "mock.placeholder.example",
+      fromAddress: "noreply@mock.placeholder.example",
+    };
+
+    process.env.NODE_ENV = "test";
+    jest.doMock("../util/secrets", () => ({
+      __esModule: true,
+      default: {
+        cookieSecret: "a-long-enough-cookie-secret-value-for-testing",
+        adminEmail: "admin@example.com",
+        adminUsername: "admin",
+        adminPassword: "adminpassword123",
+        db: { database: "db", username: "u", password: "p" },
+        testDb: { database: "testdb", username: "u", password: "p" },
+        devDb: { database: "devdb", username: "u", password: "p" },
+        email: mockPlaceholder,
+      },
+      defaultSecrets: {
+        email: mockPlaceholder,
+      },
+    }));
+
+    const { getEmailTransport: freshGet } = require("./getEmailTransport");
+    const { MemoryEmailTransport: FreshMemory } = require("./MemoryEmailTransport");
+    const { MailgunEmailTransport: FreshMailgun } = require("./MailgunEmailTransport");
+
+    const transport = freshGet();
+    // secrets.email exactly equals the (mocked) defaultSecrets.email, so it
+    // must be recognized as the placeholder default — never Mailgun.
+    expect(transport).toBeInstanceOf(FreshMemory);
+    expect(transport).not.toBeInstanceOf(FreshMailgun);
   });
 });

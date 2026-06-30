@@ -30,7 +30,7 @@ export interface Secrets {
   };
 }
 
-const defaultSecrets: Secrets = {
+export const defaultSecrets: Secrets = {
   cookieSecret: "dev-only-secret-replace-in-production-xx",
   adminEmail: "admin@example.com",
   adminUsername: "chris",

@@ -22,7 +22,7 @@
  * Contract: specs/005-transactional-email-reset/contracts/email-transport.contract.ts §GetEmailTransport
  */
 
-import secrets, { Secrets } from "../util/secrets";
+import secrets, { Secrets, defaultSecrets } from "../util/secrets";
 import { EmailTransport } from "./EmailTransport";
 import { MailgunEmailTransport } from "./MailgunEmailTransport";
 import { LogEmailTransport } from "./LogEmailTransport";
@@ -30,13 +30,13 @@ import { MemoryEmailTransport, sentEmails } from "./MemoryEmailTransport";
 
 let currentTransport: EmailTransport | null = null;
 
-// Mirrors the placeholder shape `defaultSecrets.email` carries in secrets.ts when no
-// secrets.json is present on disk. Config matching these values is NOT production-shaped.
-const PLACEHOLDER_EMAIL = {
-  apiKey: "your-mailgun-api-key-here",
-  domain: "mg.example.com",
-  fromAddress: "noreply@mg.example.com",
-};
+// Single source of truth (task lessons-from-luke-5qjl.7): the placeholder shape
+// `defaultSecrets.email` carries in secrets.ts when no secrets.json is present on
+// disk. Imported directly — never re-declared as an independent literal here — so
+// the two can never silently desync. Config matching these values is NOT
+// production-shaped. (secrets.ts asserts non-null with `!` the same way for its own
+// FR-002 production guard, since defaultSecrets.email is always defined there.)
+const PLACEHOLDER_EMAIL = defaultSecrets.email!;
 
 /**
  * True only for genuinely valid, non-placeholder email config — i.e. present, with
