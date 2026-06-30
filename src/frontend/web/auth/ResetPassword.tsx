@@ -63,10 +63,7 @@ export default function ResetPassword(): React.ReactElement {
 
   // Move focus to result heading on terminal state transitions (Pass 8 a11y)
   useEffect(() => {
-    if (
-      (phase.status === "success" || phase.status === "invalid_token") &&
-      resultRef.current
-    ) {
+    if ((phase.status === "success" || phase.status === "invalid_token") && resultRef.current) {
       const heading = resultRef.current.querySelector(
         "h1, h2, h3, h4, h5, h6"
       ) as HTMLElement | null;
@@ -117,11 +114,8 @@ export default function ResetPassword(): React.ReactElement {
         <div ref={resultRef}>
           <Heading level={2} text={t("ResetPassword_success_heading")} />
           <p>{t("ResetPassword_success_message")}</p>
-          <Button
-            bigger
-            onClick={goToSignIn}
-            text={t("ResetPassword_continue_to_sign_in")}
-          />
+          <PDiv />
+          <Button bigger onClick={goToSignIn} text={t("ResetPassword_continue_to_sign_in")} />
         </div>
       </MiddleOfPage>
     );
@@ -136,6 +130,7 @@ export default function ResetPassword(): React.ReactElement {
           <Heading level={2} text={t("ResetPassword_invalid_token_heading")} />
           <Alert danger>{t("ResetPassword_invalid_token_message")}</Alert>
         </div>
+        <PDiv />
         <AppLink to="/forgot-password">{t("ResetPassword_request_new_link")}</AppLink>
       </MiddleOfPage>
     );
