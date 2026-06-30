@@ -2,12 +2,18 @@
  * getEmailTransport — env-selected singleton for the email transport.
  *
  * Selection (fail-closed, red-team Pass 2):
- *   - Whenever `secrets.email` is present (production-shaped config), ALWAYS return
- *     MailgunEmailTransport — regardless of NODE_ENV. This ties selection to the same
- *     predicate as the FR-002 startup fail-fast in secrets.ts, so LogEmailTransport
- *     is unreachable when real email config exists.
- *   - NODE_ENV=test (no production-shaped config) → MemoryEmailTransport
- *   - otherwise (development, no config) → LogEmailTransport
+ *   - Whenever `secrets.email` is *production-shaped* — present, with non-empty
+ *     apiKey/domain/fromAddress that are NOT the built-in placeholder values
+ *     `defaultSecrets.email` carries in secrets.ts — ALWAYS return
+ *     MailgunEmailTransport, regardless of NODE_ENV. This keeps selection
+ *     config-driven (not purely NODE_ENV-driven) and ties it to the same
+ *     "is this real config" predicate as the FR-002 startup fail-fast in
+ *     secrets.ts, so LogEmailTransport is unreachable when real email config
+ *     exists.
+ *   - Otherwise (no config, or only the placeholder default — e.g. dev/test
+ *     with no secrets.json on disk) fall through to NODE_ENV selection:
+ *       - NODE_ENV=test → MemoryEmailTransport
+ *       - otherwise (development) → LogEmailTransport
  *
  * Test injection: `setEmailTransport(t)` / `resetEmailTransport()`.
  * `resetEmailTransport()` also clears the MemoryEmailTransport sentEmails buffer.
@@ -16,7 +22,7 @@
  * Contract: specs/005-transactional-email-reset/contracts/email-transport.contract.ts §GetEmailTransport
  */
 
-import secrets from "../util/secrets";
+import secrets, { Secrets } from "../util/secrets";
 import { EmailTransport } from "./EmailTransport";
 import { MailgunEmailTransport } from "./MailgunEmailTransport";
 import { LogEmailTransport } from "./LogEmailTransport";
@@ -24,9 +30,37 @@ import { MemoryEmailTransport, sentEmails } from "./MemoryEmailTransport";
 
 let currentTransport: EmailTransport | null = null;
 
+// Mirrors the placeholder shape `defaultSecrets.email` carries in secrets.ts when no
+// secrets.json is present on disk. Config matching these values is NOT production-shaped.
+const PLACEHOLDER_EMAIL = {
+  apiKey: "your-mailgun-api-key-here",
+  domain: "mg.example.com",
+  fromAddress: "noreply@mg.example.com",
+};
+
+/**
+ * True only for genuinely valid, non-placeholder email config — i.e. present, with
+ * non-empty apiKey/domain/fromAddress that are not the built-in placeholder defaults.
+ */
+function isProductionShapedEmailConfig(
+  email: Secrets["email"]
+): email is NonNullable<Secrets["email"]> {
+  if (!email) {
+    return false;
+  }
+  return (
+    Boolean(email.apiKey) &&
+    email.apiKey !== PLACEHOLDER_EMAIL.apiKey &&
+    Boolean(email.domain) &&
+    email.domain !== PLACEHOLDER_EMAIL.domain &&
+    Boolean(email.fromAddress) &&
+    email.fromAddress !== PLACEHOLDER_EMAIL.fromAddress
+  );
+}
+
 function createDefaultTransport(): EmailTransport {
-  // Fail-closed (Pass 2): if real email config is present, always use Mailgun.
-  if (secrets.email) {
+  // Fail-closed (Pass 2): only genuinely valid, non-placeholder email config selects Mailgun.
+  if (isProductionShapedEmailConfig(secrets.email)) {
     return new MailgunEmailTransport(secrets.email);
   }
   // No production-shaped config — fall back to NODE_ENV selection.
