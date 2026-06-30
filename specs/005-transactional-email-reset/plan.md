@@ -336,6 +336,52 @@ feature-001/002 locations.
   invitation cannot be weaponised as an inbox flooder; a throttled resend returns
   429. Documented in `contracts/invitation-email-api.yaml`.
 
+### Per-address reset-request flooding — per-IP throttle is not enough (Pass 3)
+
+- The reset path is currently throttled **per-IP only** (request schema in
+  `contracts/auth-password-reset-api.yaml`: `customRules { window: 60, max: 3 }`).
+  But FR-012 **and** the spec's named "Reset request flooding" edge case call for
+  throttling repeated requests *"for the same address (or from the same origin)"*
+  to limit email flooding and provider-quota abuse. better-auth `customRules` are
+  keyed by **request path + IP** — the exact limitation already documented for the
+  per-invitation resend throttle — so the per-IP rule alone does **not** bound
+  requests for a single *address*. An attacker rotating IPs (or a botnet/proxy
+  pool) can therefore drive repeated `request-password-reset` calls at a **known
+  account holder's** address and flood that victim's inbox with reset emails while
+  burning Mailgun quota/cost. This is the direct **reset-path twin** of the
+  "Invitation resend as an email-bomb amplifier" finding that Pass 1 closed for the
+  invitation path but left open here. Supersession (Pass 2) means only the newest
+  link works, so the impact is **harassment + provider cost**, not token
+  multiplication — but the protective *intent* of FR-012 and the edge case is still
+  unmet, and `/sp:05-tasks` would otherwise implement only the per-IP `customRules`
+  and consider FR-012 satisfied, silently shipping half the requirement.
+- **Mitigation**: add a **per-address** reset throttle reusing the *same* manual
+  `rateLimit`-table check pattern Pass 2 pinned for the per-invitation resend
+  throttle (synthetic key e.g. `reset-req:<normalizedEmail>`, small max-per-window,
+  with the documented single-process in-process `Map`/LRU fallback). Perform the
+  check **inside `sendResetPassword`** — which by design runs **only for accounts
+  that exist** — so:
+  - **Enumeration-safety is preserved**: an unknown email never reaches the
+    throttle, and an over-limit known address still returns the *same generic 200*
+    (the throttle simply suppresses the send, exactly like a failed send under
+    FR-013); the response body never changes.
+  - **Timing-safety is preserved**: the throttle check rides the **already
+    backgrounded / fire-and-forget send path** (Pass 2), so it adds no latency to
+    the request handler and creates no timing oracle.
+  - Suppressing the email for an over-limit address is acceptable even though
+    better-auth has already written the new `verification` row — supersession
+    invalidates the prior row and the unused new token simply expires; it is never
+    emailed.
+  - The acceptable fallback (consistent with the per-invitation finding) is to
+    **explicitly decide and document** that per-IP is the chosen scope and that the
+    small admin-curated user base plus Mailgun's own sending limits and
+    supersession are the accepted floor — but that decision must be *recorded*, not
+    left implicit, so the per-address half of FR-012 is not silently dropped.
+  - Whichever is chosen, state it in `data-model.md` (rateLimit) and
+    `contracts/auth-password-reset-api.yaml`, and add an integration assertion that
+    repeated same-address requests beyond the window stop producing sends while the
+    response stays the generic, timing-safe 200.
+
 ### Superseded reset link must actually stop working (Pass 2)
 
 - Spec §Edge Cases requires: "If a newer reset request is made, an older

@@ -148,6 +148,19 @@ Holds the single-use, time-limited password-reset token.
   `Map`/LRU, with the documented caveat that it is per-process and resets on restart (the
   per-IP `invitationRateLimit` stays the durable floor). The implementing task must build
   this counter rather than assume one exists.
+- **Per-address reset-request throttle storage** (red-team Pass 3): FR-012 and the spec's
+  "Reset request flooding" edge case want repeated requests **for the same address**
+  throttled, but the reset path's `customRules` are keyed by request path + IP and cannot
+  express a per-address limit (same limitation as the per-invitation throttle above). Use the
+  **same** manual `rateLimit`-table check pattern with a synthetic key keyed on the
+  **normalized email** (e.g. `reset-req:<normalizedEmail>`), performed **inside
+  `sendResetPassword`** (which runs only for accounts that exist). An over-limit address
+  **suppresses the send** while the endpoint still returns the generic, timing-safe 200
+  (enumeration- and timing-safe: the check rides the already-backgrounded send path from the
+  Pass 2 timing mitigation; the new `verification` row may already be written and simply
+  expires unused). Acceptable single-process fallback: the same bounded in-process `Map`/LRU
+  with the per-process/reset-on-restart caveat. The implementing task must build this counter,
+  or the team must record an explicit decision that per-IP is the accepted scope.
 
 ### invitation (existing — feature 002)
 
