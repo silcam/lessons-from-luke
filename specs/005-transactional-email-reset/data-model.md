@@ -243,6 +243,15 @@ Holds the single-use, time-limited password-reset token.
      oracle** — re-introducing the enumeration FR-007/SC-004 close at the response
      layer. The keyed hash keeps the row from revealing the address or (absent an
      address-space brute force) account existence.
+  3. **HMAC secret source — reuse a validated secret** (red-team Pass 9). `serverSecret`
+     MUST NOT be a new `Secrets.email.hashKey`: a missing/empty/placeholder-default
+     HMAC key makes the hash predictable (a table reader bruteforces the small address
+     space and recovers the oracle Pass 8 just closed), and a new unvalidated secret
+     dodges the FR-002 startup fail-fast. Derive it from the **existing
+     `cookieSecret`** (already ≥ 32 chars and startup-validated) via a domain-separated
+     sub-key, e.g. `HMAC(cookieSecret, "reset-req-throttle")` — no new secret, present
+     and strong by construction; a `cookieSecret` rotation merely resets counters
+     (benign, like the Map/LRU restart caveat).
   Test that two case/dot variants of one account's email increment the **same**
   counter, and that the persisted key contains no cleartext address.
 - **Shared-table lifecycle coupling** (red-team Pass 8): both manual throttles

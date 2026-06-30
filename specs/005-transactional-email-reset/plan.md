@@ -778,6 +778,31 @@ feature-001/002 locations.
   (with its per-process/reset-on-restart caveat) rather than leaving the choice to
   implementation discovery. State which mechanism is authoritative.
 
+### The throttle-key HMAC secret must reuse a validated existing secret (Pass 9)
+
+- This is the **second-order effect of the Pass-8 keyed-hash mitigation itself.**
+  Pass 8 requires the per-address throttle key be
+  `reset-req:<HMAC-SHA256(serverSecret, canonicalEmail)>` so the persisted key is
+  not an at-rest account-existence oracle — but it never says **where
+  `serverSecret` comes from**, and the entire oracle-protection rests on that secret
+  being present and unpredictable. If `/sp:05-tasks` introduces a *new*
+  `Secrets.email.hashKey` (or similar) it inherits the exact production footgun this
+  feature exists to prevent: a missing / empty / placeholder-default HMAC key makes
+  the throttle-key hash **predictable**, so a table reader could brute the small
+  known-address space against a known/empty key and recover the at-rest enumeration
+  oracle Pass 8 closed — and an *unvalidated* new secret would dodge the FR-002
+  startup fail-fast entirely.
+- **Mitigation**: do **not** add a new secret. Derive the HMAC key from an
+  **existing already-validated secret** — reuse `cookieSecret` (already enforced
+  ≥ 32 chars and startup-validated) via a **domain-separated** sub-key
+  (e.g. `HMAC(cookieSecret, "reset-req-throttle")`), so the throttle key cannot be
+  cross-used against session/cookie material. This keeps "no new secret," guarantees
+  the key is present and strong because it rides the existing `cookieSecret` guard,
+  and means a `cookieSecret` rotation merely resets throttle counters (a benign
+  reset identical in effect to the Map/LRU restart caveat). Pin the source in
+  `data-model.md` (rateLimit) so the implementing task wires the existing secret
+  rather than inventing an unguarded one.
+
 ## Accessibility Requirements
 
 > Added by `/sp:04-red-team` (Pass 1). Extends the WCAG 2.2 AA target already
