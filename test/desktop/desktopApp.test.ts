@@ -101,7 +101,13 @@ test("Downsync", async () => {
   await window.click("input[type='text']");
   await window.keyboard.type("GHI");
   await window.click("button:text('OK')");
-  await window.locator('h1:text("Syncing Batanga project...")').waitFor();
+  // Entering the GHI code must launch a sync of the Batanga project. The header
+  // text is timing-sensitive — it reads "Syncing Batanga project..." while
+  // progress < 100 and flips to "Batanga Synced" the instant it completes — so
+  // match the project name, which is present in both states. (Waiting for the
+  // literal "Syncing..." wording races the sync finishing before Playwright's
+  // first poll, especially with the GPU disabled under Xvfb, and would hang.)
+  await window.locator('h1:text("Batanga")').waitFor();
 
   await window.locator('button:text("Start Translating")').waitFor();
   await window.click('button:text("Start Translating")');
