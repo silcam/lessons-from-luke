@@ -43,12 +43,14 @@ export function getInvitationBaseUrl(): string {
  * the dev webpack-dev-server web origin (:8080) when unset.
  *
  * Alias for getInvitationBaseUrl — both resolve user-facing links via the same
- * public origin. Password-reset links MUST use this function (not the better-auth
- * `url` arg) to prevent open-redirect / phishing via a crafted request URL
- * (red-team Pass 2 trust-boundary requirement).
+ * public origin. Delegates to getInvitationBaseUrl() so the resolution logic
+ * has exactly one implementation (the file's single-source-of-truth
+ * guarantee). Password-reset links MUST use this function (not the
+ * better-auth `url` arg) to prevent open-redirect / phishing via a crafted
+ * request URL (red-team Pass 2 trust-boundary requirement).
  */
 export function getWebAppBaseUrl(): string {
-  return process.env.BETTER_AUTH_URL ?? DEFAULT_WEB_APP_URL;
+  return getInvitationBaseUrl();
 }
 
 /**
