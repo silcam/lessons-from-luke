@@ -146,6 +146,19 @@ Holds the single-use, time-limited password-reset token.
 - **State transition**: created on `/request-password-reset` (only when the user exists);
   **deleted** on successful `/reset-password` (single use, FR-010/SC-006). An expired or
   already-deleted row ⇒ `INVALID_TOKEN` (FR-010).
+- **Token confidentiality at rest** (red-team Pass 8): prior passes scoped the token to
+  transit and logs (Pass 1 = our logs + address bar; Pass 7 = Mailgun analytics); none
+  addressed it **at rest** here. If better-auth persists the **raw** token in this row, a
+  DB-at-rest exposure (backup, read replica, secondary SQLi) yields directly-usable
+  account-takeover credentials (the token plus the `user.id` in `value`) — an asymmetry
+  with feature-002, which stores invitation tokens SHA-256-hashed + AES-256-GCM encrypted
+  precisely so a leak yields nothing usable. **Confirm** whether better-auth hashes the
+  reset token before storing it (current versions store a hash and email the pre-image;
+  verify for the pinned `^1.6.14`) and **record it here as a verified assumption**. If it
+  stores the raw token, **raise it as a deviation** (do not silently accept) — decide
+  between enabling hashing, accepting the risk for this small admin-curated user base, or
+  compensating, and document the decision (mirrors the Pass-2 "if better-auth cannot
+  supersede, raise it" discipline).
 - **Supersession** (red-team Pass 2): issuing a new reset token for a user must invalidate
   that user's prior **un-consumed** `reset-password:*` rows, so an older still-unused link
   stops working (spec §Edge Cases "Superseded reset link"). Confirm whether better-auth does
@@ -212,6 +225,38 @@ Holds the single-use, time-limited password-reset token.
   the just-created token must not linger. Acceptable single-process fallback: the same bounded in-process `Map`/LRU
   with the per-process/reset-on-restart caveat. The implementing task must build this counter,
   or the team must record an explicit decision that per-IP is the accepted scope.
+- **Per-address throttle key — normalization + keyed hash** (red-team Pass 8): the
+  synthetic key MUST NOT be `reset-req:<cleartext email>`. Two requirements:
+  1. **Canonical normalization, matched to better-auth.** Define a single
+     canonical-normalization helper and use it for the key; it MUST collapse to the
+     same value better-auth uses to resolve the account inside `sendResetPassword`
+     (verify better-auth's case/dot handling — if it does not lowercase, the key must
+     not either). Otherwise case/dot variants (`Victim@x.org`, `vic.tim@x.org`) yield
+     different keys for one target, so the per-address throttle — and the Pass-5
+     supersession coupling that depends on it firing — is bypassable (re-opening
+     flooding + denial-of-reset); the inverse over-throttles a legitimately distinct
+     account.
+  2. **Keyed hash, not cleartext.** The key MUST be
+     `reset-req:<HMAC-SHA256(serverSecret, canonicalEmail)>`. Because this check runs
+     only inside `sendResetPassword` (only for accounts that exist), a cleartext-email
+     row would make the shared `rateLimit` table an **at-rest account-existence
+     oracle** — re-introducing the enumeration FR-007/SC-004 close at the response
+     layer. The keyed hash keeps the row from revealing the address or (absent an
+     address-space brute force) account existence.
+  Test that two case/dot variants of one account's email increment the **same**
+  counter, and that the persisted key contains no cleartext address.
+- **Shared-table lifecycle coupling** (red-team Pass 8): both manual throttles
+  (per-invitation `resend:<id>` and per-address `reset-req:<hash>`) write app-managed
+  rows into better-auth's own `rateLimit` table, whose schema, count/window semantics,
+  and cleanup sweep better-auth owns. Pin three things so `/sp:05-tasks` does not guess:
+  (a) the exact column(s) and count-vs-window semantics the manual check reads/writes;
+  (b) a key **namespace** that provably cannot collide with better-auth's own
+  `<path>:<ip>` keys (the `resend:` / `reset-req:` prefixes + the keyed hash above);
+  (c) confirmation that better-auth's own pruning will not delete these rows mid-window
+  (or give them an app-owned expiry the sweep honors). If safe coupling cannot be
+  guaranteed, make the in-process `Map`/LRU the **authoritative** home (per-process /
+  reset-on-restart caveat; the per-IP rules remain the durable floor) rather than
+  leaving the choice implicit.
 
 ### invitation (existing — feature 002)
 

@@ -661,6 +661,123 @@ feature-001/002 locations.
   values — FR-004). Documented in `data-model.md` (`EmailConfig` validation) and
   the `EmailConfig` contract.
 
+### Per-address throttle key: normalization mismatch + at-rest enumeration oracle (Pass 8)
+
+- This is a **second-order gap in the Pass-3 per-address throttle and the Pass-5
+  supersession-coupling that depends on it.** Both pin the throttle on a synthetic
+  key written as `reset-req:<normalizedEmail>`, but `normalizedEmail` is **never
+  defined**, and the key embeds the **cleartext email**. Two distinct problems
+  follow:
+  - **Normalization mismatch defeats the throttle.** The per-address limit only
+    bounds an attacker if its key collapses to the *same* value that better-auth
+    uses to resolve the account inside `sendResetPassword`. If our key lowercases
+    (or dot-folds) but better-auth's account lookup does not — or vice versa — then
+    `Victim@x.org`, `victim@x.org`, `vic.tim@x.org` produce **different throttle
+    keys for the same target**, so the Pass-3 flood limit and the Pass-5
+    denial-of-reset coupling (which both *depend* on the throttle firing) are
+    **bypassable by trivial case/dot variation**, re-opening the exact
+    inbox-flooding and indefinite denial-of-reset the prior passes closed. The
+    inverse (we normalize more aggressively than better-auth) **over-throttles** a
+    legitimately distinct-cased account. The normalization is therefore
+    **security-load-bearing** and must be a single defined function that provably
+    matches better-auth's account-resolution normalization.
+  - **The key is an at-rest account-existence oracle.** Because the per-address
+    check runs **only inside `sendResetPassword`** — which by design runs **only
+    for accounts that exist** (that is *why* it is enumeration-safe at the response
+    layer) — a `reset-req:<email>` row materialises in the shared `rateLimit` table
+    **only for real account holders**. Anyone who can read that table (a second
+    admin, a DB backup leak, a future secondary SQLi) can then **enumerate which
+    emails have accounts** by reading the keys — re-introducing at the persistence
+    layer the very enumeration FR-007 / SC-004 close at the response layer.
+- **Mitigation**: derive the throttle key as a **keyed hash** of the
+  canonically-normalized email — `reset-req:<HMAC-SHA256(serverSecret,
+  canonicalEmail)>` — never the cleartext address, so a table reader learns
+  neither the address nor (without a brute-force of the address space against the
+  secret) account existence. Define the canonical-normalization **once**, as a
+  shared helper, and pin it to match better-auth's account-lookup normalization
+  (verify against better-auth's behavior; if better-auth does not normalize case,
+  neither may our key). Record both the keyed-hash construction and the
+  normalization definition in `data-model.md` (rateLimit) and
+  `contracts/auth-password-reset-api.yaml`. Add a test that two case/dot variants
+  of one account's email hit the **same** throttle counter, and that the persisted
+  key does not contain the cleartext address.
+
+### Silent total email-delivery outage has no observability (Pass 8)
+
+- The reset flow is engineered to be **deliberately silent on failure**, and the
+  prior passes reinforced that silence from three directions at once: reset send
+  failures are **swallowed** (FR-013), the request response is **enumeration-safe
+  generic 200** (FR-007 + the Pass-2 timing work), and the confirmation-email
+  failure is **self-caught** (Pass 4). The unintended aggregate is that a
+  **systemic** email outage — a revoked/rotated Mailgun API key, a suspended
+  account, an exhausted sending quota, or the unverified-domain / DMARC-misalignment
+  case Pass 7 already showed is silently undeliverable — fails **every** password
+  reset with **zero** signal to users and **no aggregate signal to operators**.
+  SC-001 (self-service recovery) silently drops to **0%** and there is nothing
+  defined to alert on; the only trace is the per-failure redaction-aware log line,
+  which no requirement says anyone watches, and the per-invitation `emailSent:
+  false` flag, which surfaces only to the one admin who happens to create an
+  invitation during the outage. This is a **design-level requirement gap**, not an
+  implementation detail: the design chose silence for security and never added the
+  countervailing observability that a recovery feature needs.
+- **Mitigation**: add a requirement that **every production email-send failure
+  emits a distinct, structured, monitorable signal** — a dedicated log event /
+  counter keyed by purpose (`reset` / `invitation` / `password-changed`) and outcome
+  — that operations can alert on (e.g. "reset-email failure rate > 0 over N
+  minutes"). This is the operability counterpart to the Pass-1 redaction guard:
+  redaction governs *what* the failure line may contain (never the token/body); this
+  governs *that* the failure is countable and alertable. Keep it a **seam + a
+  requirement** at this stage (a structured failure event the email module always
+  emits), not a specific alerting backend. Pairs naturally with the Pass-7 DKIM
+  cross-field check as the two halves of "production cannot silently fail to
+  deliver."
+
+### Reset-token confidentiality at rest in `verification` (Pass 8)
+
+- Every prior confidentiality pass scoped the reset token to **transit and logs**:
+  Pass 1 keeps it out of *our* production logs and the address bar, Pass 7 keeps it
+  out of Mailgun's analytics. **No pass addressed the token at rest.**
+  `data-model.md` models the token as `verification.identifier =
+  reset-password:<token>` resolving (via `value`) to a `user.id`. If better-auth
+  persists the **raw** token there, a DB-at-rest exposure (backup leak, read
+  replica, a future secondary SQLi) yields **directly-usable account-takeover
+  credentials** — each row hands an attacker a live reset token *and* the target
+  `user.id`. That is a confidentiality **asymmetry** with feature-002, which
+  deliberately stores invitation tokens **SHA-256-hashed for lookup + AES-256-GCM
+  encrypted at rest** precisely so a DB leak yields nothing usable. The plan never
+  states whether the reset token enjoys the same at-rest protection.
+- **Mitigation**: confirm whether better-auth **hashes the reset token before
+  storing it** in `verification` (current better-auth stores a hash and emails the
+  pre-image; verify for the pinned `^1.6.14`). If it does, **record that as a
+  verified assumption** in `data-model.md` so the asymmetry is closed-by-fact. If it
+  stores the raw token, **raise it as a deviation** (do not silently accept):
+  decide explicitly between enabling token hashing, accepting the risk for this
+  small admin-curated user base, or compensating — and document the decision. This
+  mirrors the Pass-2 "if better-auth cannot supersede, raise it" discipline.
+
+### App-managed counters share better-auth's `rateLimit` table lifecycle (Pass 8)
+
+- The Pass-2 (per-invitation) and Pass-3 (per-address) throttles both write
+  **app-managed** synthetic-key rows into better-auth's **own** `rateLimit` table
+  to honor "no new table." That table's **schema, counting semantics, and
+  cleanup/sweep are owned by better-auth**, so the manual writes have three
+  unstated coupling risks the artifacts gloss over: (1) better-auth's own periodic
+  pruning of "expired" rateLimit rows could **delete the app's counters** out from
+  under the window; (2) the column the app increments may carry **count-vs-window
+  semantics** that differ from what a per-address/per-invitation window needs,
+  producing mis-counts; (3) the synthetic keys could **collide** with better-auth's
+  own `<path>:<ip>` key scheme. None of this is decided, so `/sp:05-tasks` would
+  implement against assumptions.
+- **Mitigation**: pin the coupling explicitly in `data-model.md` (rateLimit):
+  state the exact column(s) and counting semantics the manual check uses, choose a
+  key **namespace** that provably cannot collide with better-auth's own keys
+  (the `resend:` / `reset-req:` prefixes plus the Pass-8 keyed-hash already help),
+  and confirm better-auth's cleanup will not clobber these rows (or give them an
+  app-owned expiry the sweep respects). If that coupling cannot be made safe, adopt
+  the already-named **in-process `Map`/LRU** fallback as the *authoritative* home
+  (with its per-process/reset-on-restart caveat) rather than leaving the choice to
+  implementation discovery. State which mechanism is authoritative.
+
 ## Accessibility Requirements
 
 > Added by `/sp:04-red-team` (Pass 1). Extends the WCAG 2.2 AA target already
@@ -678,6 +795,23 @@ feature-001/002 locations.
 - Each field keeps an associated `<Label>` (not placeholder-only) and the
   policy-violation / invalid-token messages use the existing
   `role="alert"`/`aria-live` pattern already specified for these pages.
+
+### Focus management & per-route titles on the new public routes (Pass 8)
+
+- The Pass-1 a11y note covers `role="alert"`/`aria-live` for *messages*, but the
+  two **new SPA routes** (`/forgot-password`, `/reset-password`) introduce
+  client-side navigations and multi-state pages (loading → form → success /
+  terminal-error) where a screen-reader user otherwise gets **no orientation**: SPA
+  route changes do not move focus or update the document title the way a full page
+  load would. Without explicit handling, focus stays on the link that was activated
+  and the page identity is unannounced.
+- **Mitigation**: on route entry **and** on each terminal state transition (success
+  / invalid-or-expired-token), move focus to the result heading (the same treatment
+  should be confirmed for the existing `RedeemInvitation` page the design mirrors),
+  and set a **route-specific document `<title>`** (e.g. "Reset your password") so
+  the page is identifiable in the tab list and to assistive tech. This is
+  presentation-only (no interface or data-shape impact) and lives in
+  `ForgotPassword.tsx` / `ResetPassword.tsx`.
 
 ## Complexity Tracking
 
