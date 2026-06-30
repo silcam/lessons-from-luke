@@ -15,7 +15,13 @@ import { InvitationSummaryRow } from "../../../core/interfaces/Api";
 export type { InvitationSummaryRow };
 
 export interface InvitationsListError {
-  code: "not_found" | "not_pending" | "link_unavailable" | "network_error" | "unknown_error";
+  code:
+    | "not_found"
+    | "not_pending"
+    | "link_unavailable"
+    | "throttled"
+    | "network_error"
+    | "unknown_error";
   message: string;
 }
 
@@ -126,4 +132,27 @@ export const getInvitationLink = createAsyncThunk<
     code: "link_unavailable",
     message: body.error ?? "Link unavailable",
   });
+});
+
+// ---------------------------------------------------------------------------
+// resendInvitationEmail — POST /api/admin/invitations/:id/resend
+// ---------------------------------------------------------------------------
+
+export interface ResendInvitationEmailResult {
+  id: string;
+  emailSent: boolean;
+}
+
+/**
+ * RED STUB — exports the correct type signature but does not yet call fetch
+ * or handle the 404/409/429 responses. Tests in invitationsListThunks.test.ts
+ * will fail until the GREEN task (lessons-from-luke-5qjl.5.4.6) implements
+ * the real behavior.
+ */
+export const resendInvitationEmail = createAsyncThunk<
+  ResendInvitationEmailResult,
+  string,
+  { rejectValue: InvitationsListError }
+>("invitationsList/resendInvitationEmail", async (_id, _thunkApi) => {
+  return { id: "", emailSent: false };
 });

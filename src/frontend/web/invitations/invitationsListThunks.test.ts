@@ -4,7 +4,12 @@
  * Stubs global fetch; asserts correct request construction and response mapping.
  */
 
-import { listInvitations, retractInvitation, getInvitationLink } from "./invitationsListThunks";
+import {
+  listInvitations,
+  retractInvitation,
+  getInvitationLink,
+  resendInvitationEmail,
+} from "./invitationsListThunks";
 
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
@@ -215,6 +220,85 @@ describe("invitationsListThunks", () => {
       );
       expect(rejectedCall).toBeTruthy();
       expect(rejectedCall![0].payload).toMatchObject({ code: "not_pending" });
+    });
+  });
+
+  describe("resendInvitationEmail", () => {
+    it("POSTs to /api/admin/invitations/:id/resend", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ emailSent: true }),
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await resendInvitationEmail("inv-1")(dispatch, getState, undefined);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/admin/invitations/inv-1/resend",
+        expect.objectContaining({ method: "POST" })
+      );
+    });
+
+    it("on success, dispatches fulfilled with { id, emailSent }", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ emailSent: true }),
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await resendInvitationEmail("inv-1")(dispatch, getState, undefined);
+
+      const fulfilledCall = dispatch.mock.calls.find(
+        ([action]) => action.type === "invitationsList/resendInvitationEmail/fulfilled"
+      );
+      expect(fulfilledCall).toBeTruthy();
+      expect(fulfilledCall![0].payload).toMatchObject({ id: "inv-1", emailSent: true });
+    });
+
+    it("on 409 not-pending, rejects with { code: 'not_pending' }", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: async () => ({ error: "Invitation is not pending" }),
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await resendInvitationEmail("inv-1")(dispatch, getState, undefined);
+
+      const rejectedCall = dispatch.mock.calls.find(
+        ([action]) => action.type === "invitationsList/resendInvitationEmail/rejected"
+      );
+      expect(rejectedCall).toBeTruthy();
+      expect(rejectedCall![0].payload).toMatchObject({ code: "not_pending" });
+    });
+
+    it("on 429 throttled, rejects with { code: 'throttled' }", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 429,
+        json: async () => ({
+          error: "Too many resend requests for this invitation. Please try again later.",
+        }),
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await resendInvitationEmail("inv-1")(dispatch, getState, undefined);
+
+      const rejectedCall = dispatch.mock.calls.find(
+        ([action]) => action.type === "invitationsList/resendInvitationEmail/rejected"
+      );
+      expect(rejectedCall).toBeTruthy();
+      expect(rejectedCall![0].payload).toMatchObject({ code: "throttled" });
     });
   });
 });
