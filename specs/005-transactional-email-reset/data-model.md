@@ -229,6 +229,25 @@ Holds the single-use, time-limited password-reset token.
      re-open the Pass 2 enumeration timing oracle (a smaller, local-DB delta). They must run
      inside the **same fire-and-forget background task** as the send, so `sendResetPassword`
      returns in account-existence-independent time.
+- **Residual timing floor: better-auth's own pre-callback INSERT** (red-team Pass 11):
+  the Pass-2/Pass-6 backgrounding governs only **our** work; better-auth's
+  `/request-password-reset` handler (verified in `dist/api/routes/password.mjs`,
+  `^1.6.14`) does account-conditional synchronous DB work **before** it calls our
+  `sendResetPassword`. Known account: `findUserByEmail` (SELECT) →
+  `createVerificationValue` (**INSERT** of the `reset-password:<token>` row) →
+  `runInBackgroundOrAwait(sendResetPassword)`. Unknown email: `findUserByEmail`
+  (SELECT) → `generateId(24)` → `findVerificationValue("dummy-verification-token")`
+  (a dummy **SELECT**) → return. better-auth deliberately simulates the
+  token-generation and verification lookup for the unknown path (its own
+  timing-attack mitigation, with an in-source comment), but simulates with a SELECT
+  where the real path INSERTs — so a residual INSERT-vs-SELECT delta on the
+  known-account path is **upstream of our callback and cannot be removed by our
+  code**. Consequence for `/sp:05-tasks`: the timing-parity integration assertion
+  MUST be a **tolerance / "does not materially differ"** check sized above this
+  INSERT-vs-SELECT floor — never strict equality — and our Pass-6 obligation is
+  scoped to "add no *further* account-conditional awaited work in
+  `sendResetPassword`'s synchronous body," relying on better-auth's own dummy-SELECT
+  simulation for the rest of the parity.
 
 ### session (existing — better-auth)
 

@@ -890,6 +890,49 @@ feature-001/002 locations.
   send. This is presentation/operations documentation only — no interface or
   data-shape impact.
 
+### better-auth's pre-callback `createVerificationValue` INSERT is an account-conditional synchronous write — residual timing floor (Pass 11)
+
+- The Pass-2/Pass-6 timing-safety mitigation backgrounds **all of our**
+  account-conditional work inside `sendResetPassword` and asserts "the
+  synchronous request-handler path does identical, near-zero work regardless of
+  whether the account exists." Reading the actual better-auth `^1.6.14`
+  `dist/api/routes/password.mjs` shows that claim cannot be **fully** true,
+  because the `/request-password-reset` handler does account-conditional
+  synchronous DB work **before** it ever invokes our `sendResetPassword` (via
+  `runInBackgroundOrAwait`), and that work is upstream of — and invisible to —
+  our callback:
+  - **Known account**: `findUserByEmail` (SELECT) → `createVerificationValue`
+    (an **INSERT** writing the `reset-password:<token>` row) →
+    `runInBackgroundOrAwait(sendResetPassword(...))`.
+  - **Unknown email**: `findUserByEmail` (SELECT) → `generateId(24)` →
+    `findVerificationValue("dummy-verification-token")` (a dummy **SELECT**) →
+    return.
+  better-auth deliberately simulates the token generation and a verification
+  lookup for the unknown path (its own in-source timing-attack mitigation, with
+  an explicit code comment), but it simulates with a **SELECT** where the real
+  path performs an **INSERT**. So even a perfect Pass-6 implementation (our
+  callback returns instantly, every throttle/supersession/send op backgrounded)
+  still leaves a residual INSERT-vs-SELECT (plus a `getDate`) timing delta on the
+  known-account path that **our code cannot remove** — it lives in better-auth's
+  handler. The Pass-6 "identical, near-zero work" prose therefore overstates what
+  is achievable, and a **strict-equality** timing assertion written by
+  `/sp:05-tasks` would flake against this inherent floor.
+- **Mitigation** (calibration + documentation; no new mechanism): (1) keep the
+  Pass-2 integration assertion as a **tolerance / "does not materially differ"**
+  check (which its current wording already is) — never strict equality — and size
+  the tolerance above better-auth's inherent INSERT-vs-SELECT floor. (2) Record
+  that better-auth performs the account-conditional `createVerificationValue`
+  INSERT **synchronously, before** `sendResetPassword`, establishing a residual
+  timing floor outside our control, and that better-auth's own
+  dummy-`findVerificationValue` SELECT is the **inherited upstream mitigation** we
+  rely on for the bulk of timing parity. (3) Scope our Pass-6 obligation precisely:
+  it is "add no **further** account-conditional awaited work in
+  `sendResetPassword`'s synchronous body," not "make the whole endpoint
+  account-independent" — the latter is not achievable given better-auth's
+  pre-callback write and is not our code to fix. Documented in `data-model.md`
+  (verification, timing floor) and `contracts/auth-password-reset-api.yaml`
+  (TIMING-SAFE).
+
 ## Accessibility Requirements
 
 > Added by `/sp:04-red-team` (Pass 1). Extends the WCAG 2.2 AA target already
