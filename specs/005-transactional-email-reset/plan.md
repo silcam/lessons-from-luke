@@ -578,6 +578,89 @@ feature-001/002 locations.
   response time independent of account existence) to hold **with** the throttle and
   supersession logic active, not just with the bare send backgrounded.
 
+### Mailgun open/click tracking leaks the live reset token to a third party (Pass 7)
+
+- Every prior pass that reasoned about reset-token confidentiality scoped it to
+  **our own** logs: Pass 1 redaction keeps the token out of *our* production
+  failure logs, and the SPA `history.replaceState` (Pass 1) keeps it out of the
+  address bar. No pass considered the **transport itself** as a place the token
+  is retained. Mailgun domains can have **open tracking** and **click tracking**
+  enabled, and when click tracking is on Mailgun **rewrites every link in the
+  email** to route through its own redirector (`…mailgun.net/c/…`) and logs each
+  click in its analytics. With tracking on, two distinct harms follow for the
+  `/reset-password?token=` (and invitation) links:
+  - **Live-credential leak to a third party**: the single-use reset token is
+    embedded in the rewritten tracking URL and is therefore **stored in Mailgun's
+    click-analytics** and passes through Mailgun's redirector — a live credential
+    retained outside our trust boundary, exactly the confidentiality the Pass 1
+    redaction work protects in our own logs but never extended to the provider.
+  - **Link-integrity breakage**: click tracking rewrites the **HTML** link
+    (default `htmlonly`) but not the `text` link, so the two bodies disagree, and
+    the user's emailed link is no longer the verbatim app URL the design assumes
+    (the `text`/`html` "link verbatim" rule in `data-model.md`). Open tracking
+    additionally injects a tracking pixel into the `html` body.
+  - (Note: this is **not** a token-consumption-by-prefetch problem — the reset and
+    invitation links are SPA GET routes that consume nothing on load; the token is
+    only spent by the subsequent POST. The harm here is third-party **retention**
+    and link rewriting, not premature consumption.)
+- **Mitigation**: `MailgunEmailTransport` MUST disable per-message tracking on
+  **every** transactional auth send by setting the Mailgun form fields
+  `o:tracking=no`, `o:tracking-clicks=no`, and `o:tracking-opens=no` (these
+  per-message overrides win regardless of the domain's default tracking setting),
+  so the emitted link is always the verbatim server-built URL and the live token
+  never enters Mailgun's analytics. These are static fields set by the transport,
+  not user-derived, so they compose cleanly with the Pass-1 `URLSearchParams`
+  encoding. Add a unit test asserting the encoded body carries
+  `o:tracking-clicks=no` (and friends) on every send. Documented in
+  `data-model.md` (`MailgunEmailTransport` hardening).
+
+### Redaction guard must bound the *provider error*, not just the body (Pass 7)
+
+- The Pass 1 "reset-token confidentiality" mitigation says the production failure
+  paths "log only `to` + `subject` + error — NEVER the `text`/`html` body or the
+  action link." But it treats **`error` as inherently safe to log**, which has a
+  blind spot: if `MailgunEmailTransport` builds its thrown error from the **raw
+  Mailgun HTTP response body** (e.g. `throw new Error(\`Mailgun ${status}: ${await
+  res.text()}\`)`), and that response echoes any submitted field, the redaction-
+  aware logger faithfully logs an `error` that **transitively contains the body /
+  the reset link** — re-introducing the very token-in-prod-logs leak Pass 1 closed,
+  through the one value Pass 1 declared safe. This is a second-order gap in the
+  Pass 1 mitigation itself.
+- **Mitigation**: `MailgunEmailTransport` MUST construct its thrown/ logged error
+  from a **bounded, structured** view of the provider response — the HTTP status
+  plus Mailgun's own `message` field (which describes the validation error, e.g.
+  "'to' is not a valid address") — and MUST NOT embed the raw response body or any
+  echoed request field. The redaction-aware log helper therefore logs only the
+  status + that bounded message + `to` + `subject`. Add a unit test that a Mailgun
+  error response which **echoes the submitted `text`** (link included) produces a
+  log line and a thrown error that do **not** contain the link/token. Documented in
+  `data-model.md` (production error-log redaction).
+
+### `fromAddress` must be validated to belong to the verified sending domain (Pass 7)
+
+- FR-002/FR-004 fail-fast at startup if any `Secrets.email` field is missing,
+  empty, or left at its placeholder default — but each field is validated **in
+  isolation**. There is no **cross-field coherence** check that `fromAddress`
+  actually belongs to the configured Mailgun `domain`. A real production footgun
+  follows: an operator sets `domain=mg.example.org` (the verified, DKIM-signing
+  domain) but `fromAddress=noreply@example.org` (the parent, or an unrelated
+  domain). Every field passes the per-field guard, the server starts, and Mailgun
+  accepts the send — but the message is **DKIM-signed for `mg.example.org` while
+  the From: header is `example.org`**, so DMARC alignment fails at strict
+  receivers and the reset/invitation email is **spam-foldered or rejected**. The
+  user-facing flow still shows the generic "check your email" 200 (enumeration
+  safety means we cannot tell them otherwise), so a locked-out user **silently
+  never receives the reset email** — defeating SC-001 with no error anywhere. This
+  is invisible today because validation is per-field only.
+- **Mitigation**: extend the FR-002 startup validation in `secrets.ts` with a
+  cross-field check that the domain part of `fromAddress` **equals, or is a
+  subdomain of, the configured `domain`** (the standard DKIM/DMARC alignment
+  rule), failing fast with a clear field-names-only error
+  (e.g. "email.fromAddress domain does not match email.domain") if it does not.
+  This stays within the existing fail-fast pattern (field names only, never
+  values — FR-004). Documented in `data-model.md` (`EmailConfig` validation) and
+  the `EmailConfig` contract.
+
 ## Accessibility Requirements
 
 > Added by `/sp:04-red-team` (Pass 1). Extends the WCAG 2.2 AA target already

@@ -67,12 +67,31 @@ Implementations:
   - Apply a bounded request timeout (`AbortSignal.timeout`, ~10 s); a timeout is a
     normal send failure (throw) so it cannot stall the awaited reset/invitation
     response.
+  - **Disable Mailgun tracking per-message** (red-team Pass 7): set the static form
+    fields `o:tracking=no`, `o:tracking-clicks=no`, `o:tracking-opens=no` on **every**
+    send. With click tracking enabled on the domain, Mailgun rewrites the action link
+    through its redirector and stores the embedded **single-use reset token** in its
+    click-analytics (a live credential retained outside our trust boundary — the
+    third-party twin of the Pass-1 *our-logs* redaction), and rewrites only the `html`
+    link so it no longer matches the verbatim `text` link. The per-message `o:tracking*`
+    overrides win over the domain default, keep the emitted link the verbatim
+    server-built URL, and keep the token out of Mailgun's analytics. Unit-test that the
+    encoded body carries `o:tracking-clicks=no`.
 - **Production error-log redaction** (red-team Pass 1): the production failure paths
   (`MailgunEmailTransport` throw, and the `sendResetPassword`/`onPasswordReset` catch
   in `auth.ts`) log only `to` + `subject` + error — NEVER the `text`/`html` body or
   the action link, so a single-use reset token never reaches a production log. The
   `Log`/`Memory` transports still log the link in dev/test (FR-003), which is safe
   there (no real mail; link targets the local SPA).
+- **Bound the provider error, not just the body** (red-team Pass 7): the Pass-1 guard
+  above treats `error` as inherently safe, but if `MailgunEmailTransport` builds its
+  thrown error from the **raw** Mailgun response body, that body can echo the submitted
+  `text`/link — so logging the "error" transitively leaks the token, through the one
+  value Pass 1 declared safe. The transport MUST construct its thrown/logged error from
+  a **bounded, structured** view (HTTP status + Mailgun's `message` field only), never
+  the raw response body or any echoed request field. Unit-test that a Mailgun error
+  response which echoes the submitted `text` yields a thrown error and log line with no
+  link/token.
 
 ### SentEmail (test-only)
 
@@ -99,6 +118,16 @@ Captured record for in-process assertions (research.md §D9).
 
 - **Validation site**: `src/server/util/secrets.ts`, production-gated, fail-fast, field
   names only in error text — never values (FR-002, FR-004).
+- **Cross-field DKIM/DMARC alignment** (red-team Pass 7): the per-field guards above are
+  validated in isolation, which permits a coherent-looking but undeliverable config —
+  e.g. `domain=mg.example.org` (the verified, DKIM-signing domain) with
+  `fromAddress=noreply@example.org` (parent/other domain). Mailgun accepts the send but
+  the message is DKIM-signed for `domain` while `From:` is a different domain, so DMARC
+  alignment fails and reset/invitation mail is spam-foldered or rejected — silently,
+  since the flow still returns the generic 200 (a locked-out user never gets the email,
+  defeating SC-001). Validation MUST additionally check that the domain part of
+  `fromAddress` **equals or is a subdomain of** `domain`, failing fast with a
+  field-names-only error (never values, FR-004).
 
 ---
 

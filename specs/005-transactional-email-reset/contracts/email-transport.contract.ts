@@ -42,10 +42,16 @@ export interface SentEmail {
  * Validated Mailgun configuration (subset of Secrets.email). In production,
  * secrets.ts fail-fasts if any required field is missing/empty/placeholder.
  * Field names only are ever logged — never values (FR-004).
+ *
+ * Cross-field rule (red-team Pass 7): validation MUST also check that the domain
+ * part of `fromAddress` equals or is a subdomain of `domain` (DKIM/DMARC
+ * alignment), else mail is silently spam-foldered/rejected in production. Fail
+ * fast with a field-names-only error.
  */
 export interface EmailConfig {
   apiKey: string;
   domain: string;
+  /** From-address; its domain MUST align with `domain` (see cross-field rule above). */
   fromAddress: string;
   /** Optional region base; default "https://api.mailgun.net". */
   baseUrl?: string;
