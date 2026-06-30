@@ -354,7 +354,7 @@ feature-001/002 locations.
   link works, so the impact is **harassment + provider cost**, not token
   multiplication — but the protective *intent* of FR-012 and the edge case is still
   unmet, and `/sp:05-tasks` would otherwise implement only the per-IP `customRules`
-  and consider FR-012 satisfied, silently shipping half the requirement.
+  and treat FR-012 as satisfied, silently shipping half the requirement.
 - **Mitigation**: add a **per-address** reset throttle reusing the *same* manual
   `rateLimit`-table check pattern Pass 2 pinned for the per-invitation resend
   throttle (synthetic key e.g. `reset-req:<normalizedEmail>`, small max-per-window,
