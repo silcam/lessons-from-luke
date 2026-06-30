@@ -324,6 +324,38 @@ feature-001/002 locations.
   create/resend path still awaits (it must populate `emailSent`), so the bounded
   timeout remains its protection against a hung Mailgun connection.
 
+### `onPasswordReset` confirmation email must not block or corrupt the reset response (Pass 4)
+
+- The Pass 2 timing/latency analysis enumerated exactly **two** send sites and
+  scoped them: the **reset-request** send → moved off the awaited path
+  (fire-and-forget), and **invitation create/resend** → still awaited (it must
+  populate `emailSent`). It never considered the **third** send site: the
+  `onPasswordReset` "your password was changed" notice (D7), which better-auth
+  invokes **inside the `/reset-password` request handler** *after* the password is
+  already updated and all sessions are already revoked. As written, that send sits
+  on the awaited reset-success path, so two distinct problems follow:
+  - **Request-blocking on a success flow**: a slow or hung Mailgun connection
+    delays the `/reset-password` 200 by up to the full Pass-1 ~10 s timeout, on a
+    request that has *already succeeded* server-side and needs nothing from the
+    confirmation email.
+  - **Response that contradicts state**: research §D4 confirms better-auth swallows
+    `sendResetPassword` errors via `runInBackgroundOrAwait`, but it does **not**
+    confirm the same swallow for `onPasswordReset`. If the confirmation send throws
+    and better-auth propagates it, the user could receive a 4xx/5xx **even though
+    their password was changed and every session was revoked** — a confusing,
+    lockout-adjacent failure where the error contradicts the actual account state.
+- **Mitigation**: the `onPasswordReset` callback MUST (1) **self-catch** its own
+  send so a failed or throwing confirmation email can never change the reset
+  outcome — D7 already states this intent; pin it as a hard requirement, on par
+  with the Pass-1 redaction guard — and (2) dispatch the confirmation
+  `transport.send` **off the awaited response path** (fire-and-forget with the
+  redaction-aware `.catch`, mirroring the Pass-2 reset send) so a slow provider
+  never delays the reset-success 200. The bounded Pass-1 timeout still applies to
+  the background send. Add a unit/integration assertion that a throwing or slow
+  confirmation transport still leaves the `/reset-password` response a normal
+  success. This is the **third** send site; the invitation create/resend path
+  remains the only one that must await (it needs `emailSent`).
+
 ### Invitation resend as an email-bomb amplifier
 
 - `POST /api/admin/invitations/:id/resend` carries only the existing per-IP
