@@ -143,16 +143,47 @@ export interface ResendInvitationEmailResult {
   emailSent: boolean;
 }
 
-/**
- * RED STUB — exports the correct type signature but does not yet call fetch
- * or handle the 404/409/429 responses. Tests in invitationsListThunks.test.ts
- * will fail until the GREEN task (lessons-from-luke-5qjl.5.4.6) implements
- * the real behavior.
- */
 export const resendInvitationEmail = createAsyncThunk<
   ResendInvitationEmailResult,
   string,
   { rejectValue: InvitationsListError }
->("invitationsList/resendInvitationEmail", async (_id, _thunkApi) => {
-  return { id: "", emailSent: false };
+>("invitationsList/resendInvitationEmail", async (id, { rejectWithValue }) => {
+  let response: Response;
+  try {
+    response = await fetch(`/api/admin/invitations/${id}/resend`, { method: "POST" });
+  } catch {
+    return rejectWithValue({ code: "network_error", message: "Network error" });
+  }
+
+  if (response.ok) {
+    const body = (await response.json()) as { emailSent: boolean };
+    return { id, emailSent: body.emailSent };
+  }
+
+  let body: { error?: string } = {};
+  try {
+    body = await response.json();
+  } catch {
+    /* ignore */
+  }
+
+  if (response.status === 404) {
+    return rejectWithValue({ code: "not_found", message: body.error ?? "Invitation not found" });
+  }
+
+  if (response.status === 409) {
+    return rejectWithValue({
+      code: "not_pending",
+      message: body.error ?? "Invitation is not pending",
+    });
+  }
+
+  if (response.status === 429) {
+    return rejectWithValue({
+      code: "throttled",
+      message: body.error ?? "Too many resend requests. Please try again later.",
+    });
+  }
+
+  return rejectWithValue({ code: "unknown_error", message: body.error ?? "Unknown error" });
 });

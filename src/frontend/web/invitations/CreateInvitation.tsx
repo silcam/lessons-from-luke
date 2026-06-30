@@ -177,6 +177,12 @@ export default function CreateInvitation() {
             <Heading level={3} text={t("Invitation_create_heading_ready")} />
             <HelpText>{t("Invitation_share_instructions")}</HelpText>
 
+            {result.emailSent === false && (
+              <div role="alert">
+                <Alert>{t("Invitation_email_failed_warning")}</Alert>
+              </div>
+            )}
+
             <LinkBox>{result.link}</LinkBox>
 
             <Button

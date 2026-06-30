@@ -99,6 +99,8 @@ const en = {
   Invitation_share_instructions:
     "Share this single-use link with the person you invited. It can be used only once.",
   Invitation_create_another: "Create another invitation",
+  Invitation_email_failed_warning:
+    "Link created, but the invitation email could not be sent — copy it below.",
 
   // Invitation feature — Redeem Invitation form (US2)
   Invitation_email_locked_label: "Email",
@@ -155,6 +157,7 @@ const en = {
   Invitations_status_expired: "Expired",
   Invitations_status_retracted: "Retracted",
   Invitations_action_recopy: "Re-copy Link",
+  Invitations_action_resend: "Resend email",
   Invitations_action_retract: "Retract",
   Invitations_action_retract_confirm: "Confirm retract",
   Invitations_retract_confirm_prompt:
@@ -163,6 +166,9 @@ const en = {
   Invitations_loading: "Loading invitations…",
   Invitations_load_error: "Couldn't load invitations. Please try again.",
   Invitations_empty_state: "No invitations yet.",
+  Invitations_resend_success: "Invitation email resent.",
+  Invitations_resend_failure: "The invitation email could not be sent. Please try again.",
+  Invitations_resend_throttled: "Too many resend requests. Please wait a moment and try again.",
 };
 
 export type I18nStrings = typeof en;
