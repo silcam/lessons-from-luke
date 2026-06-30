@@ -768,9 +768,9 @@ feature-001/002 locations.
 - The Pass-2 (per-invitation) and Pass-3 (per-address) throttles both write
   **app-managed** synthetic-key rows into better-auth's **own** `rateLimit` table
   to honor "no new table." That table's schema, counting semantics, and
-  cleanup/sweep are owned by better-auth, raising three coupling risks: (1) pruning
-  of rateLimit rows could delete app counters mid-window; (2) the count/window
-  semantics might not match; (3) key collision with better-auth's own
+  cleanup/sweep are owned by better-auth, raising three coupling risks (all verified
+  safe, 2026-06-30): (1) rateLimit-row pruning deleting app counters mid-window;
+  (2) count/window semantics mismatch; (3) key collision with better-auth's own
   `<ip>:<path>` scheme. **All three verified safe (2026-06-30)**:
 - **Resolution**: (1) better-auth's DB adapter (`createDatabaseStorageWrapper`) never
   deletes rateLimit rows — no pruning concern; (2) `data-model.md` pins the exact
@@ -793,8 +793,8 @@ feature-001/002 locations.
   being present and unpredictable. If `/sp:05-tasks` introduces a *new*
   `Secrets.email.hashKey` (or similar) it inherits the exact production footgun this
   feature exists to prevent: a missing / empty / placeholder-default HMAC key makes
-  the throttle-key hash **predictable**, so a table reader could brute the small
-  known-address space against a known/empty key and recover the at-rest enumeration
+  the throttle-key hash **predictable**, enabling a table reader to brute-force the
+  small known-address space against a known/empty key and recover the at-rest enumeration
   oracle Pass 8 closed — and an *unvalidated* new secret would dodge the FR-002
   startup fail-fast entirely.
 - **Mitigation**: do **not** add a new secret. Derive the HMAC key from an
