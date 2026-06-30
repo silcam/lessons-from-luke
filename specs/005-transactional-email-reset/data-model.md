@@ -24,6 +24,16 @@ A fully-rendered, ready-to-send transactional message. Not persisted.
 
 - **Validation**: `subject` and `to` MUST NOT contain CR/LF (reuse the control-character
   guard pattern from `invitationStore.hasControlChars`) to prevent header injection.
+- **Single-recipient guard** (red-team Pass 10): `to` MUST be exactly one address —
+  reject any list separator (`,` or `;`). Mailgun treats the `to` field as a recipient
+  **list** and splits it on commas, and `URLSearchParams` percent-encoding (the Pass-1
+  form-parameter-injection guard) does **not** neutralize a comma *inside* a single
+  field value: `to=victim@x.org,attacker@evil.org` is encoded as one opaque field but
+  Mailgun decodes and fans it out to two recipients. The Pass-1 guard stops new-parameter
+  injection (`&bcc=`) but not this recipient-list fan-out, so the transport boundary must
+  reject separators in `to` rather than rely solely on upstream validators it does not
+  own (defense-in-depth; both current `to` sources are already single validated
+  addresses). Unit-test that a comma-bearing `to` is rejected and never sent.
 - **Link rule**: the action link (reset or invitation URL) is embedded in `text`
   (and `html` if present) so the dev/test log transport always exposes it (FR-003).
   The token in the URL query string is `encodeURIComponent`-encoded.
@@ -307,9 +317,22 @@ Holds the single-use, time-limited password-reset token.
   - Increment: otherwise → `count = count + 1`, update `lastRequest = now`
   The app MUST replicate this via an atomic SQL UPSERT against `getAuthPool()`, using
   the same pattern as `invitationRateLimit.ts`'s `upsertCount` helper. Include a TTL
-  cleanup (`DELETE FROM "rateLimit" WHERE "lastRequest" < $windowStart`) before or
-  with each UPSERT to prevent indefinite row accumulation (better-auth's DB adapter
-  never prunes the `rateLimit` table itself).
+  cleanup to prevent indefinite row accumulation (better-auth's DB adapter never prunes
+  the `rateLimit` table itself).
+  **Cleanup MUST be scoped to the app's own synthetic keys** (red-team Pass 10): the
+  same table also holds better-auth's own `<ip>:<path>` counters (this table is already
+  in use for `/sign-in/email`), so a blanket `DELETE FROM "rateLimit" WHERE "lastRequest"
+  < $windowStart` would delete better-auth's rows too — and if `$windowStart` is derived
+  from the app's short `reset-req` window, it prematurely clears better-auth's
+  longer-window sign-in counter and **neuters sign-in brute-force protection** for a
+  patient attacker. The cleanup MUST therefore be
+  `DELETE FROM "rateLimit" WHERE ("key" LIKE 'reset-req:%' OR "key" LIKE 'resend:%')
+  AND "lastRequest" < $windowStart`, with `$windowStart` computed from **each cleaned
+  prefix's own window** (clean `reset-req:` rows against the reset window, `resend:` rows
+  against the resend window) — never a single blanket cutoff that can also delete a
+  still-active counter of the other app throttle. The app prunes only the rows it
+  created; better-auth owns the lifecycle of its own. Test that an unrelated
+  `<ip>:/sign-in/email` row survives the app's cleanup.
 
   **(b) Key namespace — no collision** (verified): better-auth builds its own keys as
   `<ip>:<normalizedPath>` via `createRateLimitKey(ip, path)` (e.g., `127.0.0.1:/sign-in/email`).

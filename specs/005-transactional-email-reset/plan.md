@@ -734,7 +734,9 @@ feature-001/002 locations.
   requirement** at this stage (a structured failure event the email module always
   emits), not a specific alerting backend. Pairs naturally with the Pass-7 DKIM
   cross-field check as the two halves of "production cannot silently fail to
-  deliver."
+  deliver." (Caveat, red-team Pass 10: this "every failure is countable" guarantee
+  covers *observed* send failures only — it cannot see a background send dropped by
+  process death after the request returned; see the Pass-10 best-effort note below.)
 
 ### Reset-token confidentiality at rest in `verification` (Pass 8)
 
@@ -805,6 +807,88 @@ feature-001/002 locations.
   reset identical in effect to the Map/LRU restart caveat). Pin the source in
   `data-model.md` (rateLimit) so the implementing task wires the existing secret
   rather than inventing an unguarded one.
+
+### App-managed `rateLimit` TTL cleanup must not clobber better-auth's own counters (Pass 10)
+
+- This is the **second-order effect of the Pass-8 shared-table decision itself.**
+  Pass 8 retired the in-process `Map`/LRU, made the auth-owned `rateLimit` table
+  authoritative for both app throttles, and — because better-auth's DB adapter
+  "never prunes the `rateLimit` table itself" — assigned the app a **TTL-cleanup
+  DELETE** to stop indefinite row growth, pinned in `data-model.md` as
+  `DELETE FROM "rateLimit" WHERE "lastRequest" < $windowStart`. That DELETE is
+  **unscoped**: the same table also holds better-auth's **own** `<ip>:<path>`
+  counters (the data-model itself notes the table is "already in use for
+  `/sign-in/email`"). Pass 8 reasoned only about *whether* better-auth prunes
+  (it does not) and about *key collision* (the prefixes don't collide) — it never
+  considered that **the app's own cleanup would delete better-auth's rows**. Two
+  harms follow, and the second is a security regression to an existing control:
+  - **Premature reset of sign-in brute-force protection.** If the app runs the
+    cleanup with a `$windowStart` derived from *its* short window (e.g. the 60 s
+    `reset-req` window) on every reset/resend, it deletes **every** `rateLimit`
+    row whose `lastRequest` is older than 60 s — including better-auth's
+    `/sign-in/email` counter, whose lockout window is typically **longer**. A
+    patient attacker who pauses just over the app's window between sign-in attempts
+    would have better-auth's counter deleted out from under it on the next
+    reset/resend traffic, effectively **neutering sign-in rate limiting** for a
+    slow brute-force — a degradation of a pre-existing security control caused
+    purely as a side effect of this feature's housekeeping.
+  - **Cross-throttle premature deletion.** A single `$windowStart` shared by the
+    `reset-req:` and `resend:` cleanups can also delete a still-active counter of
+    the *other* app throttle when their windows differ.
+- **Mitigation**: the TTL-cleanup DELETE MUST be **scoped to the app's own
+  synthetic keys** and never touch better-auth's `<ip>:<path>` rows — e.g.
+  `DELETE FROM "rateLimit" WHERE ("key" LIKE 'reset-req:%' OR "key" LIKE
+  'resend:%') AND "lastRequest" < $windowStart` — and `$windowStart` MUST be
+  computed from **the cleaned prefix's own window** (clean `reset-req:` rows
+  against the reset window, `resend:` rows against the resend window), never a
+  blanket cutoff. Better-auth owns the lifecycle of its own rows; the app prunes
+  only what it created. Pin this in `data-model.md` (rateLimit) and add a test
+  that an unrelated `<ip>:/sign-in/email` row survives the app's cleanup.
+
+### `EmailMessage.to` recipient-list injection — comma fan-out survives `URLSearchParams` (Pass 10)
+
+- This is a **blind spot in the Pass-1 Mailgun form-parameter mitigation.** Pass 1
+  required `MailgunEmailTransport` to build the body with `URLSearchParams` so a
+  value containing `&`/`=` cannot append a *new* Mailgun parameter (`bcc`, `cc`,
+  `from` override). That reasoning closes **parameter injection** but overlooks a
+  distinct vector that lives **inside a single field value**: Mailgun treats the
+  `to` field as a recipient **list** and splits it on **commas**. A `to` value of
+  `victim@x.org,attacker@evil.org` is percent-encoded by `URLSearchParams` to a
+  single opaque `to=...%2C...` field — which Mailgun then decodes and **splits into
+  two recipients**. Encoding therefore does **not** neutralize a comma; the email
+  fans out to addresses the flow never intended. The exposure is bounded today
+  because both `to` sources are upstream-validated single addresses (reset → the
+  account's own email; invitation → feature-002's bound, validated invitee
+  address), so this is **defense-in-depth** — but the Pass-1 finding explicitly
+  claimed `URLSearchParams` fully closes Mailgun-field abuse, and the transport
+  boundary that hands the value to Mailgun's comma-splitting `to` should not rely
+  solely on upstream validators it does not own.
+- **Mitigation**: validate `EmailMessage.to` at the transport/message boundary as
+  **exactly one address** — reject any list separator (`,` and `;`) in addition to
+  the existing CR/LF guard — so a multi-recipient value can never reach Mailgun's
+  `to`. Documented in `data-model.md` (EmailMessage validation) and the
+  `email-transport.contract.ts` `to` contract. Add a unit test that a `to`
+  containing a comma is rejected (never sent).
+
+### Backgrounded sends are best-effort and unobservable on process death (Pass 10)
+
+- A residual limitation of the Pass-2/Pass-6 fire-and-forget design, surfaced now
+  that Pass 8 added a "every send failure emits a monitorable signal" requirement.
+  The reset-request send and the `onPasswordReset` confirmation send run as
+  detached `void Promise…catch(logRedacted)` background chains after the request
+  has already returned its 200. If the Node process is shut down (deploy, restart,
+  crash) **after** the 200 but **before** the background send completes, the email
+  is silently dropped — the user saw "check your email" but none arrives — and,
+  unlike a transport failure, this produces **no** failure log and so the Pass-8
+  observability signal never fires. There is no send queue or retry.
+- **Mitigation (accepted limitation, plan-only)**: record this explicitly as an
+  accepted best-effort boundary consistent with FR-013's swallow-on-failure
+  posture — the user-facing remedy is simply to request another reset, and the tiny
+  transactional volume makes a durable queue unwarranted (YAGNI). Note in the
+  Pass-8 observability text that its "every failure is countable" guarantee covers
+  *observed* send failures, **not** process-death drops of an in-flight background
+  send. This is presentation/operations documentation only — no interface or
+  data-shape impact.
 
 ## Accessibility Requirements
 

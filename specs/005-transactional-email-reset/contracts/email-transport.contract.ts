@@ -10,7 +10,13 @@
 
 /** A fully-rendered, ready-to-send transactional message. Not persisted. */
 export interface EmailMessage {
-  /** Single RFC-5322 recipient. Required, non-empty, no CR/LF. */
+  /**
+   * Single RFC-5322 recipient. Required, non-empty, no CR/LF.
+   * MUST be exactly one address — reject list separators (`,`/`;`) at the
+   * transport boundary (red-team Pass 10): Mailgun splits `to` on commas and
+   * `URLSearchParams` encoding does not neutralize a comma inside the field
+   * value, so a multi-recipient value would fan the email out.
+   */
   to: string;
   /** Single-line subject. Required, non-empty, no CR/LF (header-injection safe). */
   subject: string;
