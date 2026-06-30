@@ -155,7 +155,7 @@ describe("MainPage", () => {
     expect(container).toBeTruthy();
   });
 
-  it("renders TranslateHome when loaded and progress == 100 (line 27: doTranslate=true branch)", () => {
+  it("renders TranslateHome when loaded, progress == 100, AND paired (doTranslate=true branch)", () => {
     const language = {
       languageId: 2,
       name: "French",
@@ -166,6 +166,8 @@ describe("MainPage", () => {
     };
     const store = createTestStore({
       loaded: true,
+      connected: true,
+      paired: true,
       language,
       downSync: {
         languages: false,
@@ -176,9 +178,40 @@ describe("MainPage", () => {
         progress: 100,
       },
     });
-    const { container } = renderWithProviders(<MainPage />, store);
-    // TranslateHome renders when doTranslate is true
-    expect(container).toBeTruthy();
+    const { queryByText } = renderWithProviders(<MainPage />, store);
+    // TranslateHome (not the connect gate) renders when synced AND paired.
+    expect(queryByText("Connect to account")).toBeNull();
+  });
+
+  it("returns to the connect gate when un-paired mid-session, even at progress == 100 (FR-015)", () => {
+    // Regression: un-pairing (Admin > Disconnect Account) while on the
+    // translation screen must surface the "Connect to account" gate, not strand
+    // the user on TranslateHome. doTranslate is a one-time init, so MainPage must
+    // also gate the translation UI on the live `paired` flag.
+    const language = {
+      languageId: 2,
+      name: "French",
+      code: "fr",
+      motherTongue: false,
+      progress: [],
+      defaultSrcLang: 1,
+    };
+    const store = createTestStore({
+      loaded: true,
+      connected: true,
+      paired: false,
+      language,
+      downSync: {
+        languages: false,
+        baseLessons: false,
+        lessons: [],
+        tStrings: {},
+        timestamp: 1,
+        progress: 100,
+      },
+    });
+    const { getByText } = renderWithProviders(<MainPage />, store);
+    expect(getByText("Connect to account")).toBeTruthy();
   });
 });
 

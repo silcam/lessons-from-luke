@@ -88,6 +88,18 @@ export default class WebAPIClientForDesktop {
     );
   }
 
+  /**
+   * Lightweight reachability probe for the un-paired state. Issues a single GET
+   * to the public `/api/languages` endpoint, routed through `trackConnection` so
+   * `connected` reflects whether the server is reachable — WITHOUT pulling any
+   * project data or polling the `/api/sync` route. This lets the desktop keep an
+   * accurate online/offline gate (to show the "Connect to account" prompt) while
+   * an un-paired device stays off the sync API entirely (FR-015 / FR-016).
+   */
+  async probeConnection(): Promise<void> {
+    await this.get("/api/languages", {});
+  }
+
   isConnected() {
     return this.connected;
   }

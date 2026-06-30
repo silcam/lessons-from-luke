@@ -337,8 +337,24 @@ export default class DesktopApp {
   }
 
   private startDownSync() {
-    this.webClient.watch(() => downSync(this));
+    this.webClient.watch((client) => this.syncTick(client));
     fetchMissingPreviews(this);
+  }
+
+  /**
+   * One iteration of the continuous sync loop. Pulls project data only while
+   * paired (FR-015 / FR-016: an un-paired device must not sync). When un-paired
+   * — including immediately after Admin > Disconnect Account — we stop hitting
+   * the `/api/sync` API and instead issue a lightweight connectivity probe so
+   * the renderer's online/offline gate stays accurate and shows the
+   * "Connect to account" prompt rather than syncing as if still connected.
+   */
+  private async syncTick(client: WebAPIClientForDesktop): Promise<void> {
+    if (client.isPaired()) {
+      await downSync(this);
+    } else {
+      await client.probeConnection();
+    }
   }
 
   private setupMenu() {

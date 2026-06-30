@@ -310,6 +310,30 @@ describe("WebAPIClientForDesktop", () => {
     });
   });
 
+  describe("probeConnection()", () => {
+    test("issues a single public GET and sets connected=true on success, without a credential", async () => {
+      const client = new WebAPIClientForDesktop(makeLocalStorage());
+      mockWebGet.mockResolvedValue([{ languageId: 1, name: "English" }]);
+
+      await client.probeConnection();
+
+      expect(mockWebGet).toHaveBeenCalledTimes(1);
+      // The probe hits the public languages endpoint, NOT the /api/sync route —
+      // an un-paired device must not poll the sync API.
+      expect(mockWebGet.mock.calls[0][0]).toBe("/api/languages");
+      expect(client.isConnected()).toBe(true);
+    });
+
+    test("sets connected=false on a No Connection error and does not throw", async () => {
+      const client = new WebAPIClientForDesktop(makeLocalStorage());
+      client.setConnected(true);
+      mockWebGet.mockRejectedValue({ code: "ECONNREFUSED" });
+
+      await expect(client.probeConnection()).resolves.toBeUndefined();
+      expect(client.isConnected()).toBe(false);
+    });
+  });
+
   describe("isPaired / setPaired / onPairedChange", () => {
     test("isPaired() starts as false", () => {
       const client = new WebAPIClientForDesktop(makeLocalStorage());

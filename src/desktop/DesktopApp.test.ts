@@ -67,6 +67,7 @@ const mockWebClient = {
   onPairedChange: jest.fn(),
   onConnectionChange: jest.fn(),
   watch: jest.fn(),
+  probeConnection: jest.fn().mockResolvedValue(undefined),
 };
 
 jest.mock("./WebAPIClientForDesktop", () => ({
@@ -86,6 +87,7 @@ jest.mock("axios", () => ({
 // ---------------------------------------------------------------------------
 
 import DesktopApp from "./DesktopApp";
+import { downSync } from "./controllers/downSync";
 import type { CredentialStore } from "./auth/CredentialStore";
 import type { DevicePairing, PairingResult, PairingHandle } from "./auth/DevicePairing";
 import type LocalStorage from "./LocalStorage";
@@ -679,6 +681,43 @@ describe("DesktopApp pairing lifecycle", () => {
       const app = await createApp(cs, dp);
 
       expect((app as any).baseUrl).toBe("http://localhost:8080");
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Sync watch tick gating (FR-015 / FR-016)
+  //
+  // The continuous sync loop must only pull project data while paired. After an
+  // Admin > Disconnect Account (un-pair), the loop must STOP hitting the sync
+  // API and fall back to a lightweight connectivity probe — which both stops the
+  // unwanted sync traffic and keeps the renderer's online/offline gate accurate
+  // so the "Connect to account" prompt shows.
+  // -------------------------------------------------------------------------
+
+  describe("sync watch tick gating", () => {
+    test("pulls a downSync when paired, but only probes connectivity when un-paired", async () => {
+      const cs = makeMockCredentialStore(null);
+      const dp = makeMockDevicePairing();
+      await createApp(cs, dp);
+
+      // startDownSync registers the watch callback; capture it to invoke directly.
+      expect(mockWebClient.watch).toHaveBeenCalledTimes(1);
+      const tick = mockWebClient.watch.mock.calls[0][0] as (
+        client: typeof mockWebClient
+      ) => Promise<void>;
+
+      // Paired: pull a full downSync, never probe.
+      mockWebClient.isPaired.mockReturnValue(true);
+      await tick(mockWebClient);
+      expect(downSync).toHaveBeenCalledTimes(1);
+      expect(mockWebClient.probeConnection).not.toHaveBeenCalled();
+
+      // Un-paired: never sync, only probe connectivity.
+      (downSync as jest.Mock).mockClear();
+      mockWebClient.isPaired.mockReturnValue(false);
+      await tick(mockWebClient);
+      expect(downSync).not.toHaveBeenCalled();
+      expect(mockWebClient.probeConnection).toHaveBeenCalledTimes(1);
     });
   });
 });
