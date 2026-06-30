@@ -66,7 +66,11 @@ paths:
         "Repeated resend") and re-sends the invitation email to the bound
         address. Only pending invitations are eligible (FR-016); accepted,
         expired, or retracted ⇒ 409. State-changing/side-effecting POST ⇒
-        requireSameOrigin + rate limit.
+        requireSameOrigin + rate limit. In addition to the per-IP
+        invitationRateLimit, a PER-INVITATION resend throttle (keyed on {id},
+        small max-per-window) bounds reuse of a single invitation as an
+        inbox-flooding amplifier against the bound invitee (red-team Pass 1); an
+        over-limit resend returns 429.
       parameters:
         - name: id
           in: path
@@ -91,4 +95,6 @@ paths:
             Invitation is not pending (accepted/expired/retracted) — resend
             unavailable (FR-016, edge case)
         "429":
-          description: Rate limited
+          description: >
+            Rate limited — per-IP invitationRateLimit OR the per-invitation
+            resend throttle (anti email-bomb, red-team Pass 1)

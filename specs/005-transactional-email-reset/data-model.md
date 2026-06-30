@@ -26,6 +26,14 @@ A fully-rendered, ready-to-send transactional message. Not persisted.
   guard pattern from `invitationStore.hasControlChars`) to prevent header injection.
 - **Link rule**: the action link (reset or invitation URL) is embedded in `text`
   (and `html` if present) so the dev/test log transport always exposes it (FR-003).
+  The token in the URL query string is `encodeURIComponent`-encoded.
+- **HTML-body safety** (red-team Pass 1): when `html` is rendered, the action link
+  goes in an HTML-attribute-encoded `<a href>` and any user-derived value (e.g. the
+  invitee address shown in an invitation email) is HTML-escaped, so the email body is
+  not a markup-injection / phishing surface. `text` stays plain (link verbatim).
+- **Provider wire-format safety** (red-team Pass 1): the CR/LF guard prevents SMTP
+  *header* injection but NOT Mailgun *form-parameter* injection — see the
+  `MailgunEmailTransport` note below for the `URLSearchParams` requirement.
 
 ### EmailTransport (interface)
 
@@ -45,6 +53,19 @@ Implementations:
 
 - **Selection**: `getEmailTransport()` singleton chooses by `NODE_ENV` (mirrors
   `getAuth()`); `setEmailTransport()` / `resetEmailTransport()` for test isolation.
+- **`MailgunEmailTransport` hardening** (red-team Pass 1):
+  - Build the `application/x-www-form-urlencoded` body with `URLSearchParams` (never
+    hand-concatenated `key=value&`) so a field value containing `&`/`=` cannot inject
+    extra Mailgun parameters (`bcc`, `cc`, `o:tag`, `from` override).
+  - Apply a bounded request timeout (`AbortSignal.timeout`, ~10 s); a timeout is a
+    normal send failure (throw) so it cannot stall the awaited reset/invitation
+    response.
+- **Production error-log redaction** (red-team Pass 1): the production failure paths
+  (`MailgunEmailTransport` throw, and the `sendResetPassword`/`onPasswordReset` catch
+  in `auth.ts`) log only `to` + `subject` + error — NEVER the `text`/`html` body or
+  the action link, so a single-use reset token never reaches a production log. The
+  `Log`/`Memory` transports still log the link in dev/test (FR-003), which is safe
+  there (no real mail; link targets the local SPA).
 
 ### SentEmail (test-only)
 

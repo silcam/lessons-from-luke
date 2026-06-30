@@ -205,6 +205,127 @@ feature-001/002 locations.
 **Pipeline**: `specs/acceptance-specs/*.txt` → `acceptance/parse-specs.ts` →
 `acceptance/generate-tests.ts` → `generated-acceptance-tests/*.spec.ts`
 
+## Security Considerations
+
+> Added by `/sp:04-red-team` (Pass 1). Adversarial hardening of the new email module
+> and reset flow, beyond the header-injection guard already noted in `data-model.md`.
+
+### Email-provider wire-format injection (Mailgun)
+
+- The Mailgun REST body is `application/x-www-form-urlencoded` with fields
+  `from`/`to`/`subject`/`text`/`html` (research §D1). The CR/LF guard in
+  `data-model.md` stops SMTP **header** injection but does **not** stop Mailgun
+  **form-parameter** injection: a field value containing `&`/`=` (e.g. an
+  admin-typed invitee address `victim@x.org&bcc=attacker@evil.org`, or a
+  mis-set `fromAddress`) could append unintended Mailgun parameters
+  (`bcc`, `cc`, `o:tag`, a `from` override for phishing) if the body is built by
+  string concatenation.
+- **Mitigation**: `MailgunEmailTransport` MUST build the body with
+  `URLSearchParams` (or equivalent percent-encoding) so every field value is
+  encoded as a single opaque value and cannot introduce new parameters. Never
+  hand-concatenate `key=value&` pairs. Add a unit test asserting that a value
+  containing `&o:tag=` lands in the encoded body as data, not as a second field.
+
+### Reset-token confidentiality (logs)
+
+- A password-reset link embeds a single-use credential (the token). FR-013 and
+  D7 require logging send **failures** for operators; the transports also log in
+  dev/test (FR-003). The production failure path (the `sendResetPassword` /
+  `onPasswordReset` catch in `auth.ts`, and any `MailgunEmailTransport` throw)
+  MUST log only `to` + `subject` + the error — **never** the `text`/`html` body
+  or the action link, so a reset token never lands in a production log aggregator
+  or crash report. (The dev/test `Log`/`Memory` transports intentionally log the
+  link per FR-003; that is acceptable because those environments never send real
+  mail and the link targets a local SPA.)
+- **Mitigation**: give the email module a single redaction-aware log helper used
+  by every production error path; assert in a unit test that the token/link is
+  absent from the production-failure log line.
+
+### Reset-link construction trust boundary
+
+- better-auth hands `sendResetPassword` both a prebuilt `url` and (via the
+  client) an optional `redirectTo` (see the request schema in
+  `contracts/auth-password-reset-api.yaml`). If the implementation ever used
+  that `url`/`redirectTo` to build the emailed link, a caller-supplied
+  `redirectTo` could poison the link's origin (reset-link / open-redirect
+  poisoning) and turn a real reset email into a phishing vector.
+- **Mitigation** (already the design intent in D5 — now made explicit and
+  testable): the emitted link MUST be built solely server-side as
+  `${getWebAppBaseUrl()}/reset-password?token=${encodeURIComponent(token)}`,
+  ignoring the better-auth `url` arg and any client `redirectTo`. The
+  contract is updated to state `redirectTo` is untrusted for link construction.
+
+### Reset-token exposure in the SPA URL
+
+- The token rides in `/reset-password?token=…`. helmet's default
+  `Referrer-Policy: no-referrer` (confirmed in `serverApp.ts`) already prevents
+  Referer leakage to any subresource. Residual exposure is browser history /
+  shoulder-surfing / an accidentally-shared URL while the token is still live.
+- **Mitigation**: `ResetPassword.tsx` reads `?token=` once into component state,
+  then calls `history.replaceState` to drop the query string from the address
+  bar; the reset page MUST NOT load cross-origin subresources while the token is
+  present. (Single-use + ~1 h expiry already bound the window.)
+
+### Email body content safety
+
+- If an `html` body is rendered, the action link goes in an `<a href>` and any
+  user-derived value (the invitee address shown in an invitation email) must not
+  break out of its attribute/markup context and turn the email into a
+  markup-injection / phishing surface.
+- **Mitigation**: HTML-attribute-encode the href and HTML-escape any
+  interpolated user-derived value in the `html` builder; keep the token
+  URL-encoded in the query string. The `text` body stays plain (the link
+  verbatim, per `data-model.md`).
+
+## Edge Cases & Error Handling
+
+> Added by `/sp:04-red-team` (Pass 1).
+
+### Email-provider latency / hang (request-blocking)
+
+- Node's global `fetch` has **no default timeout**. better-auth's
+  `runInBackgroundOrAwait` **awaits** `sendResetPassword`, and the invitation
+  controller **awaits** the send before responding. A slow or hung Mailgun
+  connection would therefore stall the user-facing forgot-password response and
+  the admin's invitation-create/resend response until the OS socket timeout
+  (potentially minutes) — a self-inflicted availability/UX failure on a flow
+  whose whole point is a fast generic acknowledgement.
+- **Mitigation**: `MailgunEmailTransport.send` MUST apply a bounded timeout
+  (`AbortSignal.timeout(…)`, e.g. 10 s) and treat a timeout as a normal send
+  failure (throw) — which the reset flow swallows (FR-013) and the invitation
+  flow surfaces as `emailSent: false` (FR-017). Unit-test the timeout path with
+  a stubbed never-resolving `fetch`.
+
+### Invitation resend as an email-bomb amplifier
+
+- `POST /api/admin/invitations/:id/resend` carries only the existing per-IP
+  `invitationRateLimit`. A malicious or compromised admin session could resend a
+  single pending invitation repeatedly to flood the bound invitee's inbox (and
+  burn provider quota) faster than per-IP limits intend, since one invitation can
+  be resent over and over.
+- **Mitigation**: add a per-invitation resend throttle (a small max-per-window
+  keyed on the invitation id, in addition to the per-IP limit) so a single
+  invitation cannot be weaponised as an inbox flooder; a throttled resend returns
+  429. Documented in `contracts/invitation-email-api.yaml`.
+
+## Accessibility Requirements
+
+> Added by `/sp:04-red-team` (Pass 1). Extends the WCAG 2.2 AA target already
+> stated under "Presentation Design".
+
+### Autofill & password-manager support
+
+- The three new/edited credential inputs must carry correct autocomplete tokens
+  so password managers and assistive tech behave predictably and a freshly-reset
+  user can save the new credential:
+  - `ForgotPassword.tsx` email field → `autocomplete="email"` `inputmode="email"`.
+  - `ResetPassword.tsx` new-password field → `autocomplete="new-password"`.
+  - The sign-in password field (`PublicHome.tsx`, unchanged behaviour) →
+    `autocomplete="current-password"` if not already set.
+- Each field keeps an associated `<Label>` (not placeholder-only) and the
+  policy-violation / invalid-token messages use the existing
+  `role="alert"`/`aria-live` pattern already specified for these pages.
+
 ## Complexity Tracking
 
 > No constitution violations — section intentionally empty.
