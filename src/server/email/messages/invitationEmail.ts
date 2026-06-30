@@ -1,9 +1,6 @@
 /**
  * invitationEmail — builds the invitation-link email message.
  *
- * Stub implementation — RED task (lessons-from-luke-5qjl.5.4.1).
- * The full implementation ships in the GREEN task (lessons-from-luke-5qjl.5.4.2).
- *
  * Spec: specs/005-transactional-email-reset/data-model.md §EmailMessage
  * Plan: plan.md §Project Structure (messages/invitationEmail.ts)
  * Research: research.md §D6 — invitation auto-delivery & resend
@@ -22,7 +19,25 @@ export interface InvitationEmailInput {
 }
 
 /**
+ * Escapes a string for safe embedding in an HTML attribute value or body text.
+ * Replaces &, <, >, ", and ' with their HTML entity equivalents.
+ */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
  * Builds an invitation-link email message.
+ *
+ * The `to` and `link`/`email` values are used as supplied; single-recipient and
+ * header-injection validation is enforced by `EmailTransport.send()` (Pass 10), not
+ * here. The HTML body HTML-attribute-encodes the link's href and HTML-escapes the
+ * invitee email address shown in the body text (Pass 1).
  *
  * @param invitation - The invitee's email and the already-constructed invitation link.
  * @param locale - Locale for message content (explicit seam, red-team Pass 2).
@@ -32,9 +47,36 @@ export function buildInvitationEmail(
   invitation: InvitationEmailInput,
   locale?: string,
 ): EmailMessage {
-  // Stub — returns wrong values so the RED tests fail on assertion.
-  // Replace with a real implementation in the GREEN task.
-  void locale;
-  void invitation;
-  return { to: "", subject: "", text: "" };
+  void locale; // Locale seam — content is currently hardcoded English.
+
+  const { email, link } = invitation;
+
+  const text = [
+    "You've been invited to join Lessons from Luke.",
+    "",
+    "Click or copy the link below to create your account:",
+    "",
+    link,
+    "",
+    "This invitation link is single-use.",
+    "",
+    "If you weren't expecting this invitation, you can ignore this email.",
+  ].join("\n");
+
+  // HTML body: link is embedded in a safe href attribute; the invitee email is
+  // HTML-escaped before being shown in body text (Pass 1 HTML-body safety).
+  const html = [
+    "<p>You&rsquo;ve been invited to join Lessons from Luke.</p>",
+    `<p><a href="${escapeHtml(link)}">Create your account</a></p>`,
+    `<p>This invitation was sent to ${escapeHtml(email)}.</p>`,
+    "<p>This invitation link is single-use.</p>",
+    "<p>If you weren&rsquo;t expecting this invitation, you can ignore this email.</p>",
+  ].join("");
+
+  return {
+    to: email,
+    subject: "You're invited to Lessons from Luke",
+    text,
+    html,
+  };
 }
