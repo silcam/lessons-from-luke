@@ -15,7 +15,7 @@ Entities below are grouped into (A) new code-level types and (B) reused persiste
 
 A fully-rendered, ready-to-send transactional message. Not persisted.
 
-| Field     | Type     | Rules                                                                 |
+| Field     | Type     | Rules                                                                |
 | --------- | -------- | -------------------------------------------------------------------- |
 | `to`      | `string` | Single RFC-5322 recipient address. Required, non-empty.              |
 | `subject` | `string` | Required, non-empty, single line (no CR/LF — header-injection safe). |
@@ -27,7 +27,7 @@ A fully-rendered, ready-to-send transactional message. Not persisted.
 - **Single-recipient guard** (red-team Pass 10): `to` MUST be exactly one address —
   reject any list separator (`,` or `;`). Mailgun treats the `to` field as a recipient
   **list** and splits it on commas, and `URLSearchParams` percent-encoding (the Pass-1
-  form-parameter-injection guard) does **not** neutralize a comma *inside* a single
+  form-parameter-injection guard) does **not** neutralize a comma _inside_ a single
   field value: `to=victim@x.org,attacker@evil.org` is encoded as one opaque field but
   Mailgun decodes and fans it out to two recipients. The Pass-1 guard stops new-parameter
   injection (`&bcc=`) but not this recipient-list fan-out, so the transport boundary must
@@ -42,24 +42,24 @@ A fully-rendered, ready-to-send transactional message. Not persisted.
   invitee address shown in an invitation email) is HTML-escaped, so the email body is
   not a markup-injection / phishing surface. `text` stays plain (link verbatim).
 - **Provider wire-format safety** (red-team Pass 1): the CR/LF guard prevents SMTP
-  *header* injection but NOT Mailgun *form-parameter* injection — see the
+  _header_ injection but NOT Mailgun _form-parameter_ injection — see the
   `MailgunEmailTransport` note below for the `URLSearchParams` requirement.
 
 ### EmailTransport (interface)
 
 The server-only capability boundary (FR-001). One method.
 
-| Member               | Signature                              | Contract                                            |
-| -------------------- | -------------------------------------- | --------------------------------------------------- |
-| `send(message)`      | `(EmailMessage) => Promise<void>`      | Resolves on accepted-for-delivery; **throws** on any failure. |
+| Member          | Signature                         | Contract                                                      |
+| --------------- | --------------------------------- | ------------------------------------------------------------- |
+| `send(message)` | `(EmailMessage) => Promise<void>` | Resolves on accepted-for-delivery; **throws** on any failure. |
 
 Implementations:
 
-| Implementation          | Env          | Behavior                                                                 |
-| ----------------------- | ------------ | ------------------------------------------------------------------------ |
-| `MailgunEmailTransport` | production   | POST to Mailgun REST API; throw on non-2xx or network error.             |
-| `LogEmailTransport`     | development  | Write rendered `to`/`subject`/`text`(+link) to the logger; never sends.  |
-| `MemoryEmailTransport`  | test         | Append to in-process `sentEmails: SentEmail[]`; also log; never sends.   |
+| Implementation          | Env         | Behavior                                                                |
+| ----------------------- | ----------- | ----------------------------------------------------------------------- |
+| `MailgunEmailTransport` | production  | POST to Mailgun REST API; throw on non-2xx or network error.            |
+| `LogEmailTransport`     | development | Write rendered `to`/`subject`/`text`(+link) to the logger; never sends. |
+| `MemoryEmailTransport`  | test        | Append to in-process `sentEmails: SentEmail[]`; also log; never sends.  |
 
 - **Selection**: `getEmailTransport()` singleton chooses by `NODE_ENV` (mirrors
   `getAuth()`); `setEmailTransport()` / `resetEmailTransport()` for test isolation.
@@ -92,7 +92,7 @@ Implementations:
     send. With click tracking enabled on the domain, Mailgun rewrites the action link
     through its redirector and stores the embedded **single-use reset token** in its
     click-analytics (a live credential retained outside our trust boundary — the
-    third-party twin of the Pass-1 *our-logs* redaction), and rewrites only the `html`
+    third-party twin of the Pass-1 _our-logs_ redaction), and rewrites only the `html`
     link so it no longer matches the verbatim `text` link. The per-message `o:tracking*`
     overrides win over the domain default, keep the emitted link the verbatim
     server-built URL, and keep the token out of Mailgun's analytics. Unit-test that the
@@ -117,24 +117,24 @@ Implementations:
 
 Captured record for in-process assertions (research.md §D9).
 
-| Field     | Type     | Notes                                  |
-| --------- | -------- | -------------------------------------- |
-| `to`      | `string` | As sent.                               |
-| `subject` | `string` | As sent.                               |
-| `text`    | `string` | As sent (assert the link is present).  |
-| `html`    | `string \| undefined` | As sent.                  |
+| Field     | Type                  | Notes                                 |
+| --------- | --------------------- | ------------------------------------- |
+| `to`      | `string`              | As sent.                              |
+| `subject` | `string`              | As sent.                              |
+| `text`    | `string`              | As sent (assert the link is present). |
+| `html`    | `string \| undefined` | As sent.                              |
 
 - **Lifecycle**: `sentEmails` is cleared by `resetEmailTransport()` in
   `jestSetupAfterEnv.ts` `afterEach` (parallels the existing `DELETE FROM "invitation"`).
 
 ### EmailConfig (validated subset of `Secrets.email`)
 
-| Field         | Type     | Production rule                                              |
-| ------------- | -------- | ----------------------------------------------------------- |
-| `apiKey`      | `string` | Required, non-empty, not the placeholder default.           |
-| `domain`      | `string` | Required, non-empty, not the placeholder default.           |
-| `fromAddress` | `string` | Required, non-empty, not the placeholder default.           |
-| `baseUrl`     | `string` | Optional; default `https://api.mailgun.net`.                |
+| Field         | Type     | Production rule                                   |
+| ------------- | -------- | ------------------------------------------------- |
+| `apiKey`      | `string` | Required, non-empty, not the placeholder default. |
+| `domain`      | `string` | Required, non-empty, not the placeholder default. |
+| `fromAddress` | `string` | Required, non-empty, not the placeholder default. |
+| `baseUrl`     | `string` | Optional; default `https://api.mailgun.net`.      |
 
 - **Validation site**: `src/server/util/secrets.ts`, production-gated, fail-fast, field
   names only in error text — never values (FR-002, FR-004).
@@ -157,11 +157,11 @@ Captured record for in-process assertions (research.md §D9).
 
 Holds the single-use, time-limited password-reset token.
 
-| Column       | Use for this feature                                                        |
-| ------------ | --------------------------------------------------------------------------- |
-| `identifier` | `reset-password:<token>` — namespaced key better-auth writes/reads.         |
-| `value`      | The target `user.id` the token resolves to.                                 |
-| `expiresAt`  | Now + `resetPasswordTokenExpiresIn` (default 3600 s). Past-due ⇒ rejected.  |
+| Column       | Use for this feature                                                       |
+| ------------ | -------------------------------------------------------------------------- |
+| `identifier` | `reset-password:<token>` — namespaced key better-auth writes/reads.        |
+| `value`      | The target `user.id` the token resolves to.                                |
+| `expiresAt`  | Now + `resetPasswordTokenExpiresIn` (default 3600 s). Past-due ⇒ rejected. |
 
 - **State transition**: created on `/request-password-reset` (only when the user exists);
   **deleted** on successful `/reset-password` (single use, FR-010/SC-006). An expired or
@@ -186,7 +186,7 @@ Holds the single-use, time-limited password-reset token.
   SHA-256 hash, matching the at-rest protection intent of feature-002. Note: when hashing
   is enabled, our `sendResetPassword` supersession DELETE must also hash the key prefix
   — use `deleteVerificationByIdentifier` or a raw `DELETE WHERE identifier =
-  SHA256('reset-password:%')` with the same hashing function; do NOT issue a `LIKE` pattern
+SHA256('reset-password:%')` with the same hashing function; do NOT issue a `LIKE` pattern
   on hashed values (they are opaque hashes). The correct approach is to fetch all
   `verification` rows where `value = userId` and filter client-side for the
   `reset-password:` prefix before hashing each and deleting, OR (simpler and consistent
@@ -206,13 +206,13 @@ Holds the single-use, time-limited password-reset token.
   touching existing ones for the same user, so two un-consumed rows for one account can
   coexist. Our `sendResetPassword` callback MUST enforce supersession: delete the user's
   existing `reset-password:*` verification rows (via `DELETE FROM "verification" WHERE
-  "identifier" LIKE 'reset-password:%' AND "value" = <userId>` against `getAuthPool()`)
+"identifier" LIKE 'reset-password:%' AND "value" = <userId>` against `getAuthPool()`)
   inside the fire-and-forget background task, before issuing the send. See the SUPERSEDED
   edge in the state machine below.
 - **Supersession coupled to actual send + made an invariant** (red-team Pass 5): two
   refinements to the Pass 2 supersession, both required before `/sp:05-tasks` builds it:
   1. **Couple supersession to a real send.** Because the Pass 3 per-address throttle only
-     suppresses the *email* (not token generation), an unconditional supersession lets an
+     suppresses the _email_ (not token generation), an unconditional supersession lets an
      IP-rotating attacker who knows a victim's address repeatedly invalidate the victim's
      own live link with zero mail sent — an indefinite remote denial-of-reset. Evaluate the
      per-address throttle **first**; when over-limit (send suppressed), do **not** invalidate
@@ -245,19 +245,19 @@ Holds the single-use, time-limited password-reset token.
   code**. Consequence for `/sp:05-tasks`: the timing-parity integration assertion
   MUST be a **tolerance / "does not materially differ"** check sized above this
   INSERT-vs-SELECT floor — never strict equality — and our Pass-6 obligation is
-  scoped to "add no *further* account-conditional awaited work in
+  scoped to "add no _further_ account-conditional awaited work in
   `sendResetPassword`'s synchronous body," relying on better-auth's own dummy-SELECT
   simulation for the rest of the parity.
 
 ### session (existing — better-auth)
 
-| Operation | Trigger                | Effect                                                       |
-| --------- | ---------------------- | ----------------------------------------------------------- |
-| delete    | successful reset       | `revokeSessionsOnPasswordReset: true` ⇒ `deleteUserSessions(userId)` removes all rows for the account (FR-009/SC-005). |
+| Operation | Trigger          | Effect                                                                                                                 |
+| --------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| delete    | successful reset | `revokeSessionsOnPasswordReset: true` ⇒ `deleteUserSessions(userId)` removes all rows for the account (FR-009/SC-005). |
 
 ### account (existing — better-auth)
 
-| Operation | Trigger          | Effect                                                          |
+| Operation | Trigger          | Effect                                                         |
 | --------- | ---------------- | -------------------------------------------------------------- |
 | update    | successful reset | `password` column updated with the new Argon2id hash (FR-008). |
 
@@ -320,8 +320,8 @@ Holds the single-use, time-limited password-reset token.
      sub-key, e.g. `HMAC(cookieSecret, "reset-req-throttle")` — no new secret, present
      and strong by construction; a `cookieSecret` rotation merely resets counters
      (benign, like the Map/LRU restart caveat).
-  Test that two case/dot variants of one account's email increment the **same**
-  counter, and that the persisted key contains no cleartext address.
+     Test that two case/dot variants of one account's email increment the **same**
+     counter, and that the persisted key contains no cleartext address.
 - **Shared-table lifecycle coupling — pinned (verified 2026-06-30)**: both manual throttles
   (per-invitation `resend:<id>` and per-address `reset-req:<hash>`) write app-managed
   rows into better-auth's own `rateLimit` table. The three coupling items are now confirmed
@@ -334,24 +334,24 @@ Holds the single-use, time-limited password-reset token.
   - New window (reset): when `(now - lastRequest) >= window_ms` → set `count = 1`,
     update `lastRequest = now`
   - Increment: otherwise → `count = count + 1`, update `lastRequest = now`
-  The app MUST replicate this via an atomic SQL UPSERT against `getAuthPool()`, using
-  the same pattern as `invitationRateLimit.ts`'s `upsertCount` helper. Include a TTL
-  cleanup to prevent indefinite row accumulation (better-auth's DB adapter never prunes
-  the `rateLimit` table itself).
-  **Cleanup MUST be scoped to the app's own synthetic keys** (red-team Pass 10): the
-  same table also holds better-auth's own `<ip>:<path>` counters (this table is already
-  in use for `/sign-in/email`), so a blanket `DELETE FROM "rateLimit" WHERE "lastRequest"
-  < $windowStart` would delete better-auth's rows too — and if `$windowStart` is derived
-  from the app's short `reset-req` window, it prematurely clears better-auth's
-  longer-window sign-in counter and **neuters sign-in brute-force protection** for a
-  patient attacker. The cleanup MUST therefore be
-  `DELETE FROM "rateLimit" WHERE ("key" LIKE 'reset-req:%' OR "key" LIKE 'resend:%')
-  AND "lastRequest" < $windowStart`, with `$windowStart` computed from **each cleaned
-  prefix's own window** (clean `reset-req:` rows against the reset window, `resend:` rows
-  against the resend window) — never a single blanket cutoff that can also delete a
-  still-active counter of the other app throttle. The app prunes only the rows it
-  created; better-auth owns the lifecycle of its own. Test that an unrelated
-  `<ip>:/sign-in/email` row survives the app's cleanup.
+    The app MUST replicate this via an atomic SQL UPSERT against `getAuthPool()`, using
+    the same pattern as `invitationRateLimit.ts`'s `upsertCount` helper. Include a TTL
+    cleanup to prevent indefinite row accumulation (better-auth's DB adapter never prunes
+    the `rateLimit` table itself).
+    **Cleanup MUST be scoped to the app's own synthetic keys** (red-team Pass 10): the
+    same table also holds better-auth's own `<ip>:<path>` counters (this table is already
+    in use for `/sign-in/email`), so a blanket `DELETE FROM "rateLimit" WHERE "lastRequest"
+< $windowStart` would delete better-auth's rows too — and if `$windowStart` is derived
+    from the app's short `reset-req` window, it prematurely clears better-auth's
+    longer-window sign-in counter and **neuters sign-in brute-force protection** for a
+    patient attacker. The cleanup MUST therefore be
+    `DELETE FROM "rateLimit" WHERE ("key" LIKE 'reset-req:%' OR "key" LIKE 'resend:%')
+AND "lastRequest" < $windowStart`, with `$windowStart` computed from **each cleaned
+    prefix's own window** (clean `reset-req:` rows against the reset window, `resend:` rows
+    against the resend window) — never a single blanket cutoff that can also delete a
+    still-active counter of the other app throttle. The app prunes only the rows it
+    created; better-auth owns the lifecycle of its own. Test that an unrelated
+    `<ip>:/sign-in/email` row survives the app's cleanup.
 
   **(b) Key namespace — no collision** (verified): better-auth builds its own keys as
   `<ip>:<normalizedPath>` via `createRateLimitKey(ip, path)` (e.g., `127.0.0.1:/sign-in/email`).

@@ -74,12 +74,12 @@ async function insertTestUser(email: string, password: string): Promise<string> 
     await client.query(
       `INSERT INTO "user" ("id","email","name","admin","emailVerified","createdAt","updatedAt")
        VALUES ($1,$2,'TestUser',false,false,$3,$3)`,
-      [userId, email.toLowerCase(), now],
+      [userId, email.toLowerCase(), now]
     );
     await client.query(
       `INSERT INTO "account" ("id","userId","accountId","providerId","password","createdAt","updatedAt")
        VALUES ($1,$2,$2,'credential',$3,$4,$4)`,
-      [accountId, userId, passwordHash, now],
+      [accountId, userId, passwordHash, now]
     );
   } finally {
     client.release();
@@ -133,12 +133,8 @@ function parseResetTokenFromEmail(email: SentEmail): string {
  * Key = reset-req:<HMAC-SHA256(HMAC(cookieSecret,"reset-req-throttle"), email)>
  */
 function computePerAddressThrottleKey(email: string): string {
-  const subKey = createHmac("sha256", secrets.cookieSecret)
-    .update("reset-req-throttle")
-    .digest();
-  const emailHash = createHmac("sha256", subKey)
-    .update(email.toLowerCase())
-    .digest("hex");
+  const subKey = createHmac("sha256", secrets.cookieSecret).update("reset-req-throttle").digest();
+  const emailHash = createHmac("sha256", subKey).update(email.toLowerCase()).digest("hex");
   return `reset-req:${emailHash}`;
 }
 
@@ -169,10 +165,7 @@ test(
     const email = "pr-known@example.com";
     const userId = await insertTestUser(email, "KnownPassword123!");
 
-    const res = await agent()
-      .post("/api/auth/request-password-reset")
-      .send({ email })
-      .expect(200);
+    const res = await agent().post("/api/auth/request-password-reset").send({ email }).expect(200);
 
     // Generic body — identical for known and unknown (FR-007/SC-004)
     expect(res.body.status).toBe(true);
@@ -193,7 +186,7 @@ test(
     try {
       const result = await client.query<{ value: string; expiresAt: Date }>(
         `SELECT value, "expiresAt" FROM "verification" WHERE value = $1`,
-        [userId],
+        [userId]
       );
       expect(result.rows).toHaveLength(1);
       expect(result.rows[0].value).toBe(userId);
@@ -202,7 +195,7 @@ test(
     } finally {
       client.release();
     }
-  },
+  }
 );
 
 // ------------------------------------------------------------------
@@ -245,17 +238,14 @@ test(
 
     // Measure known-email response time (the HTTP response itself, not background work)
     const t0Known = Date.now();
-    await agent()
-      .post("/api/auth/request-password-reset")
-      .send({ email: knownEmail })
-      .expect(200);
+    await agent().post("/api/auth/request-password-reset").send({ email: knownEmail }).expect(200);
     const tKnown = Date.now() - t0Known;
 
     // Timing parity (Pass 11): the tolerance must exceed better-auth's own
     // INSERT-vs-SELECT residual floor. 1 second is generous; the assertion
     // prevents large, obviously wrong divergences (e.g., a sleep in one path).
     expect(Math.abs(tKnown - tUnknown)).toBeLessThan(1_000);
-  },
+  }
 );
 
 // ------------------------------------------------------------------
@@ -282,10 +272,7 @@ test(
     expect(signInRes.body.user).toBeDefined();
 
     // Request password reset
-    await agent()
-      .post("/api/auth/request-password-reset")
-      .send({ email })
-      .expect(200);
+    await agent().post("/api/auth/request-password-reset").send({ email }).expect(200);
 
     // Obtain the token from the captured reset email
     const resetEmail = await waitForEmailTo(email);
@@ -314,7 +301,7 @@ test(
     // Prior session is revoked: get-session must return null (SC-005)
     const sessionCheck = await priorSession.get("/api/auth/get-session").expect(200);
     expect(sessionCheck.body).toBeNull();
-  },
+  }
 );
 
 // ------------------------------------------------------------------
@@ -363,7 +350,7 @@ test("POST /api/auth/reset-password with expired token → 400 INVALID_TOKEN", a
   try {
     await client.query(
       `UPDATE "verification" SET "expiresAt" = NOW() - INTERVAL '2 hours' WHERE value = $1`,
-      [userId],
+      [userId]
     );
   } finally {
     client.release();
@@ -408,7 +395,7 @@ test(
       .send({ email, password: originalPassword })
       .expect(200);
     expect(signInRes.body.user.email).toBe(email);
-  },
+  }
 );
 
 // ------------------------------------------------------------------
@@ -448,7 +435,7 @@ test(
       .send({ token: token2, newPassword: "NewPassword222!" })
       .expect(200);
     expect(res2.body.status).toBe(true);
-  },
+  }
 );
 
 // ------------------------------------------------------------------
@@ -480,7 +467,7 @@ test(
       await client.query(
         `INSERT INTO "rateLimit" (id, key, count, "lastRequest")
          VALUES (gen_random_uuid()::text, $1, 10, $2)`,
-        [throttleKey, Date.now()],
+        [throttleKey, Date.now()]
       );
     } finally {
       client.release();
@@ -509,9 +496,9 @@ test(
     // Throttled requests skip supersession and only delete the just-written row.
     const verifyResult = await authPool.query<{ value: string }>(
       `SELECT value FROM "verification" WHERE value = $1`,
-      [userId],
+      [userId]
     );
     expect(verifyResult.rows).toHaveLength(1);
   },
-  10_000, // allow up to 10 s (2 s wait + DB + polling overhead)
+  10_000 // allow up to 10 s (2 s wait + DB + polling overhead)
 );

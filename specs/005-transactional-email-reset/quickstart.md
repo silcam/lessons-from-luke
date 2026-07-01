@@ -41,8 +41,8 @@ Add an `email` block to `secrets.json` (values are examples; never commit real k
     "apiKey": "key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     "domain": "mg.example.org",
     "fromAddress": "Lessons from Luke <no-reply@mg.example.org>",
-    "baseUrl": "https://api.mailgun.net" // or https://api.eu.mailgun.net for EU domains
-  }
+    "baseUrl": "https://api.mailgun.net", // or https://api.eu.mailgun.net for EU domains
+  },
 }
 ```
 
@@ -54,14 +54,14 @@ Add an `email` block to `secrets.json` (values are examples; never commit real k
 
 ## Verifying the acceptance criteria
 
-| Criterion | How to verify |
-| --------- | ------------- |
-| SC-001 reset end-to-end, no admin | dev: forgot-password → link from logs → set password → sign in |
-| SC-002 invite by email + fallbacks | create invitation → email logged/sent, link shown, resend works |
-| SC-003 prod fail-fast / dev logs | start prod with no `email` block → clear startup error; dev logs link |
-| SC-004 no enumeration | submit unknown email → identical generic response, nothing sent/logged-as-sent |
-| SC-005 sessions revoked | sign in elsewhere, reset password, confirm the other session is dead |
-| SC-006 single-use / expiry | reuse a consumed link → rejected; wait past 1h → rejected |
+| Criterion                          | How to verify                                                                  |
+| ---------------------------------- | ------------------------------------------------------------------------------ |
+| SC-001 reset end-to-end, no admin  | dev: forgot-password → link from logs → set password → sign in                 |
+| SC-002 invite by email + fallbacks | create invitation → email logged/sent, link shown, resend works                |
+| SC-003 prod fail-fast / dev logs   | start prod with no `email` block → clear startup error; dev logs link          |
+| SC-004 no enumeration              | submit unknown email → identical generic response, nothing sent/logged-as-sent |
+| SC-005 sessions revoked            | sign in elsewhere, reset password, confirm the other session is dead           |
+| SC-006 single-use / expiry         | reuse a consumed link → rejected; wait past 1h → rejected                      |
 
 ## Test commands
 

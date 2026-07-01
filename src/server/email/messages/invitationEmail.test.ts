@@ -28,10 +28,7 @@ describe("buildInvitationEmail", () => {
   // -------------------------------------------------------------------------
 
   it("returns EmailMessage with to=invitation.email, non-empty subject, text containing the invitation link verbatim", () => {
-    const msg = buildInvitationEmail(
-      { email: TEST_EMAIL, link: TEST_LINK },
-      TEST_LOCALE,
-    );
+    const msg = buildInvitationEmail({ email: TEST_EMAIL, link: TEST_LINK }, TEST_LOCALE);
 
     expect(msg.to).toBe(TEST_EMAIL);
     expect(msg.subject).toBeTruthy();
@@ -43,10 +40,7 @@ describe("buildInvitationEmail", () => {
   // -------------------------------------------------------------------------
 
   it("when html is present, the link appears as an href and the invitee email is HTML-escaped in the body", () => {
-    const msg = buildInvitationEmail(
-      { email: TEST_EMAIL, link: TEST_LINK },
-      TEST_LOCALE,
-    );
+    const msg = buildInvitationEmail({ email: TEST_EMAIL, link: TEST_LINK }, TEST_LOCALE);
 
     // Verify basic correctness first (will fail with stub — ensures the test is RED)
     expect(msg.to).toBe(TEST_EMAIL);
@@ -65,21 +59,15 @@ describe("buildInvitationEmail", () => {
     // Ensure that calling with an invitee email containing HTML-special chars does
     // not produce unescaped markup in html (phishing / markup-injection surface).
     const xssEmail = 'invitee+"<script>@example.com';
-    const xssMsg = buildInvitationEmail(
-      { email: xssEmail, link: TEST_LINK },
-      TEST_LOCALE,
-    );
+    const xssMsg = buildInvitationEmail({ email: xssEmail, link: TEST_LINK }, TEST_LOCALE);
     if (xssMsg.html !== undefined) {
       expect(xssMsg.html).not.toContain("<script>");
       expect(xssMsg.html).not.toContain(`"${xssEmail}"`);
     }
 
     // A link containing HTML-special characters must not break attribute encoding either.
-    const xssLink = "https://example.com/invitation/abc\"><script>alert(1)</script>";
-    const xssLinkMsg = buildInvitationEmail(
-      { email: TEST_EMAIL, link: xssLink },
-      TEST_LOCALE,
-    );
+    const xssLink = 'https://example.com/invitation/abc"><script>alert(1)</script>';
+    const xssLinkMsg = buildInvitationEmail({ email: TEST_EMAIL, link: xssLink }, TEST_LOCALE);
     if (xssLinkMsg.html !== undefined) {
       expect(xssLinkMsg.html).not.toContain("<script>alert(1)</script>");
     }
@@ -90,10 +78,7 @@ describe("buildInvitationEmail", () => {
   // -------------------------------------------------------------------------
 
   it("subject contains no CR/LF; to contains no CR/LF, comma, or semicolon", () => {
-    const msg = buildInvitationEmail(
-      { email: TEST_EMAIL, link: TEST_LINK },
-      TEST_LOCALE,
-    );
+    const msg = buildInvitationEmail({ email: TEST_EMAIL, link: TEST_LINK }, TEST_LOCALE);
 
     // Correctness: values must be non-empty and properly populated
     expect(msg.to).toBe(TEST_EMAIL);

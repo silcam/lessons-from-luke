@@ -33,7 +33,7 @@ export interface InvitationEmailInput {
  */
 export function buildInvitationEmail(
   invitation: InvitationEmailInput,
-  locale?: string,
+  locale?: string
 ): EmailMessage {
   void locale; // Locale seam — content is currently hardcoded English.
 

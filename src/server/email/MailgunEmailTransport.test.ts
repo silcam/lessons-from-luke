@@ -69,8 +69,7 @@ describe("MailgunEmailTransport", () => {
     expect(url).toBe("https://api.mailgun.net/v3/mg.example.com/messages");
 
     // Auth header: Basic base64("api:<apiKey>")
-    const expectedAuth =
-      "Basic " + Buffer.from(`api:${validConfig.apiKey}`).toString("base64");
+    const expectedAuth = "Basic " + Buffer.from(`api:${validConfig.apiKey}`).toString("base64");
     expect((options.headers as Record<string, string>)["Authorization"]).toBe(expectedAuth);
   });
 
@@ -200,9 +199,7 @@ describe("MailgunEmailTransport", () => {
     jest.useFakeTimers();
 
     // Stub fetch to never resolve (simulating a hung network connection)
-    globalThis.fetch = jest.fn(
-      () => new Promise<Response>(() => {})
-    ) as unknown as typeof fetch;
+    globalThis.fetch = jest.fn(() => new Promise<Response>(() => {})) as unknown as typeof fetch;
 
     const transport = new MailgunEmailTransport(validConfig);
     const sendPromise = transport.send(validMessage);

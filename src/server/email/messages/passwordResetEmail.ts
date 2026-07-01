@@ -23,11 +23,7 @@ import { escapeHtml } from "./escapeHtml";
  * @param locale - Locale for message content (explicit seam, red-team Pass 2).
  * @returns A ready-to-send EmailMessage.
  */
-export function buildPasswordResetEmail(
-  to: string,
-  token: string,
-  locale: string,
-): EmailMessage {
+export function buildPasswordResetEmail(to: string, token: string, locale: string): EmailMessage {
   void locale; // Locale seam — content is currently hardcoded English.
 
   const link = `${getWebAppBaseUrl()}/reset-password?token=${encodeURIComponent(token)}`;

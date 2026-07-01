@@ -138,7 +138,10 @@ if (process.env.NODE_ENV === "production") {
     );
   }
 
-  if (!secrets.email.fromAddress || secrets.email.fromAddress === defaultSecrets.email!.fromAddress) {
+  if (
+    !secrets.email.fromAddress ||
+    secrets.email.fromAddress === defaultSecrets.email!.fromAddress
+  ) {
     throw new Error(
       "Invalid configuration: email.fromAddress must not be empty or the built-in placeholder in production. " +
         "Set your from address in your secrets.json."

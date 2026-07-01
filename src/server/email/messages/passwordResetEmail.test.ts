@@ -12,9 +12,7 @@
 // The GREEN implementation MUST call getWebAppBaseUrl() (not the better-auth url arg)
 // to build the reset link — this mock is what makes that verifiable.
 jest.mock("../../auth/trustedOrigins", () => ({
-  ...jest.requireActual<typeof import("../../auth/trustedOrigins")>(
-    "../../auth/trustedOrigins",
-  ),
+  ...jest.requireActual<typeof import("../../auth/trustedOrigins")>("../../auth/trustedOrigins"),
   getWebAppBaseUrl: jest.fn(() => "https://example.com"),
 }));
 

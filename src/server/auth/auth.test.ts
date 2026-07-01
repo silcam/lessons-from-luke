@@ -65,12 +65,8 @@ afterEach(() => {
  * canonical normalisation matches better-auth's email.toLowerCase() lookup.
  */
 function expectedThrottleKey(email: string): string {
-  const subKey = createHmac("sha256", secrets.cookieSecret)
-    .update("reset-req-throttle")
-    .digest();
-  const hash = createHmac("sha256", subKey)
-    .update(email.toLowerCase())
-    .digest("hex");
+  const subKey = createHmac("sha256", secrets.cookieSecret).update("reset-req-throttle").digest();
+  const hash = createHmac("sha256", subKey).update(email.toLowerCase()).digest("hex");
   return `reset-req:${hash}`;
 }
 
@@ -117,30 +113,22 @@ type SendResetPasswordArgs = {
   token: string;
 };
 
-function getSendResetPassword():
-  | ((args: SendResetPasswordArgs) => Promise<void>)
-  | undefined {
+function getSendResetPassword(): ((args: SendResetPasswordArgs) => Promise<void>) | undefined {
   const auth = getAuth();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ea = ((auth as any).options?.emailAndPassword ?? {}) as Record<string, unknown>;
-  return ea.sendResetPassword as
-    | ((args: SendResetPasswordArgs) => Promise<void>)
-    | undefined;
+  return ea.sendResetPassword as ((args: SendResetPasswordArgs) => Promise<void>) | undefined;
 }
 
 type OnPasswordResetArgs = {
   user: { id: string; email: string; name: string };
 };
 
-function getOnPasswordReset():
-  | ((args: OnPasswordResetArgs) => Promise<void>)
-  | undefined {
+function getOnPasswordReset(): ((args: OnPasswordResetArgs) => Promise<void>) | undefined {
   const auth = getAuth();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const ea = ((auth as any).options?.emailAndPassword ?? {}) as Record<string, unknown>;
-  return ea.onPasswordReset as
-    | ((args: OnPasswordResetArgs) => Promise<void>)
-    | undefined;
+  return ea.onPasswordReset as ((args: OnPasswordResetArgs) => Promise<void>) | undefined;
 }
 
 // ===========================================================================
@@ -263,18 +251,16 @@ describe("sendResetPassword", () => {
     await sendDone;
 
     // Prior row must be deleted (supersession enforced).
-    const priorRows = await testPool.query(
-      `SELECT id FROM "verification" WHERE id = $1`,
-      ["verify-prior-sup-001"]
-    );
+    const priorRows = await testPool.query(`SELECT id FROM "verification" WHERE id = $1`, [
+      "verify-prior-sup-001",
+    ]);
     expect(priorRows.rows).toHaveLength(0);
 
     // Just-written row must SURVIVE — it holds the token that was just emailed.
     // (Prior impl deleted all rows; this is the bug fix: exclude justWrittenIdentifier.)
-    const justWrittenRows = await testPool.query(
-      `SELECT id FROM "verification" WHERE id = $1`,
-      ["verify-just-written-sup-001"]
-    );
+    const justWrittenRows = await testPool.query(`SELECT id FROM "verification" WHERE id = $1`, [
+      "verify-just-written-sup-001",
+    ]);
     expect(justWrittenRows.rows).toHaveLength(1);
 
     // Transport must have been called exactly once.
@@ -331,17 +317,15 @@ describe("sendResetPassword", () => {
     expect(transport.send).not.toHaveBeenCalled();
 
     // Prior row must NOT be deleted (no supersession on a suppressed/throttled request).
-    const priorRows = await testPool.query(
-      `SELECT id FROM "verification" WHERE id = $1`,
-      ["verify-prior-thr-001"]
-    );
+    const priorRows = await testPool.query(`SELECT id FROM "verification" WHERE id = $1`, [
+      "verify-prior-thr-001",
+    ]);
     expect(priorRows.rows).toHaveLength(1);
 
     // Just-written row MUST be deleted (to prevent it lingering to expiry).
-    const newRows = await testPool.query(
-      `SELECT id FROM "verification" WHERE id = $1`,
-      ["verify-new-thr-001"]
-    );
+    const newRows = await testPool.query(`SELECT id FROM "verification" WHERE id = $1`, [
+      "verify-new-thr-001",
+    ]);
     expect(newRows.rows).toHaveLength(0);
   });
 
@@ -370,10 +354,9 @@ describe("sendResetPassword", () => {
     await waitForBackground();
 
     // The rateLimit table must have a row for the expected key.
-    const rows1 = await testPool.query(
-      `SELECT key, count FROM "rateLimit" WHERE key = $1`,
-      [expectedKey]
-    );
+    const rows1 = await testPool.query(`SELECT key, count FROM "rateLimit" WHERE key = $1`, [
+      expectedKey,
+    ]);
     expect(rows1.rows.length).toBeGreaterThanOrEqual(1);
 
     // Key must NOT contain cleartext email.
@@ -389,10 +372,9 @@ describe("sendResetPassword", () => {
     await callback!({ user: upperUser, url: "http://ignored/", token: MOCK_TOKEN + "-hmac2" });
     await waitForBackground();
 
-    const rows2 = await testPool.query(
-      `SELECT key, count FROM "rateLimit" WHERE key = $1`,
-      [expectedKey]
-    );
+    const rows2 = await testPool.query(`SELECT key, count FROM "rateLimit" WHERE key = $1`, [
+      expectedKey,
+    ]);
     expect(rows2.rows.length).toBeGreaterThanOrEqual(1);
     // Counter must have incremented (same key for both case variants).
     expect(Number(rows2.rows[0].count)).toBeGreaterThan(count1);
@@ -431,10 +413,7 @@ describe("sendResetPassword", () => {
     await waitForBackground();
 
     // The sign-in/email row must NOT have been deleted by the reset-req cleanup.
-    const signinRows = await testPool.query(
-      `SELECT id FROM "rateLimit" WHERE key = $1`,
-      [ipKey]
-    );
+    const signinRows = await testPool.query(`SELECT id FROM "rateLimit" WHERE key = $1`, [ipKey]);
     expect(signinRows.rows).toHaveLength(1);
   });
 });

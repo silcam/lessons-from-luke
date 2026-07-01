@@ -36,14 +36,15 @@ sends no email (spec §Overview).
 send is fire-and-forget for reset (awaited-and-swallowed by better-auth) and best-effort
 for invitations.
 **Constraints** (from spec + brainstorm Key Decisions, carried forward):
+
 - Server-only email module; never imported into `core` or desktop (Principle VI exemption).
 - Production fail-fast on missing/default email config; dev/test log the rendered email + link.
 - Reset responses enumeration-safe (no account disclosure); reset is single-use,
   time-limited; successful reset revokes all other sessions; password policy 12–128 chars.
 - Invitations keep the copyable link and gain resend; send failure never blocks creation.
 - No public sign-up, no email-verification step, no SMS, no general notification system.
-**Scale/Scope**: Small admin/translator user base; ~6 new server modules, ~4 new/edited
-frontend modules, `getAuth()` + `secrets.ts` + `invitationController.ts` edits, i18n strings.
+  **Scale/Scope**: Small admin/translator user base; ~6 new server modules, ~4 new/edited
+  frontend modules, `getAuth()` + `secrets.ts` + `invitationController.ts` edits, i18n strings.
 
 ## Brainstorm Context
 
@@ -87,17 +88,18 @@ frontend modules, `getAuth()` + `secrets.ts` + `invitationController.ts` edits, 
 page state machine (loading / terminal-error-with-a-way-forward / form / success). Admin
 resend mirrors the existing Re-copy/Retract row-action pattern in `InvitationsList`.
 **Accessibility Target**: WCAG 2.2 AA, matching feature 002 (`role="alert"` / `role="status"`
-+ `aria-live` announcements, focusable read-only fields, keyboard `onEnter` submit).
+
+- `aria-live` announcements, focusable read-only fields, keyboard `onEnter` submit).
 
 ### UI Decisions
 
-| Screen / Component                | User Story | Approach                                                                                                  | Design Skills        |
-| --------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------- | -------------------- |
-| "Forgot password?" link on sign-in | US1        | Add a text/link Button under the sign-in form in `PublicHome.tsx`; routes to `/forgot-password`           | `/design-clarify`    |
-| Forgot-password request page (`/forgot-password`) | US1 | New `ForgotPassword.tsx`: email field → generic "check your email" confirmation (identical for any email) | `/design-clarify`    |
-| Reset-password page (`/reset-password?token=`) | US1 | New `ResetPassword.tsx`: set-new-password form; state machine for invalid/expired token, policy error, success → "Continue to sign in" | `/design-clarify`, `/design-onboard` |
-| Invitation create — email-failed notice | US2 | Extend `CreateInvitation.tsx`: when `emailSent === false`, show a warning Alert ("link created but email failed to send — copy it below") | `/design-clarify`    |
-| Invitation "Resend email" row action | US2 | Extend `InvitationsList.tsx`: add a pending-only "Resend email" Button beside Re-copy/Retract; `aria-live` success/failure | `/design-clarify`    |
+| Screen / Component                                | User Story | Approach                                                                                                                                  | Design Skills                        |
+| ------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| "Forgot password?" link on sign-in                | US1        | Add a text/link Button under the sign-in form in `PublicHome.tsx`; routes to `/forgot-password`                                           | `/design-clarify`                    |
+| Forgot-password request page (`/forgot-password`) | US1        | New `ForgotPassword.tsx`: email field → generic "check your email" confirmation (identical for any email)                                 | `/design-clarify`                    |
+| Reset-password page (`/reset-password?token=`)    | US1        | New `ResetPassword.tsx`: set-new-password form; state machine for invalid/expired token, policy error, success → "Continue to sign in"    | `/design-clarify`, `/design-onboard` |
+| Invitation create — email-failed notice           | US2        | Extend `CreateInvitation.tsx`: when `emailSent === false`, show a warning Alert ("link created but email failed to send — copy it below") | `/design-clarify`                    |
+| Invitation "Resend email" row action              | US2        | Extend `InvitationsList.tsx`: add a pending-only "Resend email" Button beside Re-copy/Retract; `aria-live` success/failure                | `/design-clarify`                    |
 
 ### Quality Pass
 
@@ -113,15 +115,15 @@ resend mirrors the existing Re-copy/Retract row-action pattern in `InvitationsLi
 
 _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
-| Principle | Gate | Status |
-| --------- | ---- | ------ |
-| **I. Test-First (NON-NEGOTIABLE)** | TDD red-green-refactor for all new TS; 100% aspiration / 95% enforced; integration for cross-process reset; Cypress E2E for the user journey | **PASS** — email module (transport, message builders, config validation) is pure unit TDD; controller send/resend via injected fake transport; reset flow via integration (`verification` table) + E2E. Strategy in research §D9. |
-| **II. Type Safety** | strict, explicit return types, no `any`, `type` imports, 0 warnings | **PASS** — new `EmailTransport`/`EmailMessage`/`EmailConfig` interfaces (contracts/); the one unavoidable `any` is confined to the existing `getAuth()` better-auth generic (already eslint-disabled). |
-| **III. Code Quality** | JSDoc on public API, naming, import order, prettier | **PASS** — JSDoc on every exported transport/builder; PascalCase interfaces; follows existing `auth/`+`controllers/` conventions. |
-| **IV. Pre-commit Gates** | typecheck + lint-staged + related tests green | **PASS** — standard pipeline; no bypass. |
-| **V. Warnings/Deprecations** | none deferred; use only current APIs | **PASS** — uses current better-auth `requestPasswordReset`/`resetPassword` (not the deprecated `forgetPassword` alias); no deprecated calls. |
-| **VI. Layered Architecture / server-only exemption** | email + auth infra server-only, never in `core`/desktop; no domain data bypassing `Persistence` | **PASS** — `src/server/email/` is server-only and imported only by `server`; it stores **no** domain data; reset tokens live in better-auth's already-exempt `verification` table. Squarely within the Principle VI v1.1.0 server-only infrastructure exemption. |
-| **VII. Simplicity** | YAGNI/KISS/DRY | **PASS** — reuse built-in reset (no hand-rolled tokens), reuse the invitation store + base-component kit, **no new dependency** (global `fetch`), **no new table/migration**. |
+| Principle                                            | Gate                                                                                                                                         | Status                                                                                                                                                                                                                                                           |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **I. Test-First (NON-NEGOTIABLE)**                   | TDD red-green-refactor for all new TS; 100% aspiration / 95% enforced; integration for cross-process reset; Cypress E2E for the user journey | **PASS** — email module (transport, message builders, config validation) is pure unit TDD; controller send/resend via injected fake transport; reset flow via integration (`verification` table) + E2E. Strategy in research §D9.                                |
+| **II. Type Safety**                                  | strict, explicit return types, no `any`, `type` imports, 0 warnings                                                                          | **PASS** — new `EmailTransport`/`EmailMessage`/`EmailConfig` interfaces (contracts/); the one unavoidable `any` is confined to the existing `getAuth()` better-auth generic (already eslint-disabled).                                                           |
+| **III. Code Quality**                                | JSDoc on public API, naming, import order, prettier                                                                                          | **PASS** — JSDoc on every exported transport/builder; PascalCase interfaces; follows existing `auth/`+`controllers/` conventions.                                                                                                                                |
+| **IV. Pre-commit Gates**                             | typecheck + lint-staged + related tests green                                                                                                | **PASS** — standard pipeline; no bypass.                                                                                                                                                                                                                         |
+| **V. Warnings/Deprecations**                         | none deferred; use only current APIs                                                                                                         | **PASS** — uses current better-auth `requestPasswordReset`/`resetPassword` (not the deprecated `forgetPassword` alias); no deprecated calls.                                                                                                                     |
+| **VI. Layered Architecture / server-only exemption** | email + auth infra server-only, never in `core`/desktop; no domain data bypassing `Persistence`                                              | **PASS** — `src/server/email/` is server-only and imported only by `server`; it stores **no** domain data; reset tokens live in better-auth's already-exempt `verification` table. Squarely within the Principle VI v1.1.0 server-only infrastructure exemption. |
+| **VII. Simplicity**                                  | YAGNI/KISS/DRY                                                                                                                               | **PASS** — reuse built-in reset (no hand-rolled tokens), reuse the invitation store + base-component kit, **no new dependency** (global `fetch`), **no new table/migration**.                                                                                    |
 
 **Initial gate: PASS.** No violations → Complexity Tracking left empty.
 
@@ -194,11 +196,11 @@ feature-001/002 locations.
 > **ATDD Outer Loop**: Each user story with acceptance scenarios gets a GWT acceptance spec
 > file created during `sp:05-tasks` under `specs/acceptance-specs/`.
 
-| User Story | Acceptance Spec File                                        | Scenarios |
-| ---------- | ---------------------------------------------------------- | --------- |
-| US1: Reset a forgotten password | `specs/acceptance-specs/US09-reset-forgotten-password.txt` | 6 |
-| US2: Receive an invitation by email | `specs/acceptance-specs/US10-invitation-by-email.txt`      | 5 |
-| US3: Safe, environment-aware email delivery | `specs/acceptance-specs/US11-environment-aware-email.txt`   | 3 |
+| User Story                                  | Acceptance Spec File                                       | Scenarios |
+| ------------------------------------------- | ---------------------------------------------------------- | --------- |
+| US1: Reset a forgotten password             | `specs/acceptance-specs/US09-reset-forgotten-password.txt` | 6         |
+| US2: Receive an invitation by email         | `specs/acceptance-specs/US10-invitation-by-email.txt`      | 5         |
+| US3: Safe, environment-aware email delivery | `specs/acceptance-specs/US11-environment-aware-email.txt`  | 3         |
 
 (US numbering continues from the existing `specs/acceptance-specs/US01..US08` set.)
 
@@ -298,7 +300,7 @@ feature-001/002 locations.
   `runInBackgroundOrAwait` cannot be forced to background, perform the send
   outside the awaited path — e.g. `void transport.send(...).catch(logRedacted)` —
   inside `sendResetPassword`.) This also **subsumes** the request-blocking half of
-  the latency edge case *for the reset path*: that concern now applies only to the
+  the latency edge case _for the reset path_: that concern now applies only to the
   invitation create/resend path, which must await to populate `emailSent`. Add an
   integration assertion that the reset response time does not materially differ
   between a known and an unknown email.
@@ -331,12 +333,12 @@ feature-001/002 locations.
   (fire-and-forget), and **invitation create/resend** → still awaited (it must
   populate `emailSent`). It never considered the **third** send site: the
   `onPasswordReset` "your password was changed" notice (D7), which better-auth
-  invokes **inside the `/reset-password` request handler** *after* the password is
+  invokes **inside the `/reset-password` request handler** _after_ the password is
   already updated and all sessions are already revoked. As written, that send sits
   on the awaited reset-success path, so two distinct problems follow:
   - **Request-blocking on a success flow**: a slow or hung Mailgun connection
     delays the `/reset-password` 200 by up to the full Pass-1 ~10 s timeout, on a
-    request that has *already succeeded* server-side and needs nothing from the
+    request that has _already succeeded_ server-side and needs nothing from the
     confirmation email.
   - **Response that contradicts state**: research §D4 confirms better-auth swallows
     `sendResetPassword` errors via `runInBackgroundOrAwait`, but it does **not**
@@ -365,36 +367,35 @@ feature-001/002 locations.
   be resent over and over.
 - **Mitigation**: add a per-invitation resend throttle (a small max-per-window
   keyed on the invitation id, in addition to the per-IP limit) so a single
-  invitation cannot be weaponised as an inbox flooder; a throttled resend returns
-  429. Documented in `contracts/invitation-email-api.yaml`.
+  invitation cannot be weaponised as an inbox flooder; a throttled resend returns 429. Documented in `contracts/invitation-email-api.yaml`.
 
 ### Per-address reset-request flooding — per-IP throttle is not enough (Pass 3)
 
 - The reset path is currently throttled **per-IP only** (request schema in
   `contracts/auth-password-reset-api.yaml`: `customRules { window: 60, max: 3 }`).
   But FR-012 **and** the spec's named "Reset request flooding" edge case call for
-  throttling repeated requests *"for the same address (or from the same origin)"*
+  throttling repeated requests _"for the same address (or from the same origin)"_
   to limit email flooding and provider-quota abuse. better-auth `customRules` are
   keyed by **request path + IP** — the exact limitation already documented for the
   per-invitation resend throttle — so the per-IP rule alone does **not** bound
-  requests for a single *address*. An attacker rotating IPs (or a botnet/proxy
+  requests for a single _address_. An attacker rotating IPs (or a botnet/proxy
   pool) can therefore drive repeated `request-password-reset` calls at a **known
   account holder's** address and flood that victim's inbox with reset emails while
   burning Mailgun quota/cost. This is the direct **reset-path twin** of the
   "Invitation resend as an email-bomb amplifier" finding that Pass 1 closed for the
   invitation path but left open here. Supersession (Pass 2) means only the newest
   link works, so the impact is **harassment + provider cost**, not token
-  multiplication — but the protective *intent* of FR-012 and the edge case is still
+  multiplication — but the protective _intent_ of FR-012 and the edge case is still
   unmet, and `/sp:05-tasks` would otherwise implement only the per-IP `customRules`
   and treat FR-012 as satisfied, silently shipping half the requirement.
-- **Mitigation**: add a **per-address** reset throttle reusing the *same* manual
+- **Mitigation**: add a **per-address** reset throttle reusing the _same_ manual
   `rateLimit`-table check pattern Pass 2 pinned for the per-invitation resend
   throttle (synthetic key e.g. `reset-req:<normalizedEmail>`, small max-per-window,
   with the documented single-process in-process `Map`/LRU fallback). Perform the
   check **inside `sendResetPassword`** — which by design runs **only for accounts
   that exist** — so:
   - **Enumeration-safety is preserved**: an unknown email never reaches the
-    throttle, and an over-limit known address still returns the *same generic 200*
+    throttle, and an over-limit known address still returns the _same generic 200_
     (the throttle simply suppresses the send, exactly like a failed send under
     FR-013); the response body never changes.
   - **Timing-safety is preserved**: the throttle check rides the **already
@@ -407,7 +408,7 @@ feature-001/002 locations.
   - The acceptable fallback (consistent with the per-invitation finding) is to
     **explicitly decide and document** that per-IP is the chosen scope and that the
     small admin-curated user base plus Mailgun's own sending limits and
-    supersession are the accepted floor — but that decision must be *recorded*, not
+    supersession are the accepted floor — but that decision must be _recorded_, not
     left implicit, so the per-address half of FR-012 is not silently dropped.
   - Whichever is chosen, state it in `data-model.md` (rateLimit) and
     `contracts/auth-password-reset-api.yaml`, and add an integration assertion that
@@ -419,8 +420,8 @@ feature-001/002 locations.
 - Spec §Edge Cases requires: "If a newer reset request is made, an older
   still-unused link is treated as no longer valid and rejected." But the
   `data-model.md` token model keys each reset token as its **own** `verification`
-  row (`reset-password:<token>`) and only describes deletion on *successful
-  reset*. As written, **two** un-consumed reset rows can coexist for one account,
+  row (`reset-password:<token>`) and only describes deletion on _successful
+  reset_. As written, **two** un-consumed reset rows can coexist for one account,
   so an older link (e.g. one forwarded or left in an inbox) keeps working after
   the user requests a fresh one — contradicting the spec edge case and widening
   the single-use window an attacker can exploit. This gap is invisible in the
@@ -464,7 +465,7 @@ feature-001/002 locations.
   would silently select `LogEmailTransport`, which writes the reset/invitation
   **link to the log and sends no mail** — a silent failure of the one flow whose
   entire purpose is recovery, and (worse) reset tokens landing in a prod log. The
-  FR-002 startup fail-fast guards *missing config*, but a wrong-`NODE_ENV` selector
+  FR-002 startup fail-fast guards _missing config_, but a wrong-`NODE_ENV` selector
   can dodge it.
 - **Mitigation**: make selection **fail-closed and config-driven**, not merely
   `NODE_ENV`-driven. Tie the production fail-fast and the Mailgun-transport
@@ -490,7 +491,7 @@ feature-001/002 locations.
   invitation's intended language), pass it explicitly into the builder. Either way
   the builder signature must name a `locale` (or equivalent) parameter so the
   decision is visible and testable. (Full multi-locale email content can remain a
-  deliberate follow-up, but the *seam* must exist now.)
+  deliberate follow-up, but the _seam_ must exist now.)
 
 ### Suppressed-but-superseding reset request enables targeted denial-of-reset (Pass 5)
 
@@ -499,36 +500,36 @@ feature-001/002 locations.
   - **Pass 2 supersession** invalidates a user's prior un-consumed
     `reset-password` token whenever a new `request-password-reset` is issued, so
     only the newest link is live.
-  - **Pass 3 per-address throttle** *suppresses the email* for an over-limit
+  - **Pass 3 per-address throttle** _suppresses the email_ for an over-limit
     address but explicitly accepts that better-auth "has already written the new
     `verification` row" and lets supersession invalidate the prior row, on the
     stated assumption that the prior row is "the unused new token [that] simply
     expires."
 - That assumption has a blind spot. In the **targeted-victim** scenario the prior
-  row is **not** the attacker's junk — it is the victim's *own legitimately-
-  requested, actively-in-use* reset link. An attacker who only knows the victim's
+  row is **not** the attacker's junk — it is the victim's _own legitimately-
+  requested, actively-in-use_ reset link. An attacker who only knows the victim's
   email can POST `request-password-reset` repeatedly from **rotating IPs** (the
   exact premise that motivated Pass 3): the per-IP `customRule` is bypassed by IP
-  rotation, and the per-address throttle only suppresses the *email* — it does
+  rotation, and the per-address throttle only suppresses the _email_ — it does
   **not** stop better-auth from generating a fresh token and does **not** stop
   supersession from invalidating the victim's live link. Each suppressed-but-still-
   generated attacker request therefore **supersedes the victim's real link**, so
   that link is dead by the time the victim clicks it. While the attack is sustained
   the victim can **never complete a reset** — a remote, unauthenticated, indefinite
   denial-of-recovery that directly defeats SC-001 / FR-005 on the one flow whose
-  entire purpose is recovery. Pass 3 actually cited supersession as a *mitigating*
+  entire purpose is recovery. Pass 3 actually cited supersession as a _mitigating_
   factor ("impact is harassment + provider cost, not token multiplication"); it is
-  in fact the *amplifier* that turns harassment into denial-of-reset, and burns no
+  in fact the _amplifier_ that turns harassment into denial-of-reset, and burns no
   provider quota (the sends are suppressed), so the attack is cheap.
 - **Mitigation**: **couple supersession to an actual send, not to a mere request.**
-  The Pass 2 supersession enforcement runs in *our* `sendResetPassword` callback,
+  The Pass 2 supersession enforcement runs in _our_ `sendResetPassword` callback,
   so we control the coupling: evaluate the Pass 3 per-address throttle **first**,
   and when it is over-limit (send suppressed) **do not** invalidate the user's prior
   un-consumed `reset-password` rows, and **delete the just-written new row** instead,
   so a suppressed flood request neither emails nor supersedes — the victim's live
   link survives and the just-created token does not even linger to expiry. Only a
   request that actually emails a new link may supersede the prior one. (If
-  better-auth performs supersession *itself, before* the callback and it cannot be
+  better-auth performs supersession _itself, before_ the callback and it cannot be
   prevented, that is a design constraint that must be **raised, not silently
   accepted**: it would mean Pass 2's "if better-auth does not do this by default"
   branch is the only safe configuration, and we would additionally have to re-issue
@@ -540,7 +541,7 @@ feature-001/002 locations.
 
 - The Pass 2 supersession enforcement (delete the user's prior un-consumed
   `reset-password` rows, then issue the new token) is **read-then-write** and not
-  atomic. Two near-simultaneous *legitimate* `request-password-reset` calls for the
+  atomic. Two near-simultaneous _legitimate_ `request-password-reset` calls for the
   same account can interleave so neither deletion sees the other's row, leaving
   **two** live tokens — the opposite of the supersession guarantee ("only the newest
   link works"). Impact is low (both links go to the same account holder's inbox) but
@@ -548,7 +549,7 @@ feature-001/002 locations.
   to close, and it is invisible in the current artifacts because supersession is
   modelled as a best-effort delete rather than an invariant.
 - **Mitigation**: make supersession **authoritative rather than racy** — prefer
-  enforcing it at *validation* time (on `/reset-password`, reject any
+  enforcing it at _validation_ time (on `/reset-password`, reject any
   `reset-password` row for the user that is not the most-recently-issued one) so the
   guarantee holds regardless of write interleaving; or perform the prior-row
   invalidation and new-row insert under a single transaction / conditional delete
@@ -559,12 +560,12 @@ feature-001/002 locations.
 ### Account-conditional DB work re-opens the timing oracle (Pass 6)
 
 - This is the **second-order effect of the Pass 5 mitigation itself**. Pass 2
-  closed the enumeration timing oracle by moving the *network send* off the awaited
+  closed the enumeration timing oracle by moving the _network send_ off the awaited
   request path, "so the endpoint returns in account-existence-independent time."
   But Pass 5 adds new work that lives in `sendResetPassword` and runs **only for
   accounts that exist**: the per-address throttle check, the conditional
   supersession decision, and (when suppressed) the delete of the just-written
-  `verification` row — all DB round-trips. Pass 2 only ever backgrounded the *send*;
+  `verification` row — all DB round-trips. Pass 2 only ever backgrounded the _send_;
   it did not anticipate that supersession (Pass 2) and now the throttle/cleanup
   (Pass 5) would put **awaited DB work** on the known-account path. If
   `sendResetPassword` performs that DB work synchronously before returning, a
@@ -585,7 +586,7 @@ feature-001/002 locations.
 ### Mailgun open/click tracking leaks the live reset token to a third party (Pass 7)
 
 - Every prior pass that reasoned about reset-token confidentiality scoped it to
-  **our own** logs: Pass 1 redaction keeps the token out of *our* production
+  **our own** logs: Pass 1 redaction keeps the token out of _our_ production
   failure logs, and the SPA `history.replaceState` (Pass 1) keeps it out of the
   address bar. No pass considered the **transport itself** as a place the token
   is retained. Mailgun domains can have **open tracking** and **click tracking**
@@ -618,7 +619,7 @@ feature-001/002 locations.
   `o:tracking-clicks=no` (and friends) on every send. Documented in
   `data-model.md` (`MailgunEmailTransport` hardening).
 
-### Redaction guard must bound the *provider error*, not just the body (Pass 7)
+### Redaction guard must bound the _provider error_, not just the body (Pass 7)
 
 - The Pass 1 "reset-token confidentiality" mitigation says the production failure
   paths "log only `to` + `subject` + error — NEVER the `text`/`html` body or the
@@ -626,7 +627,7 @@ feature-001/002 locations.
   blind spot: if `MailgunEmailTransport` builds its thrown error from the **raw
   Mailgun HTTP response body** (e.g. `throw new Error(\`Mailgun ${status}: ${await
   res.text()}\`)`), and that response echoes any submitted field, the redaction-
-  aware logger faithfully logs an `error` that **transitively contains the body /
+aware logger faithfully logs an `error` that **transitively contains the body /
   the reset link** — re-introducing the very token-in-prod-logs leak Pass 1 closed,
   through the one value Pass 1 declared safe. This is a second-order gap in the
   Pass 1 mitigation itself.
@@ -673,12 +674,12 @@ feature-001/002 locations.
   defined**, and the key embeds the **cleartext email**. Two distinct problems
   follow:
   - **Normalization mismatch defeats the throttle.** The per-address limit only
-    bounds an attacker if its key collapses to the *same* value that better-auth
+    bounds an attacker if its key collapses to the _same_ value that better-auth
     uses to resolve the account inside `sendResetPassword`. If our key lowercases
     (or dot-folds) but better-auth's account lookup does not — or vice versa — then
     `Victim@x.org`, `victim@x.org`, `vic.tim@x.org` produce **different throttle
     keys for the same target**, so the Pass-3 flood limit and the Pass-5
-    denial-of-reset coupling (which both *depend* on the throttle firing) are
+    denial-of-reset coupling (which both _depend_ on the throttle firing) are
     **bypassable by trivial case/dot variation**, re-opening the exact
     inbox-flooding and indefinite denial-of-reset the prior passes closed. The
     inverse (we normalize more aggressively than better-auth) **over-throttles** a
@@ -687,7 +688,7 @@ feature-001/002 locations.
     matches better-auth's account-resolution normalization.
   - **The key is an at-rest account-existence oracle.** Because the per-address
     check runs **only inside `sendResetPassword`** — which by design runs **only
-    for accounts that exist** (that is *why* it is enumeration-safe at the response
+    for accounts that exist** (that is _why_ it is enumeration-safe at the response
     layer) — a `reset-req:<email>` row materialises in the shared `rateLimit` table
     **only for real account holders**. Anyone who can read that table (a second
     admin, a DB backup leak, a future secondary SQLi) can then **enumerate which
@@ -695,7 +696,7 @@ feature-001/002 locations.
     layer the very enumeration FR-007 / SC-004 close at the response layer.
 - **Mitigation**: derive the throttle key as a **keyed hash** of the
   canonically-normalized email — `reset-req:<HMAC-SHA256(serverSecret,
-  canonicalEmail)>` — never the cleartext address, so a table reader learns
+canonicalEmail)>` — never the cleartext address, so a table reader learns
   neither the address nor (without a brute-force of the address space against the
   secret) account existence. Define the canonical-normalization **once**, as a
   shared helper, and pin it to match better-auth's account-lookup normalization
@@ -720,7 +721,7 @@ feature-001/002 locations.
   SC-001 (self-service recovery) silently drops to **0%** and there is nothing
   defined to alert on; the only trace is the per-failure redaction-aware log line,
   which no requirement says anyone watches, and the per-invitation `emailSent:
-  false` flag, which surfaces only to the one admin who happens to create an
+false` flag, which surfaces only to the one admin who happens to create an
   invitation during the outage. This is a **design-level requirement gap**, not an
   implementation detail: the design chose silence for security and never added the
   countervailing observability that a recovery feature needs.
@@ -729,25 +730,25 @@ feature-001/002 locations.
   counter keyed by purpose (`reset` / `invitation` / `password-changed`) and outcome
   — that operations can alert on (e.g. "reset-email failure rate > 0 over N
   minutes"). This is the operability counterpart to the Pass-1 redaction guard:
-  redaction governs *what* the failure line may contain (never the token/body); this
-  governs *that* the failure is countable and alertable. Keep it a **seam + a
+  redaction governs _what_ the failure line may contain (never the token/body); this
+  governs _that_ the failure is countable and alertable. Keep it a **seam + a
   requirement** at this stage (a structured failure event the email module always
   emits), not a specific alerting backend. Pairs naturally with the Pass-7 DKIM
   cross-field check as the two halves of "production cannot silently fail to
   deliver." (Caveat, red-team Pass 10: this "every failure is countable" guarantee
-  covers *observed* send failures only — it cannot see a background send dropped by
+  covers _observed_ send failures only — it cannot see a background send dropped by
   process death after the request returned; see the Pass-10 best-effort note below.)
 
 ### Reset-token confidentiality at rest in `verification` (Pass 8)
 
 - Every prior confidentiality pass scoped the reset token to **transit and logs**:
-  Pass 1 keeps it out of *our* production logs and the address bar, Pass 7 keeps it
+  Pass 1 keeps it out of _our_ production logs and the address bar, Pass 7 keeps it
   out of Mailgun's analytics. **No pass addressed the token at rest.**
   `data-model.md` models the token as `verification.identifier =
-  reset-password:<token>` resolving (via `value`) to a `user.id`. If better-auth
+reset-password:<token>` resolving (via `value`) to a `user.id`. If better-auth
   persists the **raw** token there, a DB-at-rest exposure (backup leak, read
   replica, a future secondary SQLi) yields **directly-usable account-takeover
-  credentials** — each row hands an attacker a live reset token *and* the target
+  credentials** — each row hands an attacker a live reset token _and_ the target
   `user.id`. That is a confidentiality **asymmetry** with feature-002, which
   deliberately stores invitation tokens **SHA-256-hashed for lookup + AES-256-GCM
   encrypted at rest** precisely so a DB leak yields nothing usable. The plan never
@@ -790,12 +791,12 @@ feature-001/002 locations.
   `reset-req:<HMAC-SHA256(serverSecret, canonicalEmail)>` so the persisted key is
   not an at-rest account-existence oracle — but it never says **where
   `serverSecret` comes from**, and the entire oracle-protection rests on that secret
-  being present and unpredictable. If `/sp:05-tasks` introduces a *new*
+  being present and unpredictable. If `/sp:05-tasks` introduces a _new_
   `Secrets.email.hashKey` (or similar) it inherits the exact production footgun this
   feature exists to prevent: a missing / empty / placeholder-default HMAC key makes
   the throttle-key hash **predictable**, enabling a table reader to brute-force the
   small known-address space against a known/empty key and recover the at-rest enumeration
-  oracle Pass 8 closed — and an *unvalidated* new secret would dodge the FR-002
+  oracle Pass 8 closed — and an _unvalidated_ new secret would dodge the FR-002
   startup fail-fast entirely.
 - **Mitigation**: do **not** add a new secret. Derive the HMAC key from an
   **existing already-validated secret** — reuse `cookieSecret` (already enforced
@@ -818,12 +819,12 @@ feature-001/002 locations.
   `DELETE FROM "rateLimit" WHERE "lastRequest" < $windowStart`. That DELETE is
   **unscoped**: the same table also holds better-auth's **own** `<ip>:<path>`
   counters (the data-model itself notes the table is "already in use for
-  `/sign-in/email`"). Pass 8 reasoned only about *whether* better-auth prunes
-  (it does not) and about *key collision* (the prefixes don't collide) — it never
+  `/sign-in/email`"). Pass 8 reasoned only about _whether_ better-auth prunes
+  (it does not) and about _key collision_ (the prefixes don't collide) — it never
   considered that **the app's own cleanup would delete better-auth's rows**. Two
   harms follow, and the second is a security regression to an existing control:
   - **Premature reset of sign-in brute-force protection.** If the app runs the
-    cleanup with a `$windowStart` derived from *its* short window (e.g. the 60 s
+    cleanup with a `$windowStart` derived from _its_ short window (e.g. the 60 s
     `reset-req` window) on every reset/resend, it deletes **every** `rateLimit`
     row whose `lastRequest` is older than 60 s — including better-auth's
     `/sign-in/email` counter, whose lockout window is typically **longer**. A
@@ -834,11 +835,11 @@ feature-001/002 locations.
     purely as a side effect of this feature's housekeeping.
   - **Cross-throttle premature deletion.** A single `$windowStart` shared by the
     `reset-req:` and `resend:` cleanups can also delete a still-active counter of
-    the *other* app throttle when their windows differ.
+    the _other_ app throttle when their windows differ.
 - **Mitigation**: the TTL-cleanup DELETE MUST be **scoped to the app's own
   synthetic keys** and never touch better-auth's `<ip>:<path>` rows — e.g.
   `DELETE FROM "rateLimit" WHERE ("key" LIKE 'reset-req:%' OR "key" LIKE
-  'resend:%') AND "lastRequest" < $windowStart` — and `$windowStart` MUST be
+'resend:%') AND "lastRequest" < $windowStart` — and `$windowStart` MUST be
   computed from **the cleaned prefix's own window** (clean `reset-req:` rows
   against the reset window, `resend:` rows against the resend window), never a
   blanket cutoff. Better-auth owns the lifecycle of its own rows; the app prunes
@@ -849,7 +850,7 @@ feature-001/002 locations.
 
 - This is a **blind spot in the Pass-1 Mailgun form-parameter mitigation.** Pass 1
   required `MailgunEmailTransport` to build the body with `URLSearchParams` so a
-  value containing `&`/`=` cannot append a *new* Mailgun parameter (`bcc`, `cc`,
+  value containing `&`/`=` cannot append a _new_ Mailgun parameter (`bcc`, `cc`,
   `from` override). That reasoning closes **parameter injection** but overlooks a
   distinct vector that lives **inside a single field value**: Mailgun treats the
   `to` field as a recipient **list** and splits it on **commas**. A `to` value of
@@ -886,7 +887,7 @@ feature-001/002 locations.
   posture — the user-facing remedy is simply to request another reset, and the tiny
   transactional volume makes a durable queue unwarranted (YAGNI). Note in the
   Pass-8 observability text that its "every failure is countable" guarantee covers
-  *observed* send failures, **not** process-death drops of an in-flight background
+  _observed_ send failures, **not** process-death drops of an in-flight background
   send. This is presentation/operations documentation only — no interface or
   data-shape impact.
 
@@ -907,16 +908,16 @@ feature-001/002 locations.
   - **Unknown email**: `findUserByEmail` (SELECT) → `generateId(24)` →
     `findVerificationValue("dummy-verification-token")` (a dummy **SELECT**) →
     return.
-  better-auth deliberately simulates the token generation and a verification
-  lookup for the unknown path (its own in-source timing-attack mitigation, with
-  an explicit code comment), but it simulates with a **SELECT** where the real
-  path performs an **INSERT**. So even a perfect Pass-6 implementation (our
-  callback returns instantly, every throttle/supersession/send op backgrounded)
-  still leaves a residual INSERT-vs-SELECT (plus a `getDate`) timing delta on the
-  known-account path that **our code cannot remove** — it lives in better-auth's
-  handler. The Pass-6 "identical, near-zero work" prose therefore overstates what
-  is achievable, and a **strict-equality** timing assertion written by
-  `/sp:05-tasks` would flake against this inherent floor.
+    better-auth deliberately simulates the token generation and a verification
+    lookup for the unknown path (its own in-source timing-attack mitigation, with
+    an explicit code comment), but it simulates with a **SELECT** where the real
+    path performs an **INSERT**. So even a perfect Pass-6 implementation (our
+    callback returns instantly, every throttle/supersession/send op backgrounded)
+    still leaves a residual INSERT-vs-SELECT (plus a `getDate`) timing delta on the
+    known-account path that **our code cannot remove** — it lives in better-auth's
+    handler. The Pass-6 "identical, near-zero work" prose therefore overstates what
+    is achievable, and a **strict-equality** timing assertion written by
+    `/sp:05-tasks` would flake against this inherent floor.
 - **Mitigation** (calibration + documentation; no new mechanism): (1) keep the
   Pass-2 integration assertion as a **tolerance / "does not materially differ"**
   check (which its current wording already is) — never strict equality — and size
@@ -953,7 +954,7 @@ feature-001/002 locations.
 
 ### Focus management & per-route titles on the new public routes (Pass 8)
 
-- The Pass-1 a11y note covers `role="alert"`/`aria-live` for *messages*, but the
+- The Pass-1 a11y note covers `role="alert"`/`aria-live` for _messages_, but the
   two **new SPA routes** (`/forgot-password`, `/reset-password`) introduce
   client-side navigations and multi-state pages (loading → form → success /
   terminal-error) where a screen-reader user otherwise gets **no orientation**: SPA

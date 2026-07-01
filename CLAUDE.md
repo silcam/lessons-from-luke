@@ -238,6 +238,7 @@ Helper scripts:
 Use subagents liberally and aggressively to conserve the main context window. Avoid performing tasks directly: instead, orchestrate subagents.
 
 ## Active Technologies
+
 - TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + better-auth `^1.6.14` (built-in password reset via `getAuth()`), (005-transactional-email-reset)
 - No new tables / no migration. Reuses better-auth auth-owned `pg.Pool` tables: (005-transactional-email-reset)
 

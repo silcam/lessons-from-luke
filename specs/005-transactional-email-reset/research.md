@@ -16,7 +16,7 @@ patterns, not assumed behavior.
 - **Decision**: Call the Mailgun REST API directly with the Node 24 global `fetch`. No
   `mailgun.js`/`nodemailer` dependency.
 - **Mechanics**: `POST https://api.mailgun.net/v3/<domain>/messages`, `Authorization:
-  Basic base64("api:" + apiKey)`, `Content-Type: application/x-www-form-urlencoded`,
+Basic base64("api:" + apiKey)`, `Content-Type: application/x-www-form-urlencoded`,
   body fields `from`, `to`, `subject`, `text`, `html`. A non-2xx response or a thrown
   `fetch` error is a send failure.
 - **Region**: the API base URL is configurable (`https://api.mailgun.net` default;
@@ -50,6 +50,7 @@ patterns, not assumed behavior.
 
   The `defaultSecrets` block carries obvious placeholder values
   (`apiKey: "dev-only-replace-in-production"`, etc.) that production rejects.
+
 - **Startup validation** (in `secrets.ts`, production-gated, mirroring the existing
   `cookieSecret`/`adminPassword`/`BETTER_AUTH_URL` guards): when
   `NODE_ENV === "production"`, throw a clear `Error` naming the missing/defaulted field
@@ -154,7 +155,7 @@ Source read: `node_modules/better-auth/dist/api/routes/password.mjs`,
   accepted/expired/retracted): enforced by reusing `getInvitationLink`'s derived-status
   `NotPendingError` → HTTP 409, plus the UI only renders the button for `pending` rows
   (same predicate as the existing Re-copy/Retract actions in `InvitationsList`).
-- **Expiry unchanged on resend** (edge case): resend re-derives the *existing* encrypted
+- **Expiry unchanged on resend** (edge case): resend re-derives the _existing_ encrypted
   token via `getInvitationLink` and does not touch `expiresAt`. Confirmed: `getInvitationLink`
   only decrypts `tokenEnc`; it issues no new token and runs no UPDATE.
 
@@ -199,10 +200,10 @@ Source read: `node_modules/better-auth/dist/api/routes/password.mjs`,
   existing `DELETE FROM "invitation"` cleanup, so no email leaks between tests.
 - **Cross-process (integration)**: the integration server runs in a child process
   (`jestIntegrationGlobalSetup.ts`), so an in-memory buffer isn't visible to the test.
-  - *Reset flow*: the test reads the reset token straight from better-auth's
+  - _Reset flow_: the test reads the reset token straight from better-auth's
     `verification` table (`identifier = 'reset-password:<token>'`) over the auth pool,
     rebuilds the link, and completes the reset — deterministic, no stdout parsing.
-  - *Invitation flow*: the link is already in the create response and the resend response
+  - _Invitation flow_: the link is already in the create response and the resend response
     reports `emailSent`; no email capture needed.
 - **E2E (Cypress)**: drives the SPA `/forgot-password` → reads the link the same way
   (verification table or the dev `LogEmailTransport` output) → `/reset-password` → sign in.
@@ -214,7 +215,7 @@ Source read: `node_modules/better-auth/dist/api/routes/password.mjs`,
   revocation deletes from the existing `session` table; rate limits use the existing
   `rateLimit` table (already populated because `rateLimit.storage: "database"`); the
   `invitation` table is unchanged (resend re-derives the existing token). The only schema
-  touched is the `Secrets` *interface* (D2), which is not a DB migration.
+  touched is the `Secrets` _interface_ (D2), which is not a DB migration.
 - **Rationale**: the cheapest correct path; confirmed by reading the migration list and
   `jestSetupAfterEnv.ts`'s existing `DELETE FROM "verification"`/`"rateLimit"` cleanup.
 
