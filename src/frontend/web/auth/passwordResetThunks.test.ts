@@ -1,10 +1,6 @@
 /**
  * passwordResetThunks.test.ts — unit tests for password-reset Redux thunks
  *
- * RED TDD: all tests in this file intentionally fail. passwordResetThunks.ts is
- * a stub that never calls authClient. The GREEN task (lessons-from-luke-5qjl.5.3.6)
- * replaces the stub with a real implementation so that all tests pass.
- *
  * Spec: specs/005-transactional-email-reset/spec.md §US1 Acceptance Scenarios
  * Contract: specs/005-transactional-email-reset/contracts/auth-password-reset-api.yaml
  * Skills: /typescript-unit-testing

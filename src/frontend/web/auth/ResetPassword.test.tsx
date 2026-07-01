@@ -1,10 +1,6 @@
 /**
  * ResetPassword.test.tsx — unit tests for the Reset Password completion page
  *
- * RED TDD: all tests in this file intentionally fail. ResetPassword.tsx is a stub
- * that renders null. The GREEN task (lessons-from-luke-5qjl.5.3.6) implements the
- * real component so that all tests pass.
- *
  * Spec: specs/005-transactional-email-reset/spec.md §US1 Acceptance Scenarios
  * Plan: plan.md §Presentation Design (UI Decisions table), §Accessibility Requirements,
  *       §Security Considerations (Pass 1 — token URL confidentiality)

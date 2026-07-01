@@ -1,5 +1,5 @@
 /**
- * secrets.integration.test.ts — RED (task lessons-from-luke-5qjl.5.5.1)
+ * secrets.integration.test.ts
  *
  * Integration-level startup tests for FR-002's production fail-fast guard (US3
  * Acceptance Scenarios 1-2; specs/acceptance-specs/US11-environment-aware-email.txt
@@ -11,12 +11,11 @@
  *
  * Scenario 4 ("starting with valid complete email config -> process starts and
  * /health (or equivalent) returns 200") has no literal `/health` route in this
- * codebase and the GREEN task (lessons-from-luke-5qjl.5.5.2) does not add one — so
- * per the task's "(or equivalent)" allowance, "ready to serve" is proven by spawning
- * the compiled secrets + getEmailTransport modules and confirming the process exits
- * 0 with no stderr AND getEmailTransport() resolves to MailgunEmailTransport. This
- * avoids booting the full Express app / a live Postgres connection (secrets.ts and
- * getEmailTransport.ts touch neither at module load).
+ * codebase — so per the scenario's "(or equivalent)" allowance, "ready to serve" is
+ * proven by spawning the compiled secrets + getEmailTransport modules and confirming
+ * the process exits 0 with no stderr AND getEmailTransport() resolves to
+ * MailgunEmailTransport. This avoids booting the full Express app / a live Postgres
+ * connection (secrets.ts and getEmailTransport.ts touch neither at module load).
  *
  * Spec: specs/005-transactional-email-reset/spec.md §US3 Acceptance Scenarios 1-2
  * data-model.md §EmailConfig; plan.md §Security (Pass 2 fail-closed, Pass 7 cross-field DKIM)

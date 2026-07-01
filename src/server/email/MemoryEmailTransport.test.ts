@@ -25,7 +25,7 @@ const validMessage: EmailMessage = {
 // ---------------------------------------------------------------------------
 
 afterEach(() => {
-  // Mirroring what jestSetupAfterEnv will do once the GREEN task is complete
+  // Mirrors the reset jestSetupAfterEnv.ts performs for the shared email transport
   resetEmailTransport();
 });
 
