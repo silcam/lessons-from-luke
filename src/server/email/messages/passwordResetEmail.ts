@@ -9,19 +9,7 @@
 
 import type { EmailMessage } from "../EmailTransport";
 import { getWebAppBaseUrl } from "../../auth/trustedOrigins";
-
-/**
- * Escapes a string for safe embedding in an HTML attribute value.
- * Replaces &, <, >, ", and ' with their HTML entity equivalents.
- */
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
+import { escapeHtml } from "./escapeHtml";
 
 /**
  * Builds a password-reset email message.

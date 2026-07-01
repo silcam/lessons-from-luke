@@ -9,6 +9,7 @@
  */
 
 import type { EmailMessage } from "../EmailTransport";
+import { escapeHtml } from "./escapeHtml";
 
 /** The minimal invitation fields needed to build the email. */
 export interface InvitationEmailInput {
@@ -16,19 +17,6 @@ export interface InvitationEmailInput {
   email: string;
   /** The already-constructed invitation link (built by the controller). */
   link: string;
-}
-
-/**
- * Escapes a string for safe embedding in an HTML attribute value or body text.
- * Replaces &, <, >, ", and ' with their HTML entity equivalents.
- */
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
 
 /**
