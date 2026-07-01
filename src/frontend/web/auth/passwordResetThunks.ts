@@ -14,11 +14,6 @@ export interface PasswordResetError {
   message: string;
 }
 
-type BetterAuthResult<T> = {
-  data: T | null;
-  error: { message?: string; code?: string; status?: number } | null;
-};
-
 /**
  * Request a password-reset link for the given email address.
  *
@@ -30,11 +25,9 @@ export const requestPasswordReset = createAsyncThunk<
   string,
   { rejectValue: PasswordResetError }
 >("passwordReset/requestPasswordReset", async (email, { rejectWithValue }) => {
-  // authClient is the better-auth client; its requestPasswordReset returns { data, error }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = (await (authClient as any).requestPasswordReset({
+  const { error } = await authClient.requestPasswordReset({
     email,
-  })) as BetterAuthResult<{ status: boolean }>;
+  });
 
   if (error) {
     return rejectWithValue({
@@ -56,11 +49,10 @@ export const resetPassword = createAsyncThunk<
   { token: string; newPassword: string },
   { rejectValue: PasswordResetError }
 >("passwordReset/resetPassword", async ({ token, newPassword }, { rejectWithValue }) => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = (await (authClient as any).resetPassword({
+  const { error } = await authClient.resetPassword({
     token,
     newPassword,
-  })) as BetterAuthResult<{ status: boolean }>;
+  });
 
   if (error) {
     const rawCode = (error.code ?? "").toUpperCase();
