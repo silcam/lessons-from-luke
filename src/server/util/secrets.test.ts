@@ -482,16 +482,12 @@ describe("secrets — FR-011 fail-fast validation", () => {
 });
 
 /**
- * EmailConfig validation tests — RED (task lessons-from-luke-5qjl.5.1.1)
- *
- * These tests are INTENTIONALLY FAILING at commit time. The implementation
- * (secrets.ts EmailConfig block + production fail-fast) does not yet exist.
- * They drive the GREEN task (lessons-from-luke-5qjl.5.1.2).
+ * EmailConfig validation tests.
  *
  * Design contract: specs/005-transactional-email-reset/data-model.md §EmailConfig;
  * contracts/email-transport.contract.ts §EmailConfig; plan.md §Security (Pass 7 cross-field).
  *
- * Placeholder default values that the implementation MUST use in defaultSecrets.email:
+ * Placeholder default values used by defaultSecrets.email:
  *   apiKey      "your-mailgun-api-key-here"
  *   domain      "mg.example.com"
  *   fromAddress "noreply@mg.example.com"

@@ -1,9 +1,5 @@
 /**
- * invitationEmail unit tests — RED (task lessons-from-luke-5qjl.5.4.1)
- *
- * These tests are INTENTIONALLY FAILING at commit time. The stub implementation
- * returns empty/wrong values. They drive the GREEN task
- * (lessons-from-luke-5qjl.5.4.2).
+ * invitationEmail unit tests.
  *
  * Spec: specs/005-transactional-email-reset/data-model.md §EmailMessage
  * Plan: plan.md §Project Structure (messages/invitationEmail.ts)

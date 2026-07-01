@@ -1,9 +1,5 @@
 /**
- * getEmailTransport singleton tests — RED (task lessons-from-luke-5qjl.5.2.1)
- *
- * These tests are INTENTIONALLY FAILING at commit time. The selection logic in
- * getEmailTransport does not yet exist. They drive the GREEN task
- * (lessons-from-luke-5qjl.5.2.2).
+ * getEmailTransport singleton tests.
  *
  * Spec: specs/005-transactional-email-reset/data-model.md §EmailTransport (selection + fail-closed)
  * Contract: specs/005-transactional-email-reset/contracts/email-transport.contract.ts §GetEmailTransport
@@ -121,21 +117,19 @@ describe("getEmailTransport() — env-selected singleton", () => {
 });
 
 /**
- * Fail-closed selection — placeholder-shaped email config gap — RED (task
- * lessons-from-luke-5qjl.5.5.1)
+ * Fail-closed selection — placeholder-shaped email config gap.
  *
- * These tests are INTENTIONALLY FAILING at commit time. `createDefaultTransport()`
- * currently selects Mailgun whenever `secrets.email` is merely *present* (`if
- * (secrets.email)`), which is also true for `defaultSecrets.email` — the placeholder
- * object secrets.ts falls back to when no secrets.json exists on disk (apiKey
- * "your-mailgun-api-key-here", domain "mg.example.com", fromAddress
- * "noreply@mg.example.com"). So in development/test with NO real secrets.json, the
- * selector wrongly picks MailgunEmailTransport instead of Log/MemoryEmailTransport —
- * the opposite of fail-closed (Pass 2): dev/test would attempt a live Mailgun call
- * with junk credentials rather than safely logging. They drive the GREEN task
- * (lessons-from-luke-5qjl.5.5.2), which must make the selection predicate
- * config-driven (only "production-shaped" — i.e. genuinely valid, non-placeholder —
- * email config selects Mailgun).
+ * `createDefaultTransport()` must not select Mailgun merely because
+ * `secrets.email` is *present* (`if (secrets.email)`), since that is also true
+ * for `defaultSecrets.email` — the placeholder object secrets.ts falls back to
+ * when no secrets.json exists on disk (apiKey "your-mailgun-api-key-here",
+ * domain "mg.example.com", fromAddress "noreply@mg.example.com"). In
+ * development/test with NO real secrets.json, the selector must not pick
+ * MailgunEmailTransport instead of Log/MemoryEmailTransport — the opposite of
+ * fail-closed (Pass 2) would attempt a live Mailgun call with junk credentials
+ * rather than safely logging. The selection predicate is config-driven (only
+ * "production-shaped" — i.e. genuinely valid, non-placeholder — email config
+ * selects Mailgun).
  *
  * Spec: specs/005-transactional-email-reset/data-model.md §EmailTransport (selection + fail-closed)
  * research.md §D3; plan.md §Security (Pass 2 fail-closed selection)

@@ -1,9 +1,5 @@
 /**
- * MailgunEmailTransport unit tests — RED (task lessons-from-luke-5qjl.5.2.1)
- *
- * These tests are INTENTIONALLY FAILING at commit time. The production
- * MailgunEmailTransport implementation does not yet exist. They drive the
- * GREEN task (lessons-from-luke-5qjl.5.2.2).
+ * MailgunEmailTransport unit tests.
  *
  * Spec: specs/005-transactional-email-reset/data-model.md §MailgunEmailTransport
  * Contract: specs/005-transactional-email-reset/contracts/email-transport.contract.ts

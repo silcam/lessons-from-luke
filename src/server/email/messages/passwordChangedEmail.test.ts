@@ -1,9 +1,5 @@
 /**
- * passwordChangedEmail unit tests — RED (task lessons-from-luke-5qjl.5.3.1)
- *
- * These tests are INTENTIONALLY FAILING at commit time. The stub implementation
- * returns empty/wrong values. They drive the GREEN task
- * (lessons-from-luke-5qjl.5.3.2).
+ * passwordChangedEmail unit tests.
  *
  * Spec: specs/005-transactional-email-reset/data-model.md §EmailMessage
  * Research: research.md §D7 — out-of-band "password was changed" notice
