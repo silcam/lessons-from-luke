@@ -39,6 +39,7 @@ import secrets from "../util/secrets";
 import { getInvitationBaseUrl } from "../auth/trustedOrigins";
 import { requireSameOrigin } from "../middle/requireSameOrigin";
 import { invitationRateLimit } from "../middle/invitationRateLimit";
+import { checkAndIncrementThrottle } from "../util/rateLimitCounter";
 import { getEmailTransport } from "../email/getEmailTransport";
 import { buildInvitationEmail } from "../email/messages/invitationEmail";
 
@@ -206,69 +207,35 @@ export function registerAnonymousInvitationRoutes(app: Express, pool: Pool): voi
 //
 // `rateLimit.key` carries no unique constraint (verified in auth.ts's
 // reset-req throttle), so — exactly like that throttle — this uses a
-// read-then-write pattern rather than an atomic `ON CONFLICT` UPSERT.
+// read-then-write pattern rather than an atomic `ON CONFLICT` UPSERT. The
+// TTL-prune + read-then-write mechanics themselves live in the shared
+// checkAndIncrementThrottle() helper (src/server/util/rateLimitCounter.ts,
+// task lessons-from-luke-5qjl.14) so this file and auth.ts no longer
+// hand-implement the same pattern twice.
 // ---------------------------------------------------------------------------
 
 const RESEND_THROTTLE_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 const RESEND_THROTTLE_MAX = 5;
 
 /**
- * Scoped TTL cleanup for this app's 'resend:' synthetic keys ONLY (Pass 10).
- * A blanket `DELETE ... WHERE "lastRequest" < $cutoff` would also prune
- * better-auth's own `<ip>:/sign-in/email` rows and neuter its brute-force
- * protection, so the WHERE clause is scoped to the 'resend:' prefix.
- */
-async function cleanupStaleResendThrottleRows(pool: Pool, nowMs: number): Promise<void> {
-  const windowStart = nowMs - RESEND_THROTTLE_WINDOW_MS;
-  await pool.query(`DELETE FROM "rateLimit" WHERE "key" LIKE 'resend:%' AND "lastRequest" < $1`, [
-    windowStart,
-  ]);
-}
-
-/**
  * Checks and increments the per-invitation resend counter. Returns true when
  * this request pushes the count over RESEND_THROTTLE_MAX (i.e. the caller
  * should respond 429).
+ *
+ * The 'resend:' key prefix scopes the shared helper's TTL-prune to this app's
+ * synthetic resend counters ONLY (Pass 10) — a blanket
+ * `DELETE ... WHERE "lastRequest" < $cutoff` would also prune better-auth's
+ * own `<ip>:/sign-in/email` rows and neuter its brute-force protection.
  */
 async function isResendThrottled(pool: Pool, invitationId: string): Promise<boolean> {
-  const nowMs = Date.now();
   const key = `resend:${invitationId}`;
-
-  await cleanupStaleResendThrottleRows(pool, nowMs);
-
-  const existingResult = await pool.query<{
-    id: string;
-    count: number;
-    lastRequest: bigint | number | string;
-  }>(`SELECT id, count, "lastRequest" FROM "rateLimit" WHERE key = $1 LIMIT 1`, [key]);
-
-  const existing = existingResult.rows[0];
-  let count: number;
-
-  if (!existing) {
-    await pool.query(
-      `INSERT INTO "rateLimit" (id, key, count, "lastRequest")
-       VALUES (gen_random_uuid()::text, $1, 1, $2)`,
-      [key, nowMs]
-    );
-    count = 1;
-  } else if (nowMs - Number(existing.lastRequest) > RESEND_THROTTLE_WINDOW_MS) {
-    // Window expired: reset count to 1 (new window).
-    await pool.query(`UPDATE "rateLimit" SET count = 1, "lastRequest" = $1 WHERE id = $2`, [
-      nowMs,
-      existing.id,
-    ]);
-    count = 1;
-  } else {
-    // Within window: increment count.
-    await pool.query(`UPDATE "rateLimit" SET count = count + 1, "lastRequest" = $1 WHERE id = $2`, [
-      nowMs,
-      existing.id,
-    ]);
-    count = existing.count + 1;
-  }
-
-  return count > RESEND_THROTTLE_MAX;
+  return checkAndIncrementThrottle(
+    pool,
+    "resend:",
+    key,
+    RESEND_THROTTLE_WINDOW_MS,
+    RESEND_THROTTLE_MAX
+  );
 }
 
 // ---------------------------------------------------------------------------

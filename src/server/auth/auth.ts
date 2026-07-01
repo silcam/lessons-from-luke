@@ -8,6 +8,7 @@ import { CF_CONNECTING_IP } from "../util/clientIp";
 import { getEmailTransport } from "../email/getEmailTransport";
 import { buildPasswordResetEmail } from "../email/messages/passwordResetEmail";
 import { buildPasswordChangedEmail } from "../email/messages/passwordChangedEmail";
+import { checkAndIncrementThrottle } from "../util/rateLimitCounter";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let authInstance: ReturnType<typeof betterAuth<any>> | null = null;
@@ -145,12 +146,10 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> {
         void (async () => {
           try {
             const pool = getAuthPool();
-            const nowMs = Date.now();
             // 60-second window: mirrors the per-IP customRules for /request-password-reset.
             const windowMs = 60 * 1_000;
             // 3 sends per window: matches the per-IP customRules max (Pass 3).
             const maxPerWindow = 3;
-            const windowStart = nowMs - windowMs;
 
             // 1. Compute HMAC per-address throttle key (Pass 8/9).
             //    Key = reset-req:<HMAC-SHA256(HMAC(cookieSecret,"reset-req-throttle"), email.toLowerCase())>
@@ -164,56 +163,18 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> {
               .digest("hex");
             const throttleKey = `reset-req:${emailHash}`;
 
-            // 2. TTL-prune stale reset-req: counters only (Pass 10).
-            //    Scoped to 'reset-req:%' so sign-in/email rows are never touched.
-            await pool.query(
-              `DELETE FROM "rateLimit" WHERE "key" LIKE 'reset-req:%' AND "lastRequest" < $1`,
-              [windowStart],
-            );
-
-            // 3. Read-then-write throttle counter (rateLimit.key has no unique
-            //    constraint, so ON CONFLICT (key) is unavailable; we mirror
-            //    better-auth's own GET+SET pattern from createDatabaseStorageWrapper).
-            //    Semantics: reset to 1 when the window has expired, otherwise
-            //    increment — matching the count/window logic in the rate-limiter.
-            const existingResult = await pool.query<{
-              id: string;
-              count: number;
-              lastRequest: bigint | number | string;
-            }>(`SELECT id, count, "lastRequest" FROM "rateLimit" WHERE key = $1 LIMIT 1`, [
+            // 2-3. TTL-prune stale reset-req: counters (Pass 10, scoped to
+            //    'reset-req:%' so sign-in/email rows are never touched) and
+            //    read-then-write the throttle counter (shared helper — task
+            //    lessons-from-luke-5qjl.14 — since rateLimit.key has no unique
+            //    constraint, ON CONFLICT (key) is unavailable).
+            const throttled = await checkAndIncrementThrottle(
+              pool,
+              "reset-req:",
               throttleKey,
-            ]);
-
-            let count: number;
-            const existing = existingResult.rows[0];
-
-            if (!existing) {
-              // No prior entry: insert with count = 1 (start of new window).
-              await pool.query(
-                `INSERT INTO "rateLimit" (id, key, count, "lastRequest")
-                 VALUES (gen_random_uuid()::text, $1, 1, $2)`,
-                [throttleKey, nowMs],
-              );
-              count = 1;
-            } else {
-              const lastRequest = Number(existing.lastRequest);
-              if (nowMs - lastRequest > windowMs) {
-                // Window expired: reset count to 1.
-                await pool.query(
-                  `UPDATE "rateLimit" SET count = 1, "lastRequest" = $1 WHERE id = $2`,
-                  [nowMs, existing.id],
-                );
-                count = 1;
-              } else {
-                // Within window: increment count.
-                await pool.query(
-                  `UPDATE "rateLimit" SET count = count + 1, "lastRequest" = $1 WHERE id = $2`,
-                  [nowMs, existing.id],
-                );
-                count = existing.count + 1;
-              }
-            }
-            const throttled = count > maxPerWindow;
+              windowMs,
+              maxPerWindow
+            );
 
             // Compute the hashed identifier for the just-written row once — used in
             // both the throttled (4a, delete just-written) and non-throttled (4b,
@@ -245,10 +206,10 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> {
             //     is the only surviving one. The just-written row must be excluded so
             //     the token in the outgoing email remains valid when better-auth
             //     validates it at /reset-password.
-            await pool.query(
-              `DELETE FROM "verification" WHERE value = $1 AND identifier != $2`,
-              [user.id, justWrittenIdentifier],
-            );
+            await pool.query(`DELETE FROM "verification" WHERE value = $1 AND identifier != $2`, [
+              user.id,
+              justWrittenIdentifier,
+            ]);
 
             // Build and send the password reset email.
             // Errors are logged (to + subject + error only — no text/html, Pass 1)
