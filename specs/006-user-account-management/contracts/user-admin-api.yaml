@@ -1,0 +1,238 @@
+openapi: 3.0.3
+info:
+  title: User Account Management — Admin API
+  version: 1.0.0
+  description: >
+    Admin-only roster + role/access-control endpoints for feature
+    006-user-account-management. All routes are hand-rolled under the existing
+    /api/admin/* namespace and inherit `app.use("/api/admin", requireAdmin)`
+    from serverApp.ts. State-changing POSTs additionally enforce same-origin
+    (requireSameOrigin), matching invitationController.ts. Server-only auth
+    infrastructure on the isolated getAuthPool() pg.Pool (constitution
+    Principle VI exemption). Web/server only — no desktop, no isomorphic core.
+
+servers:
+  - url: /
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: better-auth.session_token
+      description: better-auth session cookie; the user must have admin = true.
+
+  schemas:
+    UserAccountRow:
+      type: object
+      required: [id, email, name, role, status, createdAt, isSelf]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        name: { type: string }
+        role:
+          type: string
+          enum: [admin, standard]
+          description: Derived from user.admin.
+        status:
+          type: string
+          enum: [active, deactivated]
+          description: Derived from user.deactivatedAt (NULL ⇒ active).
+        createdAt: { type: string, format: date-time }
+        isSelf:
+          type: boolean
+          description: True when this row is the requesting administrator (FR-002).
+
+    RoleChangeRequest:
+      type: object
+      required: [role]
+      properties:
+        role:
+          type: string
+          enum: [admin, standard]
+
+    RevokeSessionsResponse:
+      allOf:
+        - $ref: "#/components/schemas/UserAccountRow"
+        - type: object
+          properties:
+            revoked:
+              type: integer
+              description: Number of sessions deleted (0 = none to revoke).
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        code:
+          type: string
+          description: >
+            Machine-readable code for the frontend to map to a friendly message,
+            e.g. USER_NOT_FOUND, LAST_ADMIN, SELF_DEACTIVATION, INVALID_ROLE.
+
+security:
+  - sessionCookie: []
+
+paths:
+  /api/admin/users:
+    get:
+      summary: List the full account roster (FR-001, FR-002, FR-007)
+      description: >
+        Read-only. Returns every account (including deactivated ones) with
+        derived role/status and isSelf. No requireSameOrigin (read-only GET;
+        same-origin policy blocks cross-origin body reads). Cache-Control:
+        no-store (PII surface, mirrors GET /api/admin/invitations).
+      responses:
+        "200":
+          description: The roster, ordered by createdAt ascending.
+          headers:
+            Cache-Control: { schema: { type: string }, description: "no-store" }
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/UserAccountRow" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/admin/users/{id}/role:
+    post:
+      summary: Promote or demote an account (FR-003, FR-004)
+      description: >
+        Flips user.admin. Demoting the last active admin is refused
+        (LastAdminError). No session revocation — the change propagates on the
+        target's next request via fresh session-load (cookieCache off).
+        requireSameOrigin.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RoleChangeRequest" }
+      responses:
+        "200":
+          description: Updated account row.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserAccountRow" }
+        "400":
+          description: Invalid or missing role (code INVALID_ROLE).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: Account not found (code USER_NOT_FOUND).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "409":
+          description: Would demote the last remaining admin (code LAST_ADMIN).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /api/admin/users/{id}/deactivate:
+    post:
+      summary: Deactivate an account, revoking its sessions (FR-005, FR-007, FR-008)
+      description: >
+        Sets deactivatedAt = now() and DELETEs the target's sessions in one
+        transaction. Refused for the requesting admin's own account
+        (SELF_DEACTIVATION) or the last active admin (LAST_ADMIN). Idempotent:
+        deactivating an already-deactivated account returns the current row
+        without error. requireSameOrigin.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Updated (deactivated) account row.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserAccountRow" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: Account not found (code USER_NOT_FOUND).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "409":
+          description: Last-admin (LAST_ADMIN) or self-lockout (SELF_DEACTIVATION) refusal.
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /api/admin/users/{id}/reactivate:
+    post:
+      summary: Reactivate a deactivated account (FR-006)
+      description: >
+        Sets deactivatedAt = NULL, restoring sign-in. Idempotent: reactivating an
+        already-active account returns the current row without error. No session
+        change. requireSameOrigin.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Updated (active) account row.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserAccountRow" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: Account not found (code USER_NOT_FOUND).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /api/admin/users/{id}/revoke-sessions:
+    post:
+      summary: Force sign-out without deactivating (FR-009)
+      description: >
+        DELETEs the target's sessions; the account stays Active and can sign back
+        in. Succeeds with revoked = 0 when there are no sessions. requireSameOrigin.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Updated account row plus the number of sessions revoked.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RevokeSessionsResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: Account not found (code USER_NOT_FOUND).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /api/auth/sign-in/email:
+    post:
+      summary: (EXISTING better-auth route — behavior change only)
+      description: >
+        Unchanged route owned by better-auth. This feature adds a
+        databaseHooks.session.create.before hook that rejects sign-in for a
+        deactivated user (deactivatedAt IS NOT NULL) by throwing APIError, so no
+        session is created (FR-005). Documented here for traceability; the exact
+        error status/shape is asserted by the integration suite.
+      responses:
+        "401":
+          description: Wrong credentials OR account deactivated (no session minted).
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+components-responses-note: >
+  Shared responses below are referenced via $ref above.
+
+responses:
+  Unauthorized:
+    description: No valid session (not signed in) — FR-010.
+    content:
+      application/json:
+        schema: { $ref: "#/components/schemas/Error" }
+  Forbidden:
+    description: Signed in but not an administrator (or same-origin failure) — FR-010.
+    content:
+      application/json:
+        schema: { $ref: "#/components/schemas/Error" }
