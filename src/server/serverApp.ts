@@ -14,6 +14,7 @@ import documentsController from "./controllers/documentsController";
 import invitationController, {
   registerAnonymousInvitationRoutes,
 } from "./controllers/invitationController";
+import usersController from "./controllers/usersController";
 import PGStorage, { PGTestStorage, PGDevStorage } from "./storage/PGStorage";
 import { Persistence } from "../core/interfaces/Persistence";
 import docStorage from "./storage/docStorage";
@@ -157,6 +158,7 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   documentsController(app, storage);
   syncController(app, storage);
   invitationController(app, getAuthPool());
+  usersController(app, getAuthPool());
 
   if (process.env.NODE_ENV === "test") {
     testController(app, storage as PGTestStorage);
