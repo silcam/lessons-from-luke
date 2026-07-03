@@ -35,6 +35,17 @@ export interface InvitationSummaryRow {
   invitedByEmail: string;
 }
 
+/** Row returned by the /api/admin/users roster and mutation endpoints. */
+export interface UserAccountRow {
+  id: string;
+  email: string;
+  name: string;
+  role: "admin" | "standard";
+  status: "active" | "deactivated";
+  createdAt: string;
+  isSelf: boolean;
+}
+
 export interface APIGet {
   // Both
   "/api/languages": [Record<string, never>, PublicLanguage[]];
@@ -63,6 +74,7 @@ export interface APIGet {
   "/api/admin/invitations": [Record<string, never>, InvitationSummaryRow[]];
   "/api/admin/invitations/:id/link": [{ id: string }, { link: string }];
   "/api/auth/invitation/:token": [{ token: string }, { email: string }];
+  "/api/admin/users": [Record<string, never>, UserAccountRow[]];
 
   // Desktop Only
   "/api/syncState": [Record<string, never>, SyncState];
@@ -104,6 +116,14 @@ export interface APIPost {
     Record<string, never>,
     { token: string; password: string; name: string },
     { email: string },
+  ];
+  "/api/admin/users/:id/role": [{ id: string }, { role: "admin" | "standard" }, UserAccountRow];
+  "/api/admin/users/:id/deactivate": [{ id: string }, Record<string, never>, UserAccountRow];
+  "/api/admin/users/:id/reactivate": [{ id: string }, Record<string, never>, UserAccountRow];
+  "/api/admin/users/:id/revoke-sessions": [
+    { id: string },
+    Record<string, never>,
+    UserAccountRow & { revoked: number },
   ];
 
   // Desktop Only
