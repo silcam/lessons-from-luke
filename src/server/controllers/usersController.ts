@@ -10,12 +10,14 @@
  */
 import { Express, Request, Response, NextFunction } from "express";
 import { Pool } from "pg";
+import type { UserAccountRow } from "../../core/interfaces/Api";
 import {
   listAccounts,
   deactivateAccount,
   reactivateAccount,
   changeRole,
   revokeSessions,
+  AccountSummary,
 } from "../auth/userStore";
 import {
   UserNotFoundError,
@@ -25,6 +27,26 @@ import {
   parseAccountRole,
 } from "../auth/userValidation";
 import { requireSameOrigin } from "../middle/requireSameOrigin";
+
+/**
+ * Maps an `AccountSummary` (store layer) to the wire-level `UserAccountRow`
+ * (contracts/user-admin-api.yaml, core/interfaces/Api.ts), injecting
+ * `isSelf` from the requesting admin's session id (data-model.md
+ * §`AccountSummary` vs `UserAccountRow`). Mirrors the `mapUserRow` pattern
+ * in userStore.ts, one layer up. Single source of truth for the response
+ * shape shared by GET /api/admin/users and all four mutating POST routes.
+ */
+function serializeAccount(account: AccountSummary, requestingUserId?: string): UserAccountRow {
+  return {
+    id: account.id,
+    email: account.email,
+    name: account.name,
+    role: account.role,
+    status: account.status,
+    createdAt: account.createdAt.toISOString(),
+    isSelf: account.id === requestingUserId,
+  };
+}
 
 /**
  * Extracts the acting admin's id for audit logging.
@@ -91,17 +113,7 @@ export default function usersController(app: Express, pool: Pool): void {
       // Set Cache-Control: no-store (PII surface, mirrors GET /api/admin/invitations)
       res.setHeader("Cache-Control", "no-store");
       res.setHeader("Pragma", "no-cache");
-      res.json(
-        accounts.map((account) => ({
-          id: account.id,
-          email: account.email,
-          name: account.name,
-          role: account.role,
-          status: account.status,
-          createdAt: account.createdAt.toISOString(),
-          isSelf: account.id === req.user?.id,
-        }))
-      );
+      res.json(accounts.map((account) => serializeAccount(account, req.user?.id)));
     }
   );
 
@@ -153,15 +165,7 @@ export default function usersController(app: Express, pool: Pool): void {
 
       res.setHeader("Cache-Control", "no-store");
       res.setHeader("Pragma", "no-cache");
-      res.json({
-        id: account.id,
-        email: account.email,
-        name: account.name,
-        role: account.role,
-        status: account.status,
-        createdAt: account.createdAt.toISOString(),
-        isSelf: account.id === req.user?.id,
-      });
+      res.json(serializeAccount(account, req.user?.id));
     }
   );
 
@@ -193,15 +197,7 @@ export default function usersController(app: Express, pool: Pool): void {
 
       res.setHeader("Cache-Control", "no-store");
       res.setHeader("Pragma", "no-cache");
-      res.json({
-        id: account.id,
-        email: account.email,
-        name: account.name,
-        role: account.role,
-        status: account.status,
-        createdAt: account.createdAt.toISOString(),
-        isSelf: account.id === req.user?.id,
-      });
+      res.json(serializeAccount(account, req.user?.id));
     }
   );
 
@@ -262,15 +258,7 @@ export default function usersController(app: Express, pool: Pool): void {
 
       res.setHeader("Cache-Control", "no-store");
       res.setHeader("Pragma", "no-cache");
-      res.json({
-        id: account.id,
-        email: account.email,
-        name: account.name,
-        role: account.role,
-        status: account.status,
-        createdAt: account.createdAt.toISOString(),
-        isSelf: account.id === req.user?.id,
-      });
+      res.json(serializeAccount(account, req.user?.id));
     }
   );
 
@@ -310,16 +298,7 @@ export default function usersController(app: Express, pool: Pool): void {
 
       res.setHeader("Cache-Control", "no-store");
       res.setHeader("Pragma", "no-cache");
-      res.json({
-        id: result.id,
-        email: result.email,
-        name: result.name,
-        role: result.role,
-        status: result.status,
-        createdAt: result.createdAt.toISOString(),
-        isSelf: result.id === req.user?.id,
-        revoked: result.revoked,
-      });
+      res.json({ ...serializeAccount(result, req.user?.id), revoked: result.revoked });
     }
   );
 }
