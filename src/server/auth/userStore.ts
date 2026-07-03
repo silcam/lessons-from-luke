@@ -202,42 +202,93 @@ export async function reactivateAccount(pool: Pool, targetId: string): Promise<A
   }
 }
 
-// ---------------------------------------------------------------------------
-// STUB — changeRole (RED task lessons-from-luke-q8m0.5.8.1)
-// ---------------------------------------------------------------------------
-//
-// The real transactional implementation (last-admin lock on demote, no
-// self-guard — self-demotion is permitted while another active admin
-// remains, per spec Edge Cases) ships in the GREEN task
-// (lessons-from-luke-q8m0.5.8.2), mirroring deactivateAccount/
-// reactivateAccount's stub-then-implement precedent above. This stub exists
-// only so the module resolves for TypeScript/ESLint (avoiding a compile
-// error that would mask the intended assertion-level RED state) — it is
-// deliberately wrong, always throwing, so every real assertion in
-// userStore.test.ts's `changeRole` suite fails on assertion, not module
-// resolution.
-//
-// Spec: specs/006-user-account-management/spec.md §US3, §FR-003, §FR-004,
-//       §FR-012, §FR-013
-// Plan: data-model.md §Store operations (changeRole), §Last-admin lock
-//       (shared fragment)
-
 /**
- * STUB — not implemented. Always throws regardless of input, so every real
- * assertion in userStore.test.ts's `changeRole` suite fails.
+ * Changes a target account's role (promote to admin / demote to standard),
+ * inside a single transaction guarded by the shared last-admin lock
+ * (data-model.md §Last-admin lock). Unlike `deactivateAccount`, there is no
+ * self-guard: an admin may demote themselves while another active admin
+ * remains (spec Edge Cases — the one asymmetry vs. deactivate).
  *
- * @param pool - The auth pg.Pool (unused by the stub).
- * @param targetId - The account whose role is being changed (unused by the stub).
- * @param newRole - The target role, 'admin' or 'standard' (unused by the stub).
- * @returns Never resolves — always rejects.
+ * Steps (inside the transaction):
+ * 1. Lock the active-admin set: `SELECT id FROM "user" WHERE admin = true
+ *    AND "deactivatedAt" IS NULL ORDER BY id FOR UPDATE`. This serializes
+ *    concurrent guarded mutations against the same row set (FR-012) — see
+ *    the shared lock fragment in data-model.md.
+ * 2. Fetch the target row (else `UserNotFoundError`).
+ * 3. If the target is an active admin being demoted and the locked set has
+ *    at most one row (i.e. the target is the only remaining active admin),
+ *    ROLLBACK and throw `LastAdminError` — demoting them would leave zero
+ *    admins.
+ * 4. Otherwise, `UPDATE "user" SET admin = (newRole === 'admin'),
+ *    "updatedAt" = now() WHERE id = $1`. No session-revocation call
+ *    (Decision 2) — a role change propagates via the user's next
+ *    fresh-session load, not immediate revocation. COMMIT and return the
+ *    updated row.
+ *
+ * Spec: specs/006-user-account-management/spec.md §US3, §FR-003, §FR-004,
+ *       §FR-012, §FR-013
+ * Plan: data-model.md §Store operations (changeRole), §Last-admin lock
+ *       (shared fragment)
  */
 export async function changeRole(
   pool: Pool,
   targetId: string,
   newRole: AccountRole
 ): Promise<AccountSummary> {
-  void pool;
-  void targetId;
-  void newRole;
-  throw new Error("changeRole: not implemented (RED stub)");
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    try {
+      // 1. Lock the active-admin set (shared fragment — data-model.md
+      //    §Last-admin lock).
+      const activeAdmins = await client.query<{ id: string }>(
+        `SELECT id FROM "user" WHERE admin = true AND "deactivatedAt" IS NULL ORDER BY id FOR UPDATE`
+      );
+
+      // 2. Fetch the target row.
+      const targetResult = await client.query<UserRow>(
+        `SELECT id, email, name, admin, "deactivatedAt", "createdAt" FROM "user" WHERE id = $1`,
+        [targetId]
+      );
+      if (targetResult.rows.length === 0) {
+        await client.query("ROLLBACK");
+        throw new UserNotFoundError(targetId);
+      }
+      const target = targetResult.rows[0];
+
+      // 3. Last-admin guard: only applies when demoting an active admin
+      //    (target is an active admin and the locked set — which includes
+      //    the target, since it is still an active admin at this point —
+      //    has at most one row).
+      const isDemotingActiveAdmin =
+        newRole === "standard" && target.admin && target.deactivatedAt === null;
+      if (isDemotingActiveAdmin && activeAdmins.rows.length <= 1) {
+        await client.query("ROLLBACK");
+        throw new LastAdminError();
+      }
+
+      // 4. Apply the role change. No session-revocation call (Decision 2).
+      const updateResult = await client.query<UserRow>(
+        `UPDATE "user" SET admin = $2, "updatedAt" = now()
+         WHERE id = $1
+         RETURNING id, email, name, admin, "deactivatedAt", "createdAt"`,
+        [targetId, newRole === "admin"]
+      );
+
+      await client.query("COMMIT");
+
+      return mapUserRow(updateResult.rows[0]);
+    } catch (err) {
+      // Ensure we roll back on any unexpected error inside the transaction
+      // (the explicit ROLLBACK calls above handle known error paths).
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Ignore rollback errors -- the original error is more important
+      }
+      throw err;
+    }
+  } finally {
+    client.release();
+  }
 }
