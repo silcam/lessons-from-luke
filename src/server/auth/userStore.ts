@@ -293,39 +293,46 @@ export async function changeRole(
   }
 }
 
-// ---------------------------------------------------------------------------
-// STUB — revokeSessions (RED task lessons-from-luke-q8m0.5.9.1)
-// ---------------------------------------------------------------------------
-//
-// The real implementation (fetch target else UserNotFoundError, DELETE FROM
-// "session" WHERE "userId" = $1, leave deactivatedAt untouched, return the
-// updated AccountSummary plus the revoked count) ships in the GREEN task
-// (lessons-from-luke-q8m0.5.9.2), mirroring changeRole/deactivateAccount/
-// reactivateAccount's stub-then-implement precedent above. This stub exists
-// only so the module resolves for TypeScript/ESLint (avoiding a compile
-// error that would mask the intended assertion-level RED state) — it is
-// deliberately wrong, always throwing, so every real assertion in
-// userStore.test.ts's `revokeSessions` suite fails on assertion, not module
-// resolution.
-//
-// Spec: specs/006-user-account-management/spec.md §US4, §FR-009,
-//       §Edge Cases (revoking sessions for a user with none succeeds
-//       without error)
-// Plan: data-model.md §Store operations (revokeSessions)
-
 /**
- * STUB — not implemented. Always throws regardless of input, so every real
- * assertion in userStore.test.ts's `revokeSessions` suite fails.
+ * Force-signs-out a target account by revoking all of its active sessions,
+ * without touching `deactivatedAt` — the account stays in whatever status it
+ * was already in (typically Active). Unlike `deactivateAccount`, there is no
+ * last-admin guard and no self-exclusion: force-signing-out yourself (e.g.
+ * "sign out all my devices") is a legitimate, permitted action (see US4
+ * Implementation Constraints / red-team note on the parent issue).
  *
- * @param pool - The auth pg.Pool (unused by the stub).
- * @param targetId - The account whose sessions are being revoked (unused by the stub).
- * @returns Never resolves — always rejects.
+ * Steps:
+ * 1. Fetch the target row (else `UserNotFoundError`).
+ * 2. `DELETE FROM "session" WHERE "userId" = $1` and count rows deleted (0
+ *    deleted = success, not an error — spec Edge Cases).
+ * 3. Return the (unchanged) `AccountSummary` plus `revoked: <count>`.
+ *
+ * Spec: specs/006-user-account-management/spec.md §US4, §FR-009,
+ *       §Edge Cases (revoking sessions for a user with none succeeds
+ *       without error)
+ * Plan: data-model.md §Store operations (revokeSessions)
  */
 export async function revokeSessions(
   pool: Pool,
   targetId: string
 ): Promise<AccountSummary & { revoked: number }> {
-  void pool;
-  void targetId;
-  throw new Error("revokeSessions: not implemented (RED stub)");
+  const client = await pool.connect();
+  try {
+    const targetResult = await client.query<UserRow>(
+      `SELECT id, email, name, admin, "deactivatedAt", "createdAt" FROM "user" WHERE id = $1`,
+      [targetId]
+    );
+    if (targetResult.rows.length === 0) {
+      throw new UserNotFoundError(targetId);
+    }
+    const target = targetResult.rows[0];
+
+    const deleteResult = await client.query(`DELETE FROM "session" WHERE "userId" = $1`, [
+      targetId,
+    ]);
+
+    return { ...mapUserRow(target), revoked: deleteResult.rowCount ?? 0 };
+  } finally {
+    client.release();
+  }
 }
