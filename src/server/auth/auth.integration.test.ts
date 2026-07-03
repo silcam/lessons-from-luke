@@ -95,6 +95,21 @@ async function insertNonAdminUser(email: string, password: string): Promise<stri
   return userId;
 }
 
+// Directly flips deactivatedAt on the auth pool, bypassing userStore's
+// deactivateAccount() guards (last-admin lock, self-lockout, session
+// revocation) entirely -- those belong to a different US (US1/US2 store
+// layer, covered in userStore.test.ts). This suite only needs the raw
+// deactivatedAt DB state to exercise the two enforcement points
+// (sign-in-hook + session-load check) in isolation.
+async function deactivateUserDirectly(userId: string): Promise<void> {
+  const client = await authPool.connect();
+  try {
+    await client.query(`UPDATE "user" SET "deactivatedAt" = now() WHERE id = $1`, [userId]);
+  } finally {
+    client.release();
+  }
+}
+
 // ------------------------------------------------------------------
 // Lifecycle
 // ------------------------------------------------------------------
@@ -310,3 +325,89 @@ test("US4 S2: re-running migrate:test is idempotent — no duplicate admin, no e
     client.release();
   }
 }, 30_000); // allow up to 30 s for the second migration run
+
+// ------------------------------------------------------------------
+// US2 / FR-005: deactivation enforcement (sign-in-hook checkpoint)
+//
+// data-model.md §Enforcement points: auth.ts's databaseHooks.session.create.before
+// must SELECT "deactivatedAt" FROM "user" WHERE id = session.userId and, if
+// non-NULL, throw so no session is minted -- sign-in fails even with the
+// correct password.
+//
+// RED: no such hook exists yet, so a deactivated user's sign-in currently
+// still succeeds (200) -- these assertions fail against the current code.
+// ------------------------------------------------------------------
+
+test("POST /api/auth/sign-in/email for a deactivated user's credentials → sign-in fails (US2/FR-005)", async () => {
+  const email = "deactivated-signin-integration-test@example.com";
+  const password = "TestPassword1!";
+  const userId = await insertNonAdminUser(email, password);
+  await deactivateUserDirectly(userId);
+
+  const a = agent();
+  const res = await a.post("/api/auth/sign-in/email").send({ email, password });
+
+  // Must NOT succeed -- no session/cookie for a deactivated account, even
+  // though the password is correct.
+  expect(res.status).not.toBe(200);
+
+  const sessionRes = await a.get("/api/auth/get-session").expect(200);
+  expect(sessionRes.body).toBeNull();
+});
+
+// No-regression companion: an active (non-deactivated) user must still be
+// able to sign in normally once the hook exists.
+test("POST /api/auth/sign-in/email for an active user → succeeds normally (no regression, US2/FR-005)", async () => {
+  const email = "active-signin-integration-test@example.com";
+  const password = "TestPassword1!";
+  await insertNonAdminUser(email, password);
+
+  const a = agent();
+  const signInRes = await a.post("/api/auth/sign-in/email").send({ email, password }).expect(200);
+  expect(signInRes.body.user).toBeDefined();
+
+  const sessionRes = await a.get("/api/auth/get-session").expect(200);
+  expect(sessionRes.body).not.toBeNull();
+  expect(sessionRes.body.user.email).toBe(email);
+});
+
+// ------------------------------------------------------------------
+// US2 / FR-005: deactivation enforcement (session-load checkpoint)
+//
+// spec.md §Edge Cases: "A user acting during their own deactivation": once an
+// account is deactivated, any request it makes afterward -- including one
+// already in flight -- is treated as unauthenticated on its next evaluation.
+// requireUser.ts's loadSession() must re-check "deactivatedAt" on every
+// request (not just at sign-in), so a session minted before deactivation
+// stops working immediately after.
+//
+// RED: loadSession() does not perform this check yet, so a deactivated
+// user's already-live session still resolves as a (non-admin, forbidden)
+// session rather than flipping to unauthenticated -- this assertion fails
+// against the current code.
+// ------------------------------------------------------------------
+test(
+  "deactivating a user with a live session flips that session's next request " +
+    "from 403 (forbidden) to 401 (unauthenticated) — session-load enforcement (US2/FR-005)",
+  async () => {
+    const email = "deactivate-midsession-integration-test@example.com";
+    const password = "TestPassword1!";
+    const userId = await insertNonAdminUser(email, password);
+
+    const a = agent();
+    await a.post("/api/auth/sign-in/email").send({ email, password }).expect(200);
+
+    // Before deactivation: a signed-in non-admin session is forbidden (403),
+    // not unauthenticated -- confirms the session is genuinely live first.
+    await a.get("/api/admin/languages").expect(403);
+
+    // Deactivate mid-session (direct SQL -- the admin mutation endpoint is a
+    // different US's concern; this test targets the enforcement checkpoint only).
+    await deactivateUserDirectly(userId);
+
+    // The same session's next authenticated request must now be treated as
+    // unauthenticated (401), not merely forbidden -- the "already in flight"
+    // edge case (spec.md §Edge Cases).
+    await a.get("/api/admin/languages").expect(401);
+  }
+);
