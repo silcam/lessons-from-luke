@@ -1,7 +1,7 @@
 /**
  * Unit/integration tests for userStore.ts — listAccounts(pool),
  * changeRole(pool, targetId, newRole), deactivateAccount(pool, actingUserId,
- * targetId), reactivateAccount(pool, targetId).
+ * targetId), reactivateAccount(pool, targetId), revokeSessions(pool, targetId).
  *
  * These tests run against the real test database (lessons-from-luke-test).
  * jestSetupAfterEnv.ts handles cleanup: afterEach deletes non-seeded user
@@ -10,14 +10,15 @@
  * admin=true/deactivatedAt=NULL (data-model.md Decision 5), so a test in this
  * file that demotes or deactivates one of them never leaks into the next.
  *
- * Spec: specs/006-user-account-management/spec.md §US1, §US2, §US3, §FR-001,
- *       §FR-002, §FR-003, §FR-004, §FR-005..FR-008, §FR-012, §FR-013,
- *       §Edge Cases (last-admin under concurrency, self-action,
+ * Spec: specs/006-user-account-management/spec.md §US1, §US2, §US3, §US4,
+ *       §FR-001, §FR-002, §FR-003, §FR-004, §FR-005..FR-009, §FR-012,
+ *       §FR-013, §Edge Cases (last-admin under concurrency, self-action,
  *       already-deactivated no-op, no-active-sessions no-op, self-demotion
- *       permitted while another admin remains)
+ *       permitted while another admin remains, revoking sessions for a user
+ *       with none succeeds without error)
  * Plan: data-model.md §Store operations (listAccounts, changeRole,
- *       deactivateAccount, reactivateAccount), §Last-admin lock (shared
- *       fragment), §State model
+ *       deactivateAccount, reactivateAccount, revokeSessions), §Last-admin
+ *       lock (shared fragment), §State model
  * Reference: mirrors src/server/auth/invitationStore.test.ts's pattern (real
  *            test DB via getAuthPool(), no mocking of pg); the FOR UPDATE lock
  *            is exercised by opening two concurrent client connections (pool
@@ -32,6 +33,7 @@ import {
   deactivateAccount,
   reactivateAccount,
   changeRole,
+  revokeSessions,
   type AccountSummary,
 } from "./userStore";
 import { UserNotFoundError, LastAdminError, SelfDeactivationError } from "./userValidation";
@@ -574,5 +576,74 @@ describe("reactivateAccount(pool, targetId)", () => {
     const missingId = crypto.randomUUID();
 
     await expect(reactivateAccount(pool, missingId)).rejects.toThrow(UserNotFoundError);
+  });
+});
+
+// ------------------------------------------------------------------
+// revokeSessions(pool, targetId) — FR-009
+// ------------------------------------------------------------------
+
+describe("revokeSessions(pool, targetId)", () => {
+  // ------------------------------------------------------------------
+  // 1. Deletes all N active sessions for a target with N sessions, returns
+  //    the updated AccountSummary plus revoked: N
+  // ------------------------------------------------------------------
+
+  it("deletes all active sessions for a target with active sessions, returning revoked: N", async () => {
+    const targetId = await insertTestUser("revoke-target@example.com", { admin: false });
+    await insertTestSession(targetId);
+    await insertTestSession(targetId);
+    await insertTestSession(targetId);
+
+    const result = await revokeSessions(pool, targetId);
+
+    expect(result.id).toBe(targetId);
+    expect(result.revoked).toBe(3);
+    expect(await countSessions(targetId)).toBe(0);
+  });
+
+  // ------------------------------------------------------------------
+  // 2. Target with zero active sessions succeeds without error, revoked: 0
+  //    (spec Edge Cases — revoking sessions for a user with none succeeds
+  //    without error)
+  // ------------------------------------------------------------------
+
+  it("succeeds without error on a target with zero active sessions, returning revoked: 0", async () => {
+    const targetId = await insertTestUser("revoke-no-sessions@example.com", { admin: false });
+
+    const result = await revokeSessions(pool, targetId);
+
+    expect(result.id).toBe(targetId);
+    expect(result.revoked).toBe(0);
+    expect(await countSessions(targetId)).toBe(0);
+  });
+
+  // ------------------------------------------------------------------
+  // 3. Leaves deactivatedAt untouched — account status is unaffected (stays
+  //    whatever it was, typically Active)
+  // ------------------------------------------------------------------
+
+  it("leaves deactivatedAt untouched, so account status is unaffected (stays Active)", async () => {
+    const targetId = await insertTestUser("revoke-status-active@example.com", { admin: false });
+    await insertTestSession(targetId);
+
+    const result = await revokeSessions(pool, targetId);
+
+    expect(result.status).toBe("active");
+
+    const list = await listAccounts(pool);
+    const row = list.find((r) => r.id === targetId);
+    expect(row).toBeDefined();
+    expect(row!.status).toBe("active");
+  });
+
+  // ------------------------------------------------------------------
+  // 4. Target not found -> UserNotFoundError
+  // ------------------------------------------------------------------
+
+  it("throws UserNotFoundError when the target id does not exist", async () => {
+    const missingId = crypto.randomUUID();
+
+    await expect(revokeSessions(pool, missingId)).rejects.toThrow(UserNotFoundError);
   });
 });

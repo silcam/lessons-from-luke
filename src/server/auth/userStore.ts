@@ -292,3 +292,40 @@ export async function changeRole(
     client.release();
   }
 }
+
+// ---------------------------------------------------------------------------
+// STUB — revokeSessions (RED task lessons-from-luke-q8m0.5.9.1)
+// ---------------------------------------------------------------------------
+//
+// The real implementation (fetch target else UserNotFoundError, DELETE FROM
+// "session" WHERE "userId" = $1, leave deactivatedAt untouched, return the
+// updated AccountSummary plus the revoked count) ships in the GREEN task
+// (lessons-from-luke-q8m0.5.9.2), mirroring changeRole/deactivateAccount/
+// reactivateAccount's stub-then-implement precedent above. This stub exists
+// only so the module resolves for TypeScript/ESLint (avoiding a compile
+// error that would mask the intended assertion-level RED state) — it is
+// deliberately wrong, always throwing, so every real assertion in
+// userStore.test.ts's `revokeSessions` suite fails on assertion, not module
+// resolution.
+//
+// Spec: specs/006-user-account-management/spec.md §US4, §FR-009,
+//       §Edge Cases (revoking sessions for a user with none succeeds
+//       without error)
+// Plan: data-model.md §Store operations (revokeSessions)
+
+/**
+ * STUB — not implemented. Always throws regardless of input, so every real
+ * assertion in userStore.test.ts's `revokeSessions` suite fails.
+ *
+ * @param pool - The auth pg.Pool (unused by the stub).
+ * @param targetId - The account whose sessions are being revoked (unused by the stub).
+ * @returns Never resolves — always rejects.
+ */
+export async function revokeSessions(
+  pool: Pool,
+  targetId: string
+): Promise<AccountSummary & { revoked: number }> {
+  void pool;
+  void targetId;
+  throw new Error("revokeSessions: not implemented (RED stub)");
+}
