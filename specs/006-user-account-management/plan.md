@@ -243,6 +243,38 @@ compromised account. This is inherent to the admin role and not separately mitig
 the strongest argument for the audit trail above and for keeping force-sign-out available to a
 recovering operator.
 
+### Reactivation restores the prior credential — "deactivate + re-invite" does NOT recover a compromised account (Medium)
+
+The feature exists partly to offboard **compromised or shared** accounts (spec Overview / US2), and
+the spec's Out-of-Scope defers admin password reset because "the practical need is covered by
+deactivate + re-invite." Verified against `002`, that recovery path **does not hold** for the
+compromised case:
+
+- **Reactivation restores the _same_ credential.** `reactivateAccount` only sets
+  `deactivatedAt = NULL`; the `account` credential row is untouched (data-model "Relationships").
+  So the operator's natural mental model — "deactivate now, reactivate when cleared" — **re-exposes
+  the compromised password** the instant the account is reactivated. An attacker who knew the
+  password can sign in again.
+- **Same-email re-invite is _blocked_.** `createInvitation` runs
+  `SELECT 1 FROM "user" WHERE LOWER(email) = $1` and throws `AccountAlreadyRegisteredError`
+  (`invitationStore.ts`). A reversibly-deactivated account still occupies its `"user"` row (that is
+  the whole point of never hard-deleting — it preserves `invitedBy`). So re-inviting the **same
+  email** to mint a fresh credential is refused. With hard delete and password reset both out of
+  scope, there is **no in-scope path to rotate a compromised credential** for a returning user.
+
+Mitigation (documentation only — no schema/interface change; does not reopen scope):
+
+- The Deactivate confirm copy and/or roster helptext MUST distinguish the two offboarding intents.
+  For a **departing** user, deactivate↔reactivate is the correct reversible flow. For a
+  **compromised** credential, deactivation MUST be treated as effectively **permanent** — the
+  account should **not** be reactivated (that restores the bad password), and re-onboarding the
+  person requires a **different email** (same-email re-invite is blocked) until admin password reset
+  ships. Use a distinct `Users_*` i18n note so the operator is not lulled into a false "reactivate
+  later" recovery.
+- Record explicitly that the spec's "deactivate + re-invite" rationale for deferring password reset
+  covers only the **departed-user** case, not credential rotation for a compromised-but-returning
+  user; that gap is the concrete driver for the deferred admin-password-reset work.
+
 ## Edge Cases & Error Handling
 
 _Added by `/sp:04-red-team`._
@@ -261,6 +293,24 @@ Mitigation:
 - On a successful self-demotion the client MUST navigate the operator to the non-admin home rather
   than re-fetching the roster into a 403/error state. `UsersList` detects `isSelf && role` now
   `'standard'` on the mutation response and redirects.
+
+### Force-sign-out on one's own row evicts the acting admin (Low)
+
+`revokeSessions(pool, targetId)` deletes **all** of the target's sessions with no self-exclusion, and
+force-sign-out is **not** disabled on the self row (Presentation Design table). So an admin who
+force-signs-out their **own** row deletes their current session — their very next request is
+unauthenticated and they are bounced to sign-in mid-task. This is the force-sign-out analogue of the
+self-demotion eviction above, which the prior pass covered only for demote.
+
+Mitigation (client-side, mirrors the self-demotion handling; no server change):
+
+- On the self row the force-sign-out **confirm** copy MUST warn that it signs the operator out here
+  ("This will sign you out on this device") — a distinct `Users_*` i18n key from the generic
+  force-sign-out confirm.
+- On a successful self-targeted force-sign-out the client MUST redirect to the sign-in screen
+  gracefully rather than re-fetching the roster into a 401/error state (mirror the self-demote
+  redirect). Force-signing yourself out is a legitimate action (sign out all devices), so it is
+  **not** disabled — only handled so focus/navigation is never dropped into an error state.
 
 ### Unexpected server / DB failures (Medium)
 
