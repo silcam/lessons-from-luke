@@ -1,20 +1,34 @@
 /**
- * Unit/integration tests for userStore.ts — listAccounts(pool).
+ * Unit/integration tests for userStore.ts — listAccounts(pool),
+ * deactivateAccount(pool, actingUserId, targetId), reactivateAccount(pool, targetId).
  *
  * These tests run against the real test database (lessons-from-luke-test).
  * jestSetupAfterEnv.ts handles cleanup: afterEach deletes non-seeded user
  * rows (sparing the seeded admin and, in the unit suite, the mock admin
- * fixture used by controller tests).
+ * fixture used by controller tests) and resets both spared rows to
+ * admin=true/deactivatedAt=NULL (data-model.md Decision 5), so a test in this
+ * file that demotes or deactivates one of them never leaks into the next.
  *
- * Spec: specs/006-user-account-management/spec.md §US1, §FR-001, §FR-002, §FR-007
- * Plan: data-model.md §Store operations (listAccounts), §Entity: User Account
- *       (derived Role/Status)
+ * Spec: specs/006-user-account-management/spec.md §US1, §US2, §FR-001, §FR-002,
+ *       §FR-005..FR-008, §FR-012, §Edge Cases (last-admin under concurrency,
+ *       self-action, already-deactivated no-op, no-active-sessions no-op)
+ * Plan: data-model.md §Store operations (listAccounts, deactivateAccount,
+ *       reactivateAccount), §Last-admin lock (shared fragment), §State model
  * Reference: mirrors src/server/auth/invitationStore.test.ts's pattern (real
- *            test DB via getAuthPool(), no mocking of pg)
+ *            test DB via getAuthPool(), no mocking of pg); the FOR UPDATE lock
+ *            is exercised by opening two concurrent client connections (pool
+ *            max: 2) and asserting only one of two concurrent
+ *            deactivate-the-other-admin calls succeeds.
  */
 import { Pool } from "pg";
 import crypto from "crypto";
-import { listAccounts, type AccountSummary } from "./userStore";
+import {
+  listAccounts,
+  deactivateAccount,
+  reactivateAccount,
+  type AccountSummary,
+} from "./userStore";
+import { UserNotFoundError, LastAdminError, SelfDeactivationError } from "./userValidation";
 import secrets from "../util/secrets";
 
 // ------------------------------------------------------------------
@@ -65,6 +79,54 @@ async function insertTestUser(email: string, opts: InsertUserOptions = {}): Prom
     client.release();
   }
   return userId;
+}
+
+/** Insert a "session" row directly for a given user, for session-revocation tests. */
+async function insertTestSession(userId: string): Promise<string> {
+  const id = crypto.randomUUID();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 60 * 60 * 1000);
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `INSERT INTO "session" ("id","userId","token","expiresAt","createdAt","updatedAt")
+       VALUES ($1,$2,$3,$4,$5,$5)`,
+      [id, userId, crypto.randomUUID(), expiresAt, now]
+    );
+  } finally {
+    client.release();
+  }
+  return id;
+}
+
+/** Count the "session" rows belonging to a given user. */
+async function countSessions(userId: string): Promise<number> {
+  const client = await pool.connect();
+  try {
+    const result = await client.query<{ count: string }>(
+      `SELECT COUNT(*)::int AS count FROM "session" WHERE "userId" = $1`,
+      [userId]
+    );
+    return Number(result.rows[0].count);
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Demote every existing admin row (including the seeded admin and, in the
+ * unit suite, the mock-admin fixture jestSetupAfterEnv seeds by default) so a
+ * test can construct an exact, controlled active-admin count. Safe: both
+ * spared rows are reset to admin=true by jestSetupAfterEnv's afterEach
+ * (data-model.md Decision 5), so this never leaks into the next test.
+ */
+async function demoteAllExistingAdmins(): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query(`UPDATE "user" SET admin = false`);
+  } finally {
+    client.release();
+  }
 }
 
 // ------------------------------------------------------------------
@@ -203,5 +265,194 @@ describe("listAccounts(pool)", () => {
     expect(list[0].email).toBe(adminEmail);
     expect(list[0].role).toBe("admin");
     expect(list[0].status).toBe("active");
+  });
+});
+
+// ------------------------------------------------------------------
+// deactivateAccount(pool, actingUserId, targetId) — FR-005, FR-007, FR-008, FR-012
+// ------------------------------------------------------------------
+
+describe("deactivateAccount(pool, actingUserId, targetId)", () => {
+  // ------------------------------------------------------------------
+  // 1. Sets deactivatedAt and DELETEs the target's sessions, in one
+  //    transaction, on a Standard user target
+  // ------------------------------------------------------------------
+
+  it("deactivates a Standard user and deletes their sessions in one transaction", async () => {
+    const targetId = await insertTestUser("deactivate-target@example.com", { admin: false });
+    await insertTestSession(targetId);
+    await insertTestSession(targetId);
+    const actingUserId = crypto.randomUUID();
+
+    const result = await deactivateAccount(pool, actingUserId, targetId);
+
+    expect(result.id).toBe(targetId);
+    expect(result.status).toBe("deactivated");
+
+    const sessionCount = await countSessions(targetId);
+    expect(sessionCount).toBe(0);
+  });
+
+  // ------------------------------------------------------------------
+  // 2. Self-lockout: targetId === actingUserId -> SelfDeactivationError, no change
+  // ------------------------------------------------------------------
+
+  it("throws SelfDeactivationError and makes no change when targetId === actingUserId", async () => {
+    const selfId = await insertTestUser("self-lockout@example.com", { admin: true });
+
+    await expect(deactivateAccount(pool, selfId, selfId)).rejects.toThrow(SelfDeactivationError);
+
+    const list = await listAccounts(pool);
+    const row = list.find((r) => r.id === selfId);
+    expect(row).toBeDefined();
+    expect(row!.status).toBe("active");
+  });
+
+  // ------------------------------------------------------------------
+  // 3. Last-admin: target is the only active admin -> LastAdminError, no change
+  // ------------------------------------------------------------------
+
+  it("throws LastAdminError and makes no change when the target is the only remaining active admin", async () => {
+    // Reduce the roster to a single active admin (the target) by demoting the
+    // admins jestSetupAfterEnv seeds by default (see data-model.md Decision 5).
+    await demoteAllExistingAdmins();
+    const targetId = await insertTestUser("last-admin-target@example.com", { admin: true });
+    const actingUserId = crypto.randomUUID();
+
+    await expect(deactivateAccount(pool, actingUserId, targetId)).rejects.toThrow(LastAdminError);
+
+    const list = await listAccounts(pool);
+    const row = list.find((r) => r.id === targetId);
+    expect(row).toBeDefined();
+    expect(row!.status).toBe("active");
+  });
+
+  // ------------------------------------------------------------------
+  // 4. Idempotent no-op: deactivating an already-deactivated account
+  //    returns the current (Deactivated) row without error
+  // ------------------------------------------------------------------
+
+  it("is idempotent: deactivating an already-deactivated account is a no-op returning the current Deactivated row", async () => {
+    const targetId = await insertTestUser("already-deactivated@example.com", {
+      admin: false,
+      deactivatedAt: new Date(),
+    });
+    const actingUserId = crypto.randomUUID();
+
+    const result = await deactivateAccount(pool, actingUserId, targetId);
+
+    expect(result.id).toBe(targetId);
+    expect(result.status).toBe("deactivated");
+  });
+
+  // ------------------------------------------------------------------
+  // 5. Target not found -> UserNotFoundError
+  // ------------------------------------------------------------------
+
+  it("throws UserNotFoundError when the target id does not exist", async () => {
+    const actingUserId = crypto.randomUUID();
+    const missingId = crypto.randomUUID();
+
+    await expect(deactivateAccount(pool, actingUserId, missingId)).rejects.toThrow(
+      UserNotFoundError
+    );
+  });
+
+  // ------------------------------------------------------------------
+  // 9. Deactivate a user with zero active sessions succeeds without error
+  //    (nothing to revoke)
+  // ------------------------------------------------------------------
+
+  it("deactivates a user with zero active sessions without error (nothing to revoke)", async () => {
+    const targetId = await insertTestUser("no-sessions@example.com", { admin: false });
+    const actingUserId = crypto.randomUUID();
+
+    const result = await deactivateAccount(pool, actingUserId, targetId);
+
+    expect(result.id).toBe(targetId);
+    expect(result.status).toBe("deactivated");
+    expect(await countSessions(targetId)).toBe(0);
+  });
+
+  // ------------------------------------------------------------------
+  // 10. Concurrency (spec Edge Case): two active admins A and B, two
+  //     concurrent deactivateAccount calls each targeting the OTHER admin
+  //     must not both succeed — at least one is refused with LastAdminError,
+  //     and the system never reaches zero admins.
+  // ------------------------------------------------------------------
+
+  it("under concurrency, exactly one of two mutual deactivate-the-other-admin calls succeeds and the other is refused with LastAdminError", async () => {
+    // Reduce the roster to exactly two active admins: A and B.
+    await demoteAllExistingAdmins();
+    const adminAId = await insertTestUser("concurrent-admin-a@example.com", { admin: true });
+    const adminBId = await insertTestUser("concurrent-admin-b@example.com", { admin: true });
+
+    // A attempts to deactivate B; B attempts to deactivate A, concurrently.
+    // The shared FOR UPDATE lock (data-model.md §Last-admin lock) serializes
+    // these against the same active-admin row set, so exactly one must win.
+    const settled = await Promise.allSettled([
+      deactivateAccount(pool, adminAId, adminBId),
+      deactivateAccount(pool, adminBId, adminAId),
+    ]);
+
+    const fulfilled = settled.filter(
+      (r): r is PromiseFulfilledResult<AccountSummary> => r.status === "fulfilled"
+    );
+    const rejected = settled.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].reason).toBeInstanceOf(LastAdminError);
+
+    // Never zero admins: at least one of A/B remains an active admin.
+    const list = await listAccounts(pool);
+    const activeAdmins = list.filter((r) => r.role === "admin" && r.status === "active");
+    expect(activeAdmins.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ------------------------------------------------------------------
+// reactivateAccount(pool, targetId) — FR-006
+// ------------------------------------------------------------------
+
+describe("reactivateAccount(pool, targetId)", () => {
+  // ------------------------------------------------------------------
+  // 6. Sets deactivatedAt = NULL
+  // ------------------------------------------------------------------
+
+  it("reactivates a deactivated account, clearing deactivatedAt", async () => {
+    const targetId = await insertTestUser("reactivate-target@example.com", {
+      admin: false,
+      deactivatedAt: new Date(),
+    });
+
+    const result = await reactivateAccount(pool, targetId);
+
+    expect(result.id).toBe(targetId);
+    expect(result.status).toBe("active");
+  });
+
+  // ------------------------------------------------------------------
+  // 7. Idempotent no-op: reactivating an already-active account returns
+  //    the current (Active) row without error
+  // ------------------------------------------------------------------
+
+  it("is idempotent: reactivating an already-active account is a no-op returning the current Active row", async () => {
+    const targetId = await insertTestUser("already-active@example.com", { admin: false });
+
+    const result = await reactivateAccount(pool, targetId);
+
+    expect(result.id).toBe(targetId);
+    expect(result.status).toBe("active");
+  });
+
+  // ------------------------------------------------------------------
+  // 8. Reactivate on not-found target -> UserNotFoundError
+  // ------------------------------------------------------------------
+
+  it("throws UserNotFoundError when reactivating a non-existent target", async () => {
+    const missingId = crypto.randomUUID();
+
+    await expect(reactivateAccount(pool, missingId)).rejects.toThrow(UserNotFoundError);
   });
 });
