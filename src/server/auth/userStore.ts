@@ -7,7 +7,7 @@
  * Plan: data-model.md §Store operations (listAccounts), §Entity: User Account
  *       (derived Role/Status)
  */
-import { Pool } from "pg";
+import { Pool, PoolClient } from "pg";
 import type { AccountRole, AccountStatus } from "./userValidation";
 import { UserNotFoundError, LastAdminError, SelfDeactivationError } from "./userValidation";
 
@@ -66,6 +66,36 @@ export async function listAccounts(pool: Pool): Promise<AccountSummary[]> {
 }
 
 /**
+ * Shared last-admin-lock fragment used by both `deactivateAccount` and
+ * `changeRole` (data-model.md §Last-admin lock). Must be called inside an
+ * already-open transaction on `client`.
+ *
+ * 1. Locks the active-admin set: `SELECT id FROM "user" WHERE admin = true
+ *    AND "deactivatedAt" IS NULL ORDER BY id FOR UPDATE`. This serializes
+ *    concurrent guarded mutations against the same row set (FR-012).
+ * 2. Fetches the target row (by `targetId`), returning `null` if it does not
+ *    exist so the caller can decide how to respond (ROLLBACK + throw).
+ */
+async function lockActiveAdminsAndFetchTarget(
+  client: PoolClient,
+  targetId: string
+): Promise<{ activeAdmins: { id: string }[]; target: UserRow | null }> {
+  const activeAdmins = await client.query<{ id: string }>(
+    `SELECT id FROM "user" WHERE admin = true AND "deactivatedAt" IS NULL ORDER BY id FOR UPDATE`
+  );
+
+  const targetResult = await client.query<UserRow>(
+    `SELECT id, email, name, admin, "deactivatedAt", "createdAt" FROM "user" WHERE id = $1`,
+    [targetId]
+  );
+
+  return {
+    activeAdmins: activeAdmins.rows,
+    target: targetResult.rows[0] ?? null,
+  };
+}
+
+/**
  * Deactivates a target account, revoking its sessions, inside a single
  * transaction guarded by the shared last-admin lock (data-model.md
  * §Last-admin lock).
@@ -109,22 +139,13 @@ export async function deactivateAccount(
   try {
     await client.query("BEGIN");
     try {
-      // 1. Lock the active-admin set (shared fragment — data-model.md
-      //    §Last-admin lock).
-      const activeAdmins = await client.query<{ id: string }>(
-        `SELECT id FROM "user" WHERE admin = true AND "deactivatedAt" IS NULL ORDER BY id FOR UPDATE`
-      );
-
-      // 2. Fetch the target row.
-      const targetResult = await client.query<UserRow>(
-        `SELECT id, email, name, admin, "deactivatedAt", "createdAt" FROM "user" WHERE id = $1`,
-        [targetId]
-      );
-      if (targetResult.rows.length === 0) {
+      // 1-2. Lock the active-admin set and fetch the target row (shared
+      //      fragment — data-model.md §Last-admin lock).
+      const { activeAdmins, target } = await lockActiveAdminsAndFetchTarget(client, targetId);
+      if (target === null) {
         await client.query("ROLLBACK");
         throw new UserNotFoundError(targetId);
       }
-      const target = targetResult.rows[0];
 
       // 3. Idempotent no-op: already deactivated.
       if (target.deactivatedAt !== null) {
@@ -135,7 +156,7 @@ export async function deactivateAccount(
       // 4. Last-admin guard: target is an active admin and the locked set
       //    (which includes the target, since it is still an active admin at
       //    this point) has at most one row.
-      if (target.admin && activeAdmins.rows.length <= 1) {
+      if (target.admin && activeAdmins.length <= 1) {
         await client.query("ROLLBACK");
         throw new LastAdminError();
       }
@@ -239,22 +260,13 @@ export async function changeRole(
   try {
     await client.query("BEGIN");
     try {
-      // 1. Lock the active-admin set (shared fragment — data-model.md
-      //    §Last-admin lock).
-      const activeAdmins = await client.query<{ id: string }>(
-        `SELECT id FROM "user" WHERE admin = true AND "deactivatedAt" IS NULL ORDER BY id FOR UPDATE`
-      );
-
-      // 2. Fetch the target row.
-      const targetResult = await client.query<UserRow>(
-        `SELECT id, email, name, admin, "deactivatedAt", "createdAt" FROM "user" WHERE id = $1`,
-        [targetId]
-      );
-      if (targetResult.rows.length === 0) {
+      // 1-2. Lock the active-admin set and fetch the target row (shared
+      //      fragment — data-model.md §Last-admin lock).
+      const { activeAdmins, target } = await lockActiveAdminsAndFetchTarget(client, targetId);
+      if (target === null) {
         await client.query("ROLLBACK");
         throw new UserNotFoundError(targetId);
       }
-      const target = targetResult.rows[0];
 
       // 3. Last-admin guard: only applies when demoting an active admin
       //    (target is an active admin and the locked set — which includes
@@ -262,7 +274,7 @@ export async function changeRole(
       //    has at most one row).
       const isDemotingActiveAdmin =
         newRole === "standard" && target.admin && target.deactivatedAt === null;
-      if (isDemotingActiveAdmin && activeAdmins.rows.length <= 1) {
+      if (isDemotingActiveAdmin && activeAdmins.length <= 1) {
         await client.query("ROLLBACK");
         throw new LastAdminError();
       }
