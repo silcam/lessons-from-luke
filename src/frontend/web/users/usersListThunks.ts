@@ -52,23 +52,32 @@ export const listUsers = createAsyncThunk<UserAccountRow[], void, { rejectValue:
 );
 
 // ---------------------------------------------------------------------------
-// deactivateAccount — POST /api/admin/users/:id/deactivate
+// mutationRequest — shared fetch/error-handling helper for the 4 mutation
+// thunks below. Each thunk supplies only its URL/verb/body and an optional
+// `extraStatusMap` for status codes beyond the common 404 -> not_found /
+// fallback -> unknown_error mapping (e.g. deactivateAccount's/changeRole's
+// 409 LAST_ADMIN / SELF_DEACTIVATION branches).
 // ---------------------------------------------------------------------------
 
-export const deactivateAccount = createAsyncThunk<
-  UserAccountRow,
-  string,
-  { rejectValue: UserMutationError }
->("usersList/deactivateAccount", async (id, { rejectWithValue }) => {
+type MutationResult<T> = { ok: true; data: T } | { ok: false; error: UserMutationError };
+
+async function mutationRequest<T>(
+  url: string,
+  init: RequestInit,
+  extraStatusMap?: (
+    status: number,
+    body: { error?: string; code?: string }
+  ) => UserMutationError | undefined
+): Promise<MutationResult<T>> {
   let response: Response;
   try {
-    response = await fetch(`/api/admin/users/${id}/deactivate`, { method: "POST" });
+    response = await fetch(url, init);
   } catch {
-    return rejectWithValue({ code: "network_error", message: "Network error" });
+    return { ok: false, error: { code: "network_error", message: "Network error" } };
   }
 
   if (response.ok) {
-    return (await response.json()) as UserAccountRow;
+    return { ok: true, data: (await response.json()) as T };
   }
 
   let body: { error?: string; code?: string } = {};
@@ -79,24 +88,47 @@ export const deactivateAccount = createAsyncThunk<
   }
 
   if (response.status === 404) {
-    return rejectWithValue({ code: "not_found", message: body.error ?? "User not found" });
+    return { ok: false, error: { code: "not_found", message: body.error ?? "User not found" } };
   }
 
-  if (response.status === 409 && body.code === "LAST_ADMIN") {
-    return rejectWithValue({
-      code: "last_admin",
-      message: body.error ?? "Cannot remove the last active admin account",
-    });
+  const extra = extraStatusMap?.(response.status, body);
+  if (extra) {
+    return { ok: false, error: extra };
   }
 
-  if (response.status === 409 && body.code === "SELF_DEACTIVATION") {
-    return rejectWithValue({
-      code: "self_deactivation",
-      message: body.error ?? "You cannot deactivate your own account",
-    });
-  }
+  return { ok: false, error: { code: "unknown_error", message: body.error ?? "Unknown error" } };
+}
 
-  return rejectWithValue({ code: "unknown_error", message: body.error ?? "Unknown error" });
+// ---------------------------------------------------------------------------
+// deactivateAccount — POST /api/admin/users/:id/deactivate
+// ---------------------------------------------------------------------------
+
+export const deactivateAccount = createAsyncThunk<
+  UserAccountRow,
+  string,
+  { rejectValue: UserMutationError }
+>("usersList/deactivateAccount", async (id, { rejectWithValue }) => {
+  const result = await mutationRequest<UserAccountRow>(
+    `/api/admin/users/${id}/deactivate`,
+    { method: "POST" },
+    (status, body) => {
+      if (status === 409 && body.code === "LAST_ADMIN") {
+        return {
+          code: "last_admin",
+          message: body.error ?? "Cannot remove the last active admin account",
+        };
+      }
+      if (status === 409 && body.code === "SELF_DEACTIVATION") {
+        return {
+          code: "self_deactivation",
+          message: body.error ?? "You cannot deactivate your own account",
+        };
+      }
+      return undefined;
+    }
+  );
+
+  return result.ok ? result.data : rejectWithValue(result.error);
 });
 
 // ---------------------------------------------------------------------------
@@ -108,29 +140,11 @@ export const reactivateAccount = createAsyncThunk<
   string,
   { rejectValue: UserMutationError }
 >("usersList/reactivateAccount", async (id, { rejectWithValue }) => {
-  let response: Response;
-  try {
-    response = await fetch(`/api/admin/users/${id}/reactivate`, { method: "POST" });
-  } catch {
-    return rejectWithValue({ code: "network_error", message: "Network error" });
-  }
+  const result = await mutationRequest<UserAccountRow>(`/api/admin/users/${id}/reactivate`, {
+    method: "POST",
+  });
 
-  if (response.ok) {
-    return (await response.json()) as UserAccountRow;
-  }
-
-  let body: { error?: string; code?: string } = {};
-  try {
-    body = await response.json();
-  } catch {
-    /* ignore */
-  }
-
-  if (response.status === 404) {
-    return rejectWithValue({ code: "not_found", message: body.error ?? "User not found" });
-  }
-
-  return rejectWithValue({ code: "unknown_error", message: body.error ?? "Unknown error" });
+  return result.ok ? result.data : rejectWithValue(result.error);
 });
 
 // ---------------------------------------------------------------------------
@@ -142,40 +156,25 @@ export const changeRole = createAsyncThunk<
   { id: string; role: "admin" | "standard" },
   { rejectValue: UserMutationError }
 >("usersList/changeRole", async ({ id, role }, { rejectWithValue }) => {
-  let response: Response;
-  try {
-    response = await fetch(`/api/admin/users/${id}/role`, {
+  const result = await mutationRequest<UserAccountRow>(
+    `/api/admin/users/${id}/role`,
+    {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ role }),
-    });
-  } catch {
-    return rejectWithValue({ code: "network_error", message: "Network error" });
-  }
+    },
+    (status, body) => {
+      if (status === 409 && body.code === "LAST_ADMIN") {
+        return {
+          code: "last_admin",
+          message: body.error ?? "Cannot demote the last active admin account",
+        };
+      }
+      return undefined;
+    }
+  );
 
-  if (response.ok) {
-    return (await response.json()) as UserAccountRow;
-  }
-
-  let body: { error?: string; code?: string } = {};
-  try {
-    body = await response.json();
-  } catch {
-    /* ignore */
-  }
-
-  if (response.status === 404) {
-    return rejectWithValue({ code: "not_found", message: body.error ?? "User not found" });
-  }
-
-  if (response.status === 409 && body.code === "LAST_ADMIN") {
-    return rejectWithValue({
-      code: "last_admin",
-      message: body.error ?? "Cannot demote the last active admin account",
-    });
-  }
-
-  return rejectWithValue({ code: "unknown_error", message: body.error ?? "Unknown error" });
+  return result.ok ? result.data : rejectWithValue(result.error);
 });
 
 // ---------------------------------------------------------------------------
@@ -188,27 +187,10 @@ export const revokeSessions = createAsyncThunk<
   string,
   { rejectValue: UserMutationError }
 >("usersList/revokeSessions", async (id, { rejectWithValue }) => {
-  let response: Response;
-  try {
-    response = await fetch(`/api/admin/users/${id}/revoke-sessions`, { method: "POST" });
-  } catch {
-    return rejectWithValue({ code: "network_error", message: "Network error" });
-  }
+  const result = await mutationRequest<UserAccountRow & { revoked: number }>(
+    `/api/admin/users/${id}/revoke-sessions`,
+    { method: "POST" }
+  );
 
-  if (response.ok) {
-    return (await response.json()) as UserAccountRow & { revoked: number };
-  }
-
-  let body: { error?: string; code?: string } = {};
-  try {
-    body = await response.json();
-  } catch {
-    /* ignore */
-  }
-
-  if (response.status === 404) {
-    return rejectWithValue({ code: "not_found", message: body.error ?? "User not found" });
-  }
-
-  return rejectWithValue({ code: "unknown_error", message: body.error ?? "Unknown error" });
+  return result.ok ? result.data : rejectWithValue(result.error);
 });
