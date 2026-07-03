@@ -1,13 +1,38 @@
 /**
- * usersController.ts — Admin account roster route
+ * usersController.ts — Admin account roster + deactivate/reactivate routes
  *
- * Spec: specs/006-user-account-management/spec.md §US1, §FR-001, §FR-002, §FR-010
- * Plan: contracts/user-admin-api.yaml paths./api/admin/users.get; plan.md §Project
- *       Structure (usersController.ts NEW, serverApp.ts EDIT)
+ * Spec: specs/006-user-account-management/spec.md §US1, §US2, §FR-001,
+ *       §FR-002, §FR-005..FR-008, §FR-010, §FR-011
+ * Plan: contracts/user-admin-api.yaml paths./api/admin/users.get,
+ *       ./api/admin/users/{id}/deactivate, ./{id}/reactivate; plan.md §Project
+ *       Structure (usersController.ts NEW, serverApp.ts EDIT), §Security
+ *       Considerations ("Administrative action audit trail")
  */
 import { Express, Request, Response, NextFunction } from "express";
 import { Pool } from "pg";
-import { listAccounts } from "../auth/userStore";
+import { listAccounts, deactivateAccount, reactivateAccount } from "../auth/userStore";
+import { UserNotFoundError, LastAdminError, SelfDeactivationError } from "../auth/userValidation";
+import { requireSameOrigin } from "../middle/requireSameOrigin";
+
+/**
+ * Emits a structured server-side audit log line for a mutating admin action
+ * (deactivate/reactivate), per plan.md §Security Considerations
+ * ("Administrative action audit trail"). No new table/column — log-only,
+ * kept lightweight (Simplicity VII).
+ */
+function logAdminAction(entry: {
+  action: "deactivate" | "reactivate";
+  adminId: string;
+  userId: string;
+  outcome: "applied" | "refused-last-admin" | "refused-self";
+}): void {
+  console.log(
+    JSON.stringify({
+      ...entry,
+      timestamp: new Date().toISOString(),
+    })
+  );
+}
 
 /**
  * Registers admin user-account routes on the Express app.
@@ -47,6 +72,106 @@ export default function usersController(app: Express, pool: Pool): void {
           isSelf: account.id === req.user?.id,
         }))
       );
+    }
+  );
+
+  // POST /api/admin/users/:id/deactivate — deactivate an account (US2,
+  // FR-005, FR-007, FR-008, FR-010, FR-011)
+  // Apply CSRF middleware (state-changing POST — mirrors
+  // POST /api/admin/invitations/:id/retract).
+  app.post(
+    "/api/admin/users/:id/deactivate",
+    requireSameOrigin,
+    async (req: Request, res: Response): Promise<void> => {
+      const { id } = req.params;
+      const adminId = req.user?.id ?? "unknown";
+
+      let account;
+      try {
+        account = await deactivateAccount(pool, adminId, id);
+      } catch (err) {
+        if (err instanceof SelfDeactivationError) {
+          logAdminAction({
+            action: "deactivate",
+            adminId,
+            userId: id,
+            outcome: "refused-self",
+          });
+          res.status(409).json({ error: err.message, code: err.code });
+          return;
+        }
+        if (err instanceof LastAdminError) {
+          logAdminAction({
+            action: "deactivate",
+            adminId,
+            userId: id,
+            outcome: "refused-last-admin",
+          });
+          res.status(409).json({ error: err.message, code: err.code });
+          return;
+        }
+        if (err instanceof UserNotFoundError) {
+          res.status(404).json({ error: err.message, code: err.code });
+          return;
+        }
+        // Unexpected error — generic 500 body only (no SQL/stack/driver text).
+        res.status(500).json({ error: "An unexpected error occurred" });
+        return;
+      }
+
+      logAdminAction({ action: "deactivate", adminId, userId: id, outcome: "applied" });
+
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("Pragma", "no-cache");
+      res.json({
+        id: account.id,
+        email: account.email,
+        name: account.name,
+        role: account.role,
+        status: account.status,
+        createdAt: account.createdAt.toISOString(),
+        isSelf: account.id === req.user?.id,
+      });
+    }
+  );
+
+  // POST /api/admin/users/:id/reactivate — reactivate a deactivated account
+  // (US2, FR-006)
+  // Apply CSRF middleware (state-changing POST — mirrors
+  // POST /api/admin/invitations/:id/retract).
+  app.post(
+    "/api/admin/users/:id/reactivate",
+    requireSameOrigin,
+    async (req: Request, res: Response): Promise<void> => {
+      const { id } = req.params;
+      const adminId = req.user?.id ?? "unknown";
+
+      let account;
+      try {
+        account = await reactivateAccount(pool, id);
+      } catch (err) {
+        if (err instanceof UserNotFoundError) {
+          res.status(404).json({ error: err.message, code: err.code });
+          return;
+        }
+        // Unexpected error — generic 500 body only (no SQL/stack/driver text).
+        res.status(500).json({ error: "An unexpected error occurred" });
+        return;
+      }
+
+      logAdminAction({ action: "reactivate", adminId, userId: id, outcome: "applied" });
+
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("Pragma", "no-cache");
+      res.json({
+        id: account.id,
+        email: account.email,
+        name: account.name,
+        role: account.role,
+        status: account.status,
+        createdAt: account.createdAt.toISOString(),
+        isSelf: account.id === req.user?.id,
+      });
     }
   );
 }
