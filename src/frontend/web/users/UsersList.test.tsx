@@ -851,7 +851,7 @@ describe("UsersList", () => {
       });
     });
 
-    it("the confirm on the SELF row shows the distinct sign-out-this-device warning", async () => {
+    it("the confirm on the SELF row shows the distinct sign-out-everywhere warning", async () => {
       listUsers.mockReturnValue(
         jest.fn().mockResolvedValue({ payload: [selfRow], error: undefined })
       );
@@ -866,7 +866,9 @@ describe("UsersList", () => {
       });
 
       await waitFor(() => {
-        expect(container.textContent).toMatch(/this will sign you out on this device/i);
+        // Accurate about scope: revokeSessions ends every device's session,
+        // not just the one currently in use.
+        expect(container.textContent).toMatch(/on every device, including this one/i);
       });
     });
 

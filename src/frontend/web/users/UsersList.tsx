@@ -53,9 +53,9 @@
  *         signing out all devices — is a legitimate action)
  *       - Account status stays Active; a successful non-self force-sign-out
  *         announces the outcome via the role="status"/aria-live region
- *       - The SELF row's confirm uses a distinct warning copy ("this will
- *         sign you out on this device"), since the acting admin's own
- *         session is what gets revoked
+ *       - The SELF row's confirm uses a distinct warning copy that names the
+ *         real scope of the action — EVERY device, not just the one in
+ *         use — since `revokeSessions` deletes all of the target's sessions
  *       - A successful SELF-targeted force-sign-out clears the local
  *         session and redirects to the sign-in screen instead of
  *         re-fetching the roster into a 401/error state (plan.md §Edge
@@ -63,6 +63,7 @@
  */
 
 import React, { useEffect, useRef, useState } from "react";
+import styled from "styled-components";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { AppDispatch } from "../../common/state/appState";
@@ -101,6 +102,45 @@ const roleReasonId = (id: string): string => `user-demote-reason-${id}`;
 
 // Same idea again, for the independent Force sign-out action slot (US4).
 const forceSignOutActionId = (id: string): string => `user-force-sign-out-action-${id}`;
+
+// Mirrors InvitationsList's ActionGroup: keeps a row action's confirm/cancel
+// button pair grouped with consistent spacing and graceful wrapping, rather
+// than relying on incidental Button margins.
+const ActionGroup = styled.div<{ children?: React.ReactNode }>`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25em;
+  align-items: center;
+`;
+
+// Groups a row's three independent action slots (role change,
+// deactivate/reactivate, force sign-out) with consistent vertical spacing.
+// They are separate controls, not one action group, so this stacks rather
+// than mirroring ActionGroup's row layout.
+const ActionStack = styled.div<{ children?: React.ReactNode }>`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5em;
+`;
+
+// Wraps the roster table so only the table region scrolls horizontally on
+// narrow viewports (5 data columns + a 3-action column is wide) — the rest
+// of the page (heading, live-region alert, help text) still reflows to full
+// width instead of the whole page requiring two-dimensional scrolling.
+// `tabIndex`/`role`/`aria-label` make the scrollable region keyboard-
+// reachable: most of the table's cells hold plain text, not focusable
+// controls, so a keyboard-only user would otherwise have no way to scroll a
+// clipped row into view.
+const TableScroll = styled.div<{
+  children?: React.ReactNode;
+  role?: string;
+  "aria-label"?: string;
+  tabIndex?: number;
+}>`
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+`;
 
 export default function UsersList() {
   const t = useTranslation();
@@ -341,7 +381,7 @@ export default function UsersList() {
           <HelpText>
             {user.isSelf ? t("Users_demote_self_confirm_prompt") : t("Users_demote_confirm_prompt")}
           </HelpText>
-          <div>
+          <ActionGroup>
             <Button
               id={`user-demote-confirm-${user.id}`}
               red
@@ -349,7 +389,7 @@ export default function UsersList() {
               onClick={() => void handleDemote(user.id)}
             />
             <Button link text={t("Cancel")} onClick={() => handleCancelDemote(user.id)} />
-          </div>
+          </ActionGroup>
         </div>
       );
     }
@@ -376,7 +416,7 @@ export default function UsersList() {
               ? t("Users_force_sign_out_self_confirm_prompt")
               : t("Users_force_sign_out_confirm_prompt")}
           </HelpText>
-          <div>
+          <ActionGroup>
             <Button
               id={`user-force-sign-out-confirm-${user.id}`}
               red
@@ -384,7 +424,7 @@ export default function UsersList() {
               onClick={() => void handleForceSignOut(user.id)}
             />
             <Button link text={t("Cancel")} onClick={() => handleCancelForceSignOut(user.id)} />
-          </div>
+          </ActionGroup>
         </div>
       );
     }
@@ -446,7 +486,7 @@ export default function UsersList() {
       return (
         <div role="group" aria-label={t("Users_action_deactivate")}>
           <HelpText>{t("Users_deactivate_confirm_prompt")}</HelpText>
-          <div>
+          <ActionGroup>
             <Button
               id={`user-deactivate-confirm-${user.id}`}
               red
@@ -454,7 +494,7 @@ export default function UsersList() {
               onClick={() => void handleDeactivate(user.id)}
             />
             <Button link text={t("Cancel")} onClick={() => handleCancelDeactivate(user.id)} />
-          </div>
+          </ActionGroup>
         </div>
       );
     }
@@ -495,36 +535,40 @@ export default function UsersList() {
     }
 
     return (
-      <Table
-        header={
-          <tr>
-            <th>{t("Users_column_name")}</th>
-            <th>{t("Users_column_email")}</th>
-            <th>{t("Users_column_role")}</th>
-            <th>{t("Users_column_status")}</th>
-            <th>{t("Users_column_created")}</th>
-            <th>{t("Users_column_actions")}</th>
-          </tr>
-        }
-      >
-        {users.map((user) => (
-          <tr key={user.id}>
-            <td>
-              {user.name}
-              {user.isSelf ? ` (${t("Users_self_marker")})` : ""}
-            </td>
-            <td>{user.email}</td>
-            <td>{formatRole(user.role)}</td>
-            <td>{formatStatus(user.status)}</td>
-            <td>{formatDate(user.createdAt)}</td>
-            <td>
-              {renderRoleAction(user)}
-              {renderRowAction(user)}
-              {renderForceSignOutAction(user)}
-            </td>
-          </tr>
-        ))}
-      </Table>
+      <TableScroll role="region" aria-label={t("Users_page_heading")} tabIndex={0}>
+        <Table
+          header={
+            <tr>
+              <th>{t("Users_column_name")}</th>
+              <th>{t("Users_column_email")}</th>
+              <th>{t("Users_column_role")}</th>
+              <th>{t("Users_column_status")}</th>
+              <th>{t("Users_column_created")}</th>
+              <th>{t("Users_column_actions")}</th>
+            </tr>
+          }
+        >
+          {users.map((user) => (
+            <tr key={user.id}>
+              <td>
+                {user.name}
+                {user.isSelf ? ` (${t("Users_self_marker")})` : ""}
+              </td>
+              <td>{user.email}</td>
+              <td>{formatRole(user.role)}</td>
+              <td>{formatStatus(user.status)}</td>
+              <td>{formatDate(user.createdAt)}</td>
+              <td>
+                <ActionStack>
+                  {renderRoleAction(user)}
+                  {renderRowAction(user)}
+                  {renderForceSignOutAction(user)}
+                </ActionStack>
+              </td>
+            </tr>
+          ))}
+        </Table>
+      </TableScroll>
     );
   };
 
