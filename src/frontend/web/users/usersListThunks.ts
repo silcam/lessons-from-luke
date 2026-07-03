@@ -1,15 +1,16 @@
 /**
  * usersListThunks.ts — Redux thunks for the admin user roster + deactivate/
- * reactivate API calls
+ * reactivate/role-change API calls
  *
- * Spec: specs/006-user-account-management/spec.md §US1, §US2, §FR-001,
- *       §FR-002, §FR-005..FR-008, §FR-011
+ * Spec: specs/006-user-account-management/spec.md §US1, §US2, §US3, §FR-001,
+ *       §FR-002, §FR-003, §FR-004, §FR-005..FR-008, §FR-011
  * Plan: plan.md §Presentation Design §UI Decisions (Users roster page,
- *       Deactivate/Reactivate row action)
+ *       Deactivate/Reactivate row action, Role promote/demote row action)
  *
  * GET  /api/admin/users                 → UserAccountRow[]
  * POST /api/admin/users/:id/deactivate  → UserAccountRow (updated)
  * POST /api/admin/users/:id/reactivate  → UserAccountRow (updated)
+ * POST /api/admin/users/:id/role        → UserAccountRow (updated)
  */
 
 import { createAsyncThunk } from "@reduxjs/toolkit";
@@ -126,6 +127,51 @@ export const reactivateAccount = createAsyncThunk<
 
   if (response.status === 404) {
     return rejectWithValue({ code: "not_found", message: body.error ?? "User not found" });
+  }
+
+  return rejectWithValue({ code: "unknown_error", message: body.error ?? "Unknown error" });
+});
+
+// ---------------------------------------------------------------------------
+// changeRole — POST /api/admin/users/:id/role (US3, promote/demote)
+// ---------------------------------------------------------------------------
+
+export const changeRole = createAsyncThunk<
+  UserAccountRow,
+  { id: string; role: "admin" | "standard" },
+  { rejectValue: UserMutationError }
+>("usersList/changeRole", async ({ id, role }, { rejectWithValue }) => {
+  let response: Response;
+  try {
+    response = await fetch(`/api/admin/users/${id}/role`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role }),
+    });
+  } catch {
+    return rejectWithValue({ code: "network_error", message: "Network error" });
+  }
+
+  if (response.ok) {
+    return (await response.json()) as UserAccountRow;
+  }
+
+  let body: { error?: string; code?: string } = {};
+  try {
+    body = await response.json();
+  } catch {
+    /* ignore */
+  }
+
+  if (response.status === 404) {
+    return rejectWithValue({ code: "not_found", message: body.error ?? "User not found" });
+  }
+
+  if (response.status === 409 && body.code === "LAST_ADMIN") {
+    return rejectWithValue({
+      code: "last_admin",
+      message: body.error ?? "Cannot demote the last active admin account",
+    });
   }
 
   return rejectWithValue({ code: "unknown_error", message: body.error ?? "Unknown error" });

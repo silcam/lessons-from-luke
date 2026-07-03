@@ -4,7 +4,7 @@
  * Stubs global fetch; asserts correct request construction and response mapping.
  */
 
-import { listUsers, deactivateAccount, reactivateAccount } from "./usersListThunks";
+import { listUsers, deactivateAccount, reactivateAccount, changeRole } from "./usersListThunks";
 
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
@@ -281,6 +281,105 @@ describe("usersListThunks", () => {
 
       const rejectedCall = dispatch.mock.calls.find(
         ([action]) => action.type === "usersList/reactivateAccount/rejected"
+      );
+      expect(rejectedCall).toBeTruthy();
+      expect(rejectedCall![0].payload).toMatchObject({ code: "network_error" });
+    });
+  });
+
+  describe("changeRole", () => {
+    it("POSTs to /api/admin/users/:id/role with the requested role", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ ...sampleRow, role: "admin" }),
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await changeRole({ id: "user-1", role: "admin" })(dispatch, getState, undefined);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/admin/users/user-1/role",
+        expect.objectContaining({
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: "admin" }),
+        })
+      );
+    });
+
+    it("on success, dispatches fulfilled with the updated row", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ ...sampleRow, role: "admin" }),
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await changeRole({ id: "user-1", role: "admin" })(dispatch, getState, undefined);
+
+      const fulfilledCall = dispatch.mock.calls.find(
+        ([action]) => action.type === "usersList/changeRole/fulfilled"
+      );
+      expect(fulfilledCall).toBeTruthy();
+      expect(fulfilledCall![0].payload).toMatchObject({ role: "admin" });
+    });
+
+    it("on 404, rejects with { code: 'not_found' }", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: async () => ({ error: "User not found", code: "USER_NOT_FOUND" }),
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await changeRole({ id: "user-missing", role: "standard" })(dispatch, getState, undefined);
+
+      const rejectedCall = dispatch.mock.calls.find(
+        ([action]) => action.type === "usersList/changeRole/rejected"
+      );
+      expect(rejectedCall).toBeTruthy();
+      expect(rejectedCall![0].payload).toMatchObject({ code: "not_found" });
+    });
+
+    it("on 409 LAST_ADMIN, rejects with { code: 'last_admin' }", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: async () => ({
+          error: "Cannot demote the last active admin account",
+          code: "LAST_ADMIN",
+        }),
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await changeRole({ id: "user-1", role: "standard" })(dispatch, getState, undefined);
+
+      const rejectedCall = dispatch.mock.calls.find(
+        ([action]) => action.type === "usersList/changeRole/rejected"
+      );
+      expect(rejectedCall).toBeTruthy();
+      expect(rejectedCall![0].payload).toMatchObject({ code: "last_admin" });
+    });
+
+    it("on network failure, rejects with { code: 'network_error' }", async () => {
+      mockFetch.mockRejectedValue(new Error("Network failure"));
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await changeRole({ id: "user-1", role: "admin" })(dispatch, getState, undefined);
+
+      const rejectedCall = dispatch.mock.calls.find(
+        ([action]) => action.type === "usersList/changeRole/rejected"
       );
       expect(rejectedCall).toBeTruthy();
       expect(rejectedCall![0].payload).toMatchObject({ code: "network_error" });

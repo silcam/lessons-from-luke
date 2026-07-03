@@ -24,17 +24,27 @@ jest.mock("./usersListThunks", () => ({
   listUsers: jest.fn(),
   deactivateAccount: jest.fn(),
   reactivateAccount: jest.fn(),
+  changeRole: jest.fn(),
+}));
+
+// Mock useNavigate (US3 self-demote redirect)
+const mockNavigate = jest.fn();
+jest.mock("react-router-dom", () => ({
+  ...jest.requireActual("react-router-dom"),
+  useNavigate: () => mockNavigate,
 }));
 
 import React from "react";
 import { act, fireEvent, waitFor } from "@testing-library/react";
 import { renderWithProviders, defaultSyncState } from "../../common/testHelpers";
 import UsersList from "./UsersList";
-const { listUsers, deactivateAccount, reactivateAccount } = require("./usersListThunks") as {
-  listUsers: jest.Mock;
-  deactivateAccount: jest.Mock;
-  reactivateAccount: jest.Mock;
-};
+const { listUsers, deactivateAccount, reactivateAccount, changeRole } =
+  require("./usersListThunks") as {
+    listUsers: jest.Mock;
+    deactivateAccount: jest.Mock;
+    reactivateAccount: jest.Mock;
+    changeRole: jest.Mock;
+  };
 
 const defaultInitialState = {
   syncState: defaultSyncState,
@@ -83,6 +93,7 @@ const otherAdminRow = {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockNavigate.mockClear();
 });
 
 describe("UsersList", () => {
@@ -463,6 +474,312 @@ describe("UsersList", () => {
         // (two active admins present).
         const enabledDeactivateBtn = deactivateBtns.find((b) => !b.hasAttribute("disabled"));
         expect(enabledDeactivateBtn).toBeTruthy();
+      });
+    });
+  });
+
+  describe("Promote/Demote row action (US3)", () => {
+    // Row helper: locate the <tr> containing a given row's email so tests can
+    // disambiguate between two admin rows' Demote buttons (selfRow and
+    // otherAdminRow are both admins whenever both are present).
+    const findRowByEmail = (container: HTMLElement, email: string): HTMLElement => {
+      const row = Array.from(container.querySelectorAll("tr")).find((tr) =>
+        (tr.textContent || "").includes(email)
+      );
+      if (!row) throw new Error(`row not found for ${email}`);
+      return row as HTMLElement;
+    };
+
+    const findButton = (root: HTMLElement, pattern: RegExp): HTMLButtonElement => {
+      const btn = Array.from(root.querySelectorAll("button")).find((b) =>
+        pattern.test((b.textContent || "").trim())
+      );
+      if (!btn) throw new Error(`button not found for ${pattern}`);
+      return btn as HTMLButtonElement;
+    };
+
+    it("shows an enabled Promote button for a standard, non-admin account", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [selfRow, otherActiveRow], error: undefined })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        const promoteBtn = findButton(container, /^promote$/i);
+        expect(promoteBtn.hasAttribute("disabled")).toBe(false);
+      });
+    });
+
+    it("clicking Promote calls changeRole with role 'admin' immediately (no confirm step)", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [selfRow, otherActiveRow], error: undefined })
+      );
+      changeRole.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: { ...otherActiveRow, role: "admin" },
+          error: undefined,
+        })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        findButton(container, /^promote$/i);
+      });
+
+      await act(async () => {
+        fireEvent.click(findButton(container, /^promote$/i));
+      });
+
+      await waitFor(() => {
+        expect(changeRole).toHaveBeenCalledWith({ id: "user-2", role: "admin" });
+        const liveRegion = container.querySelector("[role='status'][aria-live]");
+        expect(liveRegion!.textContent).toMatch(/admin/i);
+      });
+    });
+
+    it("shows a Demote button for an admin account and opens an inline two-step confirm", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: [selfRow, otherAdminRow, otherActiveRow],
+          error: undefined,
+        })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        findButton(findRowByEmail(container, "other-admin@example.com"), /^demote$/i);
+      });
+
+      await act(async () => {
+        const demoteBtn = findButton(
+          findRowByEmail(container, "other-admin@example.com"),
+          /^demote$/i
+        );
+        fireEvent.click(demoteBtn);
+      });
+
+      expect(changeRole).not.toHaveBeenCalled();
+      await waitFor(() => {
+        findButton(container, /confirm demote/i);
+        findButton(container, /^cancel$/i);
+      });
+    });
+
+    it("the Demote confirm on a non-self admin shows the generic demote-warning copy", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: [selfRow, otherAdminRow, otherActiveRow],
+          error: undefined,
+        })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        findButton(findRowByEmail(container, "other-admin@example.com"), /^demote$/i);
+      });
+
+      await act(async () => {
+        const demoteBtn = findButton(
+          findRowByEmail(container, "other-admin@example.com"),
+          /^demote$/i
+        );
+        fireEvent.click(demoteBtn);
+      });
+
+      await waitFor(() => {
+        expect(container.textContent).toMatch(/lose administrative access/i);
+        expect(container.textContent).not.toMatch(/immediately lose administrator access/i);
+      });
+    });
+
+    it("the Demote confirm on the SELF row shows the distinct immediate-eviction warning", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: [selfRow, otherAdminRow, otherActiveRow],
+          error: undefined,
+        })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        findButton(findRowByEmail(container, "admin@example.com"), /^demote$/i);
+      });
+
+      await act(async () => {
+        const demoteBtn = findButton(findRowByEmail(container, "admin@example.com"), /^demote$/i);
+        fireEvent.click(demoteBtn);
+      });
+
+      await waitFor(() => {
+        expect(container.textContent).toMatch(/you will immediately lose administrator access/i);
+      });
+    });
+
+    it("confirming Demote on a non-self admin calls changeRole, updates the row, and announces the outcome", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: [selfRow, otherAdminRow, otherActiveRow],
+          error: undefined,
+        })
+      );
+      changeRole.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: { ...otherAdminRow, role: "standard" },
+          error: undefined,
+        })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        findButton(findRowByEmail(container, "other-admin@example.com"), /^demote$/i);
+      });
+
+      await act(async () => {
+        const demoteBtn = findButton(
+          findRowByEmail(container, "other-admin@example.com"),
+          /^demote$/i
+        );
+        fireEvent.click(demoteBtn);
+      });
+
+      await act(async () => {
+        fireEvent.click(findButton(container, /confirm demote/i));
+      });
+
+      await waitFor(() => {
+        expect(changeRole).toHaveBeenCalledWith({ id: "user-4", role: "standard" });
+        const liveRegion = container.querySelector("[role='status'][aria-live]");
+        expect(liveRegion!.textContent).toMatch(/standard/i);
+        expect(mockNavigate).not.toHaveBeenCalled();
+        // The row now shows Promote.
+        findButton(findRowByEmail(container, "other-admin@example.com"), /^promote$/i);
+      });
+    });
+
+    it("cancelling the Demote confirm does not mutate and returns focus to the Demote trigger", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: [selfRow, otherAdminRow, otherActiveRow],
+          error: undefined,
+        })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        findButton(findRowByEmail(container, "other-admin@example.com"), /^demote$/i);
+      });
+
+      await act(async () => {
+        const demoteBtn = findButton(
+          findRowByEmail(container, "other-admin@example.com"),
+          /^demote$/i
+        );
+        fireEvent.click(demoteBtn);
+      });
+
+      await act(async () => {
+        fireEvent.click(findButton(container, /^cancel$/i));
+      });
+
+      expect(changeRole).not.toHaveBeenCalled();
+      await waitFor(() => {
+        const demoteBtn = findButton(
+          findRowByEmail(container, "other-admin@example.com"),
+          /^demote$/i
+        );
+        expect(document.activeElement).toBe(demoteBtn);
+      });
+    });
+
+    it("disables Demote on the last remaining active admin with an accessible reason", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [otherAdminRow, otherActiveRow], error: undefined })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const demoteBtn = buttons.find(
+          (b) => /^demote$/i.test((b.textContent || "").trim()) && b.hasAttribute("disabled")
+        );
+        expect(demoteBtn).toBeTruthy();
+        const describedById = demoteBtn!.getAttribute("aria-describedby");
+        expect(describedById).toBeTruthy();
+        const reasonEl = container.querySelector(`#${describedById}`);
+        expect(reasonEl).toBeTruthy();
+        expect(reasonEl!.textContent).toMatch(/cannot demote the last administrator/i);
+      });
+    });
+
+    it("a changeRole rejection surfaces an error announcement instead of updating the row", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: [selfRow, otherAdminRow, otherActiveRow],
+          error: undefined,
+        })
+      );
+      changeRole.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          error: { message: "boom" },
+          payload: { message: "Cannot demote the last active admin account" },
+        })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        findButton(findRowByEmail(container, "other-admin@example.com"), /^demote$/i);
+      });
+
+      await act(async () => {
+        const demoteBtn = findButton(
+          findRowByEmail(container, "other-admin@example.com"),
+          /^demote$/i
+        );
+        fireEvent.click(demoteBtn);
+      });
+
+      await act(async () => {
+        fireEvent.click(findButton(container, /confirm demote/i));
+      });
+
+      await waitFor(() => {
+        const liveRegion = container.querySelector("[role='status'][aria-live]");
+        expect(liveRegion!.textContent).toMatch(/cannot demote the last active admin account/i);
+        expect(mockNavigate).not.toHaveBeenCalled();
+      });
+    });
+
+    it("a successful self-demotion navigates to the non-admin home instead of re-fetching the roster", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: [selfRow, otherAdminRow, otherActiveRow],
+          error: undefined,
+        })
+      );
+      changeRole.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: { ...selfRow, role: "standard" },
+          error: undefined,
+        })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        findButton(findRowByEmail(container, "admin@example.com"), /^demote$/i);
+      });
+
+      await act(async () => {
+        const demoteBtn = findButton(findRowByEmail(container, "admin@example.com"), /^demote$/i);
+        fireEvent.click(demoteBtn);
+      });
+
+      await act(async () => {
+        fireEvent.click(findButton(container, /confirm demote/i));
+      });
+
+      await waitFor(() => {
+        expect(changeRole).toHaveBeenCalledWith({ id: "admin1", role: "standard" });
+        expect(mockNavigate).toHaveBeenCalledWith("/");
       });
     });
   });

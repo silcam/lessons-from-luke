@@ -32,13 +32,34 @@
  *         deterministically to the row's resulting action button — never
  *         dropped to <body>
  *       - A role="status"/aria-live region announces the mutation outcome
+ *   - Promote/Demote row action (US3):
+ *       - Promote (Standard -> Admin) is a single click — non-destructive,
+ *         no confirm needed
+ *       - Demote (Admin -> Standard) requires an inline two-step confirm
+ *         (same mechanics as Deactivate)
+ *       - Demote is disabled — with an accessible reason — on the last
+ *         remaining active admin row (self-demotion has no separate guard:
+ *         it is permitted while another active admin remains)
+ *       - The SELF row's demote confirm uses a distinct warning copy
+ *         ("you will immediately lose administrator access") — a role
+ *         change takes effect on the account's very next request, so a
+ *         successful self-demotion navigates the operator to the non-admin
+ *         home instead of re-fetching the roster into a 403/error state
+ *         (plan.md §Edge Cases, "Self-demotion evicts the acting admin")
  */
 
 import React, { useEffect, useRef, useState } from "react";
 import { useDispatch } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import { AppDispatch } from "../../common/state/appState";
 import { pushLogout } from "../auth/authThunks";
-import { listUsers, deactivateAccount, reactivateAccount, UserAccountRow } from "./usersListThunks";
+import {
+  listUsers,
+  deactivateAccount,
+  reactivateAccount,
+  changeRole,
+  UserAccountRow,
+} from "./usersListThunks";
 import { StdHeaderBarPage } from "../../common/base-components/HeaderBar";
 import Div from "../../common/base-components/Div";
 import Button from "../../common/base-components/Button";
@@ -56,15 +77,23 @@ import useTranslation from "../../common/util/useTranslation";
 const rowActionId = (id: string): string => `user-row-action-${id}`;
 const reasonId = (id: string): string => `user-deactivate-reason-${id}`;
 
+// Same idea as rowActionId/reasonId, but for the independent Promote/Demote
+// action slot — kept distinct so the two row actions' focus-restoration
+// never collide on the same DOM id.
+const roleActionId = (id: string): string => `user-role-action-${id}`;
+const roleReasonId = (id: string): string => `user-demote-reason-${id}`;
+
 export default function UsersList() {
   const t = useTranslation();
   const dispatch = useDispatch<AppDispatch>();
+  const navigate = useNavigate();
   const logOut = () => dispatch(pushLogout());
 
   const [users, setUsers] = useState<UserAccountRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [confirmDeactivateId, setConfirmDeactivateId] = useState<string | null>(null);
+  const [confirmDemoteId, setConfirmDemoteId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState<{ text: string; error?: boolean } | null>(null);
   const pendingFocusId = useRef<string | null>(null);
 
@@ -161,6 +190,116 @@ export default function UsersList() {
   const handleCancelDeactivate = (id: string) => {
     setConfirmDeactivateId(null);
     pendingFocusId.current = rowActionId(id);
+  };
+
+  const handlePromote = async (id: string) => {
+    const action = await dispatch(changeRole({ id, role: "admin" }));
+    if ((action as { error?: unknown }).error) {
+      const rejected = action as { payload?: { message: string } };
+      setAnnouncement({
+        text: rejected.payload?.message ?? t("Users_load_error"),
+        error: true,
+      });
+    } else {
+      const updated = (action as { payload: UserAccountRow }).payload;
+      setUsers((prev) => prev.map((user) => (user.id === id ? updated : user)));
+      setAnnouncement({ text: `${updated.name}: ${formatRole(updated.role)}` });
+    }
+    pendingFocusId.current = roleActionId(id);
+  };
+
+  const handleDemote = async (id: string) => {
+    const action = await dispatch(changeRole({ id, role: "standard" }));
+    if ((action as { error?: unknown }).error) {
+      const rejected = action as { payload?: { message: string } };
+      setAnnouncement({
+        text: rejected.payload?.message ?? t("Users_load_error"),
+        error: true,
+      });
+      setConfirmDemoteId(null);
+      pendingFocusId.current = roleActionId(id);
+      return;
+    }
+
+    const updated = (action as { payload: UserAccountRow }).payload;
+
+    // Self-demotion evicts the acting admin (plan.md §Edge Cases): the role
+    // change takes effect on this account's very next request, so the next
+    // /api/admin/* call would 403. Navigate away instead of re-fetching the
+    // roster into an error state.
+    if (updated.isSelf && updated.role === "standard") {
+      navigate("/");
+      return;
+    }
+
+    setUsers((prev) => prev.map((user) => (user.id === id ? updated : user)));
+    setAnnouncement({ text: `${updated.name}: ${formatRole(updated.role)}` });
+    setConfirmDemoteId(null);
+    pendingFocusId.current = roleActionId(id);
+  };
+
+  const handleCancelDemote = (id: string) => {
+    setConfirmDemoteId(null);
+    pendingFocusId.current = roleActionId(id);
+  };
+
+  const renderRoleAction = (user: UserAccountRow) => {
+    if (user.role === "standard") {
+      return (
+        <Button
+          id={roleActionId(user.id)}
+          text={t("Users_action_promote")}
+          onClick={() => void handlePromote(user.id)}
+        />
+      );
+    }
+
+    // Guardrail: the last remaining active admin cannot be demoted
+    // (FR-004). Self-demotion has no separate guard here — it is permitted
+    // whenever another active admin remains (spec §Edge Cases).
+    if (isLastActiveAdmin(user)) {
+      return (
+        <div>
+          <Button
+            id={roleActionId(user.id)}
+            text={t("Users_action_demote")}
+            disabled
+            aria-describedby={roleReasonId(user.id)}
+            onClick={() => {}}
+          />
+          <HelpText>
+            <span id={roleReasonId(user.id)}>{t("Users_guardrail_last_admin_demote")}</span>
+          </HelpText>
+        </div>
+      );
+    }
+
+    if (confirmDemoteId === user.id) {
+      return (
+        <div role="group" aria-label={t("Users_action_demote")}>
+          <HelpText>
+            {user.isSelf ? t("Users_demote_self_confirm_prompt") : t("Users_demote_confirm_prompt")}
+          </HelpText>
+          <div>
+            <Button
+              id={`user-demote-confirm-${user.id}`}
+              red
+              text={t("Users_action_demote_confirm")}
+              onClick={() => void handleDemote(user.id)}
+            />
+            <Button link text={t("Cancel")} onClick={() => handleCancelDemote(user.id)} />
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <Button
+        id={roleActionId(user.id)}
+        text={t("Users_action_demote")}
+        onClick={() => setConfirmDemoteId(user.id)}
+      />
+    );
   };
 
   const renderRowAction = (user: UserAccountRow) => {
@@ -282,7 +421,10 @@ export default function UsersList() {
             <td>{formatRole(user.role)}</td>
             <td>{formatStatus(user.status)}</td>
             <td>{formatDate(user.createdAt)}</td>
-            <td>{renderRowAction(user)}</td>
+            <td>
+              {renderRoleAction(user)}
+              {renderRowAction(user)}
+            </td>
           </tr>
         ))}
       </Table>
