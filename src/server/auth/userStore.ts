@@ -1,12 +1,7 @@
 /**
- * userStore.ts — STUB for the RED task (lessons-from-luke-q8m0.5.6.1).
- *
- * The real implementation ships in the GREEN task
- * (lessons-from-luke-q8m0.5.6.2), mirroring src/server/auth/invitationStore.ts.
- * This stub exists only so the module resolves for TypeScript/ESLint (avoiding
- * a compile error that would mask the intended assertion-level RED state).
- * `listAccounts` is deliberately wrong — it always returns an empty array — so
- * userStore.test.ts fails on assertion, not on module resolution.
+ * userStore.ts — pure pg.Pool access for user account administration
+ * (roster, role changes, deactivation), mirroring
+ * src/server/auth/invitationStore.ts (no framework code).
  *
  * Spec: specs/006-user-account-management/spec.md §US1, §FR-001, §FR-002, §FR-007
  * Plan: data-model.md §Store operations (listAccounts), §Entity: User Account
@@ -29,14 +24,42 @@ export interface AccountSummary {
   createdAt: Date;
 }
 
+interface UserRow {
+  id: string;
+  email: string;
+  name: string;
+  admin: boolean;
+  deactivatedAt: Date | null;
+  createdAt: Date;
+}
+
+function mapUserRow(row: UserRow): AccountSummary {
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    role: row.admin ? "admin" : "standard",
+    status: row.deactivatedAt === null ? "active" : "deactivated",
+    createdAt: row.createdAt,
+  };
+}
+
 /**
- * STUB — not implemented. Always returns an empty array regardless of the
- * roster's real contents, so every real assertion in userStore.test.ts fails.
+ * Lists every account in the roster, ordered by createdAt ascending.
+ * Derives `role` from the `admin` boolean and `status` from `deactivatedAt`
+ * (NULL -> active). Never returns password or session-token fields, and
+ * does not set `isSelf` — that is injected by the controller per-request.
  *
- * @param pool - The auth pg.Pool (unused by the stub).
- * @returns Always `[]`.
+ * Spec: specs/006-user-account-management/spec.md §US1, §FR-001, §FR-002, §FR-007
  */
 export async function listAccounts(pool: Pool): Promise<AccountSummary[]> {
-  void pool;
-  return [];
+  const client = await pool.connect();
+  try {
+    const result = await client.query<UserRow>(
+      `SELECT id, email, name, admin, "deactivatedAt", "createdAt" FROM "user" ORDER BY "createdAt" ASC`
+    );
+    return result.rows.map(mapUserRow);
+  } finally {
+    client.release();
+  }
 }
