@@ -331,7 +331,11 @@ export async function revokeSessions(
       targetId,
     ]);
 
-    return { ...mapUserRow(target), revoked: deleteResult.rowCount ?? 0 };
+    // node-postgres always returns a number (never null) for `rowCount` on a
+    // completed DELETE — the `!` documents that invariant instead of
+    // carrying an untested, unreachable `?? 0` fallback branch (see
+    // lessons-from-luke-q8m0.10).
+    return { ...mapUserRow(target), revoked: deleteResult.rowCount! };
   } finally {
     client.release();
   }

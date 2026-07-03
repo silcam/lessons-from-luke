@@ -27,6 +27,22 @@ import {
 import { requireSameOrigin } from "../middle/requireSameOrigin";
 
 /**
+ * Extracts the acting admin's id for audit logging.
+ *
+ * All four mutating routes in this file are mounted behind
+ * `app.use('/api/admin', requireAdmin)` (serverApp.ts), which always
+ * populates `req.user` before `next()` runs — so the `"unknown"` fallback
+ * below is unreachable through the real route stack. It is kept as a
+ * defense-in-depth guard against a future refactor that loosens that
+ * guarantee, and is unit-tested directly (both branches) in
+ * usersController.test.ts rather than exercised through HTTP, since the real
+ * middleware can't be made to leave `req.user` unset.
+ */
+export function getAdminId(req: Request): string {
+  return req.user?.id ?? "unknown";
+}
+
+/**
  * Emits a structured server-side audit log line for a mutating admin action
  * (deactivate/reactivate), per plan.md §Security Considerations
  * ("Administrative action audit trail"). No new table/column — log-only,
@@ -98,7 +114,7 @@ export default function usersController(app: Express, pool: Pool): void {
     requireSameOrigin,
     async (req: Request, res: Response): Promise<void> => {
       const { id } = req.params;
-      const adminId = req.user?.id ?? "unknown";
+      const adminId = getAdminId(req);
 
       let account;
       try {
@@ -158,7 +174,7 @@ export default function usersController(app: Express, pool: Pool): void {
     requireSameOrigin,
     async (req: Request, res: Response): Promise<void> => {
       const { id } = req.params;
-      const adminId = req.user?.id ?? "unknown";
+      const adminId = getAdminId(req);
 
       let account;
       try {
@@ -198,7 +214,7 @@ export default function usersController(app: Express, pool: Pool): void {
     requireSameOrigin,
     async (req: Request, res: Response): Promise<void> => {
       const { id } = req.params;
-      const adminId = req.user?.id ?? "unknown";
+      const adminId = getAdminId(req);
 
       let newRole;
       try {
@@ -269,7 +285,7 @@ export default function usersController(app: Express, pool: Pool): void {
     requireSameOrigin,
     async (req: Request, res: Response): Promise<void> => {
       const { id } = req.params;
-      const adminId = req.user?.id ?? "unknown";
+      const adminId = getAdminId(req);
 
       let result;
       try {

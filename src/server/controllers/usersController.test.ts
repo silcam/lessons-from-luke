@@ -26,10 +26,12 @@
 
 /// <reference types="jest" />
 
+import { Request } from "express";
 import { Pool } from "pg";
 import crypto from "crypto";
 import { plainAgent, loggedInAgent } from "../testHelper";
 import secrets from "../util/secrets";
+import { getAdminId } from "./usersController";
 
 // ---------------------------------------------------------------------------
 // Auth pool for inserting test users directly (sign-up is disabled globally).
@@ -945,5 +947,29 @@ describe("POST /api/admin/users/:id/revoke-sessions", () => {
     } finally {
       spy.mockRestore();
     }
+  });
+});
+
+// -----------------------------------------------------------------------------
+// getAdminId(req) — both branches unit-tested directly.
+//
+// requireAdmin always populates req.user before any of the four mutating
+// routes above run, so the "unknown" fallback is unreachable through the real
+// HTTP route stack above (there's no way to send a real request that reaches
+// these handlers with req.user unset). This helper is exercised directly with
+// a plain object instead, per the coverage-remediation finding on
+// lessons-from-luke-q8m0.10.
+// -----------------------------------------------------------------------------
+describe("getAdminId(req)", () => {
+  it("returns req.user.id when a session user is present", () => {
+    const req = { user: { id: "admin-123", admin: true } } as unknown as Request;
+
+    expect(getAdminId(req)).toBe("admin-123");
+  });
+
+  it('falls back to "unknown" when req.user is unset', () => {
+    const req = {} as Request;
+
+    expect(getAdminId(req)).toBe("unknown");
   });
 });
