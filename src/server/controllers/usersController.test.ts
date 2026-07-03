@@ -439,3 +439,180 @@ describe("POST /api/admin/users/:id/reactivate", () => {
     expect(res.body).toMatchObject({ id: targetId, status: "active" });
   });
 });
+
+// ---------------------------------------------------------------------------
+// POST /api/admin/users/:id/role — promote/demote an account (US3, FR-003,
+// FR-004, FR-010, FR-011)
+//
+// RED: usersController.ts does not mount POST /api/admin/users/:id/role yet,
+// so requests that reach past requireAdmin fall through to Express's default
+// 404 handler — every non-404-expecting assertion below fails (actual 404).
+// ---------------------------------------------------------------------------
+
+describe("POST /api/admin/users/:id/role", () => {
+  // -------------------------------------------------------------------------
+  // 1. 200 — promote a Standard user to Admin
+  // -------------------------------------------------------------------------
+  it("200: promotes a Standard user to Admin", async () => {
+    const agent = await loggedInAgent();
+    const targetEmail = `promote-standard-${crypto.randomUUID()}@example.com`;
+    const targetId = await insertUserRow(targetEmail, { admin: false });
+
+    const res = await agent.post(`/api/admin/users/${targetId}/role`).send({ role: "admin" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: targetId, role: "admin" });
+  });
+
+  // -------------------------------------------------------------------------
+  // 2. 200 — demote an Admin to Standard when another admin exists
+  // -------------------------------------------------------------------------
+  it("200: demotes an Admin to Standard when another admin exists", async () => {
+    const agent = await loggedInAgent();
+    const targetEmail = `demote-admin-${crypto.randomUUID()}@example.com`;
+    const targetId = await insertUserRow(targetEmail, { admin: true });
+
+    const res = await agent.post(`/api/admin/users/${targetId}/role`).send({ role: "standard" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: targetId, role: "standard" });
+  });
+
+  // -------------------------------------------------------------------------
+  // 3. 409 — demoting the last remaining active admin is refused, row
+  //    unchanged (mirrors the deactivate-route LAST_ADMIN test)
+  // -------------------------------------------------------------------------
+  it("409: demoting the last remaining admin is rejected with LAST_ADMIN, row unchanged", async () => {
+    const agent = await loggedInAgent();
+    const targetEmail = `last-admin-role-${crypto.randomUUID()}@example.com`;
+    const targetId = await insertUserRow(targetEmail, { admin: true });
+
+    // Demote every OTHER admin (the seeded admin and the mock-admin session's
+    // own row) so the newly-inserted target is the only remaining active
+    // admin. Both spared rows are reset to admin=true by jestSetupAfterEnv's
+    // afterEach (data-model.md Decision 5), so this never leaks into the next
+    // test.
+    const client = await authPool.connect();
+    try {
+      await client.query(`UPDATE "user" SET admin = false WHERE id != $1`, [targetId]);
+    } finally {
+      client.release();
+    }
+
+    const res = await agent.post(`/api/admin/users/${targetId}/role`).send({ role: "standard" });
+
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ error: expect.any(String), code: "LAST_ADMIN" });
+
+    const row = await fetchRawUserRow(targetId);
+    expect(row).not.toBeNull();
+    expect(row!.admin).toBe(true);
+  });
+
+  // -------------------------------------------------------------------------
+  // 4a. 400 — an invalid role value is rejected
+  // -------------------------------------------------------------------------
+  it("400: rejects an invalid role value", async () => {
+    const agent = await loggedInAgent();
+    const targetEmail = `invalid-role-${crypto.randomUUID()}@example.com`;
+    const targetId = await insertUserRow(targetEmail, { admin: false });
+
+    const res = await agent.post(`/api/admin/users/${targetId}/role`).send({ role: "bogus" });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: expect.any(String), code: "INVALID_ROLE" });
+  });
+
+  // -------------------------------------------------------------------------
+  // 4b. 400 — a missing role value is rejected
+  // -------------------------------------------------------------------------
+  it("400: rejects a missing role value", async () => {
+    const agent = await loggedInAgent();
+    const targetEmail = `missing-role-${crypto.randomUUID()}@example.com`;
+    const targetId = await insertUserRow(targetEmail, { admin: false });
+
+    const res = await agent.post(`/api/admin/users/${targetId}/role`).send({});
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: expect.any(String), code: "INVALID_ROLE" });
+  });
+
+  // -------------------------------------------------------------------------
+  // 5. 404 — role change on a nonexistent id
+  // -------------------------------------------------------------------------
+  it("404: changing the role of a nonexistent id returns USER_NOT_FOUND", async () => {
+    const agent = await loggedInAgent();
+    const fakeId = crypto.randomUUID();
+
+    const res = await agent.post(`/api/admin/users/${fakeId}/role`).send({ role: "admin" });
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ error: expect.any(String), code: "USER_NOT_FOUND" });
+  });
+
+  // -------------------------------------------------------------------------
+  // 6. 403 — missing/foreign same-origin header (requireSameOrigin CSRF
+  //    defense), mirrors the deactivate-route origin-check test
+  // -------------------------------------------------------------------------
+  it("403: admin session with foreign Origin is rejected (requireSameOrigin CSRF defense)", async () => {
+    const savedEnv = process.env.BETTER_AUTH_ENFORCE_ORIGIN;
+    process.env.BETTER_AUTH_ENFORCE_ORIGIN = "1";
+
+    try {
+      const agent = await loggedInAgent();
+      const targetEmail = `origin-check-role-${crypto.randomUUID()}@example.com`;
+      const targetId = await insertUserRow(targetEmail, { admin: false });
+
+      const res = await agent
+        .post(`/api/admin/users/${targetId}/role`)
+        .set("Origin", "https://attacker.example.com")
+        .send({ role: "admin" });
+
+      expect(res.status).toBe(403);
+    } finally {
+      process.env.BETTER_AUTH_ENFORCE_ORIGIN = savedEnv;
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // 7a. 401 — unauthenticated request
+  // -------------------------------------------------------------------------
+  it("401: unauthenticated request is rejected", async () => {
+    const agent = plainAgent();
+    const fakeId = crypto.randomUUID();
+
+    const res = await agent.post(`/api/admin/users/${fakeId}/role`).send({ role: "admin" });
+
+    expect(res.status).toBe(401);
+  });
+
+  // -------------------------------------------------------------------------
+  // 7b. 403 — signed-in non-admin (Standard user)
+  // -------------------------------------------------------------------------
+  it("403: signed-in non-admin session is rejected", async () => {
+    const agent = await nonAdminAgent();
+    const fakeId = crypto.randomUUID();
+
+    const res = await agent.post(`/api/admin/users/${fakeId}/role`).send({ role: "admin" });
+
+    expect(res.status).toBe(403);
+  });
+
+  // -------------------------------------------------------------------------
+  // 8. 200 — an admin demoting THEMSELVES (with another admin present)
+  //    succeeds and the response row has isSelf: true
+  // -------------------------------------------------------------------------
+  it("200: an admin demoting themselves succeeds with isSelf: true on the response row", async () => {
+    const agent = await loggedInAgent();
+    // The unit-suite better-auth shim always signs the admin in with id
+    // "user-test-id" (the mock-admin row seeded in jestSetupAfterEnv.ts); the
+    // seeded admin remains active, so this demotion is permitted (no
+    // self-guard on role change, unlike deactivate — spec Edge Cases).
+    const selfId = "user-test-id";
+
+    const res = await agent.post(`/api/admin/users/${selfId}/role`).send({ role: "standard" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: selfId, role: "standard", isSelf: true });
+  });
+});
