@@ -89,6 +89,13 @@ afterEach(async () => {
         MOCK_USER_ID,
       ]);
     }
+    // Reset the spared rows (seeded admin, and — unit suite only — the mock
+    // admin) to canonical state so a test that deactivated or demoted them
+    // does not leak into the next test (US2/US3).
+    await client.query(
+      `UPDATE "user" SET "deactivatedAt" = NULL, admin = true WHERE LOWER(email) = $1 OR id = $2`,
+      [adminEmail, MOCK_USER_ID]
+    );
   } finally {
     client.release();
   }
