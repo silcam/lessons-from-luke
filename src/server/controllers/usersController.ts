@@ -10,7 +10,13 @@
  */
 import { Express, Request, Response, NextFunction } from "express";
 import { Pool } from "pg";
-import { listAccounts, deactivateAccount, reactivateAccount, changeRole } from "../auth/userStore";
+import {
+  listAccounts,
+  deactivateAccount,
+  reactivateAccount,
+  changeRole,
+  revokeSessions,
+} from "../auth/userStore";
 import {
   UserNotFoundError,
   LastAdminError,
@@ -27,11 +33,12 @@ import { requireSameOrigin } from "../middle/requireSameOrigin";
  * kept lightweight (Simplicity VII).
  */
 function logAdminAction(entry: {
-  action: "deactivate" | "reactivate" | "role-change";
+  action: "deactivate" | "reactivate" | "role-change" | "revoke-sessions";
   adminId: string;
   userId: string;
   outcome: "applied" | "refused-last-admin" | "refused-self";
   role?: string;
+  revoked?: number;
 }): void {
   console.log(
     JSON.stringify({
@@ -247,6 +254,55 @@ export default function usersController(app: Express, pool: Pool): void {
         status: account.status,
         createdAt: account.createdAt.toISOString(),
         isSelf: account.id === req.user?.id,
+      });
+    }
+  );
+
+  // POST /api/admin/users/:id/revoke-sessions — force sign-out without
+  // deactivating (US4, FR-009, FR-010, FR-011). No self-exclusion — a
+  // self-targeted force-sign-out is a legitimate action (see US4
+  // Implementation Constraints / red-team note on the parent issue).
+  // Apply CSRF middleware (state-changing POST — mirrors
+  // POST /api/admin/users/:id/deactivate).
+  app.post(
+    "/api/admin/users/:id/revoke-sessions",
+    requireSameOrigin,
+    async (req: Request, res: Response): Promise<void> => {
+      const { id } = req.params;
+      const adminId = req.user?.id ?? "unknown";
+
+      let result;
+      try {
+        result = await revokeSessions(pool, id);
+      } catch (err) {
+        if (err instanceof UserNotFoundError) {
+          res.status(404).json({ error: err.message, code: err.code });
+          return;
+        }
+        // Unexpected error — generic 500 body only (no SQL/stack/driver text).
+        res.status(500).json({ error: "An unexpected error occurred" });
+        return;
+      }
+
+      logAdminAction({
+        action: "revoke-sessions",
+        adminId,
+        userId: id,
+        outcome: "applied",
+        revoked: result.revoked,
+      });
+
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("Pragma", "no-cache");
+      res.json({
+        id: result.id,
+        email: result.email,
+        name: result.name,
+        role: result.role,
+        status: result.status,
+        createdAt: result.createdAt.toISOString(),
+        isSelf: result.id === req.user?.id,
+        revoked: result.revoked,
       });
     }
   );
