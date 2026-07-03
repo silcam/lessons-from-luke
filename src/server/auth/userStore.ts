@@ -201,3 +201,43 @@ export async function reactivateAccount(pool: Pool, targetId: string): Promise<A
     client.release();
   }
 }
+
+// ---------------------------------------------------------------------------
+// STUB — changeRole (RED task lessons-from-luke-q8m0.5.8.1)
+// ---------------------------------------------------------------------------
+//
+// The real transactional implementation (last-admin lock on demote, no
+// self-guard — self-demotion is permitted while another active admin
+// remains, per spec Edge Cases) ships in the GREEN task
+// (lessons-from-luke-q8m0.5.8.2), mirroring deactivateAccount/
+// reactivateAccount's stub-then-implement precedent above. This stub exists
+// only so the module resolves for TypeScript/ESLint (avoiding a compile
+// error that would mask the intended assertion-level RED state) — it is
+// deliberately wrong, always throwing, so every real assertion in
+// userStore.test.ts's `changeRole` suite fails on assertion, not module
+// resolution.
+//
+// Spec: specs/006-user-account-management/spec.md §US3, §FR-003, §FR-004,
+//       §FR-012, §FR-013
+// Plan: data-model.md §Store operations (changeRole), §Last-admin lock
+//       (shared fragment)
+
+/**
+ * STUB — not implemented. Always throws regardless of input, so every real
+ * assertion in userStore.test.ts's `changeRole` suite fails.
+ *
+ * @param pool - The auth pg.Pool (unused by the stub).
+ * @param targetId - The account whose role is being changed (unused by the stub).
+ * @param newRole - The target role, 'admin' or 'standard' (unused by the stub).
+ * @returns Never resolves — always rejects.
+ */
+export async function changeRole(
+  pool: Pool,
+  targetId: string,
+  newRole: AccountRole
+): Promise<AccountSummary> {
+  void pool;
+  void targetId;
+  void newRole;
+  throw new Error("changeRole: not implemented (RED stub)");
+}

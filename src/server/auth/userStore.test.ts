@@ -1,6 +1,7 @@
 /**
  * Unit/integration tests for userStore.ts — listAccounts(pool),
- * deactivateAccount(pool, actingUserId, targetId), reactivateAccount(pool, targetId).
+ * changeRole(pool, targetId, newRole), deactivateAccount(pool, actingUserId,
+ * targetId), reactivateAccount(pool, targetId).
  *
  * These tests run against the real test database (lessons-from-luke-test).
  * jestSetupAfterEnv.ts handles cleanup: afterEach deletes non-seeded user
@@ -9,16 +10,20 @@
  * admin=true/deactivatedAt=NULL (data-model.md Decision 5), so a test in this
  * file that demotes or deactivates one of them never leaks into the next.
  *
- * Spec: specs/006-user-account-management/spec.md §US1, §US2, §FR-001, §FR-002,
- *       §FR-005..FR-008, §FR-012, §Edge Cases (last-admin under concurrency,
- *       self-action, already-deactivated no-op, no-active-sessions no-op)
- * Plan: data-model.md §Store operations (listAccounts, deactivateAccount,
- *       reactivateAccount), §Last-admin lock (shared fragment), §State model
+ * Spec: specs/006-user-account-management/spec.md §US1, §US2, §US3, §FR-001,
+ *       §FR-002, §FR-003, §FR-004, §FR-005..FR-008, §FR-012, §FR-013,
+ *       §Edge Cases (last-admin under concurrency, self-action,
+ *       already-deactivated no-op, no-active-sessions no-op, self-demotion
+ *       permitted while another admin remains)
+ * Plan: data-model.md §Store operations (listAccounts, changeRole,
+ *       deactivateAccount, reactivateAccount), §Last-admin lock (shared
+ *       fragment), §State model
  * Reference: mirrors src/server/auth/invitationStore.test.ts's pattern (real
  *            test DB via getAuthPool(), no mocking of pg); the FOR UPDATE lock
  *            is exercised by opening two concurrent client connections (pool
  *            max: 2) and asserting only one of two concurrent
- *            deactivate-the-other-admin calls succeeds.
+ *            deactivate-the-other-admin (or demote-the-other-admin) calls
+ *            succeeds.
  */
 import { Pool } from "pg";
 import crypto from "crypto";
@@ -26,6 +31,7 @@ import {
   listAccounts,
   deactivateAccount,
   reactivateAccount,
+  changeRole,
   type AccountSummary,
 } from "./userStore";
 import { UserNotFoundError, LastAdminError, SelfDeactivationError } from "./userValidation";
@@ -265,6 +271,120 @@ describe("listAccounts(pool)", () => {
     expect(list[0].email).toBe(adminEmail);
     expect(list[0].role).toBe("admin");
     expect(list[0].status).toBe("active");
+  });
+});
+
+// ------------------------------------------------------------------
+// changeRole(pool, targetId, newRole) — FR-003, FR-004, FR-012, FR-013
+// ------------------------------------------------------------------
+
+describe("changeRole(pool, targetId, newRole)", () => {
+  // ------------------------------------------------------------------
+  // 1. Promote a Standard user to Admin
+  // ------------------------------------------------------------------
+
+  it("promotes a Standard user to Admin", async () => {
+    const targetId = await insertTestUser("promote-target@example.com", { admin: false });
+
+    const result = await changeRole(pool, targetId, "admin");
+
+    expect(result.id).toBe(targetId);
+    expect(result.role).toBe("admin");
+  });
+
+  // ------------------------------------------------------------------
+  // 2. Demote an Admin to Standard when another active admin remains
+  // ------------------------------------------------------------------
+
+  it("demotes an Admin to Standard when another active admin remains", async () => {
+    await demoteAllExistingAdmins();
+    await insertTestUser("demote-other-admin@example.com", { admin: true });
+    const targetId = await insertTestUser("demote-target@example.com", { admin: true });
+
+    const result = await changeRole(pool, targetId, "standard");
+
+    expect(result.id).toBe(targetId);
+    expect(result.role).toBe("standard");
+  });
+
+  // ------------------------------------------------------------------
+  // 3. Last-admin: demoting the only remaining active admin -> LastAdminError,
+  //    no change made
+  // ------------------------------------------------------------------
+
+  it("throws LastAdminError and makes no change when demoting the only remaining active admin", async () => {
+    await demoteAllExistingAdmins();
+    const targetId = await insertTestUser("last-admin-role-target@example.com", { admin: true });
+
+    await expect(changeRole(pool, targetId, "standard")).rejects.toThrow(LastAdminError);
+
+    const list = await listAccounts(pool);
+    const row = list.find((r) => r.id === targetId);
+    expect(row).toBeDefined();
+    expect(row!.role).toBe("admin");
+  });
+
+  // ------------------------------------------------------------------
+  // 4. Self-demotion is permitted while another active admin remains — no
+  //    self-guard on role change (the one asymmetry vs. deactivate, per spec
+  //    Edge Cases)
+  // ------------------------------------------------------------------
+
+  it("permits an admin to demote themselves while another active admin remains (no self-guard on role change)", async () => {
+    await demoteAllExistingAdmins();
+    await insertTestUser("self-demote-other-admin@example.com", { admin: true });
+    const selfId = await insertTestUser("self-demote-self@example.com", { admin: true });
+
+    const result = await changeRole(pool, selfId, "standard");
+
+    expect(result.id).toBe(selfId);
+    expect(result.role).toBe("standard");
+  });
+
+  // ------------------------------------------------------------------
+  // 5. Target not found -> UserNotFoundError
+  // ------------------------------------------------------------------
+
+  it("throws UserNotFoundError when the target id does not exist", async () => {
+    const missingId = crypto.randomUUID();
+
+    await expect(changeRole(pool, missingId, "standard")).rejects.toThrow(UserNotFoundError);
+  });
+
+  // ------------------------------------------------------------------
+  // 6. Concurrency (spec Edge Case): two active admins A and B, two
+  //    concurrent demote-the-other-admin role changes must not both
+  //    succeed — at least one is refused with LastAdminError, and the
+  //    system never reaches zero admins.
+  // ------------------------------------------------------------------
+
+  it("under concurrency, exactly one of two mutual demote-the-other-admin role changes succeeds and the other is refused with LastAdminError", async () => {
+    await demoteAllExistingAdmins();
+    const adminAId = await insertTestUser("concurrent-role-admin-a@example.com", { admin: true });
+    const adminBId = await insertTestUser("concurrent-role-admin-b@example.com", { admin: true });
+
+    // A's role change targets B (demote); B's role change targets A
+    // (demote), concurrently. The shared FOR UPDATE lock (data-model.md
+    // §Last-admin lock) serializes these against the same active-admin row
+    // set, so exactly one must win.
+    const settled = await Promise.allSettled([
+      changeRole(pool, adminBId, "standard"),
+      changeRole(pool, adminAId, "standard"),
+    ]);
+
+    const fulfilled = settled.filter(
+      (r): r is PromiseFulfilledResult<AccountSummary> => r.status === "fulfilled"
+    );
+    const rejected = settled.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].reason).toBeInstanceOf(LastAdminError);
+
+    // Never zero admins: at least one of A/B remains an active admin.
+    const list = await listAccounts(pool);
+    const activeAdmins = list.filter((r) => r.role === "admin" && r.status === "active");
+    expect(activeAdmins.length).toBeGreaterThanOrEqual(1);
   });
 });
 
