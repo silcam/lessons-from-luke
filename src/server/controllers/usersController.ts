@@ -10,8 +10,14 @@
  */
 import { Express, Request, Response, NextFunction } from "express";
 import { Pool } from "pg";
-import { listAccounts, deactivateAccount, reactivateAccount } from "../auth/userStore";
-import { UserNotFoundError, LastAdminError, SelfDeactivationError } from "../auth/userValidation";
+import { listAccounts, deactivateAccount, reactivateAccount, changeRole } from "../auth/userStore";
+import {
+  UserNotFoundError,
+  LastAdminError,
+  SelfDeactivationError,
+  InvalidRoleError,
+  parseAccountRole,
+} from "../auth/userValidation";
 import { requireSameOrigin } from "../middle/requireSameOrigin";
 
 /**
@@ -21,10 +27,11 @@ import { requireSameOrigin } from "../middle/requireSameOrigin";
  * kept lightweight (Simplicity VII).
  */
 function logAdminAction(entry: {
-  action: "deactivate" | "reactivate";
+  action: "deactivate" | "reactivate" | "role-change";
   adminId: string;
   userId: string;
   outcome: "applied" | "refused-last-admin" | "refused-self";
+  role?: string;
 }): void {
   console.log(
     JSON.stringify({
@@ -160,6 +167,75 @@ export default function usersController(app: Express, pool: Pool): void {
       }
 
       logAdminAction({ action: "reactivate", adminId, userId: id, outcome: "applied" });
+
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("Pragma", "no-cache");
+      res.json({
+        id: account.id,
+        email: account.email,
+        name: account.name,
+        role: account.role,
+        status: account.status,
+        createdAt: account.createdAt.toISOString(),
+        isSelf: account.id === req.user?.id,
+      });
+    }
+  );
+
+  // POST /api/admin/users/:id/role — promote/demote an account (US3, FR-003,
+  // FR-004, FR-010)
+  // Apply CSRF middleware (state-changing POST — mirrors
+  // POST /api/admin/users/:id/deactivate).
+  app.post(
+    "/api/admin/users/:id/role",
+    requireSameOrigin,
+    async (req: Request, res: Response): Promise<void> => {
+      const { id } = req.params;
+      const adminId = req.user?.id ?? "unknown";
+
+      let newRole;
+      try {
+        newRole = parseAccountRole((req.body as { role?: unknown } | undefined)?.role);
+      } catch (err) {
+        if (err instanceof InvalidRoleError) {
+          res.status(400).json({ error: err.message, code: err.code });
+          return;
+        }
+        res.status(500).json({ error: "An unexpected error occurred" });
+        return;
+      }
+
+      let account;
+      try {
+        account = await changeRole(pool, id, newRole);
+      } catch (err) {
+        if (err instanceof LastAdminError) {
+          logAdminAction({
+            action: "role-change",
+            adminId,
+            userId: id,
+            outcome: "refused-last-admin",
+            role: newRole,
+          });
+          res.status(409).json({ error: err.message, code: err.code });
+          return;
+        }
+        if (err instanceof UserNotFoundError) {
+          res.status(404).json({ error: err.message, code: err.code });
+          return;
+        }
+        // Unexpected error — generic 500 body only (no SQL/stack/driver text).
+        res.status(500).json({ error: "An unexpected error occurred" });
+        return;
+      }
+
+      logAdminAction({
+        action: "role-change",
+        adminId,
+        userId: id,
+        outcome: "applied",
+        role: newRole,
+      });
 
       res.setHeader("Cache-Control", "no-store");
       res.setHeader("Pragma", "no-cache");
