@@ -174,6 +174,34 @@ describe("UsersList", () => {
         expect(alertEl!.textContent).toMatch(/couldn't load users/i);
       });
     });
+
+    it("clicking Try Again re-fetches the roster and clears the error state on success", async () => {
+      listUsers.mockReturnValueOnce(
+        jest.fn().mockResolvedValue({ payload: undefined, error: { message: "boom" } })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        expect(container.querySelector('[role="alert"]')).toBeTruthy();
+      });
+
+      listUsers.mockReturnValueOnce(
+        jest.fn().mockResolvedValue({ payload: [otherActiveRow], error: undefined })
+      );
+
+      await act(async () => {
+        const tryAgainBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+          /^try again$/i.test((b.textContent || "").trim())
+        );
+        fireEvent.click(tryAgainBtn!);
+      });
+
+      await waitFor(() => {
+        expect(listUsers).toHaveBeenCalledTimes(2);
+        expect(container.querySelector('[role="alert"]')).toBeFalsy();
+        expect(container.textContent).toContain("standard@example.com");
+      });
+    });
   });
 
   describe("empty state", () => {
@@ -356,6 +384,94 @@ describe("UsersList", () => {
       });
     });
 
+    it("a deactivateAccount rejection surfaces an error announcement, leaves the row unchanged, and returns focus to the row action", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [selfRow, otherActiveRow], error: undefined })
+      );
+      deactivateAccount.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          error: { message: "boom" },
+          payload: { message: "Cannot remove the last active admin account" },
+        })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        expect(
+          Array.from(container.querySelectorAll("button")).find((b) =>
+            /^deactivate$/i.test((b.textContent || "").trim())
+          )
+        ).toBeTruthy();
+      });
+
+      await act(async () => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const deactivateBtn = buttons.find(
+          (b) => /^deactivate$/i.test((b.textContent || "").trim()) && !b.hasAttribute("disabled")
+        );
+        fireEvent.click(deactivateBtn!);
+      });
+
+      await act(async () => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const confirmBtn = buttons.find((b) => /confirm deactivate/i.test(b.textContent || ""));
+        fireEvent.click(confirmBtn!);
+      });
+
+      await waitFor(() => {
+        const liveRegion = container.querySelector("[role='status'][aria-live]");
+        expect(liveRegion!.textContent).toMatch(/cannot remove the last active admin account/i);
+        // The row is NOT updated — still shows Deactivate, never Reactivate.
+        const buttons = Array.from(container.querySelectorAll("button"));
+        expect(
+          buttons.find((b) => /^deactivate$/i.test((b.textContent || "").trim()))
+        ).toBeTruthy();
+        expect(buttons.find((b) => /^reactivate$/i.test((b.textContent || "").trim()))).toBeFalsy();
+        expect(document.activeElement?.tagName).toBe("BUTTON");
+        expect(document.activeElement?.textContent).toMatch(/deactivate/i);
+      });
+    });
+
+    it("a deactivateAccount rejection without a message falls back to the generic load-error copy", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [selfRow, otherActiveRow], error: undefined })
+      );
+      deactivateAccount.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          error: { message: "boom" },
+          payload: undefined,
+        })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        expect(
+          Array.from(container.querySelectorAll("button")).find((b) =>
+            /^deactivate$/i.test((b.textContent || "").trim())
+          )
+        ).toBeTruthy();
+      });
+
+      await act(async () => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const deactivateBtn = buttons.find(
+          (b) => /^deactivate$/i.test((b.textContent || "").trim()) && !b.hasAttribute("disabled")
+        );
+        fireEvent.click(deactivateBtn!);
+      });
+
+      await act(async () => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const confirmBtn = buttons.find((b) => /confirm deactivate/i.test(b.textContent || ""));
+        fireEvent.click(confirmBtn!);
+      });
+
+      await waitFor(() => {
+        const liveRegion = container.querySelector("[role='status'][aria-live]");
+        expect(liveRegion!.textContent).toMatch(/couldn't load users/i);
+      });
+    });
+
     it("cancelling the confirm does not mutate and returns focus to the Deactivate trigger", async () => {
       listUsers.mockReturnValue(
         jest.fn().mockResolvedValue({ payload: [selfRow, otherActiveRow], error: undefined })
@@ -427,6 +543,82 @@ describe("UsersList", () => {
         expect(reactivateAccount).toHaveBeenCalledWith("user-3");
         const liveRegion = container.querySelector("[role='status'][aria-live]");
         expect(liveRegion!.textContent).toMatch(/active/i);
+      });
+    });
+
+    it("a reactivateAccount rejection surfaces an error announcement, leaves the row unchanged, and returns focus to the row action", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [otherActiveRow, deactivatedRow], error: undefined })
+      );
+      reactivateAccount.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          error: { message: "boom" },
+          payload: { message: "User not found" },
+        })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        expect(
+          Array.from(container.querySelectorAll("button")).find((b) =>
+            /^reactivate$/i.test((b.textContent || "").trim())
+          )
+        ).toBeTruthy();
+      });
+
+      await act(async () => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const reactivateBtn = buttons.find((b) =>
+          /^reactivate$/i.test((b.textContent || "").trim())
+        );
+        fireEvent.click(reactivateBtn!);
+      });
+
+      await waitFor(() => {
+        expect(reactivateAccount).toHaveBeenCalledWith("user-3");
+        const liveRegion = container.querySelector("[role='status'][aria-live]");
+        expect(liveRegion!.textContent).toMatch(/user not found/i);
+        // The row is NOT updated — still shows Reactivate, never Deactivate.
+        const buttons = Array.from(container.querySelectorAll("button"));
+        expect(
+          buttons.find((b) => /^reactivate$/i.test((b.textContent || "").trim()))
+        ).toBeTruthy();
+        expect(document.activeElement?.tagName).toBe("BUTTON");
+        expect(document.activeElement?.textContent).toMatch(/reactivate/i);
+      });
+    });
+
+    it("a reactivateAccount rejection without a message falls back to the generic load-error copy", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [otherActiveRow, deactivatedRow], error: undefined })
+      );
+      reactivateAccount.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          error: { message: "boom" },
+          payload: undefined,
+        })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        expect(
+          Array.from(container.querySelectorAll("button")).find((b) =>
+            /^reactivate$/i.test((b.textContent || "").trim())
+          )
+        ).toBeTruthy();
+      });
+
+      await act(async () => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const reactivateBtn = buttons.find((b) =>
+          /^reactivate$/i.test((b.textContent || "").trim())
+        );
+        fireEvent.click(reactivateBtn!);
+      });
+
+      await waitFor(() => {
+        const liveRegion = container.querySelector("[role='status'][aria-live]");
+        expect(liveRegion!.textContent).toMatch(/couldn't load users/i);
       });
     });
 
@@ -548,6 +740,61 @@ describe("UsersList", () => {
         expect(changeRole).toHaveBeenCalledWith({ id: "user-2", role: "admin" });
         const liveRegion = container.querySelector("[role='status'][aria-live]");
         expect(liveRegion!.textContent).toMatch(/admin/i);
+      });
+    });
+
+    it("a changeRole (promote) rejection surfaces an error announcement instead of updating the row", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [selfRow, otherActiveRow], error: undefined })
+      );
+      changeRole.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          error: { message: "boom" },
+          payload: { message: "Something went wrong promoting this user" },
+        })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        findButton(container, /^promote$/i);
+      });
+
+      await act(async () => {
+        fireEvent.click(findButton(container, /^promote$/i));
+      });
+
+      await waitFor(() => {
+        expect(changeRole).toHaveBeenCalledWith({ id: "user-2", role: "admin" });
+        const liveRegion = container.querySelector("[role='status'][aria-live]");
+        expect(liveRegion!.textContent).toMatch(/something went wrong promoting this user/i);
+        // The row is NOT updated — still shows Promote, never Demote.
+        findButton(container, /^promote$/i);
+      });
+    });
+
+    it("a changeRole (promote) rejection without a message falls back to the generic load-error copy", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [selfRow, otherActiveRow], error: undefined })
+      );
+      changeRole.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          error: { message: "boom" },
+          payload: undefined,
+        })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        findButton(container, /^promote$/i);
+      });
+
+      await act(async () => {
+        fireEvent.click(findButton(container, /^promote$/i));
+      });
+
+      await waitFor(() => {
+        const liveRegion = container.querySelector("[role='status'][aria-live]");
+        expect(liveRegion!.textContent).toMatch(/couldn't load users/i);
       });
     });
 
@@ -763,6 +1010,44 @@ describe("UsersList", () => {
       });
     });
 
+    it("a changeRole (demote) rejection without a message falls back to the generic load-error copy", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: [selfRow, otherAdminRow, otherActiveRow],
+          error: undefined,
+        })
+      );
+      changeRole.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          error: { message: "boom" },
+          payload: undefined,
+        })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        findButton(findRowByEmail(container, "other-admin@example.com"), /^demote$/i);
+      });
+
+      await act(async () => {
+        const demoteBtn = findButton(
+          findRowByEmail(container, "other-admin@example.com"),
+          /^demote$/i
+        );
+        fireEvent.click(demoteBtn);
+      });
+
+      await act(async () => {
+        fireEvent.click(findButton(container, /confirm demote/i));
+      });
+
+      await waitFor(() => {
+        const liveRegion = container.querySelector("[role='status'][aria-live]");
+        expect(liveRegion!.textContent).toMatch(/couldn't load users/i);
+        expect(mockNavigate).not.toHaveBeenCalled();
+      });
+    });
+
     it("a successful self-demotion clears the stale admin=true client state so the non-admin home actually renders", async () => {
       listUsers.mockReturnValue(
         jest.fn().mockResolvedValue({
@@ -932,6 +1217,104 @@ describe("UsersList", () => {
         expect(mockNavigate).not.toHaveBeenCalled();
         expect(document.activeElement?.tagName).toBe("BUTTON");
         expect(document.activeElement?.textContent).toMatch(/force sign out/i);
+      });
+    });
+
+    it("a successful force sign-out on one row does not affect a different row's data", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [otherActiveRow, otherAdminRow], error: undefined })
+      );
+      revokeSessions.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: { ...otherActiveRow, revoked: 2 },
+          error: undefined,
+        })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        expect(container.textContent).toContain("other-admin@example.com");
+      });
+
+      await act(async () => {
+        const buttons = Array.from(container.querySelectorAll("button")).filter((b) =>
+          /^force sign out$/i.test((b.textContent || "").trim())
+        );
+        fireEvent.click(buttons[0]);
+      });
+
+      await act(async () => {
+        fireEvent.click(findButton(container, /confirm force sign-out/i));
+      });
+
+      await waitFor(() => {
+        expect(revokeSessions).toHaveBeenCalledWith("user-2");
+        // The unrelated row (other-admin) is untouched by the mutation.
+        expect(container.textContent).toContain("other-admin@example.com");
+      });
+    });
+
+    it("a revokeSessions rejection surfaces an error announcement, dismisses the confirm, and returns focus to the row action", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [otherActiveRow], error: undefined })
+      );
+      revokeSessions.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          error: { message: "boom" },
+          payload: { message: "User not found" },
+        })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        findButton(container, /^force sign out$/i);
+      });
+
+      await act(async () => {
+        fireEvent.click(findButton(container, /^force sign out$/i));
+      });
+
+      await act(async () => {
+        fireEvent.click(findButton(container, /confirm force sign-out/i));
+      });
+
+      await waitFor(() => {
+        const liveRegion = container.querySelector("[role='status'][aria-live]");
+        expect(liveRegion!.textContent).toMatch(/user not found/i);
+        expect(mockNavigate).not.toHaveBeenCalled();
+        // The confirm step is dismissed — the trigger button is back and focused.
+        const btn = findButton(container, /^force sign out$/i);
+        expect(document.activeElement).toBe(btn);
+      });
+    });
+
+    it("a revokeSessions rejection without a message falls back to the generic load-error copy", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [otherActiveRow], error: undefined })
+      );
+      revokeSessions.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          error: { message: "boom" },
+          payload: undefined,
+        })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        findButton(container, /^force sign out$/i);
+      });
+
+      await act(async () => {
+        fireEvent.click(findButton(container, /^force sign out$/i));
+      });
+
+      await act(async () => {
+        fireEvent.click(findButton(container, /confirm force sign-out/i));
+      });
+
+      await waitFor(() => {
+        const liveRegion = container.querySelector("[role='status'][aria-live]");
+        expect(liveRegion!.textContent).toMatch(/couldn't load users/i);
       });
     });
 

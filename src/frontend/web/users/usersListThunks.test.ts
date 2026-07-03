@@ -160,6 +160,28 @@ describe("usersListThunks", () => {
       expect(rejectedCall![0].payload).toMatchObject({ code: "not_found" });
     });
 
+    it("on 404 with no error message in the body, falls back to the default message", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: async () => ({ code: "USER_NOT_FOUND" }),
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await deactivateAccount("user-missing")(dispatch, getState, undefined);
+
+      const rejectedCall = dispatch.mock.calls.find(
+        ([action]) => action.type === "usersList/deactivateAccount/rejected"
+      );
+      expect(rejectedCall).toBeTruthy();
+      expect(rejectedCall![0].payload).toMatchObject({
+        code: "not_found",
+        message: "User not found",
+      });
+    });
+
     it("on 409 LAST_ADMIN, rejects with { code: 'last_admin' }", async () => {
       mockFetch.mockResolvedValue({
         ok: false,
@@ -180,6 +202,28 @@ describe("usersListThunks", () => {
       );
       expect(rejectedCall).toBeTruthy();
       expect(rejectedCall![0].payload).toMatchObject({ code: "last_admin" });
+    });
+
+    it("on 409 LAST_ADMIN with no error message in the body, falls back to the default message", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: async () => ({ code: "LAST_ADMIN" }),
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await deactivateAccount("user-1")(dispatch, getState, undefined);
+
+      const rejectedCall = dispatch.mock.calls.find(
+        ([action]) => action.type === "usersList/deactivateAccount/rejected"
+      );
+      expect(rejectedCall).toBeTruthy();
+      expect(rejectedCall![0].payload).toMatchObject({
+        code: "last_admin",
+        message: "Cannot remove the last active admin account",
+      });
     });
 
     it("on 409 SELF_DEACTIVATION, rejects with { code: 'self_deactivation' }", async () => {
@@ -204,6 +248,28 @@ describe("usersListThunks", () => {
       expect(rejectedCall![0].payload).toMatchObject({ code: "self_deactivation" });
     });
 
+    it("on 409 SELF_DEACTIVATION with no error message in the body, falls back to the default message", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: async () => ({ code: "SELF_DEACTIVATION" }),
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await deactivateAccount("admin1")(dispatch, getState, undefined);
+
+      const rejectedCall = dispatch.mock.calls.find(
+        ([action]) => action.type === "usersList/deactivateAccount/rejected"
+      );
+      expect(rejectedCall).toBeTruthy();
+      expect(rejectedCall![0].payload).toMatchObject({
+        code: "self_deactivation",
+        message: "You cannot deactivate your own account",
+      });
+    });
+
     it("on network failure, rejects with { code: 'network_error' }", async () => {
       mockFetch.mockRejectedValue(new Error("Network failure"));
 
@@ -217,6 +283,47 @@ describe("usersListThunks", () => {
       );
       expect(rejectedCall).toBeTruthy();
       expect(rejectedCall![0].payload).toMatchObject({ code: "network_error" });
+    });
+
+    it("on non-ok, non-404/409 response, rejects with { code: 'unknown_error' }", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: async () => ({ error: "boom" }),
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await deactivateAccount("user-1")(dispatch, getState, undefined);
+
+      const rejectedCall = dispatch.mock.calls.find(
+        ([action]) => action.type === "usersList/deactivateAccount/rejected"
+      );
+      expect(rejectedCall).toBeTruthy();
+      expect(rejectedCall![0].payload).toMatchObject({ code: "unknown_error" });
+    });
+
+    it("on non-ok, non-404/409 response with no error message in the body, falls back to the default message", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: async () => ({}),
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await deactivateAccount("user-1")(dispatch, getState, undefined);
+
+      const rejectedCall = dispatch.mock.calls.find(
+        ([action]) => action.type === "usersList/deactivateAccount/rejected"
+      );
+      expect(rejectedCall).toBeTruthy();
+      expect(rejectedCall![0].payload).toMatchObject({
+        code: "unknown_error",
+        message: "Unknown error",
+      });
     });
   });
 
@@ -277,6 +384,28 @@ describe("usersListThunks", () => {
       expect(rejectedCall![0].payload).toMatchObject({ code: "not_found" });
     });
 
+    it("on 404 with no error message in the body, falls back to the default message", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: async () => ({ code: "USER_NOT_FOUND" }),
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await reactivateAccount("user-missing")(dispatch, getState, undefined);
+
+      const rejectedCall = dispatch.mock.calls.find(
+        ([action]) => action.type === "usersList/reactivateAccount/rejected"
+      );
+      expect(rejectedCall).toBeTruthy();
+      expect(rejectedCall![0].payload).toMatchObject({
+        code: "not_found",
+        message: "User not found",
+      });
+    });
+
     it("on network failure, rejects with { code: 'network_error' }", async () => {
       mockFetch.mockRejectedValue(new Error("Network failure"));
 
@@ -290,6 +419,47 @@ describe("usersListThunks", () => {
       );
       expect(rejectedCall).toBeTruthy();
       expect(rejectedCall![0].payload).toMatchObject({ code: "network_error" });
+    });
+
+    it("on non-ok, non-404 response, rejects with { code: 'unknown_error' }", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: async () => ({ error: "boom" }),
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await reactivateAccount("user-1")(dispatch, getState, undefined);
+
+      const rejectedCall = dispatch.mock.calls.find(
+        ([action]) => action.type === "usersList/reactivateAccount/rejected"
+      );
+      expect(rejectedCall).toBeTruthy();
+      expect(rejectedCall![0].payload).toMatchObject({ code: "unknown_error" });
+    });
+
+    it("on non-ok, non-404 response with no error message in the body, falls back to the default message", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: async () => ({}),
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await reactivateAccount("user-1")(dispatch, getState, undefined);
+
+      const rejectedCall = dispatch.mock.calls.find(
+        ([action]) => action.type === "usersList/reactivateAccount/rejected"
+      );
+      expect(rejectedCall).toBeTruthy();
+      expect(rejectedCall![0].payload).toMatchObject({
+        code: "unknown_error",
+        message: "Unknown error",
+      });
     });
   });
 
@@ -354,6 +524,28 @@ describe("usersListThunks", () => {
       expect(rejectedCall![0].payload).toMatchObject({ code: "not_found" });
     });
 
+    it("on 404 with no error message in the body, falls back to the default message", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: async () => ({ code: "USER_NOT_FOUND" }),
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await changeRole({ id: "user-missing", role: "standard" })(dispatch, getState, undefined);
+
+      const rejectedCall = dispatch.mock.calls.find(
+        ([action]) => action.type === "usersList/changeRole/rejected"
+      );
+      expect(rejectedCall).toBeTruthy();
+      expect(rejectedCall![0].payload).toMatchObject({
+        code: "not_found",
+        message: "User not found",
+      });
+    });
+
     it("on 409 LAST_ADMIN, rejects with { code: 'last_admin' }", async () => {
       mockFetch.mockResolvedValue({
         ok: false,
@@ -376,6 +568,28 @@ describe("usersListThunks", () => {
       expect(rejectedCall![0].payload).toMatchObject({ code: "last_admin" });
     });
 
+    it("on 409 LAST_ADMIN with no error message in the body, falls back to the default message", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: async () => ({ code: "LAST_ADMIN" }),
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await changeRole({ id: "user-1", role: "standard" })(dispatch, getState, undefined);
+
+      const rejectedCall = dispatch.mock.calls.find(
+        ([action]) => action.type === "usersList/changeRole/rejected"
+      );
+      expect(rejectedCall).toBeTruthy();
+      expect(rejectedCall![0].payload).toMatchObject({
+        code: "last_admin",
+        message: "Cannot demote the last active admin account",
+      });
+    });
+
     it("on network failure, rejects with { code: 'network_error' }", async () => {
       mockFetch.mockRejectedValue(new Error("Network failure"));
 
@@ -389,6 +603,47 @@ describe("usersListThunks", () => {
       );
       expect(rejectedCall).toBeTruthy();
       expect(rejectedCall![0].payload).toMatchObject({ code: "network_error" });
+    });
+
+    it("on non-ok, non-404/409 response, rejects with { code: 'unknown_error' }", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: async () => ({ error: "boom" }),
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await changeRole({ id: "user-1", role: "admin" })(dispatch, getState, undefined);
+
+      const rejectedCall = dispatch.mock.calls.find(
+        ([action]) => action.type === "usersList/changeRole/rejected"
+      );
+      expect(rejectedCall).toBeTruthy();
+      expect(rejectedCall![0].payload).toMatchObject({ code: "unknown_error" });
+    });
+
+    it("on non-ok, non-404/409 response with no error message in the body, falls back to the default message", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: async () => ({}),
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await changeRole({ id: "user-1", role: "admin" })(dispatch, getState, undefined);
+
+      const rejectedCall = dispatch.mock.calls.find(
+        ([action]) => action.type === "usersList/changeRole/rejected"
+      );
+      expect(rejectedCall).toBeTruthy();
+      expect(rejectedCall![0].payload).toMatchObject({
+        code: "unknown_error",
+        message: "Unknown error",
+      });
     });
   });
 
@@ -468,6 +723,28 @@ describe("usersListThunks", () => {
       expect(rejectedCall![0].payload).toMatchObject({ code: "not_found" });
     });
 
+    it("on 404 with no error message in the body, falls back to the default message", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 404,
+        json: async () => ({ code: "USER_NOT_FOUND" }),
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await revokeSessions("user-missing")(dispatch, getState, undefined);
+
+      const rejectedCall = dispatch.mock.calls.find(
+        ([action]) => action.type === "usersList/revokeSessions/rejected"
+      );
+      expect(rejectedCall).toBeTruthy();
+      expect(rejectedCall![0].payload).toMatchObject({
+        code: "not_found",
+        message: "User not found",
+      });
+    });
+
     it("on network failure, rejects with { code: 'network_error' }", async () => {
       mockFetch.mockRejectedValue(new Error("Network failure"));
 
@@ -500,6 +777,28 @@ describe("usersListThunks", () => {
       );
       expect(rejectedCall).toBeTruthy();
       expect(rejectedCall![0].payload).toMatchObject({ code: "unknown_error" });
+    });
+
+    it("on non-ok, non-404 response with no error message in the body, falls back to the default message", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: async () => ({}),
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await revokeSessions("user-1")(dispatch, getState, undefined);
+
+      const rejectedCall = dispatch.mock.calls.find(
+        ([action]) => action.type === "usersList/revokeSessions/rejected"
+      );
+      expect(rejectedCall).toBeTruthy();
+      expect(rejectedCall![0].payload).toMatchObject({
+        code: "unknown_error",
+        message: "Unknown error",
+      });
     });
   });
 });
