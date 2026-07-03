@@ -4,6 +4,7 @@ import secrets from "../util/secrets";
 import * as passwordHasher from "./passwordHasher";
 import { DEFAULT_BASE_URL, getTrustedOrigins } from "./trustedOrigins";
 import { CF_CONNECTING_IP } from "../util/clientIp";
+import { isAccountDeactivated } from "./userStore";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let authInstance: ReturnType<typeof betterAuth<any>> | null = null;
@@ -139,11 +140,7 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> {
           // (pool/DB error), that error propagates and aborts session
           // creation — sign-in fails rather than silently succeeding.
           before: async (session: { userId: string }) => {
-            const result = await pool.query<{ deactivatedAt: Date | null }>(
-              `SELECT "deactivatedAt" FROM "user" WHERE id = $1`,
-              [session.userId]
-            );
-            if (result.rows.length === 0 || result.rows[0].deactivatedAt !== null) {
+            if (await isAccountDeactivated(pool, session.userId)) {
               throw new APIError("UNAUTHORIZED", {
                 message: "This account has been deactivated.",
               });

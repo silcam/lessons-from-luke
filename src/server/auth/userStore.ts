@@ -66,6 +66,27 @@ export async function listAccounts(pool: Pool): Promise<AccountSummary[]> {
 }
 
 /**
+ * Fail-closed deactivation lookup shared by both enforcement points (US2/
+ * FR-005, data-model.md §Enforcement points): auth.ts's
+ * `databaseHooks.session.create.before` hook (checked once at sign-in) and
+ * requireUser.ts's `loadSession` (re-checked on every request). Extracting
+ * this keeps the raw SQL in exactly one place instead of copy-pasted at both
+ * call sites (lessons-from-luke-q8m0.14).
+ *
+ * Returns true (deactivated) both when the row is missing and when
+ * `deactivatedAt` is non-null — callers treat either as "not authenticated".
+ *
+ * Spec: specs/006-user-account-management/spec.md §US2, §FR-005
+ */
+export async function isAccountDeactivated(pool: Pool, userId: string): Promise<boolean> {
+  const result = await pool.query<{ deactivatedAt: Date | null }>(
+    `SELECT "deactivatedAt" FROM "user" WHERE id = $1`,
+    [userId]
+  );
+  return result.rows.length === 0 || result.rows[0].deactivatedAt !== null;
+}
+
+/**
  * Shared last-admin-lock fragment used by both `deactivateAccount` and
  * `changeRole` (data-model.md §Last-admin lock). Must be called inside an
  * already-open transaction on `client`.

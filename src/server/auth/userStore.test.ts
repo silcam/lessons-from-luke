@@ -34,6 +34,7 @@ import {
   reactivateAccount,
   changeRole,
   revokeSessions,
+  isAccountDeactivated,
   type AccountSummary,
 } from "./userStore";
 import { UserNotFoundError, LastAdminError, SelfDeactivationError } from "./userValidation";
@@ -645,5 +646,38 @@ describe("revokeSessions(pool, targetId)", () => {
     const missingId = crypto.randomUUID();
 
     await expect(revokeSessions(pool, missingId)).rejects.toThrow(UserNotFoundError);
+  });
+});
+
+describe("isAccountDeactivated(pool, userId)", () => {
+  // ------------------------------------------------------------------
+  // Shared lookup used by both enforcement points (auth.ts's
+  // session.create.before hook and requireUser.ts's loadSession) —
+  // lessons-from-luke-q8m0.14. Fail-closed: no such row, or a non-null
+  // deactivatedAt, both resolve to true.
+  // ------------------------------------------------------------------
+
+  it("returns false for an active (non-deactivated) account", async () => {
+    const userId = await insertTestUser("isaccountdeactivated-active@example.com", {
+      admin: false,
+      deactivatedAt: null,
+    });
+
+    await expect(isAccountDeactivated(pool, userId)).resolves.toBe(false);
+  });
+
+  it("returns true for a deactivated account", async () => {
+    const userId = await insertTestUser("isaccountdeactivated-deactivated@example.com", {
+      admin: false,
+      deactivatedAt: new Date(),
+    });
+
+    await expect(isAccountDeactivated(pool, userId)).resolves.toBe(true);
+  });
+
+  it("returns true (fail-closed) when the user id does not exist", async () => {
+    const missingId = crypto.randomUUID();
+
+    await expect(isAccountDeactivated(pool, missingId)).resolves.toBe(true);
   });
 });

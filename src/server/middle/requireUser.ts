@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { fromNodeHeaders } from "better-auth/node";
 import { getAuth, getAuthPool } from "../auth/auth";
+import { isAccountDeactivated } from "../auth/userStore";
 import type { User } from "../../core/models/User";
 
 // Augment Express Request with better-auth session fields.
@@ -47,11 +48,7 @@ export async function loadSession(req: Request): Promise<unknown> {
     // failure of the lookup itself resolves to "unauthenticated" — never
     // re-thrown, never silently treated as authenticated.
     try {
-      const result = await getAuthPool().query<{ deactivatedAt: Date | null }>(
-        `SELECT "deactivatedAt" FROM "user" WHERE id = $1`,
-        [session.user.id]
-      );
-      if (result.rows.length === 0 || result.rows[0].deactivatedAt !== null) {
+      if (await isAccountDeactivated(getAuthPool(), session.user.id)) {
         return null;
       }
     } catch (err) {
