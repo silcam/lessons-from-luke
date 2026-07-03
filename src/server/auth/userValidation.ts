@@ -1,14 +1,12 @@
 /**
- * userValidation.ts — STUB for the RED task (lessons-from-luke-q8m0.5.2).
- *
- * The full implementation ships in the GREEN task (lessons-from-luke-q8m0.5.3),
- * which mirrors src/server/auth/invitationValidation.ts. This stub exists only
- * so the module resolves for TypeScript/ESLint (avoiding a compile error that
- * would mask the intended assertion-level RED state). Every behavioral export
- * below is deliberately wrong so userValidation.test.ts fails on assertion.
+ * userValidation.ts — Domain error classes and input validation helpers for
+ * user account administration (roster, role changes, deactivation).
  *
  * Spec: specs/006-user-account-management/spec.md §FR-003..FR-009, §FR-012
  * Plan: data-model.md §API response shape, §Store operations
+ *
+ * Mirrors src/server/auth/invitationValidation.ts. Error `code` values match
+ * contracts/user-admin-api.yaml's `Error.code` enum.
  */
 
 // ---------------------------------------------------------------------------
@@ -19,48 +17,61 @@ export type AccountRole = "admin" | "standard";
 export type AccountStatus = "active" | "deactivated";
 
 // ---------------------------------------------------------------------------
-// Error classes (stub — code/message deliberately wrong; see GREEN task)
+// Error classes
 // ---------------------------------------------------------------------------
 
+/**
+ * Thrown when an admin action targets an account id that does not exist.
+ */
 export class UserNotFoundError extends Error {
-  code = "" as const;
+  code = "USER_NOT_FOUND" as const;
   constructor(id: string) {
-    super("not implemented — GREEN task lessons-from-luke-q8m0.5.3");
-    void id;
+    super(`User not found: ${id}`);
     this.name = "UserNotFoundError";
   }
 }
 
+/**
+ * Thrown when an action (demote or deactivate) would leave the roster with
+ * no remaining active admin.
+ */
 export class LastAdminError extends Error {
-  code = "" as const;
+  code = "LAST_ADMIN" as const;
   constructor() {
-    super("not implemented — GREEN task lessons-from-luke-q8m0.5.3");
+    super("Cannot remove the last active admin account");
     this.name = "LastAdminError";
   }
 }
 
+/**
+ * Thrown when an admin attempts to deactivate their own account.
+ */
 export class SelfDeactivationError extends Error {
-  code = "" as const;
+  code = "SELF_DEACTIVATION" as const;
   constructor() {
-    super("not implemented — GREEN task lessons-from-luke-q8m0.5.3");
+    super("You cannot deactivate your own account");
     this.name = "SelfDeactivationError";
   }
 }
 
+/**
+ * Thrown when a role value is neither 'admin' nor 'standard'.
+ */
 export class InvalidRoleError extends Error {
-  code = "" as const;
+  code = "INVALID_ROLE" as const;
   constructor(value: unknown) {
-    super("not implemented — GREEN task lessons-from-luke-q8m0.5.3");
-    void value;
+    super(`Invalid role: ${String(value)}. Must be 'admin' or 'standard'`);
     this.name = "InvalidRoleError";
   }
 }
 
 // ---------------------------------------------------------------------------
-// Validation helpers (stub — always throws a generic Error, never validates)
+// Validation helpers
 // ---------------------------------------------------------------------------
 
 export function parseAccountRole(value: unknown): AccountRole {
-  void value;
-  throw new Error("not implemented — GREEN task lessons-from-luke-q8m0.5.3");
+  if (value !== "admin" && value !== "standard") {
+    throw new InvalidRoleError(value);
+  }
+  return value;
 }
