@@ -26,6 +26,11 @@ export default function AdminHome() {
               <Button text={t("Invitations_page_heading")} onClick={() => {}} />
             </Link>
           )}
+          {user?.admin && (
+            <Link to="/admin/users">
+              <Button text={t("Users_page_heading")} onClick={() => {}} />
+            </Link>
+          )}
           <Button text={t("Log_out")} onClick={logOut} />
         </FlexRow>
       )}

@@ -19,6 +19,7 @@ import { useClearBannersOnNavigation } from "../common/banners/useClearBannersOn
 import CreateInvitation from "./invitations/CreateInvitation";
 import InvitationsList from "./invitations/InvitationsList";
 import RedeemInvitation from "./auth/RedeemInvitation";
+import UsersList from "./users/UsersList";
 
 function TranslateRouteWrapper() {
   const { code } = useParams<{ code: string }>();
@@ -82,6 +83,7 @@ export default function MainRouter() {
           <Route path="/invitation/:token" element={<RedeemInvitationWrapper />} />
           {user?.admin && <Route path="/admin/invitations/new" element={<CreateInvitation />} />}
           {user?.admin && <Route path="/admin/invitations" element={<InvitationsList />} />}
+          {user?.admin && <Route path="/admin/users" element={<UsersList />} />}
           <Route path="*" element={renderHome(user)} />
         </Routes>
       ) : (
