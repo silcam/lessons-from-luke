@@ -138,6 +138,52 @@ const en = {
   Invitations_loading: "Loading invitations…",
   Invitations_load_error: "Couldn't load invitations. Please try again.",
   Invitations_empty_state: "No invitations yet.",
+
+  // User management feature — Users roster + role/access control (US1-US4)
+  Users_page_heading: "Users",
+  Users_column_name: "Name",
+  Users_column_email: "Email",
+  Users_column_role: "Role",
+  Users_column_status: "Status",
+  Users_column_created: "Created",
+  Users_column_actions: "Actions",
+  Users_self_marker: "You",
+  Users_status_active: "Active",
+  Users_status_deactivated: "Deactivated",
+  Users_loading: "Loading users…",
+  Users_load_error: "Couldn't load users. Please try again.",
+  Users_empty_state: "No users yet.",
+
+  // Users feature — Promote/Demote (US3)
+  Users_action_promote: "Promote",
+  Users_action_demote: "Demote",
+  Users_action_demote_confirm: "Confirm demote",
+  Users_demote_confirm_prompt:
+    "Demote this administrator to Standard? They will lose administrative access.",
+  Users_demote_self_confirm_prompt:
+    "Demote yourself to Standard? You will immediately lose administrator access.",
+
+  // Users feature — Deactivate/Reactivate (US2)
+  Users_action_deactivate: "Deactivate",
+  Users_action_reactivate: "Reactivate",
+  Users_action_deactivate_confirm: "Confirm deactivate",
+  Users_deactivate_confirm_prompt:
+    "Deactivate this account? The user will be signed out immediately and unable to sign in until reactivated.",
+  Users_reactivate_credential_help:
+    "Reactivating restores this user's existing password. Use it only for a returning user — not to recover a compromised account. To rotate a compromised credential, invite the person again with a different email address.",
+
+  // Users feature — Force sign-out (US4)
+  Users_action_force_sign_out: "Force Sign Out",
+  Users_action_force_sign_out_confirm: "Confirm force sign-out",
+  Users_force_sign_out_confirm_prompt:
+    "Force sign out this user? Their active sessions will end immediately; the account stays Active.",
+  Users_force_sign_out_self_confirm_prompt:
+    "Force sign yourself out? This will sign you out on this device.",
+
+  // Users feature — accessible guardrail-refusal reasons (WCAG — not disabled-attribute-only)
+  Users_guardrail_self_deactivate: "Cannot deactivate your own account",
+  Users_guardrail_last_admin_demote: "Cannot demote the last administrator",
+  Users_guardrail_last_admin_deactivate: "Cannot deactivate the last administrator",
 };
 
 export type I18nStrings = typeof en;
