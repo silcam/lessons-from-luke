@@ -12,8 +12,14 @@
  *
  * Sign-in uses the email from the request body to determine admin status:
  * - The admin email from secrets.json → admin: true, id: "user-test-id"
- * - Any other email → admin: false, id: "nonadmin-<email-hash>"
- * This allows controller tests to distinguish admin vs non-admin sessions.
+ * - Any other email with a matching real "user" row (controller tests always
+ *   INSERT one directly before signing in, since sign-up is disabled) → the
+ *   REAL id/admin/deactivatedAt from that row. This keeps the mock session's
+ *   user id in sync with the real "user" table so requireUser.ts's
+ *   deactivatedAt enforcement (US2/FR-005) can look it up correctly.
+ * - Any other email with no matching row → a deterministic fallback id
+ *   ("nonadmin-<email-hash>"), admin: false, for tests that only exercise
+ *   sign-in itself without a pre-inserted row.
  */
 "use strict";
 
@@ -21,6 +27,7 @@
 var crypto = require("crypto");
 var fs = require("fs");
 var path = require("path");
+var { Pool } = require("pg");
 
 // In-memory session store for unit test simulation
 const sessions = new Map();
@@ -44,6 +51,52 @@ function getAdminEmail() {
 }
 
 const ADMIN_EMAIL = getAdminEmail();
+
+// Lazily-created pg.Pool pointed at the real test database, used ONLY to look
+// up a real "user" row's id/admin/deactivatedAt at sign-in time (see
+// lookupRealUser() below) so the mock session stays in sync with rows the
+// controller tests INSERT directly (sign-up is disabled globally). Mirrors
+// the credential-remapping pattern in auth.ts's getAuthPool().
+let dbPool = null;
+function getDbPool() {
+  if (dbPool) return dbPool;
+  try {
+    const secretsPath = path.resolve(process.cwd(), "secrets.json");
+    const secrets = JSON.parse(fs.readFileSync(secretsPath, "utf8"));
+    const { username, ...rest } = secrets.testDb;
+    dbPool = new Pool({ ...rest, user: username, max: 2 });
+    // pg.Pool emits "error" for background client errors (e.g. an idle
+    // connection reset by Postgres). Without a listener, that would throw
+    // an uncaught exception and crash the whole (single, shared) Jest
+    // worker process — taking down every other test file with it. This is
+    // a no-op safety net only; lookupRealUser() below independently
+    // catches query-level failures and falls back to the synthetic id.
+    dbPool.on("error", () => {});
+  } catch {
+    dbPool = null;
+  }
+  return dbPool;
+}
+
+/**
+ * Looks up a real "user" row by email (controller tests always INSERT one
+ * directly before signing in a non-admin agent, since sign-up is disabled).
+ * Returns null if not found or on any lookup error — callers fall back to
+ * the synthetic id/admin defaults in that case.
+ */
+async function lookupRealUser(email) {
+  const pool = getDbPool();
+  if (!pool) return null;
+  try {
+    const result = await pool.query(
+      `SELECT id, admin, "deactivatedAt" FROM "user" WHERE LOWER(email) = $1`,
+      [email]
+    );
+    return result.rows[0] ?? null;
+  } catch {
+    return null;
+  }
+}
 
 function parseCookies(cookieHeader) {
   if (!cookieHeader) return {};
@@ -80,11 +133,21 @@ function betterAuth(config) {
             signingEmail = body.email.toLowerCase();
             isAdmin = signingEmail === ADMIN_EMAIL;
             if (!isAdmin) {
-              // Deterministic non-admin user ID based on email so the same email
-              // always maps to the same "user" row in the mock.
-              userId =
-                "nonadmin-" +
-                crypto.createHash("sha256").update(signingEmail).digest("hex").slice(0, 16);
+              // Prefer the REAL "user" row's id/admin if one exists (controller
+              // tests always INSERT one directly before signing in, since
+              // sign-up is disabled) so requireUser.ts's deactivatedAt lookup
+              // (US2/FR-005) resolves against the row that's actually there.
+              const realUser = await lookupRealUser(signingEmail);
+              if (realUser) {
+                userId = realUser.id;
+                isAdmin = Boolean(realUser.admin);
+              } else {
+                // Fallback: deterministic non-admin user ID based on email so
+                // the same email always maps to the same synthetic id.
+                userId =
+                  "nonadmin-" +
+                  crypto.createHash("sha256").update(signingEmail).digest("hex").slice(0, 16);
+              }
             }
           }
         } catch {

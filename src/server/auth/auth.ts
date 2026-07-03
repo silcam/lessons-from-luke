@@ -1,4 +1,4 @@
-import { betterAuth } from "better-auth";
+import { betterAuth, APIError } from "better-auth";
 import { Pool } from "pg";
 import secrets from "../util/secrets";
 import * as passwordHasher from "./passwordHasher";
@@ -127,6 +127,28 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> {
           // input: false prevents admin from being set via any public API;
           // only the seed/raw SQL sets admin: true
           input: false,
+        },
+      },
+    },
+    databaseHooks: {
+      session: {
+        create: {
+          // Fail-closed deactivation enforcement at sign-in (US2/FR-005,
+          // data-model.md §Enforcement points). Deliberately NOT wrapped in
+          // try/catch-and-continue: if the deactivatedAt lookup itself throws
+          // (pool/DB error), that error propagates and aborts session
+          // creation — sign-in fails rather than silently succeeding.
+          before: async (session: { userId: string }) => {
+            const result = await pool.query<{ deactivatedAt: Date | null }>(
+              `SELECT "deactivatedAt" FROM "user" WHERE id = $1`,
+              [session.userId]
+            );
+            if (result.rows.length === 0 || result.rows[0].deactivatedAt !== null) {
+              throw new APIError("UNAUTHORIZED", {
+                message: "This account has been deactivated.",
+              });
+            }
+          },
         },
       },
     },
