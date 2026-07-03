@@ -9,23 +9,7 @@
  */
 import { Pool } from "pg";
 import type { AccountRole, AccountStatus } from "./userValidation";
-
-// ---------------------------------------------------------------------------
-// STUB — deactivateAccount / reactivateAccount (RED task lessons-from-luke-q8m0.5.7.1)
-// ---------------------------------------------------------------------------
-//
-// The real transactional implementations (last-admin lock, self-lockout guard,
-// idempotent no-op, session revocation) ship in the GREEN task
-// (lessons-from-luke-q8m0.5.7.2), mirroring listAccounts' stub-then-implement
-// precedent above. These stubs exist only so the module resolves for
-// TypeScript/ESLint (avoiding a compile error that would mask the intended
-// assertion-level RED state) — they are deliberately wrong, always throwing,
-// so every real assertion in userStore.test.ts fails on assertion, not module
-// resolution.
-//
-// Spec: specs/006-user-account-management/spec.md §US2, §FR-005..FR-008, §FR-012
-// Plan: data-model.md §Store operations (deactivateAccount, reactivateAccount),
-//       §Last-admin lock (shared fragment)
+import { UserNotFoundError, LastAdminError, SelfDeactivationError } from "./userValidation";
 
 /**
  * The store-level shape of an account row: `Omit<UserAccountRow, "isSelf">`
@@ -82,35 +66,138 @@ export async function listAccounts(pool: Pool): Promise<AccountSummary[]> {
 }
 
 /**
- * STUB — not implemented. Always throws regardless of input, so every real
- * assertion in userStore.test.ts's `deactivateAccount` suite fails.
+ * Deactivates a target account, revoking its sessions, inside a single
+ * transaction guarded by the shared last-admin lock (data-model.md
+ * §Last-admin lock).
  *
- * @param pool - The auth pg.Pool (unused by the stub).
- * @param actingUserId - The administrator performing the deactivation (unused by the stub).
- * @param targetId - The account being deactivated (unused by the stub).
- * @returns Never resolves — always rejects.
+ * Self-lockout (FR-008) is checked BEFORE opening the transaction: an admin
+ * may never deactivate their own account, so this never needs the DB at all
+ * for that case.
+ *
+ * Steps (inside the transaction):
+ * 1. Lock the active-admin set: `SELECT id FROM "user" WHERE admin = true
+ *    AND "deactivatedAt" IS NULL ORDER BY id FOR UPDATE`. This serializes
+ *    concurrent guarded mutations against the same row set (FR-012) — see
+ *    the shared lock fragment in data-model.md.
+ * 2. Fetch the target row (else `UserNotFoundError`).
+ * 3. If the target is already deactivated, this is an idempotent no-op:
+ *    COMMIT and return the current row unchanged.
+ * 4. If the target is an active admin and the locked set has at most one
+ *    row (i.e. the target is the only remaining active admin), ROLLBACK and
+ *    throw `LastAdminError` — deactivating them would leave zero admins.
+ * 5. Otherwise, conditionally UPDATE `deactivatedAt = now()` (guarded by
+ *    `deactivatedAt IS NULL` to stay safe under races) and DELETE the
+ *    target's sessions (FR-005 — deactivation revokes existing sessions
+ *    immediately, not just future sign-ins). COMMIT and return the updated
+ *    row.
+ *
+ * Spec: specs/006-user-account-management/spec.md §US2, §FR-005, §FR-007,
+ *       §FR-008, §FR-012
+ * Plan: data-model.md §Store operations (deactivateAccount),
+ *       §Last-admin lock (shared fragment)
  */
 export async function deactivateAccount(
   pool: Pool,
   actingUserId: string,
   targetId: string
 ): Promise<AccountSummary> {
-  void pool;
-  void actingUserId;
-  void targetId;
-  throw new Error("deactivateAccount: not implemented (RED stub)");
+  if (targetId === actingUserId) {
+    throw new SelfDeactivationError();
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    try {
+      // 1. Lock the active-admin set (shared fragment — data-model.md
+      //    §Last-admin lock).
+      const activeAdmins = await client.query<{ id: string }>(
+        `SELECT id FROM "user" WHERE admin = true AND "deactivatedAt" IS NULL ORDER BY id FOR UPDATE`
+      );
+
+      // 2. Fetch the target row.
+      const targetResult = await client.query<UserRow>(
+        `SELECT id, email, name, admin, "deactivatedAt", "createdAt" FROM "user" WHERE id = $1`,
+        [targetId]
+      );
+      if (targetResult.rows.length === 0) {
+        await client.query("ROLLBACK");
+        throw new UserNotFoundError(targetId);
+      }
+      const target = targetResult.rows[0];
+
+      // 3. Idempotent no-op: already deactivated.
+      if (target.deactivatedAt !== null) {
+        await client.query("COMMIT");
+        return mapUserRow(target);
+      }
+
+      // 4. Last-admin guard: target is an active admin and the locked set
+      //    (which includes the target, since it is still an active admin at
+      //    this point) has at most one row.
+      if (target.admin && activeAdmins.rows.length <= 1) {
+        await client.query("ROLLBACK");
+        throw new LastAdminError();
+      }
+
+      // 5. Deactivate + revoke sessions.
+      const updateResult = await client.query<UserRow>(
+        `UPDATE "user" SET "deactivatedAt" = now(), "updatedAt" = now()
+         WHERE id = $1 AND "deactivatedAt" IS NULL
+         RETURNING id, email, name, admin, "deactivatedAt", "createdAt"`,
+        [targetId]
+      );
+
+      await client.query(`DELETE FROM "session" WHERE "userId" = $1`, [targetId]);
+
+      await client.query("COMMIT");
+
+      return mapUserRow(updateResult.rows[0]);
+    } catch (err) {
+      // Ensure we roll back on any unexpected error inside the transaction
+      // (the explicit ROLLBACK calls above handle known error paths).
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Ignore rollback errors -- the original error is more important
+      }
+      throw err;
+    }
+  } finally {
+    client.release();
+  }
 }
 
 /**
- * STUB — not implemented. Always throws regardless of input, so every real
- * assertion in userStore.test.ts's `reactivateAccount` suite fails.
+ * Reactivates a target account, clearing `deactivatedAt`. No session change
+ * (FR-006) — a reactivated user simply signs in normally again.
  *
- * @param pool - The auth pg.Pool (unused by the stub).
- * @param targetId - The account being reactivated (unused by the stub).
- * @returns Never resolves — always rejects.
+ * Idempotent: reactivating an already-active account is a no-op that
+ * returns the current (Active) row.
+ *
+ * Spec: specs/006-user-account-management/spec.md §US2, §FR-006
+ * Plan: data-model.md §Store operations (reactivateAccount)
  */
 export async function reactivateAccount(pool: Pool, targetId: string): Promise<AccountSummary> {
-  void pool;
-  void targetId;
-  throw new Error("reactivateAccount: not implemented (RED stub)");
+  const client = await pool.connect();
+  try {
+    const targetResult = await client.query<UserRow>(
+      `SELECT id, email, name, admin, "deactivatedAt", "createdAt" FROM "user" WHERE id = $1`,
+      [targetId]
+    );
+    if (targetResult.rows.length === 0) {
+      throw new UserNotFoundError(targetId);
+    }
+
+    const updateResult = await client.query<UserRow>(
+      `UPDATE "user" SET "deactivatedAt" = NULL, "updatedAt" = now()
+       WHERE id = $1
+       RETURNING id, email, name, admin, "deactivatedAt", "createdAt"`,
+      [targetId]
+    );
+
+    return mapUserRow(updateResult.rows[0]);
+  } finally {
+    client.release();
+  }
 }
