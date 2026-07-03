@@ -49,7 +49,7 @@ This is the admin-only account roster and access-control surface — the offboar
 - **Integration** (`*.integration.test.ts`, real better-auth child server): sign-in rejection of a
   deactivated user via `databaseHooks.session.create.before`; deactivate revokes a live session;
   reactivate restores sign-in; concurrent last-two-admin demote/deactivate (one refused).
-- **Acceptance** (ATDD outer loop): `specs/acceptance-specs/US01..US04-*.txt` (created in `sp:05-tasks`).
+- **Acceptance** (ATDD outer loop): `specs/acceptance-specs/US09..US12-*.txt` (created in `sp:05-tasks`).
 
 Run: `yarn typecheck && yarn lint && NODE_ENV=test npx jest --runInBand` and
 `yarn test:integration`.

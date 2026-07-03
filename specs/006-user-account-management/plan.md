@@ -191,10 +191,10 @@ lives in a new `src/frontend/web/users/` sibling to `web/invitations/`.
 
 | User Story                                    | Acceptance Spec File                                    | Scenarios |
 | --------------------------------------------- | ------------------------------------------------------- | --------- |
-| US1: View the account roster                  | `specs/acceptance-specs/US01-view-account-roster.txt`   | 3         |
-| US2: Deactivate and reactivate account access | `specs/acceptance-specs/US02-deactivate-reactivate.txt` | 5         |
-| US3: Change a user's role                     | `specs/acceptance-specs/US03-change-role.txt`           | 4         |
-| US4: Force sign-out without deactivating      | `specs/acceptance-specs/US04-force-sign-out.txt`        | 3         |
+| US1: View the account roster                  | `specs/acceptance-specs/US09-view-account-roster.txt`   | 3         |
+| US2: Deactivate and reactivate account access | `specs/acceptance-specs/US10-deactivate-reactivate.txt` | 5         |
+| US3: Change a user's role                     | `specs/acceptance-specs/US11-change-role.txt`           | 4         |
+| US4: Force sign-out without deactivating      | `specs/acceptance-specs/US12-force-sign-out.txt`        | 3         |
 
 Scenario counts match the spec's Acceptance Scenarios per story (US1=3, US2=5, US3=4, US4=3).
 

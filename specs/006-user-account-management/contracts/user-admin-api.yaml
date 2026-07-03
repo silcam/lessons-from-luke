@@ -22,6 +22,27 @@ components:
       name: better-auth.session_token
       description: better-auth session cookie; the user must have admin = true.
 
+  # Shared responses below are referenced via $ref from the paths section.
+  responses:
+    Unauthorized:
+      description: No valid session (not signed in) — FR-010.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: Signed in but not an administrator (or same-origin failure) — FR-010.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    ServerError:
+      description: >
+        Unexpected server/DB failure (lock timeout, connection drop, constraint). The
+        transaction ROLLBACKs so no partial mutation persists, and the body carries a
+        generic message with no SQL/stack/driver text (red-team). Mirrors invitationController.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
   schemas:
     UserAccountRow:
       type: object
@@ -229,26 +250,3 @@ paths:
         "401":
           description: Wrong credentials OR account deactivated (no session minted).
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
-
-components-responses-note: >
-  Shared responses below are referenced via $ref above.
-
-responses:
-  Unauthorized:
-    description: No valid session (not signed in) — FR-010.
-    content:
-      application/json:
-        schema: { $ref: "#/components/schemas/Error" }
-  Forbidden:
-    description: Signed in but not an administrator (or same-origin failure) — FR-010.
-    content:
-      application/json:
-        schema: { $ref: "#/components/schemas/Error" }
-  ServerError:
-    description: >
-      Unexpected server/DB failure (lock timeout, connection drop, constraint). The
-      transaction ROLLBACKs so no partial mutation persists, and the body carries a
-      generic message with no SQL/stack/driver text (red-team). Mirrors invitationController.
-    content:
-      application/json:
-        schema: { $ref: "#/components/schemas/Error" }
