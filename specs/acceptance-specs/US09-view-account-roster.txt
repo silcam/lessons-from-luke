@@ -1,0 +1,21 @@
+;=============================================
+; Administrator views the full account roster.
+;=============================================
+GIVEN several accounts exist with different roles and statuses.
+WHEN an administrator opens the user-management screen.
+THEN all accounts are listed with display name, email, role, status, and created date.
+
+;=============================================
+; The administrator's own account is marked as self.
+;=============================================
+GIVEN the administrator is viewing the roster.
+WHEN they locate their own account.
+THEN it is visually distinguished from the others as their own.
+
+;=============================================
+; Deactivated accounts remain visible in the roster.
+;=============================================
+GIVEN a previously deactivated account.
+WHEN the administrator views the roster.
+THEN that account still appears, marked as Deactivated.
+THEN the account is not hidden or removed.

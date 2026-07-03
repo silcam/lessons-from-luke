@@ -1,0 +1,21 @@
+;=============================================
+; Forcing a sign-out revokes sessions without deactivating the account.
+;=============================================
+GIVEN a user with an active session.
+WHEN an administrator forces a sign-out.
+THEN the user's active sessions are revoked immediately.
+THEN the account remains Active.
+
+;=============================================
+; A force-signed-out user can sign in again.
+;=============================================
+GIVEN a user who was just force-signed-out.
+WHEN they sign in again.
+THEN sign-in succeeds because the account was not deactivated.
+
+;=============================================
+; Force sign-out requires explicit confirmation.
+;=============================================
+GIVEN an administrator initiates a force sign-out.
+WHEN the action is consequential.
+THEN they must pass an explicit confirmation step before it takes effect.

@@ -1,0 +1,30 @@
+;=============================================
+; Promoting a Standard user grants administrative access.
+;=============================================
+GIVEN a Standard user.
+WHEN an administrator promotes them.
+THEN the account becomes an Admin.
+THEN the account gains administrative access.
+
+;=============================================
+; Demoting an Admin removes administrative access.
+;=============================================
+GIVEN an Admin, with at least one other Admin present.
+WHEN an administrator demotes them.
+THEN the account becomes Standard.
+THEN the account no longer has administrative access.
+
+;=============================================
+; The last remaining Admin cannot be demoted.
+;=============================================
+GIVEN the account is the only remaining Admin.
+WHEN an administrator attempts to demote it.
+THEN the action is refused with a clear explanation.
+THEN no change is made.
+
+;=============================================
+; Demotion requires explicit confirmation.
+;=============================================
+GIVEN an administrator initiates a demotion.
+WHEN the action is consequential.
+THEN they must pass an explicit confirmation step before it takes effect.

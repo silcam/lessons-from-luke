@@ -1,0 +1,37 @@
+;=============================================
+; Deactivating an account revokes sign-in and ends its session immediately.
+;=============================================
+GIVEN a Standard user with an active session.
+WHEN an administrator deactivates that account.
+THEN the user can no longer sign in.
+THEN their existing session is revoked immediately, so their next request is treated as unauthenticated.
+
+;=============================================
+; Reactivating an account restores sign-in.
+;=============================================
+GIVEN a deactivated account.
+WHEN an administrator reactivates it.
+THEN the user can sign in again.
+
+;=============================================
+; The last remaining Admin cannot be deactivated.
+;=============================================
+GIVEN the account being viewed is the only remaining Admin.
+WHEN an administrator attempts to deactivate it.
+THEN the action is refused with a clear explanation.
+THEN no change is made.
+
+;=============================================
+; An administrator cannot deactivate their own account.
+;=============================================
+GIVEN an administrator is viewing their own account.
+WHEN they attempt to deactivate it.
+THEN the action is refused as a self-lockout guard.
+THEN no change is made.
+
+;=============================================
+; Deactivation requires explicit confirmation.
+;=============================================
+GIVEN an administrator initiates a deactivation.
+WHEN the action is consequential.
+THEN they must pass an explicit confirmation step before it takes effect.
