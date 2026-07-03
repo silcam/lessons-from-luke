@@ -22,14 +22,18 @@ jest.mock("../../common/state/networkSlice", () => ({
 // Mock usersListThunks so we control async behaviour
 jest.mock("./usersListThunks", () => ({
   listUsers: jest.fn(),
+  deactivateAccount: jest.fn(),
+  reactivateAccount: jest.fn(),
 }));
 
 import React from "react";
-import { waitFor } from "@testing-library/react";
+import { act, fireEvent, waitFor } from "@testing-library/react";
 import { renderWithProviders, defaultSyncState } from "../../common/testHelpers";
 import UsersList from "./UsersList";
-const { listUsers } = require("./usersListThunks") as {
+const { listUsers, deactivateAccount, reactivateAccount } = require("./usersListThunks") as {
   listUsers: jest.Mock;
+  deactivateAccount: jest.Mock;
+  reactivateAccount: jest.Mock;
 };
 
 const defaultInitialState = {
@@ -64,6 +68,16 @@ const deactivatedRow = {
   role: "standard",
   status: "deactivated",
   createdAt: "2026-06-03T00:00:00.000Z",
+  isSelf: false,
+};
+
+const otherAdminRow = {
+  id: "user-4",
+  email: "other-admin@example.com",
+  name: "Other Admin",
+  role: "admin",
+  status: "active",
+  createdAt: "2026-06-04T00:00:00.000Z",
   isSelf: false,
 };
 
@@ -201,6 +215,254 @@ describe("UsersList", () => {
       await waitFor(() => {
         expect(container.textContent).toMatch(/admin/i);
         expect(container.textContent).toMatch(/standard/i);
+      });
+    });
+  });
+
+  describe("Deactivate/Reactivate row action", () => {
+    it("shows a Deactivate button for an active, non-guardrailed account", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [selfRow, otherActiveRow], error: undefined })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const deactivateBtn = buttons.find(
+          (b) => /^deactivate$/i.test((b.textContent || "").trim()) && !b.hasAttribute("disabled")
+        );
+        expect(deactivateBtn).toBeTruthy();
+        expect(deactivateBtn!.hasAttribute("disabled")).toBe(false);
+      });
+    });
+
+    it("shows a Reactivate button and the credential-restore helptext for a deactivated account", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [otherActiveRow, deactivatedRow], error: undefined })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const reactivateBtn = buttons.find((b) =>
+          /^reactivate$/i.test((b.textContent || "").trim())
+        );
+        expect(reactivateBtn).toBeTruthy();
+        // FND5 credential-restore helptext must be surfaced near Reactivate.
+        expect(container.textContent).toMatch(/restores this user's existing password/i);
+      });
+    });
+
+    it("clicking Deactivate opens an inline two-step confirm before mutating", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [selfRow, otherActiveRow], error: undefined })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        expect(
+          Array.from(container.querySelectorAll("button")).find((b) =>
+            /^deactivate$/i.test((b.textContent || "").trim())
+          )
+        ).toBeTruthy();
+      });
+
+      await act(async () => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const deactivateBtn = buttons.find(
+          (b) => /^deactivate$/i.test((b.textContent || "").trim()) && !b.hasAttribute("disabled")
+        );
+        fireEvent.click(deactivateBtn!);
+      });
+
+      expect(deactivateAccount).not.toHaveBeenCalled();
+      await waitFor(() => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        expect(buttons.find((b) => /confirm deactivate/i.test(b.textContent || ""))).toBeTruthy();
+        expect(buttons.find((b) => /^cancel$/i.test((b.textContent || "").trim()))).toBeTruthy();
+      });
+    });
+
+    it("confirming Deactivate calls deactivateAccount, updates the row, and announces the outcome", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [selfRow, otherActiveRow], error: undefined })
+      );
+      deactivateAccount.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: { ...otherActiveRow, status: "deactivated" },
+          error: undefined,
+        })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        expect(
+          Array.from(container.querySelectorAll("button")).find((b) =>
+            /^deactivate$/i.test((b.textContent || "").trim())
+          )
+        ).toBeTruthy();
+      });
+
+      await act(async () => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const deactivateBtn = buttons.find(
+          (b) => /^deactivate$/i.test((b.textContent || "").trim()) && !b.hasAttribute("disabled")
+        );
+        fireEvent.click(deactivateBtn!);
+      });
+
+      await act(async () => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const confirmBtn = buttons.find((b) => /confirm deactivate/i.test(b.textContent || ""));
+        fireEvent.click(confirmBtn!);
+      });
+
+      await waitFor(() => {
+        expect(deactivateAccount).toHaveBeenCalledWith("user-2");
+        const liveRegion = container.querySelector("[role='status'][aria-live]");
+        expect(liveRegion!.textContent).toMatch(/deactivated/i);
+        // The row now shows Reactivate, and focus lands there (never <body>).
+        const buttons = Array.from(container.querySelectorAll("button"));
+        expect(
+          buttons.find((b) => /^reactivate$/i.test((b.textContent || "").trim()))
+        ).toBeTruthy();
+        expect(document.activeElement?.tagName).toBe("BUTTON");
+        expect(document.activeElement?.textContent).toMatch(/reactivate/i);
+      });
+    });
+
+    it("cancelling the confirm does not mutate and returns focus to the Deactivate trigger", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [selfRow, otherActiveRow], error: undefined })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        expect(
+          Array.from(container.querySelectorAll("button")).find((b) =>
+            /^deactivate$/i.test((b.textContent || "").trim())
+          )
+        ).toBeTruthy();
+      });
+
+      await act(async () => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const deactivateBtn = buttons.find(
+          (b) => /^deactivate$/i.test((b.textContent || "").trim()) && !b.hasAttribute("disabled")
+        );
+        fireEvent.click(deactivateBtn!);
+      });
+
+      await act(async () => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const cancelBtn = buttons.find((b) => /^cancel$/i.test((b.textContent || "").trim()));
+        fireEvent.click(cancelBtn!);
+      });
+
+      expect(deactivateAccount).not.toHaveBeenCalled();
+      await waitFor(() => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const deactivateBtn = buttons.find(
+          (b) => /^deactivate$/i.test((b.textContent || "").trim()) && !b.hasAttribute("disabled")
+        );
+        expect(deactivateBtn).toBeTruthy();
+        expect(document.activeElement).toBe(deactivateBtn);
+      });
+    });
+
+    it("clicking Reactivate calls reactivateAccount and updates the row to Active", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [otherActiveRow, deactivatedRow], error: undefined })
+      );
+      reactivateAccount.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: { ...deactivatedRow, status: "active" },
+          error: undefined,
+        })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        expect(
+          Array.from(container.querySelectorAll("button")).find((b) =>
+            /^reactivate$/i.test((b.textContent || "").trim())
+          )
+        ).toBeTruthy();
+      });
+
+      await act(async () => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const reactivateBtn = buttons.find((b) =>
+          /^reactivate$/i.test((b.textContent || "").trim())
+        );
+        fireEvent.click(reactivateBtn!);
+      });
+
+      await waitFor(() => {
+        expect(reactivateAccount).toHaveBeenCalledWith("user-3");
+        const liveRegion = container.querySelector("[role='status'][aria-live]");
+        expect(liveRegion!.textContent).toMatch(/active/i);
+      });
+    });
+
+    it("disables Deactivate on the operator's own row with an accessible reason", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [selfRow, otherAdminRow], error: undefined })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const deactivateBtns = buttons.filter((b) =>
+          /^deactivate$/i.test((b.textContent || "").trim())
+        );
+        // Own row's Deactivate is disabled.
+        const selfDeactivateBtn = deactivateBtns.find((b) => b.hasAttribute("disabled"));
+        expect(selfDeactivateBtn).toBeTruthy();
+        const describedById = selfDeactivateBtn!.getAttribute("aria-describedby");
+        expect(describedById).toBeTruthy();
+        const reasonEl = container.querySelector(`#${describedById}`);
+        expect(reasonEl).toBeTruthy();
+        expect(reasonEl!.textContent).toMatch(/cannot deactivate your own account/i);
+      });
+    });
+
+    it("disables Deactivate on the last remaining active admin with an accessible reason", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [otherAdminRow, otherActiveRow], error: undefined })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const deactivateBtns = buttons.filter((b) =>
+          /^deactivate$/i.test((b.textContent || "").trim())
+        );
+        const lastAdminBtn = deactivateBtns.find((b) => b.hasAttribute("disabled"));
+        expect(lastAdminBtn).toBeTruthy();
+        const describedById = lastAdminBtn!.getAttribute("aria-describedby");
+        expect(describedById).toBeTruthy();
+        const reasonEl = container.querySelector(`#${describedById}`);
+        expect(reasonEl).toBeTruthy();
+        expect(reasonEl!.textContent).toMatch(/cannot deactivate the last administrator/i);
+      });
+    });
+
+    it("does not disable Deactivate for a non-self admin when another active admin exists", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [selfRow, otherAdminRow], error: undefined })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const deactivateBtns = buttons.filter((b) =>
+          /^deactivate$/i.test((b.textContent || "").trim())
+        );
+        // selfRow's Deactivate is disabled (self-guard), otherAdminRow's is not
+        // (two active admins present).
+        const enabledDeactivateBtn = deactivateBtns.find((b) => !b.hasAttribute("disabled"));
+        expect(enabledDeactivateBtn).toBeTruthy();
       });
     });
   });
