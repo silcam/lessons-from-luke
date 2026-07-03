@@ -148,6 +148,9 @@ export default function CreateInvitation() {
                     setEmail(v);
                     setSubmitError(null);
                   }}
+                  type="email"
+                  autoComplete="email"
+                  inputMode="email"
                   placeholder={t("Email")}
                   autoFocus
                 />

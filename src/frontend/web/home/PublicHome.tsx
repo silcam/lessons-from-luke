@@ -33,6 +33,9 @@ export default function PublicHome() {
             setValue={(v) => {
               setEmail(v);
             }}
+            type="email"
+            autoComplete="email"
+            inputMode="email"
             placeholder={t("Email")}
             autoFocus
           />

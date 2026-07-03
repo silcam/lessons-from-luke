@@ -62,6 +62,7 @@ describe("ForgotPassword", () => {
       const input = container.querySelector("input[autocomplete='email']");
       expect(input).not.toBeNull();
       expect((input as HTMLInputElement | null)?.getAttribute("inputmode")).toBe("email");
+      expect((input as HTMLInputElement | null)?.getAttribute("type")).toBe("email");
     });
 
     it("has an associated <label> element for the email input (not placeholder-only)", () => {
@@ -122,6 +123,37 @@ describe("ForgotPassword", () => {
       await waitFor(() => {
         const bodyText = document.body.textContent ?? "";
         expect(bodyText).toMatch(/check your email|email sent|reset link/i);
+      });
+    });
+
+    it("shows a clean, translated error (no field path) when the server rejects the email as invalid", async () => {
+      // The thunk classifies better-auth's "[body.email] invalid email address"
+      // as code "invalid_email"; the component must render a clean message.
+      requestPasswordReset.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: { code: "invalid_email", message: "[body.email] invalid email address" },
+          error: { message: "rejected" },
+        })
+      );
+
+      const { container } = renderWithProviders(<ForgotPassword />, defaultInitialState);
+
+      const emailInput = container.querySelector("input[autocomplete='email']");
+      expect(emailInput).not.toBeNull();
+      fireEvent.change(emailInput!, { target: { value: "not-an-email" } });
+
+      const submitButton = screen.getByRole("button");
+      await act(async () => {
+        fireEvent.click(submitButton);
+      });
+
+      await waitFor(() => {
+        const alertEl = document.querySelector('[role="alert"]');
+        expect(alertEl).not.toBeNull();
+        const text = alertEl?.textContent ?? "";
+        // The developer-facing field path must never surface to the user
+        expect(text).not.toMatch(/\[body\./);
+        expect(text).toMatch(/valid email/i);
       });
     });
 

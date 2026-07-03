@@ -127,6 +127,7 @@ const en = {
   ForgotPassword_confirmation_message:
     "If that address is registered, we've sent a password reset link. Check your email.",
   ForgotPassword_error_generic: "Something went wrong. Please try again.",
+  ForgotPassword_invalid_email: "Please enter a valid email address.",
   ForgotPassword_forgot_link: "Forgot password?",
 
   ResetPassword_heading: "Reset your password",

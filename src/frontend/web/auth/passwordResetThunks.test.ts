@@ -10,7 +10,11 @@
  * the same mock instance, so mock setup here is visible to passwordResetThunks.ts.
  */
 
-import { requestPasswordReset, resetPassword } from "./passwordResetThunks";
+import {
+  requestPasswordReset,
+  resetPassword,
+  type PasswordResetError,
+} from "./passwordResetThunks";
 
 const { authClient } = require("./authClient") as {
   authClient: {
@@ -62,6 +66,46 @@ describe("passwordResetThunks", () => {
         ([action]: [{ type?: string }]) => action.type
       );
       expect(dispatchedTypes).toContain("passwordReset/requestPasswordReset/fulfilled");
+    });
+
+    it("on an invalid-email validation error, rejects with code 'invalid_email' and a clean message (no field path)", async () => {
+      // better-auth surfaces its z.email() schema failure as a developer-facing
+      // message with a field path prefix, which must never reach the user.
+      authClient.requestPasswordReset.mockResolvedValue({
+        data: null,
+        error: { code: "INVALID_EMAIL", message: "[body.email] invalid email address" },
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await requestPasswordReset("not-an-email")(dispatch, getState, undefined);
+
+      const rejected = dispatch.mock.calls
+        .map(([action]: [{ type?: string; payload?: PasswordResetError }]) => action)
+        .find((a) => a.type === "passwordReset/requestPasswordReset/rejected");
+
+      expect(rejected?.payload?.code).toBe("invalid_email");
+      expect(rejected?.payload?.message).not.toMatch(/\[body\./);
+    });
+
+    it("classifies an invalid-email error by message pattern even when no code is set", async () => {
+      authClient.requestPasswordReset.mockResolvedValue({
+        data: null,
+        error: { message: "[body.email] invalid email address" },
+      });
+
+      const dispatch = jest.fn();
+      const getState = jest.fn();
+
+      await requestPasswordReset("bad")(dispatch, getState, undefined);
+
+      const rejected = dispatch.mock.calls
+        .map(([action]: [{ type?: string; payload?: PasswordResetError }]) => action)
+        .find((a) => a.type === "passwordReset/requestPasswordReset/rejected");
+
+      expect(rejected?.payload?.code).toBe("invalid_email");
+      expect(rejected?.payload?.message).not.toMatch(/\[body\./);
     });
   });
 

@@ -58,10 +58,14 @@ export default function ForgotPassword(): React.ReactElement {
 
     if (r.error) {
       const errPayload = r.payload;
-      setPhase({
-        status: "error",
-        message: errPayload?.message ?? t("ForgotPassword_error_generic"),
-      });
+      // better-auth surfaces its z.email() failure with a developer-facing field
+      // path; the thunk classifies it as "invalid_email" so we can show a clean,
+      // translated message instead of leaking "[body.email] …".
+      const message =
+        errPayload?.code === "invalid_email"
+          ? t("ForgotPassword_invalid_email")
+          : (errPayload?.message ?? t("ForgotPassword_error_generic"));
+      setPhase({ status: "error", message });
     } else {
       setPhase({ status: "success" });
     }
@@ -101,6 +105,7 @@ export default function ForgotPassword(): React.ReactElement {
             <TextInput
               value={email}
               setValue={setEmail}
+              type="email"
               autoComplete="email"
               inputMode="email"
               autoFocus

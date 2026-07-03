@@ -10,7 +10,12 @@ import { createAsyncThunk } from "@reduxjs/toolkit";
 import { authClient } from "./authClient";
 
 export interface PasswordResetError {
-  code: "invalid_token" | "password_too_short" | "password_too_long" | "network_error";
+  code:
+    | "invalid_email"
+    | "invalid_token"
+    | "password_too_short"
+    | "password_too_long"
+    | "network_error";
   message: string;
 }
 
@@ -30,9 +35,18 @@ export const requestPasswordReset = createAsyncThunk<
   });
 
   if (error) {
+    // better-auth validates the email with a z.email() request schema and, on
+    // failure, surfaces a developer-facing message like
+    // "[body.email] invalid email address". Classify that case so the UI can
+    // show a clean, translated message instead of leaking the field path.
+    const raw = error.message ?? "";
+    const isInvalidEmail =
+      (error.code ?? "").toUpperCase() === "INVALID_EMAIL" || /invalid email/i.test(raw);
     return rejectWithValue({
-      code: "network_error",
-      message: error.message ?? "An error occurred. Please try again.",
+      code: isInvalidEmail ? "invalid_email" : "network_error",
+      message: isInvalidEmail
+        ? "Please enter a valid email address."
+        : raw || "An error occurred. Please try again.",
     });
   }
   return undefined;
