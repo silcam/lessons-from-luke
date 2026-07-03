@@ -37,8 +37,20 @@ jest.mock("react-router-dom", () => ({
 
 import React from "react";
 import { act, fireEvent, waitFor } from "@testing-library/react";
+import { useSelector } from "react-redux";
 import { renderWithProviders, defaultSyncState } from "../../common/testHelpers";
 import UsersList from "./UsersList";
+
+// Mirrors the `user?.admin && <admin-only nav>` guard used by MainRouter.tsx
+// and AdminHome.tsx: a real, rendered stand-in for admin-only nav, wired to
+// the same store as UsersList, so a self-demotion test can assert the nav
+// actually disappears — not just that `navigate` was called.
+function AdminOnlyNavProbe() {
+  const user = useSelector(
+    (s: { currentUser: { user: { admin: boolean } | null } }) => s.currentUser.user
+  );
+  return user?.admin ? <a href="/admin/users">Users_page_heading</a> : null;
+}
 const { listUsers, deactivateAccount, reactivateAccount, changeRole, revokeSessions } =
   require("./usersListThunks") as {
     listUsers: jest.Mock;
@@ -751,7 +763,7 @@ describe("UsersList", () => {
       });
     });
 
-    it("a successful self-demotion navigates to the non-admin home instead of re-fetching the roster", async () => {
+    it("a successful self-demotion clears the stale admin=true client state so the non-admin home actually renders", async () => {
       listUsers.mockReturnValue(
         jest.fn().mockResolvedValue({
           payload: [selfRow, otherAdminRow, otherActiveRow],
@@ -765,7 +777,16 @@ describe("UsersList", () => {
         })
       );
 
-      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      const { container, store } = renderWithProviders(
+        <>
+          <AdminOnlyNavProbe />
+          <UsersList />
+        </>,
+        defaultInitialState
+      );
+      // Sanity: the admin-only nav is actually up before the demotion.
+      expect(container.textContent).toMatch(/Users_page_heading/);
+
       await waitFor(() => {
         findButton(findRowByEmail(container, "admin@example.com"), /^demote$/i);
       });
@@ -782,6 +803,12 @@ describe("UsersList", () => {
       await waitFor(() => {
         expect(changeRole).toHaveBeenCalledWith({ id: "admin1", role: "standard" });
         expect(mockNavigate).toHaveBeenCalledWith("/");
+        // The Redux currentUser slice must reflect the demotion immediately
+        // — no page reload/re-fetch required (JSDoc lines 43-48).
+        expect(store.getState().currentUser.user).toEqual({ id: "admin1", admin: false });
+        // A rendered check, not just a `navigate` call assertion: admin-only
+        // nav must actually disappear once the state updates.
+        expect(container.textContent).not.toMatch(/Users_page_heading/);
       });
     });
   });

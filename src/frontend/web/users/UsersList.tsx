@@ -285,9 +285,11 @@ export default function UsersList() {
 
     // Self-demotion evicts the acting admin (plan.md §Edge Cases): the role
     // change takes effect on this account's very next request, so the next
-    // /api/admin/* call would 403. Navigate away instead of re-fetching the
-    // roster into an error state.
+    // /api/admin/* call would 403. Update the cached currentUser so
+    // MainRouter/AdminHome stop treating this session as admin, then
+    // navigate away instead of re-fetching the roster into an error state.
     if (updated.isSelf && updated.role === "standard") {
+      dispatch(currentUserSlice.actions.setUser({ id: updated.id, admin: false }));
       navigate("/");
       return;
     }

@@ -54,7 +54,7 @@ export function buildStore(initialState?: Record<string, any>) {
 export function renderWithProviders(ui: React.ReactElement, initialState?: Record<string, any>) {
   const store = buildStore(initialState);
 
-  return render(
+  const result = render(
     <Provider store={store}>
       <RequestContext.Provider value={{ get: mockGet, post: mockPost }}>
         <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
@@ -63,6 +63,10 @@ export function renderWithProviders(ui: React.ReactElement, initialState?: Recor
       </RequestContext.Provider>
     </Provider>
   );
+
+  // Exposed so tests can assert on Redux state that a component under test
+  // dispatched (e.g. currentUser updates), not just on rendered output.
+  return { ...result, store };
 }
 
 /** A minimal Language fixture */
