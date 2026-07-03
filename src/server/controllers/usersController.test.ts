@@ -239,6 +239,28 @@ describe("GET /api/admin/users", () => {
     expect(row).toBeDefined();
     expect(row!.status).toBe("deactivated");
   });
+
+  // -------------------------------------------------------------------------
+  // 6. 500 — a simulated listAccounts failure calls next(err), handing off
+  //    to Express's error-handling middleware (unexpected-error branch,
+  //    lines 71-72).
+  // -------------------------------------------------------------------------
+  it("500: a simulated listAccounts failure calls next(err)", async () => {
+    const agent = await loggedInAgent();
+
+    const userStore = require("../auth/userStore") as typeof import("../auth/userStore");
+    const spy = jest
+      .spyOn(userStore, "listAccounts")
+      .mockRejectedValueOnce(new Error("simulated DB failure"));
+
+    try {
+      const res = await agent.get("/api/admin/users");
+
+      expect(res.status).toBe(500);
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -473,6 +495,57 @@ describe("POST /api/admin/users/:id/reactivate", () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ id: targetId, status: "active" });
   });
+
+  // -------------------------------------------------------------------------
+  // 9b. 404 — reactivate on a nonexistent id
+  // -------------------------------------------------------------------------
+  it("404: reactivating a nonexistent id returns USER_NOT_FOUND", async () => {
+    const agent = await loggedInAgent();
+    const fakeId = crypto.randomUUID();
+
+    const res = await agent.post(`/api/admin/users/${fakeId}/reactivate`);
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ error: expect.any(String), code: "USER_NOT_FOUND" });
+  });
+
+  // -------------------------------------------------------------------------
+  // 10. 500 — a simulated DB failure returns a generic body (no SQL/stack/
+  //     driver text). Mirrors the deactivate-route 500 test (unexpected-
+  //     error branch, lines 167-173).
+  // -------------------------------------------------------------------------
+  it("500: a simulated DB failure returns a generic body", async () => {
+    const agent = await loggedInAgent();
+    const targetEmail = `reactivate-db-failure-${crypto.randomUUID()}@example.com`;
+    const targetId = await insertUserRow(targetEmail, { admin: false, deactivatedAt: new Date() });
+
+    const userStore = require("../auth/userStore") as typeof import("../auth/userStore");
+    const spy = jest
+      .spyOn(userStore, "reactivateAccount")
+      .mockRejectedValueOnce(
+        new Error(
+          'update "user" set "deactivatedAt" = null where id = $1 -- Connection terminated unexpectedly' +
+            " at Client._handleErrorEvent (/app/node_modules/pg/lib/client.js:315:19)"
+        )
+      );
+
+    try {
+      const res = await agent.post(`/api/admin/users/${targetId}/reactivate`);
+
+      expect(res.status).toBe(500);
+      const bodyText = JSON.stringify(res.body).toLowerCase();
+      expect(bodyText).not.toMatch(
+        /select|update|delete|"user"|deactivatedat|pg\/lib|node_modules|client\.js|constraint/
+      );
+      expect(res.body).toMatchObject({ error: "An unexpected error occurred" });
+    } finally {
+      spy.mockRestore();
+    }
+
+    const row = await fetchRawUserRow(targetId);
+    expect(row).not.toBeNull();
+    expect(row!.deactivatedAt).not.toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -650,6 +723,68 @@ describe("POST /api/admin/users/:id/role", () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ id: selfId, role: "standard", isSelf: true });
   });
+
+  // -------------------------------------------------------------------------
+  // 9. 500 — parseAccountRole throwing something other than InvalidRoleError
+  //    returns a generic body (unexpected-error branch, lines 211-212).
+  // -------------------------------------------------------------------------
+  it("500: an unexpected parseAccountRole failure returns a generic body", async () => {
+    const agent = await loggedInAgent();
+    const targetEmail = `role-parse-failure-${crypto.randomUUID()}@example.com`;
+    const targetId = await insertUserRow(targetEmail, { admin: false });
+
+    const userValidation =
+      require("../auth/userValidation") as typeof import("../auth/userValidation");
+    const spy = jest.spyOn(userValidation, "parseAccountRole").mockImplementationOnce(() => {
+      throw new Error("simulated unexpected parse failure");
+    });
+
+    try {
+      const res = await agent.post(`/api/admin/users/${targetId}/role`).send({ role: "admin" });
+
+      expect(res.status).toBe(500);
+      expect(res.body).toMatchObject({ error: "An unexpected error occurred" });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // 10. 500 — a simulated changeRole DB failure returns a generic body
+  //     (unexpected-error branch, lines 235-236).
+  // -------------------------------------------------------------------------
+  it("500: a simulated changeRole DB failure returns a generic body", async () => {
+    const agent = await loggedInAgent();
+    const targetEmail = `role-db-failure-${crypto.randomUUID()}@example.com`;
+    const targetId = await insertUserRow(targetEmail, { admin: false });
+
+    const userStore = require("../auth/userStore") as typeof import("../auth/userStore");
+    const spy = jest
+      .spyOn(userStore, "changeRole")
+      .mockRejectedValueOnce(
+        new Error(
+          'update "user" set "admin" = true where id = $1 -- Connection terminated unexpectedly' +
+            " at Client._handleErrorEvent (/app/node_modules/pg/lib/client.js:315:19)"
+        )
+      );
+
+    try {
+      const res = await agent.post(`/api/admin/users/${targetId}/role`).send({ role: "admin" });
+
+      expect(res.status).toBe(500);
+      const bodyText = JSON.stringify(res.body).toLowerCase();
+      expect(bodyText).not.toMatch(
+        /select|update|delete|"user"|deactivatedat|pg\/lib|node_modules|client\.js|constraint/
+      );
+      expect(res.body).toMatchObject({ error: "An unexpected error occurred" });
+    } finally {
+      spy.mockRestore();
+    }
+
+    const row = await fetchRawUserRow(targetId);
+    expect(row).not.toBeNull();
+    expect(row!.admin).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -777,5 +912,38 @@ describe("POST /api/admin/users/:id/revoke-sessions", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ id: selfId, isSelf: true, revoked: expectedRevoked });
+  });
+
+  // -------------------------------------------------------------------------
+  // 7. 500 — a simulated revokeSessions DB failure returns a generic body
+  //    (unexpected-error branch, lines 283-284).
+  // -------------------------------------------------------------------------
+  it("500: a simulated revokeSessions DB failure returns a generic body", async () => {
+    const agent = await loggedInAgent();
+    const targetEmail = `revoke-db-failure-${crypto.randomUUID()}@example.com`;
+    const targetId = await insertUserRow(targetEmail, { admin: false });
+
+    const userStore = require("../auth/userStore") as typeof import("../auth/userStore");
+    const spy = jest
+      .spyOn(userStore, "revokeSessions")
+      .mockRejectedValueOnce(
+        new Error(
+          'delete from "session" where "userId" = $1 -- Connection terminated unexpectedly' +
+            " at Client._handleErrorEvent (/app/node_modules/pg/lib/client.js:315:19)"
+        )
+      );
+
+    try {
+      const res = await agent.post(`/api/admin/users/${targetId}/revoke-sessions`);
+
+      expect(res.status).toBe(500);
+      const bodyText = JSON.stringify(res.body).toLowerCase();
+      expect(bodyText).not.toMatch(
+        /select|update|delete|"user"|"session"|pg\/lib|node_modules|client\.js|constraint/
+      );
+      expect(res.body).toMatchObject({ error: "An unexpected error occurred" });
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
