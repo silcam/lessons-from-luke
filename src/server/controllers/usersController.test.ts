@@ -123,6 +123,41 @@ async function fetchRawUserRow(
   }
 }
 
+/**
+ * Insert a "session" row directly for a given user, for revoke-sessions
+ * route tests. Mirrors userStore.test.ts's insertTestSession() helper.
+ */
+async function insertTestSession(userId: string): Promise<string> {
+  const id = crypto.randomUUID();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 60 * 60 * 1000);
+  const client = await authPool.connect();
+  try {
+    await client.query(
+      `INSERT INTO "session" ("id","userId","token","expiresAt","createdAt","updatedAt")
+       VALUES ($1,$2,$3,$4,$5,$5)`,
+      [id, userId, crypto.randomUUID(), expiresAt, now]
+    );
+  } finally {
+    client.release();
+  }
+  return id;
+}
+
+/** Count the "session" rows belonging to a given user. */
+async function countSessions(userId: string): Promise<number> {
+  const client = await authPool.connect();
+  try {
+    const result = await client.query<{ count: string }>(
+      `SELECT COUNT(*)::int AS count FROM "session" WHERE "userId" = $1`,
+      [userId]
+    );
+    return Number(result.rows[0].count);
+  } finally {
+    client.release();
+  }
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/admin/users — the account roster (US1, FR-001, FR-002, FR-010)
 // ---------------------------------------------------------------------------
@@ -614,5 +649,133 @@ describe("POST /api/admin/users/:id/role", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ id: selfId, role: "standard", isSelf: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/admin/users/:id/revoke-sessions — force sign-out without
+// deactivating (US4, FR-009, FR-010, FR-011)
+//
+// RED: usersController.ts does not mount POST
+// /api/admin/users/:id/revoke-sessions yet, so requests that reach past
+// requireAdmin fall through to Express's default 404 handler — every
+// non-404-expecting assertion below fails (actual 404).
+// ---------------------------------------------------------------------------
+
+describe("POST /api/admin/users/:id/revoke-sessions", () => {
+  // -------------------------------------------------------------------------
+  // 1. 200 — force-sign-out a user with active sessions, returning the
+  //    updated row plus revoked: N; status stays 'active' (FR-009)
+  // -------------------------------------------------------------------------
+  it("200: revokes all active sessions for a target, returning revoked: N and status 'active'", async () => {
+    const agent = await loggedInAgent();
+    const targetEmail = `revoke-active-${crypto.randomUUID()}@example.com`;
+    const targetId = await insertUserRow(targetEmail, { admin: false });
+    await insertTestSession(targetId);
+    await insertTestSession(targetId);
+    await insertTestSession(targetId);
+
+    const res = await agent.post(`/api/admin/users/${targetId}/revoke-sessions`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: targetId, status: "active", revoked: 3 });
+    expect(await countSessions(targetId)).toBe(0);
+  });
+
+  // -------------------------------------------------------------------------
+  // 2. 200 — force-sign-out a user with zero sessions succeeds, revoked: 0
+  //    (not an error — spec Edge Cases)
+  // -------------------------------------------------------------------------
+  it("200: revoking sessions for a target with zero sessions succeeds with revoked: 0 (not an error)", async () => {
+    const agent = await loggedInAgent();
+    const targetEmail = `revoke-none-${crypto.randomUUID()}@example.com`;
+    const targetId = await insertUserRow(targetEmail, { admin: false });
+
+    const res = await agent.post(`/api/admin/users/${targetId}/revoke-sessions`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: targetId, status: "active", revoked: 0 });
+  });
+
+  // -------------------------------------------------------------------------
+  // 3. 404 — revoke-sessions on a nonexistent id
+  // -------------------------------------------------------------------------
+  it("404: revoking sessions for a nonexistent id returns USER_NOT_FOUND", async () => {
+    const agent = await loggedInAgent();
+    const fakeId = crypto.randomUUID();
+
+    const res = await agent.post(`/api/admin/users/${fakeId}/revoke-sessions`);
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ error: expect.any(String), code: "USER_NOT_FOUND" });
+  });
+
+  // -------------------------------------------------------------------------
+  // 4. 403 — missing/foreign same-origin header (requireSameOrigin CSRF
+  //    defense), mirrors the deactivate-route origin-check test
+  // -------------------------------------------------------------------------
+  it("403: admin session with foreign Origin is rejected (requireSameOrigin CSRF defense)", async () => {
+    const savedEnv = process.env.BETTER_AUTH_ENFORCE_ORIGIN;
+    process.env.BETTER_AUTH_ENFORCE_ORIGIN = "1";
+
+    try {
+      const agent = await loggedInAgent();
+      const targetEmail = `origin-check-revoke-${crypto.randomUUID()}@example.com`;
+      const targetId = await insertUserRow(targetEmail, { admin: false });
+
+      const res = await agent
+        .post(`/api/admin/users/${targetId}/revoke-sessions`)
+        .set("Origin", "https://attacker.example.com");
+
+      expect(res.status).toBe(403);
+    } finally {
+      process.env.BETTER_AUTH_ENFORCE_ORIGIN = savedEnv;
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // 5a. 401 — unauthenticated request
+  // -------------------------------------------------------------------------
+  it("401: unauthenticated request is rejected", async () => {
+    const agent = plainAgent();
+    const fakeId = crypto.randomUUID();
+
+    const res = await agent.post(`/api/admin/users/${fakeId}/revoke-sessions`);
+
+    expect(res.status).toBe(401);
+  });
+
+  // -------------------------------------------------------------------------
+  // 5b. 403 — signed-in non-admin (Standard user)
+  // -------------------------------------------------------------------------
+  it("403: signed-in non-admin session is rejected", async () => {
+    const agent = await nonAdminAgent();
+    const fakeId = crypto.randomUUID();
+
+    const res = await agent.post(`/api/admin/users/${fakeId}/revoke-sessions`);
+
+    expect(res.status).toBe(403);
+  });
+
+  // -------------------------------------------------------------------------
+  // 6. 200 — force-sign-out on the acting admin's OWN row succeeds (no
+  //    self-exclusion — allowed by design, see US4 Implementation
+  //    Constraints), returning isSelf: true and revoked: N
+  // -------------------------------------------------------------------------
+  it("200: force-sign-out on the admin's own row succeeds with isSelf: true and revoked: N", async () => {
+    const agent = await loggedInAgent();
+    // The unit-suite better-auth shim always signs the admin in with id
+    // "user-test-id" (the mock-admin row seeded in jestSetupAfterEnv.ts).
+    // Signing in via loggedInAgent() already created one active session for
+    // this id; add two more so the expected revoked count is unambiguous.
+    const selfId = "user-test-id";
+    await insertTestSession(selfId);
+    await insertTestSession(selfId);
+    const expectedRevoked = await countSessions(selfId);
+
+    const res = await agent.post(`/api/admin/users/${selfId}/revoke-sessions`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: selfId, isSelf: true, revoked: expectedRevoked });
   });
 });
