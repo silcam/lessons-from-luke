@@ -201,6 +201,109 @@ Scenario counts match the spec's Acceptance Scenarios per story (US1=3, US2=5, U
 **Pipeline**: `specs/acceptance-specs/*.txt` → `acceptance/parse-specs.ts` →
 `acceptance/generate-tests.ts` → `generated-acceptance-tests/*.spec.ts`.
 
+## Security Considerations
+
+_Added by `/sp:04-red-team` — adversarial hardening of the design._
+
+### Fail-closed enforcement of deactivation (High)
+
+Both deactivation enforcement points (data-model "Enforcement points") MUST fail **closed** — deny
+access — when their `deactivatedAt` lookup **errors**, and never fail open:
+
+- `auth.ts` `databaseHooks.session.create.before`: if the `SELECT "deactivatedAt"` throws (pool/DB
+  error), let the error propagate so **no session is minted** and sign-in fails. Do **not**
+  `try/catch`-and-continue; a swallowed error would let a deactivated user sign in and silently
+  defeat FR-005.
+- `requireUser.ts` `loadSession()`: the extra `SELECT "deactivatedAt"` MUST be written so that **any**
+  failure (not just a non-NULL result) returns `null` / leaves `req.user` unset — an unresolvable
+  deactivation check is treated as unauthenticated. A caught-and-ignored error here would let a
+  deactivated user's in-flight session keep working.
+
+Unit + integration tests MUST exercise the **error branch** (inject a query failure) and assert the
+request is denied, so the fail-closed contract is regression-guarded — not only the non-NULL branch.
+
+### Administrative action audit trail (Medium)
+
+The feature exists to offboard **compromised or shared** accounts, yet the design records only
+`deactivatedAt` (when, not by whom) and **nothing** for role changes or force-sign-out. After an
+incident there is no way to answer "which admin deactivated / demoted / force-signed-out whom, and
+when" — precisely the question this feature is meant to serve.
+
+Mitigation (kept lightweight for a tens-of-accounts tool, consistent with Simplicity VII): each
+mutating controller action emits a **structured server-side log line** — `action`, acting `adminId`,
+target `userId`, outcome (`applied` / `refused-last-admin` / `refused-self`), timestamp. **No new
+table or column** (stays within "no new tables"; durable audit-log persistence is explicitly deferred
+as future work). The decision to log-only MUST be explicit rather than silently omitted.
+
+### Compromised-admin blast radius (informational)
+
+An attacker holding a single admin session can deactivate/demote every **other** admin — the
+guardrails only prevent reaching **zero** admins and self-deactivation — concentrating control on the
+compromised account. This is inherent to the admin role and not separately mitigable here, but it is
+the strongest argument for the audit trail above and for keeping force-sign-out available to a
+recovering operator.
+
+## Edge Cases & Error Handling
+
+_Added by `/sp:04-red-team`._
+
+### Self-demotion evicts the acting admin from the admin surface (Medium)
+
+Self-**demotion** is permitted while another active admin remains, and a role change takes effect on
+the affected account's **next request** (Decision 2). So the instant an admin demotes themselves,
+their very next `/api/admin/*` call returns **403** and the roster screen they are standing on breaks.
+Correct server behavior, jarring client experience.
+
+Mitigation:
+
+- The demote **confirm** copy on the self row MUST warn explicitly ("You will immediately lose
+  administrator access") — a distinct `Users_*` i18n key from the generic demote confirm.
+- On a successful self-demotion the client MUST navigate the operator to the non-admin home rather
+  than re-fetching the roster into a 403/error state. `UsersList` detects `isSelf && role` now
+  `'standard'` on the mutation response and redirects.
+
+### Unexpected server / DB failures (Medium)
+
+Guarded mutations run in a transaction; **any** error (lock timeout, connection drop, constraint
+violation) MUST `ROLLBACK` and surface a generic **500** with no SQL, stack, or driver text in the
+body (mirror `invitationController` error handling). The contract now documents a shared
+`500 ServerError`. A **partial** mutation MUST be impossible: `UPDATE "deactivatedAt"` and
+`DELETE FROM "session"` share one transaction, so a mid-op failure leaves the account fully Active
+with its sessions intact — never a half-deactivated account.
+
+### No-op guard refusals stay non-confusing
+
+Idempotent no-ops (deactivate-already-deactivated, reactivate-already-active, revoke with zero
+sessions) return **200** with the current row and MUST NOT error; guard refusals (`409 LAST_ADMIN`,
+`409 SELF_DEACTIVATION`) leave the row **unchanged**. Tests MUST assert the no-ops return success, not
+a 4xx (already specified in the state model; called out here so it is not lost in task generation).
+
+## Accessibility Requirements
+
+_Added by `/sp:04-red-team` — extends the Presentation Design "Accessibility Target"._
+
+### Guardrail-disabled actions must convey _why_, accessibly (Medium)
+
+Row actions disabled by a guardrail (Deactivate on the self row and on the last admin; Demote on the
+last admin) MUST convey the **reason** programmatically, not via the `disabled` attribute alone (many
+screen readers skip a bare disabled control silently). Use visible helptext / `aria-describedby` (or
+an enabled control that explains the refusal) so a keyboard/screen-reader admin learns _why_ the
+action is unavailable — e.g. "Cannot deactivate your own account", "Cannot demote the last
+administrator". These reasons are `Users_*` i18n keys.
+
+### Focus management across row-state changes
+
+Deactivate↔Reactivate and Promote↔Demote swap a row's action control, and the inline two-step confirm
+mounts/unmounts Confirm/Cancel. After a confirm resolves or is cancelled, focus MUST move
+deterministically (to the resulting row action, or back to the trigger on cancel) so keyboard focus is
+never dropped to `<body>`. The `role="status"`/`aria-live` region announces the outcome (already
+planned).
+
+### Status and role must not rely on color alone (WCAG 1.4.1)
+
+Active/Deactivated status and the red Deactivate button MUST carry a **text** label, not color only.
+Deactivated rows need a textual "Deactivated" marker in addition to any color treatment.
+
 ## Applied Learnings
 
 Searched `.specify/solutions/`; its entries are all tooling/workflow solutions (ralph, acceptance

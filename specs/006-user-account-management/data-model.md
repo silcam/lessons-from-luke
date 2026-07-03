@@ -102,6 +102,14 @@ Mirrors `invitationStore.ts`: pure `pg.Pool` access, throwing the typed errors f
 `userValidation.ts` (mirrors `invitationValidation.ts`). All row-returning queries derive `role` and
 `status` and never expose `password`/session tokens.
 
+> **`AccountSummary` vs `UserAccountRow` (red-team):** the store returns an `AccountSummary` =
+> `Omit<UserAccountRow, "isSelf">` — the shared wire type **without** `isSelf` (the store has no notion
+> of the requester). The **controller** injects `isSelf` (`row.id === req.user.id`) on **every**
+> response it emits: the roster **and each mutation response** (a role change or force-sign-out may
+> target the acting admin's own row, so `isSelf` is meaningful there too). There is no separate wire
+> type — `UserAccountRow` in the contract is authoritative; `AccountSummary` is only the store-level
+> shape before `isSelf` injection.
+
 | Function                                          | Behavior                                                                                                                                                                                                                                                                                                                                                                                                     | Requirement                    |
 | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------ |
 | `listAccounts(pool)`                              | `SELECT id, email, name, admin, "deactivatedAt", "createdAt" FROM "user" ORDER BY "createdAt" ASC`. Maps to `AccountSummary[]` with derived `role`/`status`. `isSelf` added by the controller.                                                                                                                                                                                                               | FR-001, FR-007                 |
@@ -135,6 +143,12 @@ so the system never reaches zero admins (spec Edge Case; FR-012).
 | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | `auth.ts` `databaseHooks.session.create.before` | `SELECT "deactivatedAt" FROM "user" WHERE id = session.userId`; if non-NULL, throw `APIError("UNAUTHORIZED", …)` → no session minted → sign-in fails.                        | FR-005      |
 | `requireUser.ts` `loadSession()`                | After `getSession()` returns a session, `SELECT "deactivatedAt" FROM "user" WHERE id = $1`; if non-NULL, return `null` and leave `req.user` unset (treated unauthenticated). | FR-005      |
+
+> **Fail-closed (red-team):** both checks MUST deny on **error**, not only on a non-NULL result. If the
+> `deactivatedAt` lookup throws (pool/DB error), the hook lets the error abort session creation (sign-in
+> fails) and `loadSession()` returns `null` (request treated as unauthenticated). Neither may
+> `try/catch`-and-continue — a swallowed error would let a deactivated user through, defeating FR-005.
+> Tests MUST cover the injected-error branch, not only the non-NULL branch.
 
 ---
 
