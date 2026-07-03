@@ -214,37 +214,64 @@ export default function UsersList() {
   const isLastActiveAdmin = (user: UserAccountRow): boolean =>
     user.role === "admin" && user.status === "active" && activeAdminCount <= 1;
 
-  const handleDeactivate = async (id: string) => {
-    const action = await dispatch(deactivateAccount(id));
+  // Shared by all 5 row-action handlers below: each dispatches a mutation
+  // thunk and then branches on the RTK `action.error` shape (see file header
+  // comment for the full list). On error, announce the rejection message (or
+  // a fallback); on success, merge the updated row into `users` and announce
+  // `onSuccessMessage`. Returns the updated row on success (or `null` after
+  // an error) so a caller can inspect it — e.g. for the `isSelf` eviction
+  // special-cases in handleDemote/handleForceSignOut, which must run BEFORE
+  // this merges the row/announcement, since eviction replaces both with a
+  // navigation instead.
+  const applyMutationResult = <T extends UserAccountRow>(
+    action: { error?: unknown; payload?: unknown },
+    onSuccessMessage: (updated: T) => string
+  ): T | null => {
     if ((action as { error?: unknown }).error) {
       const rejected = action as { payload?: { message: string } };
       setAnnouncement({
         text: rejected.payload?.message ?? t("Users_load_error"),
         error: true,
       });
-    } else {
-      const updated = (action as { payload: UserAccountRow }).payload;
-      setUsers((prev) => prev.map((user) => (user.id === id ? updated : user)));
-      setAnnouncement({ text: `${updated.name}: ${t("Users_status_deactivated")}` });
+      return null;
     }
-    setConfirmDeactivateId(null);
-    pendingFocusId.current = rowActionId(id);
+
+    const updated = (action as { payload: T }).payload;
+    setUsers((prev) => prev.map((user) => (user.id === updated.id ? updated : user)));
+    setAnnouncement({ text: onSuccessMessage(updated) });
+    return updated;
+  };
+
+  // Shared tail for the same 5 handlers: reset whichever two-step confirm
+  // state the action used (deactivate/demote/force-sign-out all gate on one;
+  // reactivate/promote are single-click and pass no `resetConfirm`), then
+  // move focus to the row's resulting action button per the file header's
+  // focus-management requirement.
+  const finishMutation = (
+    actionId: (id: string) => string,
+    id: string,
+    resetConfirm?: () => void
+  ) => {
+    resetConfirm?.();
+    pendingFocusId.current = actionId(id);
+  };
+
+  const handleDeactivate = async (id: string) => {
+    const action = await dispatch(deactivateAccount(id));
+    applyMutationResult<UserAccountRow>(
+      action,
+      (updated) => `${updated.name}: ${t("Users_status_deactivated")}`
+    );
+    finishMutation(rowActionId, id, () => setConfirmDeactivateId(null));
   };
 
   const handleReactivate = async (id: string) => {
     const action = await dispatch(reactivateAccount(id));
-    if ((action as { error?: unknown }).error) {
-      const rejected = action as { payload?: { message: string } };
-      setAnnouncement({
-        text: rejected.payload?.message ?? t("Users_load_error"),
-        error: true,
-      });
-    } else {
-      const updated = (action as { payload: UserAccountRow }).payload;
-      setUsers((prev) => prev.map((user) => (user.id === id ? updated : user)));
-      setAnnouncement({ text: `${updated.name}: ${t("Users_status_active")}` });
-    }
-    pendingFocusId.current = rowActionId(id);
+    applyMutationResult<UserAccountRow>(
+      action,
+      (updated) => `${updated.name}: ${t("Users_status_active")}`
+    );
+    finishMutation(rowActionId, id);
   };
 
   const handleCancelDeactivate = (id: string) => {
@@ -254,50 +281,37 @@ export default function UsersList() {
 
   const handlePromote = async (id: string) => {
     const action = await dispatch(changeRole({ id, role: "admin" }));
-    if ((action as { error?: unknown }).error) {
-      const rejected = action as { payload?: { message: string } };
-      setAnnouncement({
-        text: rejected.payload?.message ?? t("Users_load_error"),
-        error: true,
-      });
-    } else {
-      const updated = (action as { payload: UserAccountRow }).payload;
-      setUsers((prev) => prev.map((user) => (user.id === id ? updated : user)));
-      setAnnouncement({ text: `${updated.name}: ${formatRole(updated.role)}` });
-    }
-    pendingFocusId.current = roleActionId(id);
+    applyMutationResult<UserAccountRow>(
+      action,
+      (updated) => `${updated.name}: ${formatRole(updated.role)}`
+    );
+    finishMutation(roleActionId, id);
   };
 
   const handleDemote = async (id: string) => {
     const action = await dispatch(changeRole({ id, role: "standard" }));
-    if ((action as { error?: unknown }).error) {
-      const rejected = action as { payload?: { message: string } };
-      setAnnouncement({
-        text: rejected.payload?.message ?? t("Users_load_error"),
-        error: true,
-      });
-      setConfirmDemoteId(null);
-      pendingFocusId.current = roleActionId(id);
-      return;
-    }
-
-    const updated = (action as { payload: UserAccountRow }).payload;
 
     // Self-demotion evicts the acting admin (plan.md §Edge Cases): the role
     // change takes effect on this account's very next request, so the next
     // /api/admin/* call would 403. Update the cached currentUser so
     // MainRouter/AdminHome stop treating this session as admin, then
     // navigate away instead of re-fetching the roster into an error state.
-    if (updated.isSelf && updated.role === "standard") {
-      dispatch(currentUserSlice.actions.setUser({ id: updated.id, admin: false }));
-      navigate("/");
-      return;
+    // This must be checked before applyMutationResult, which would otherwise
+    // merge the row and announce the outcome instead of evicting.
+    if (!(action as { error?: unknown }).error) {
+      const updated = (action as { payload: UserAccountRow }).payload;
+      if (updated.isSelf && updated.role === "standard") {
+        dispatch(currentUserSlice.actions.setUser({ id: updated.id, admin: false }));
+        navigate("/");
+        return;
+      }
     }
 
-    setUsers((prev) => prev.map((user) => (user.id === id ? updated : user)));
-    setAnnouncement({ text: `${updated.name}: ${formatRole(updated.role)}` });
-    setConfirmDemoteId(null);
-    pendingFocusId.current = roleActionId(id);
+    applyMutationResult<UserAccountRow>(
+      action,
+      (updated) => `${updated.name}: ${formatRole(updated.role)}`
+    );
+    finishMutation(roleActionId, id, () => setConfirmDemoteId(null));
   };
 
   const handleCancelDemote = (id: string) => {
@@ -307,38 +321,29 @@ export default function UsersList() {
 
   const handleForceSignOut = async (id: string) => {
     const action = await dispatch(revokeSessions(id));
-    if ((action as { error?: unknown }).error) {
-      const rejected = action as { payload?: { message: string } };
-      setAnnouncement({
-        text: rejected.payload?.message ?? t("Users_load_error"),
-        error: true,
-      });
-      setConfirmForceSignOutId(null);
-      pendingFocusId.current = forceSignOutActionId(id);
-      return;
-    }
-
-    const updated = (action as { payload: UserAccountRow & { revoked: number } }).payload;
 
     // Force-signing out one's own row revokes the acting admin's own session
     // (plan.md §Edge Cases, "Force-sign-out on one's own row evicts the
     // acting admin"): clear the local session and redirect to the sign-in
-    // screen instead of re-fetching the roster into a 401/error state.
-    if (updated.isSelf) {
-      dispatch(currentUserSlice.actions.setUser(null));
-      navigate("/");
-      return;
+    // screen instead of re-fetching the roster into a 401/error state. This
+    // must be checked before applyMutationResult, for the same reason as
+    // handleDemote's self-demotion check above.
+    if (!(action as { error?: unknown }).error) {
+      const updated = (action as { payload: UserAccountRow & { revoked: number } }).payload;
+      if (updated.isSelf) {
+        dispatch(currentUserSlice.actions.setUser(null));
+        navigate("/");
+        return;
+      }
     }
 
-    setUsers((prev) => prev.map((user) => (user.id === id ? updated : user)));
-    setAnnouncement({
-      text: t("Users_force_sign_out_success", {
+    applyMutationResult<UserAccountRow & { revoked: number }>(action, (updated) =>
+      t("Users_force_sign_out_success", {
         name: updated.name,
         count: String(updated.revoked),
-      }),
-    });
-    setConfirmForceSignOutId(null);
-    pendingFocusId.current = forceSignOutActionId(id);
+      })
+    );
+    finishMutation(forceSignOutActionId, id, () => setConfirmForceSignOutId(null));
   };
 
   const handleCancelForceSignOut = (id: string) => {
