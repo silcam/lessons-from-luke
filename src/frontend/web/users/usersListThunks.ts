@@ -7,10 +7,11 @@
  * Plan: plan.md §Presentation Design §UI Decisions (Users roster page,
  *       Deactivate/Reactivate row action, Role promote/demote row action)
  *
- * GET  /api/admin/users                 → UserAccountRow[]
- * POST /api/admin/users/:id/deactivate  → UserAccountRow (updated)
- * POST /api/admin/users/:id/reactivate  → UserAccountRow (updated)
- * POST /api/admin/users/:id/role        → UserAccountRow (updated)
+ * GET  /api/admin/users                       → UserAccountRow[]
+ * POST /api/admin/users/:id/deactivate        → UserAccountRow (updated)
+ * POST /api/admin/users/:id/reactivate        → UserAccountRow (updated)
+ * POST /api/admin/users/:id/role              → UserAccountRow (updated)
+ * POST /api/admin/users/:id/revoke-sessions   → UserAccountRow & { revoked: number }
  */
 
 import { createAsyncThunk } from "@reduxjs/toolkit";
@@ -172,6 +173,41 @@ export const changeRole = createAsyncThunk<
       code: "last_admin",
       message: body.error ?? "Cannot demote the last active admin account",
     });
+  }
+
+  return rejectWithValue({ code: "unknown_error", message: body.error ?? "Unknown error" });
+});
+
+// ---------------------------------------------------------------------------
+// revokeSessions — POST /api/admin/users/:id/revoke-sessions (US4, force
+// sign-out without deactivating)
+// ---------------------------------------------------------------------------
+
+export const revokeSessions = createAsyncThunk<
+  UserAccountRow & { revoked: number },
+  string,
+  { rejectValue: UserMutationError }
+>("usersList/revokeSessions", async (id, { rejectWithValue }) => {
+  let response: Response;
+  try {
+    response = await fetch(`/api/admin/users/${id}/revoke-sessions`, { method: "POST" });
+  } catch {
+    return rejectWithValue({ code: "network_error", message: "Network error" });
+  }
+
+  if (response.ok) {
+    return (await response.json()) as UserAccountRow & { revoked: number };
+  }
+
+  let body: { error?: string; code?: string } = {};
+  try {
+    body = await response.json();
+  } catch {
+    /* ignore */
+  }
+
+  if (response.status === 404) {
+    return rejectWithValue({ code: "not_found", message: body.error ?? "User not found" });
   }
 
   return rejectWithValue({ code: "unknown_error", message: body.error ?? "Unknown error" });

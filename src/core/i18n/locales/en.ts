@@ -179,6 +179,7 @@ const en = {
     "Force sign out this user? Their active sessions will end immediately; the account stays Active.",
   Users_force_sign_out_self_confirm_prompt:
     "Force sign yourself out? This will sign you out on this device.",
+  Users_force_sign_out_success: "%{name}: %{count} session(s) ended",
 
   // Users feature — accessible guardrail-refusal reasons (WCAG — not disabled-attribute-only)
   Users_guardrail_self_deactivate: "Cannot deactivate your own account",

@@ -46,6 +46,20 @@
  *         successful self-demotion navigates the operator to the non-admin
  *         home instead of re-fetching the roster into a 403/error state
  *         (plan.md §Edge Cases, "Self-demotion evicts the acting admin")
+ *   - Force sign-out row action (US4):
+ *       - Always available (not guarded by last-admin/self rules) — an
+ *         inline two-step confirm (same mechanics as Deactivate/Demote)
+ *       - Never disabled on the self row (force-signing yourself out — i.e.
+ *         signing out all devices — is a legitimate action)
+ *       - Account status stays Active; a successful non-self force-sign-out
+ *         announces the outcome via the role="status"/aria-live region
+ *       - The SELF row's confirm uses a distinct warning copy ("this will
+ *         sign you out on this device"), since the acting admin's own
+ *         session is what gets revoked
+ *       - A successful SELF-targeted force-sign-out clears the local
+ *         session and redirects to the sign-in screen instead of
+ *         re-fetching the roster into a 401/error state (plan.md §Edge
+ *         Cases, "Force-sign-out on one's own row evicts the acting admin")
  */
 
 import React, { useEffect, useRef, useState } from "react";
@@ -53,11 +67,13 @@ import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { AppDispatch } from "../../common/state/appState";
 import { pushLogout } from "../auth/authThunks";
+import currentUserSlice from "../../common/state/currentUserSlice";
 import {
   listUsers,
   deactivateAccount,
   reactivateAccount,
   changeRole,
+  revokeSessions,
   UserAccountRow,
 } from "./usersListThunks";
 import { StdHeaderBarPage } from "../../common/base-components/HeaderBar";
@@ -83,6 +99,9 @@ const reasonId = (id: string): string => `user-deactivate-reason-${id}`;
 const roleActionId = (id: string): string => `user-role-action-${id}`;
 const roleReasonId = (id: string): string => `user-demote-reason-${id}`;
 
+// Same idea again, for the independent Force sign-out action slot (US4).
+const forceSignOutActionId = (id: string): string => `user-force-sign-out-action-${id}`;
+
 export default function UsersList() {
   const t = useTranslation();
   const dispatch = useDispatch<AppDispatch>();
@@ -94,6 +113,7 @@ export default function UsersList() {
   const [loadError, setLoadError] = useState(false);
   const [confirmDeactivateId, setConfirmDeactivateId] = useState<string | null>(null);
   const [confirmDemoteId, setConfirmDemoteId] = useState<string | null>(null);
+  const [confirmForceSignOutId, setConfirmForceSignOutId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState<{ text: string; error?: boolean } | null>(null);
   const pendingFocusId = useRef<string | null>(null);
 
@@ -243,6 +263,47 @@ export default function UsersList() {
     pendingFocusId.current = roleActionId(id);
   };
 
+  const handleForceSignOut = async (id: string) => {
+    const action = await dispatch(revokeSessions(id));
+    if ((action as { error?: unknown }).error) {
+      const rejected = action as { payload?: { message: string } };
+      setAnnouncement({
+        text: rejected.payload?.message ?? t("Users_load_error"),
+        error: true,
+      });
+      setConfirmForceSignOutId(null);
+      pendingFocusId.current = forceSignOutActionId(id);
+      return;
+    }
+
+    const updated = (action as { payload: UserAccountRow & { revoked: number } }).payload;
+
+    // Force-signing out one's own row revokes the acting admin's own session
+    // (plan.md §Edge Cases, "Force-sign-out on one's own row evicts the
+    // acting admin"): clear the local session and redirect to the sign-in
+    // screen instead of re-fetching the roster into a 401/error state.
+    if (updated.isSelf) {
+      dispatch(currentUserSlice.actions.setUser(null));
+      navigate("/");
+      return;
+    }
+
+    setUsers((prev) => prev.map((user) => (user.id === id ? updated : user)));
+    setAnnouncement({
+      text: t("Users_force_sign_out_success", {
+        name: updated.name,
+        count: String(updated.revoked),
+      }),
+    });
+    setConfirmForceSignOutId(null);
+    pendingFocusId.current = forceSignOutActionId(id);
+  };
+
+  const handleCancelForceSignOut = (id: string) => {
+    setConfirmForceSignOutId(null);
+    pendingFocusId.current = forceSignOutActionId(id);
+  };
+
   const renderRoleAction = (user: UserAccountRow) => {
     if (user.role === "standard") {
       return (
@@ -298,6 +359,41 @@ export default function UsersList() {
         id={roleActionId(user.id)}
         text={t("Users_action_demote")}
         onClick={() => setConfirmDemoteId(user.id)}
+      />
+    );
+  };
+
+  const renderForceSignOutAction = (user: UserAccountRow) => {
+    // No guardrails here (FR-009): force sign-out is never disabled, even on
+    // the self row — signing yourself out of all devices is a legitimate
+    // action (plan.md §Edge Cases, "Force-sign-out on one's own row evicts
+    // the acting admin").
+    if (confirmForceSignOutId === user.id) {
+      return (
+        <div role="group" aria-label={t("Users_action_force_sign_out")}>
+          <HelpText>
+            {user.isSelf
+              ? t("Users_force_sign_out_self_confirm_prompt")
+              : t("Users_force_sign_out_confirm_prompt")}
+          </HelpText>
+          <div>
+            <Button
+              id={`user-force-sign-out-confirm-${user.id}`}
+              red
+              text={t("Users_action_force_sign_out_confirm")}
+              onClick={() => void handleForceSignOut(user.id)}
+            />
+            <Button link text={t("Cancel")} onClick={() => handleCancelForceSignOut(user.id)} />
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <Button
+        id={forceSignOutActionId(user.id)}
+        text={t("Users_action_force_sign_out")}
+        onClick={() => setConfirmForceSignOutId(user.id)}
       />
     );
   };
@@ -424,6 +520,7 @@ export default function UsersList() {
             <td>
               {renderRoleAction(user)}
               {renderRowAction(user)}
+              {renderForceSignOutAction(user)}
             </td>
           </tr>
         ))}

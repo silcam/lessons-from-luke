@@ -91,6 +91,7 @@ const fr: I18nStrings = {
     "Forcer la déconnexion de cet utilisateur ? Ses sessions actives se termineront immédiatement ; le compte restera actif.",
   Users_force_sign_out_self_confirm_prompt:
     "Vous forcer vous-même à vous déconnecter ? Cela vous déconnectera sur cet appareil.",
+  Users_force_sign_out_success: "%{name} : %{count} session(s) terminée(s)",
 
   // Users feature — accessible guardrail-refusal reasons (WCAG — not disabled-attribute-only)
   Users_guardrail_self_deactivate: "Impossible de désactiver votre propre compte",

@@ -25,6 +25,7 @@ jest.mock("./usersListThunks", () => ({
   deactivateAccount: jest.fn(),
   reactivateAccount: jest.fn(),
   changeRole: jest.fn(),
+  revokeSessions: jest.fn(),
 }));
 
 // Mock useNavigate (US3 self-demote redirect)
@@ -38,12 +39,13 @@ import React from "react";
 import { act, fireEvent, waitFor } from "@testing-library/react";
 import { renderWithProviders, defaultSyncState } from "../../common/testHelpers";
 import UsersList from "./UsersList";
-const { listUsers, deactivateAccount, reactivateAccount, changeRole } =
+const { listUsers, deactivateAccount, reactivateAccount, changeRole, revokeSessions } =
   require("./usersListThunks") as {
     listUsers: jest.Mock;
     deactivateAccount: jest.Mock;
     reactivateAccount: jest.Mock;
     changeRole: jest.Mock;
+    revokeSessions: jest.Mock;
   };
 
 const defaultInitialState = {
@@ -781,6 +783,185 @@ describe("UsersList", () => {
         expect(changeRole).toHaveBeenCalledWith({ id: "admin1", role: "standard" });
         expect(mockNavigate).toHaveBeenCalledWith("/");
       });
+    });
+  });
+
+  describe("Force sign-out row action (US4)", () => {
+    const findButton = (root: HTMLElement, pattern: RegExp): HTMLButtonElement => {
+      const btn = Array.from(root.querySelectorAll("button")).find((b) =>
+        pattern.test((b.textContent || "").trim())
+      );
+      if (!btn) throw new Error(`button not found for ${pattern}`);
+      return btn as HTMLButtonElement;
+    };
+
+    it("shows an enabled Force Sign Out button on every row, including the self row", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [selfRow, otherActiveRow], error: undefined })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        const buttons = Array.from(container.querySelectorAll("button")).filter((b) =>
+          /^force sign out$/i.test((b.textContent || "").trim())
+        );
+        expect(buttons).toHaveLength(2);
+        buttons.forEach((b) => expect(b.hasAttribute("disabled")).toBe(false));
+      });
+    });
+
+    it("clicking Force Sign Out opens an inline two-step confirm before mutating", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [otherActiveRow], error: undefined })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        findButton(container, /^force sign out$/i);
+      });
+
+      await act(async () => {
+        fireEvent.click(findButton(container, /^force sign out$/i));
+      });
+
+      expect(revokeSessions).not.toHaveBeenCalled();
+      await waitFor(() => {
+        findButton(container, /confirm force sign-out/i);
+        findButton(container, /^cancel$/i);
+      });
+    });
+
+    it("the confirm on a non-self row shows the generic force-sign-out warning copy", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [otherActiveRow], error: undefined })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        findButton(container, /^force sign out$/i);
+      });
+
+      await act(async () => {
+        fireEvent.click(findButton(container, /^force sign out$/i));
+      });
+
+      await waitFor(() => {
+        expect(container.textContent).toMatch(/active sessions will end immediately/i);
+        expect(container.textContent).not.toMatch(/this will sign you out on this device/i);
+      });
+    });
+
+    it("the confirm on the SELF row shows the distinct sign-out-this-device warning", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [selfRow], error: undefined })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        findButton(container, /^force sign out$/i);
+      });
+
+      await act(async () => {
+        fireEvent.click(findButton(container, /^force sign out$/i));
+      });
+
+      await waitFor(() => {
+        expect(container.textContent).toMatch(/this will sign you out on this device/i);
+      });
+    });
+
+    it("confirming Force Sign Out on a non-self row calls revokeSessions, keeps the account Active, and announces the outcome", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [otherActiveRow], error: undefined })
+      );
+      revokeSessions.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: { ...otherActiveRow, revoked: 2 },
+          error: undefined,
+        })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        findButton(container, /^force sign out$/i);
+      });
+
+      await act(async () => {
+        fireEvent.click(findButton(container, /^force sign out$/i));
+      });
+
+      await act(async () => {
+        fireEvent.click(findButton(container, /confirm force sign-out/i));
+      });
+
+      await waitFor(() => {
+        expect(revokeSessions).toHaveBeenCalledWith("user-2");
+        const liveRegion = container.querySelector("[role='status'][aria-live]");
+        expect(liveRegion!.textContent).toMatch(/2/);
+        // Account status stays Active in the UI after a non-self force-sign-out.
+        expect(container.textContent).toMatch(/active/i);
+        expect(mockNavigate).not.toHaveBeenCalled();
+        expect(document.activeElement?.tagName).toBe("BUTTON");
+        expect(document.activeElement?.textContent).toMatch(/force sign out/i);
+      });
+    });
+
+    it("cancelling the confirm does not mutate and returns focus to the Force Sign Out trigger", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [otherActiveRow], error: undefined })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        findButton(container, /^force sign out$/i);
+      });
+
+      await act(async () => {
+        fireEvent.click(findButton(container, /^force sign out$/i));
+      });
+
+      await act(async () => {
+        fireEvent.click(findButton(container, /^cancel$/i));
+      });
+
+      expect(revokeSessions).not.toHaveBeenCalled();
+      await waitFor(() => {
+        const btn = findButton(container, /^force sign out$/i);
+        expect(document.activeElement).toBe(btn);
+      });
+    });
+
+    it("a successful self-targeted force sign-out redirects to the sign-in screen instead of re-fetching the roster", async () => {
+      listUsers.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [selfRow], error: undefined })
+      );
+      revokeSessions.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: { ...selfRow, revoked: 1 },
+          error: undefined,
+        })
+      );
+
+      const { container } = renderWithProviders(<UsersList />, defaultInitialState);
+      await waitFor(() => {
+        findButton(container, /^force sign out$/i);
+      });
+
+      await act(async () => {
+        fireEvent.click(findButton(container, /^force sign out$/i));
+      });
+
+      await act(async () => {
+        fireEvent.click(findButton(container, /confirm force sign-out/i));
+      });
+
+      await waitFor(() => {
+        expect(revokeSessions).toHaveBeenCalledWith("admin1");
+        expect(mockNavigate).toHaveBeenCalledWith("/");
+      });
+
+      // No re-fetch into a 401/error state — listUsers only ran on mount.
+      expect(listUsers).toHaveBeenCalledTimes(1);
     });
   });
 });
