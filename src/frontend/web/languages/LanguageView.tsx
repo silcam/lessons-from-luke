@@ -103,7 +103,7 @@ export default function LanguageView(props: IProps) {
                     <GetDocumentButton
                       language={props.language}
                       lesson={lesson}
-                      text="Standard"
+                      text="Bilingual"
                       majorityLanguageId={
                         props.language.motherTongue
                           ? props.language.defaultSrcLang
