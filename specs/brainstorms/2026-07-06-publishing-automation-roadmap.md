@@ -171,20 +171,36 @@ suppression per lesson, and correct footers. This replaces SOP §13–§15 (the 
 assembly, export, unlock, detach steps) while explicitly preserving the human visual-QA
 pass (SOP §30.8 — automation must produce an editable document, not just a PDF).
 
-**Key decision (made here, revisit in planning): assemble with LibreOffice headless,
-not a pure-XML merge.** Three approaches were assessed against the actual sample ODTs:
+**Key decision (CONFIRMED by WS-2a spike — GO): assemble with LibreOffice headless,
+not a pure-XML merge.** Three approaches were assessed against the actual sample ODTs;
+the spike (`specs/007-assembled-quarter-download/spike/FINDINGS.md`) then proved the
+A-path end-to-end on the real Luke series-2 masters.
 
-- **A. LibreOffice-driven assembly (chosen).** Generate the 14 translated ODTs with the
-  existing `makeLessonFile`, then have `soffice --headless` combine them (macro/UNO
-  `insertDocumentFromURL` into a new document, or generate an `.odm` + convert to
-  flattened `.odt`). LibreOffice natively resolves the hard problems — automatic-style
-  collisions, master-page binding, field resolution, continuous numbering — and PDF
-  output is the same binary. LibreOffice is already a proven production dependency
-  (webify). Risks: new UNO/macro surface; `soffice` concurrency (needs a per-job
-  `-env:UserInstallation` profile dir and real error handling, unlike the loose
-  `webifyLesson` pattern); `NODE_ENV=test` currently stubs soffice out, so an
-  integration-test strategy is required (constitution Principle I explicitly routes
-  external-binary surfaces through `*.integration.test.ts`).
+- **A. LibreOffice-driven assembly (chosen — spike CONFIRMED).** Generate the 14
+  translated ODTs with the existing `makeLessonFile`, then have `soffice --headless`
+  combine them via UNO `insertDocumentFromURL` (Basic-macro-driven in-process; the
+  `.odm` route was not needed). **Spike result:** one fully-editable `.odt`, **zero
+  protected/linked sections** (SOP §15 unlock unnecessary), **continuous numbering**,
+  **per-lesson first-page suppression**, and **all image references preserved** (physical
+  images deduped by LO). The A-path's "field resolution" claim proved **only partly**
+  true: the per-lesson footer **Quarter/Lesson number fields go blank** after merge —
+  exactly the "single `meta.xml` limitation" flagged under approach B below.
+  `insertDocumentFromURL` does not carry over `meta.xml` custom properties, so those
+  `text:user-defined` footer fields lose their backing values. **Fix (planning must
+  budget it):** flatten each lesson's footer fields to literal text before insertion.
+  A second planning-level gap surfaced in manual review: **pagination is not yet
+  book-correct** — continuous but with a +1 offset, and lessons don't start on
+  odd/right-hand pages (source masters are `page-usage="all"`). Fix: set the lesson
+  first-page master to `style:page-usage="right"` (`PrintEmptyPages` already true),
+  which reserves blank versos and starts lessons on odd pages. A manual page break
+  between constituents is also required (78 vs 91 pages without it).
+  Risks confirmed real: new UNO/macro surface; **`soffice` is effectively single-
+  instance** (serialize the assembly step or use isolated per-job
+  `-env:UserInstallation` profiles — the spike hit hangs from concurrent instances);
+  `NODE_ENV=test` stubs soffice out, so an integration-test strategy is required
+  (constitution Principle I routes external-binary surfaces through
+  `*.integration.test.ts`). Also note (macOS-only, non-blocking for the Linux server):
+  LO's bundled Python is `SIGKILL`ed locally, so local tooling must drive UNO via Basic.
 - **B. Pure-XML N-way merge in Node (rejected as primary).** Deterministic and
   test-friendly, but must hand-solve guaranteed `P*/T*` automatic-style collisions
   across 14 docs, master-page dedup, per-lesson footer fields (single `meta.xml`
@@ -195,13 +211,15 @@ not a pure-XML merge.** Three approaches were assessed against the actual sample
 
 **Suggested phasing** (each phase is a separately shippable `/sp:` feature):
 
-- **2a. Assembly spike (timeboxed research, before specify).** Prove the A-path
-  end-to-end on the English masters in `test/docs/serverDocs/`: script `soffice` to
-  merge `Luke-1-99v01.odt` + 13 lessons into one `.odt`; verify in LibreOffice that
-  numbering is continuous, first pages suppress numbers, footers show the right lesson,
-  images survive, and sections are unprotected. Deliverable: a
-  `specs/brainstorms/`-adjacent research note + the working script. This de-risks
-  everything downstream and is cheap to throw away if approach C is needed instead.
+- **2a. Assembly spike (timeboxed research, before specify) — DONE, GO.** Proved the
+  A-path end-to-end on the English masters in `test/docs/serverDocs/`. Note: **Luke
+  series 1 is incomplete (missing lesson 06 — only 12 lessons)**, so the spike used
+  **series 2** (`Luke-2-99v01.odt` TOC + lessons 14–26 = 14 files); series 3 and 4 are
+  also complete quarters. Verified continuous numbering, first-page suppression, image
+  survival, and unprotected/unlinked sections; footer per-lesson _title_ correct but the
+  Quarter/Lesson _number_ fields need a flatten step (see Key decision A). Deliverables:
+  `specs/007-assembled-quarter-download/spike/` (`assemble.sh`, `verify.sh`, the macro,
+  `FINDINGS.md`, and a sample assembled `.odt` + PDF).
 - **2b. Server endpoint + UI.** `GET /api/languages/:languageId/quarters/:series/document?majorityLanguageId=<n>`
   mirroring `documentsController`; loops the quarter's lessons + TOC through
   `makeLessonFile`, assembles via the 2a mechanism, streams the result. Frontend: a
