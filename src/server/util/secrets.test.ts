@@ -236,7 +236,16 @@ describe("secrets — FR-011 fail-fast validation", () => {
     process.env.NODE_ENV = "production";
     process.env.BETTER_AUTH_URL = "https://example.com";
 
-    fs.writeFileSync(secretsJsonPath, JSON.stringify(validSecrets), "utf8");
+    // Include a valid email block so the FR-002 production email guard does not fire.
+    const prodSecrets = {
+      ...validSecrets,
+      email: {
+        apiKey: "real-mg-api-key-00000000000000000000000000000000-00000000-0000",
+        domain: "mg.real-domain.com",
+        fromAddress: "noreply@mg.real-domain.com",
+      },
+    };
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(prodSecrets), "utf8");
 
     jest.resetModules();
 
@@ -469,5 +478,192 @@ describe("secrets — FR-011 fail-fast validation", () => {
 
     expect(errorMessage).not.toContain("dev-only-secret-replace-in-production-xx");
     expect(errorMessage).toMatch(/cookieSecret/i);
+  });
+});
+
+/**
+ * EmailConfig validation tests.
+ *
+ * Design contract: specs/005-transactional-email-reset/data-model.md §EmailConfig;
+ * contracts/email-transport.contract.ts §EmailConfig; plan.md §Security (Pass 7 cross-field).
+ *
+ * Placeholder default values used by defaultSecrets.email:
+ *   apiKey      "your-mailgun-api-key-here"
+ *   domain      "mg.example.com"
+ *   fromAddress "noreply@mg.example.com"
+ */
+describe("secrets — FR-002 EmailConfig production fail-fast validation", () => {
+  let originalContent: string | null = null;
+  let originalNodeEnv: string | undefined;
+  let originalBetterAuthUrl: string | undefined;
+
+  /** A valid non-placeholder email config that satisfies all cross-field rules. */
+  const validEmailConfig = {
+    apiKey: "real-mg-api-key-00000000000000000000000000000000-00000000-0000",
+    domain: "mg.real-domain.com",
+    fromAddress: "noreply@mg.real-domain.com",
+  };
+
+  /** Full secrets object (all production fields present) including a valid email block. */
+  const validSecretsWithEmail = {
+    ...validSecrets,
+    email: validEmailConfig,
+  };
+
+  beforeAll(() => {
+    if (fs.existsSync(secretsJsonPath)) {
+      originalContent = fs.readFileSync(secretsJsonPath, "utf8");
+    }
+  });
+
+  beforeEach(() => {
+    originalNodeEnv = process.env.NODE_ENV;
+    originalBetterAuthUrl = process.env.BETTER_AUTH_URL;
+  });
+
+  afterEach(() => {
+    if (originalNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
+
+    if (originalBetterAuthUrl === undefined) {
+      delete process.env.BETTER_AUTH_URL;
+    } else {
+      process.env.BETTER_AUTH_URL = originalBetterAuthUrl;
+    }
+
+    if (originalContent !== null) {
+      fs.writeFileSync(secretsJsonPath, originalContent, "utf8");
+    } else if (fs.existsSync(secretsJsonPath)) {
+      fs.unlinkSync(secretsJsonPath);
+    }
+    jest.resetModules();
+  });
+
+  // --- Failing (RED) tests: validation not yet implemented ---------------------
+
+  test("throws when NODE_ENV=production and email block is absent", () => {
+    process.env.NODE_ENV = "production";
+    process.env.BETTER_AUTH_URL = "https://example.com";
+
+    // validSecrets has no email block — production must reject it
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(validSecrets), "utf8");
+    jest.resetModules();
+
+    expect(() => require("./secrets")).toThrow(/email/i);
+  });
+
+  test("throws when email.apiKey is empty, error names email.apiKey", () => {
+    process.env.NODE_ENV = "production";
+    process.env.BETTER_AUTH_URL = "https://example.com";
+
+    const badSecrets = {
+      ...validSecretsWithEmail,
+      email: { ...validEmailConfig, apiKey: "" },
+    };
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(badSecrets), "utf8");
+    jest.resetModules();
+
+    expect(() => require("./secrets")).toThrow(/email\.apiKey/i);
+  });
+
+  test("throws when email.domain is the placeholder default, error names email.domain", () => {
+    process.env.NODE_ENV = "production";
+    process.env.BETTER_AUTH_URL = "https://example.com";
+
+    const badSecrets = {
+      ...validSecretsWithEmail,
+      email: { ...validEmailConfig, domain: "mg.example.com" },
+    };
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(badSecrets), "utf8");
+    jest.resetModules();
+
+    expect(() => require("./secrets")).toThrow(/email\.domain/i);
+  });
+
+  test("throws when email.fromAddress is the placeholder default, error names email.fromAddress", () => {
+    process.env.NODE_ENV = "production";
+    process.env.BETTER_AUTH_URL = "https://example.com";
+
+    const badSecrets = {
+      ...validSecretsWithEmail,
+      email: { ...validEmailConfig, fromAddress: "noreply@mg.example.com" },
+    };
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(badSecrets), "utf8");
+    jest.resetModules();
+
+    expect(() => require("./secrets")).toThrow(/email\.fromAddress/i);
+  });
+
+  test(
+    "throws when email.fromAddress domain does not align with email.domain (DKIM/DMARC cross-field), " +
+      "error names both fields but never values",
+    () => {
+      process.env.NODE_ENV = "production";
+      process.env.BETTER_AUTH_URL = "https://example.com";
+
+      const mismatchedSecrets = {
+        ...validSecretsWithEmail,
+        email: {
+          ...validEmailConfig,
+          domain: "mg.real-domain.com",
+          fromAddress: "noreply@other-domain.com", // domain part does not align
+        },
+      };
+      fs.writeFileSync(secretsJsonPath, JSON.stringify(mismatchedSecrets), "utf8");
+      jest.resetModules();
+
+      let caughtError: Error | null = null;
+      try {
+        require("./secrets");
+      } catch (e) {
+        caughtError = e as Error;
+      }
+
+      // Must throw
+      expect(caughtError).not.toBeNull();
+      // Error message must name both fields
+      expect(caughtError!.message).toMatch(/email\.fromAddress/i);
+      expect(caughtError!.message).toMatch(/email\.domain/i);
+      // Error message must NOT contain the actual domain values (FR-004)
+      expect(caughtError!.message).not.toContain("mg.real-domain.com");
+      expect(caughtError!.message).not.toContain("other-domain.com");
+    }
+  );
+
+  // --- Passing (GREEN-today) tests: happy-path that implementation must not break -----
+
+  test(
+    "does not throw when fromAddress domain is a subdomain of email.domain " +
+      "(DKIM/DMARC alignment — subdomain case)",
+    () => {
+      process.env.NODE_ENV = "production";
+      process.env.BETTER_AUTH_URL = "https://example.com";
+
+      const subdomainSecrets = {
+        ...validSecretsWithEmail,
+        email: {
+          ...validEmailConfig,
+          domain: "mg.example.org",
+          fromAddress: "noreply@mail.mg.example.org", // mail.mg.example.org is a subdomain of mg.example.org
+        },
+      };
+      fs.writeFileSync(secretsJsonPath, JSON.stringify(subdomainSecrets), "utf8");
+      jest.resetModules();
+
+      expect(() => require("./secrets")).not.toThrow();
+    }
+  );
+
+  test("does not throw when email config is fully valid in production", () => {
+    process.env.NODE_ENV = "production";
+    process.env.BETTER_AUTH_URL = "https://example.com";
+
+    fs.writeFileSync(secretsJsonPath, JSON.stringify(validSecretsWithEmail), "utf8");
+    jest.resetModules();
+
+    expect(() => require("./secrets")).not.toThrow();
   });
 });

@@ -1,0 +1,22 @@
+;=============================================
+; Production refuses to start with missing or default email configuration.
+;=============================================
+GIVEN production mode with missing or default email configuration.
+WHEN the server starts.
+THEN it fails fast with a clear error naming the missing configuration.
+THEN no secret values are printed in the error.
+
+;=============================================
+; Production starts normally with valid email configuration.
+;=============================================
+GIVEN production mode with valid email configuration.
+WHEN the server starts.
+THEN it starts normally.
+
+;=============================================
+; Development and test mode logs emails and sends nothing externally.
+;=============================================
+GIVEN development or test mode.
+WHEN any flow sends an email.
+THEN the rendered email and its link are written to logs.
+THEN no external email is transmitted.

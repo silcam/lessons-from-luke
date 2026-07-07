@@ -96,6 +96,17 @@ describe("PublicHome", () => {
     );
   });
 
+  it("renders a 'Forgot password?' link that points to /forgot-password", () => {
+    const { getByText } = renderWithProviders(<PublicHome />, {
+      syncState: defaultSyncState,
+      currentUser: { user: null, locale: "en", loaded: false },
+    });
+
+    const link = getByText("Forgot password?");
+    expect(link).toBeTruthy();
+    expect(link.closest("a")?.getAttribute("href")).toBe("/forgot-password");
+  });
+
   it("renders email and password inputs", () => {
     const { container } = renderWithProviders(<PublicHome />, {
       syncState: defaultSyncState,

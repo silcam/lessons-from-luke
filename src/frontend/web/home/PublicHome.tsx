@@ -10,6 +10,7 @@ import Heading from "../../common/base-components/Heading";
 import HandleKey from "../../common/base-components/HandleKey";
 import Alert from "../../common/base-components/Alert";
 import useTranslation from "../../common/util/useTranslation";
+import AppLink from "../common/AppLink";
 
 export default function PublicHome() {
   const t = useTranslation();
@@ -32,6 +33,9 @@ export default function PublicHome() {
             setValue={(v) => {
               setEmail(v);
             }}
+            type="email"
+            autoComplete="email"
+            inputMode="email"
             placeholder={t("Email")}
             autoFocus
           />
@@ -50,6 +54,9 @@ export default function PublicHome() {
         {loginFailed && <Alert danger>{t("Log_in_failed")}</Alert>}
         <Button bigger onClick={logIn} text={t("Log_in")} />
       </HandleKey>
+      <PDiv>
+        <AppLink to="/forgot-password">{t("ForgotPassword_forgot_link")}</AppLink>
+      </PDiv>
     </MiddleOfPage>
   );
 }

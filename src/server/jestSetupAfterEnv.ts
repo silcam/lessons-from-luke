@@ -2,6 +2,7 @@ import "../testSupport/jestSilenceConsole";
 import { Pool } from "pg";
 import { TransactionalTestStorage } from "./storage/TransactionalTestStorage";
 import secrets from "./util/secrets";
+import { resetEmailTransport } from "./email/getEmailTransport";
 
 const storage = new TransactionalTestStorage();
 (global as any).testStorage = storage;
@@ -58,6 +59,10 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await storage.rollbackTransaction();
+
+  // Clear the MemoryEmailTransport sentEmails buffer and reset the singleton
+  // between tests (mirrors the DELETE FROM "invitation" cleanup below).
+  resetEmailTransport();
 
   // Clean up auth rows written outside the domain transaction.
   // Spare the seeded admin (compare on lowercase email) so loggedInAgent()

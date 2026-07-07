@@ -213,6 +213,77 @@ describe("CreateInvitation", () => {
     });
   });
 
+  describe("email delivery warning (emailSent)", () => {
+    it("shows no email-failure warning when the create response has emailSent: true", async () => {
+      const link = "https://example.com/accept/tokAAA";
+      createInvitation.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: {
+            id: "inv-10",
+            email: "user10@example.com",
+            role: "standard",
+            status: "pending",
+            link,
+            expiresAt: "2026-07-18T00:00:00.000Z",
+            emailSent: true,
+          },
+        })
+      );
+
+      const { container, getByText } = renderWithProviders(
+        <CreateInvitation />,
+        defaultInitialState
+      );
+
+      await act(async () => {
+        fireEvent.click(createButton());
+      });
+
+      await waitFor(() => {
+        expect(getByText(link)).toBeTruthy();
+      });
+
+      expect(container.textContent).not.toMatch(/email could not be sent/i);
+    });
+
+    it("shows an email-failure warning Alert (with the link still shown below it) when emailSent: false", async () => {
+      const link = "https://example.com/accept/tokBBB";
+      createInvitation.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: {
+            id: "inv-11",
+            email: "user11@example.com",
+            role: "standard",
+            status: "pending",
+            link,
+            expiresAt: "2026-07-18T00:00:00.000Z",
+            emailSent: false,
+          },
+        })
+      );
+
+      const { container, getByText } = renderWithProviders(
+        <CreateInvitation />,
+        defaultInitialState
+      );
+
+      await act(async () => {
+        fireEvent.click(createButton());
+      });
+
+      await waitFor(() => {
+        expect(getByText(/email could not be sent/i)).toBeTruthy();
+      });
+
+      const html = container.innerHTML;
+      const warningIndex = html.search(/email could not be sent/i);
+      const linkIndex = html.indexOf(link);
+      expect(warningIndex).toBeGreaterThan(-1);
+      expect(linkIndex).toBeGreaterThan(-1);
+      expect(linkIndex).toBeGreaterThan(warningIndex);
+    });
+  });
+
   describe("error states", () => {
     it("shows a distinct Alert when server returns account_exists (409)", async () => {
       createInvitation.mockReturnValue(
