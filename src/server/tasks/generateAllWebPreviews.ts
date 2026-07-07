@@ -1,4 +1,4 @@
-import PGStorage from "../storage/PGStorage";
+import makeStorage from "../storage/makeStorage";
 import webifyLesson from "../actions/webifyLesson";
 
 /*
@@ -9,8 +9,11 @@ import webifyLesson from "../actions/webifyLesson";
 generateAllWebPreviews();
 
 async function generateAllWebPreviews() {
-  const storage = new PGStorage();
+  const storage = makeStorage();
   const lessons = await storage.lessons();
+  console.log(
+    `Generating web previews for ${lessons.length} lessons (NODE_ENV=${process.env.NODE_ENV})`
+  );
   for (let i = 0; i < lessons.length; ++i) {
     console.log(`Generate ${lessons[i].book} ${lessons[i].series}-${lessons[i].lesson}`);
     const lesson = await storage.lesson(lessons[i].lessonId);
