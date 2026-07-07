@@ -54,8 +54,16 @@ Rationale, from evidence gathered during the spike:
   Basic macro was a local-Mac routing choice, not a mechanism change. Planning
   may pick either (Basic macro works cross-platform and is what's proven here).
 
-Approaches **A1 (.odm master doc)** and **C (Node concat)** were not needed — A2
-satisfied every requirement on the first working run, so they were not pursued.
+Approach **C (Node concat)** was not needed. Approach **A1 (.odm master doc)** was
+initially deferred here, then tested in a **sibling spike** because the `.odm` route was
+believed to fix this spike's two pagination gaps (the +1 offset and odd-page starts).
+It does **not** — see [`odm/FINDINGS-odm.md`](odm/FINDINGS-odm.md): A2, a scripted
+`.odm`, and **Chris's actual `English_Luke-Q2-Master.odm`** (fetched from Drive, rewired
+to these inputs) all render the **same +1 offset** and no odd rectos, so `.odm` buys no
+pagination advantage while adding master-authoring + unproven-detach cost. **Verdict:
+proceed with A2** and treat the offset as a route-independent post-assembly fix. (One
+A1-only lead for the Q4 footer gap below: Chris's _protected_ linked sections preserve
+per-lesson footer numbers where A2 blanks them.)
 
 ## Exact invocation that worked
 

@@ -171,10 +171,25 @@ suppression per lesson, and correct footers. This replaces SOP §13–§15 (the 
 assembly, export, unlock, detach steps) while explicitly preserving the human visual-QA
 pass (SOP §30.8 — automation must produce an editable document, not just a PDF).
 
-**Key decision (CONFIRMED by WS-2a spike — GO): assemble with LibreOffice headless,
-not a pure-XML merge.** Three approaches were assessed against the actual sample ODTs;
-the spike (`specs/007-assembled-quarter-download/spike/FINDINGS.md`) then proved the
-A-path end-to-end on the real Luke series-2 masters.
+**Key decision (CONFIRMED by two spikes — GO on A2, NO-GO on A1 `.odm`): assemble with
+LibreOffice headless via `insertDocumentFromURL` (approach A2), not a pure-XML merge and
+not the `.odm` master-document route.** Three approaches were assessed against the actual
+sample ODTs; the WS-2a spike (`specs/007-assembled-quarter-download/spike/FINDINGS.md`)
+proved the A2 path end-to-end on the real Luke series-2 masters, and a WS-2a′ sibling
+spike (`spike/odm/FINDINGS-odm.md`) ruled out the `.odm` route (A1).
+
+**Why A1 `.odm` was ruled out (WS-2a′):** the `.odm` route was believed to fix A2's two
+pagination gaps (the +1 offset and odd-page starts), since continuous numbering is what
+the manual `.odm` step provides today. On test, it does **not** — validated against
+ground truth: A2's output, a scripted `.odm`, and **Chris's actual
+`English_Luke-Q2-Master-bilingual.odm`** (fetched from Drive, rewired to these Luke-2
+inputs) **all render the same +1 offset and no odd rectos**. Chris's master carries no
+`text:page-adjust`/offset field, so the offset is route-independent (a post-assembly fix
+regardless of mechanism). A1 also loses A2's self-contained `.odt` (master `storeToURL`
+yields a 42 KB link shell — the scripted SOP §15 detach isn't even reachable from it) and
+adds master-authoring cost. **One A1-only lead worth keeping:** Chris's _protected_
+linked-section master preserves per-lesson footer numbers where A2 blanks them — a
+possible alternative to A2's field-flatten fix for the footer gap.
 
 - **A. LibreOffice-driven assembly (chosen — spike CONFIRMED).** Generate the 14
   translated ODTs with the existing `makeLessonFile`, then have `soffice --headless`

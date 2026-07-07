@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE script:module PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "module.dtd">
+<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Module1" script:language="StarBasic">
+&apos; ---------------------------------------------------------------------------
+&apos; WS-2a&apos; spike: assemble a quarter via the .ODM master-document route (approach
+&apos; A1 — Chris&apos;s manual SOP 13-15 workflow, scripted). Folds author -&gt; FULL_UPDATE
+&apos; reload -&gt; store into ONE soffice run.
+&apos;
+&apos; SAFETY: On Error Goto handlers log + terminate() — a headless soffice must
+&apos; NEVER pop a modal dialog (it would hang forever). The .log file appearing
+&apos; within a few seconds is the &quot;it dispatched&quot; signal; if no .log appears, the
+&apos; module failed to COMPILE (kill at ~20s, do not wait).
+&apos;
+&apos; Inputs (env vars set by build-odm.sh):
+&apos;   SPIKE_FILES   - newline-separated absolute paths, in assembly order
+&apos;   SPIKE_ODM_URL - file:// URL for the intermediate .odm
+&apos;   SPIKE_OUT_URL - file:// URL for the merged .odt
+&apos;   SPIKE_STAGE   - optional: &quot;odm&quot; = stop after writing .odm (skip reload/merge)
+&apos; ---------------------------------------------------------------------------
+
+&apos; Compile-vs-runtime discriminator: if even Ping writes no log, the module
+&apos; failed to compile. Reuses SPIKE_OUT_URL to locate the log.
+Sub Ping
+    Dim sLog As String
+    sLog = ConvertFromURL(Environ(&quot;SPIKE_OUT_URL&quot;)) &amp; &quot;.log&quot;
+    LogLine(sLog, &quot;ping ok — module compiled&quot;, True)
+    StarDesktop.terminate()
+End Sub
+
+Sub BuildAndExport
+    Dim sFiles As String, sOdm As String, sOut As String, sOutPath As String, sLog As String
+    sOut = Environ(&quot;SPIKE_OUT_URL&quot;)
+    sOutPath = ConvertFromURL(sOut)
+    sLog = sOutPath &amp; &quot;.log&quot;
+
+    On Error Goto ErrHandler
+
+    sFiles = Environ(&quot;SPIKE_FILES&quot;)
+    sOdm = Environ(&quot;SPIKE_ODM_URL&quot;)
+
+    Dim aFiles() As String
+    aFiles = Split(sFiles, Chr(10))
+
+    LogLine(sLog, &quot;start build-odm&quot;, True)
+
+    Dim oArgs(0) As New com.sun.star.beans.PropertyValue
+    oArgs(0).Name = &quot;Hidden&quot;
+    oArgs(0).Value = True
+
+    &apos; 1. Create the master document shell.
+    Dim oDoc As Object, oText As Object, oCursor As Object
+    oDoc = StarDesktop.loadComponentFromURL(&quot;private:factory/swriter/GlobalDocument&quot;, &quot;_blank&quot;, 0, oArgs())
+    LogLine(sLog, &quot;created GlobalDocument&quot;, False)
+    oText = oDoc.getText()
+    oCursor = oText.createTextCursorByRange(oText.getStart())
+
+    Dim i As Integer, sPath As String, sUrl As String, sName As String
+    Dim nInserted As Integer
+    Dim oLink As Object, oSection As Object
+    nInserted = 0
+
+    For i = LBound(aFiles) To UBound(aFiles)
+        sPath = Trim(aFiles(i))
+        If sPath &lt;&gt; &quot;&quot; Then
+            sUrl = ConvertToURL(sPath)
+            sName = &quot;Sec&quot; &amp; CStr(nInserted + 1)
+
+            oCursor.gotoEnd(False)
+            If nInserted &gt; 0 Then
+                oText.insertControlCharacter(oCursor, com.sun.star.text.ControlCharacter.PARAGRAPH_BREAK, False)
+                oCursor.gotoEnd(False)
+            End If
+
+            oLink = createUnoStruct(&quot;com.sun.star.text.SectionFileLink&quot;)
+            oLink.FileURL = sUrl
+            oLink.FilterName = &quot;writer8&quot;
+
+            oSection = oDoc.createInstance(&quot;com.sun.star.text.TextSection&quot;)
+            oSection.Name = sName
+            oSection.FileLink = oLink
+
+            oText.insertTextContent(oCursor, oSection, False)
+
+            nInserted = nInserted + 1
+            LogLine(sLog, &quot;linked section #&quot; &amp; nInserted &amp; &quot; (&quot; &amp; sName &amp; &quot;) : &quot; &amp; sPath, False)
+        End If
+    Next i
+
+    &apos; 3. Save the master document (.odm).
+    LogLine(sLog, &quot;storing .odm -&gt; &quot; &amp; ConvertFromURL(sOdm), False)
+    Dim oSaveOdm(0) As New com.sun.star.beans.PropertyValue
+    oSaveOdm(0).Name = &quot;FilterName&quot;
+    oSaveOdm(0).Value = &quot;writerglobal8&quot;
+    oDoc.storeToURL(sOdm, oSaveOdm())
+    oDoc.close(False)
+    LogLine(sLog, &quot;.odm stored, closed&quot;, False)
+
+    If Environ(&quot;SPIKE_STAGE&quot;) = &quot;odm&quot; Then
+        LogLine(sLog, &quot;SPIKE_STAGE=odm — stopping after .odm&quot;, False)
+        WriteDone(sOutPath, &quot;linked=&quot; &amp; nInserted &amp; &quot; stage=odm&quot;)
+        StarDesktop.terminate()
+        Exit Sub
+    End If
+
+    &apos; 4. Reload the .odm with FULL_UPDATE to embed the linked content.
+    Dim oLoad(1) As New com.sun.star.beans.PropertyValue
+    oLoad(0).Name = &quot;Hidden&quot;
+    oLoad(0).Value = True
+    oLoad(1).Name = &quot;UpdateDocMode&quot;
+    oLoad(1).Value = com.sun.star.document.UpdateDocMode.FULL_UPDATE
+
+    LogLine(sLog, &quot;reloading .odm with FULL_UPDATE&quot;, False)
+    Dim oDoc2 As Object
+    oDoc2 = StarDesktop.loadComponentFromURL(sOdm, &quot;_blank&quot;, 0, oLoad())
+    LogLine(sLog, &quot;reloaded, storing merged .odt&quot;, False)
+
+    &apos; 5. Store the resolved document as a merged .odt.
+    Dim oSaveOdt(0) As New com.sun.star.beans.PropertyValue
+    oSaveOdt(0).Name = &quot;FilterName&quot;
+    oSaveOdt(0).Value = &quot;writer8&quot;
+    oDoc2.storeToURL(sOut, oSaveOdt())
+    oDoc2.close(False)
+
+    WriteDone(sOutPath, &quot;linked=&quot; &amp; nInserted)
+    LogLine(sLog, &quot;done linked=&quot; &amp; nInserted, False)
+    StarDesktop.terminate()
+    Exit Sub
+
+ErrHandler:
+    LogLine(sLog, &quot;ERROR &quot; &amp; Err &amp; &quot; at line &quot; &amp; Erl &amp; &quot;: &quot; &amp; Error$, False)
+    On Error Resume Next
+    StarDesktop.terminate()
+End Sub
+
+&apos; Probe: author the GlobalDocument live (absolute FileURLs in memory) and export
+&apos; the LIVE doc directly to .odt AND .pdf — no .odm save/reload round-trip (which
+&apos; loses content via LO&apos;s off-by-one relative href). Tests whether the in-memory
+&apos; master doc holds the linked content for rendering.
+Sub BuildProbe
+    Dim sFiles As String, sOut As String, sOutPath As String, sLog As String, sPdf As String
+    sOut = Environ(&quot;SPIKE_OUT_URL&quot;)
+    sOutPath = ConvertFromURL(sOut)
+    sLog = sOutPath &amp; &quot;.log&quot;
+    sPdf = Environ(&quot;SPIKE_PDF_URL&quot;)
+
+    On Error Goto ErrHandler2
+
+    sFiles = Environ(&quot;SPIKE_FILES&quot;)
+    Dim aFiles() As String
+    aFiles = Split(sFiles, Chr(10))
+
+    LogLine(sLog, &quot;start probe&quot;, True)
+
+    Dim oArgs(0) As New com.sun.star.beans.PropertyValue
+    oArgs(0).Name = &quot;Hidden&quot;
+    oArgs(0).Value = True
+
+    Dim oDoc As Object, oText As Object, oCursor As Object
+    oDoc = StarDesktop.loadComponentFromURL(&quot;private:factory/swriter/GlobalDocument&quot;, &quot;_blank&quot;, 0, oArgs())
+    oText = oDoc.getText()
+    oCursor = oText.createTextCursorByRange(oText.getStart())
+
+    Dim i As Integer, sPath As String, sUrl As String, sName As String
+    Dim nInserted As Integer
+    Dim oLink As Object, oSection As Object
+    nInserted = 0
+
+    For i = LBound(aFiles) To UBound(aFiles)
+        sPath = Trim(aFiles(i))
+        If sPath &lt;&gt; &quot;&quot; Then
+            sUrl = ConvertToURL(sPath)
+            sName = &quot;Sec&quot; &amp; CStr(nInserted + 1)
+            oCursor.gotoEnd(False)
+            If nInserted &gt; 0 Then
+                oText.insertControlCharacter(oCursor, com.sun.star.text.ControlCharacter.PARAGRAPH_BREAK, False)
+                oCursor.gotoEnd(False)
+            End If
+            oLink = createUnoStruct(&quot;com.sun.star.text.SectionFileLink&quot;)
+            oLink.FileURL = sUrl
+            oLink.FilterName = &quot;writer8&quot;
+            oSection = oDoc.createInstance(&quot;com.sun.star.text.TextSection&quot;)
+            oSection.Name = sName
+            oSection.FileLink = oLink
+            oText.insertTextContent(oCursor, oSection, False)
+            nInserted = nInserted + 1
+            LogLine(sLog, &quot;linked #&quot; &amp; nInserted &amp; &quot; : &quot; &amp; sPath, False)
+        End If
+    Next i
+
+    &apos; Try to force link resolution on the live master doc.
+    On Error Resume Next
+    oDoc.updateLinks()
+    LogLine(sLog, &quot;called updateLinks (ignore-errors)&quot;, False)
+    On Error Goto ErrHandler2
+
+    &apos; Export live doc to .odt
+    Dim oSaveOdt(0) As New com.sun.star.beans.PropertyValue
+    oSaveOdt(0).Name = &quot;FilterName&quot;
+    oSaveOdt(0).Value = &quot;writer8&quot;
+    oDoc.storeToURL(sOut, oSaveOdt())
+    LogLine(sLog, &quot;stored live .odt&quot;, False)
+
+    &apos; Export live doc to PDF
+    If sPdf &lt;&gt; &quot;&quot; Then
+        Dim oSavePdf(0) As New com.sun.star.beans.PropertyValue
+        oSavePdf(0).Name = &quot;FilterName&quot;
+        oSavePdf(0).Value = &quot;writer_pdf_Export&quot;
+        oDoc.storeToURL(sPdf, oSavePdf())
+        LogLine(sLog, &quot;stored live .pdf&quot;, False)
+    End If
+
+    WriteDone(sOutPath, &quot;probe linked=&quot; &amp; nInserted)
+    oDoc.close(False)
+    StarDesktop.terminate()
+    Exit Sub
+
+ErrHandler2:
+    LogLine(sLog, &quot;PROBE ERROR &quot; &amp; Err &amp; &quot; at line &quot; &amp; Erl &amp; &quot;: &quot; &amp; Error$, False)
+    On Error Resume Next
+    StarDesktop.terminate()
+End Sub
+
+&apos; Render the ACTUAL .odm on disk (SPIKE_ODM_URL) via FULL_UPDATE reload, then
+&apos; export the resolved doc to .odt AND .pdf. Proves the genuine A1 artifact&apos;s
+&apos; pagination (not just the in-memory probe) and records whether the export
+&apos; embeds content (Phase-2 embedding question). Requires the .odm hrefs to
+&apos; actually resolve (patch them absolute first — LO writes them off-by-one).
+Sub RenderOdm
+    Dim sOdm As String, sOut As String, sOutPath As String, sLog As String, sPdf As String
+    sOut = Environ(&quot;SPIKE_OUT_URL&quot;)
+    sOutPath = ConvertFromURL(sOut)
+    sLog = sOutPath &amp; &quot;.log&quot;
+    sOdm = Environ(&quot;SPIKE_ODM_URL&quot;)
+    sPdf = Environ(&quot;SPIKE_PDF_URL&quot;)
+
+    On Error Goto ErrHandler3
+
+    LogLine(sLog, &quot;start render-odm&quot;, True)
+
+    Dim oLoad(1) As New com.sun.star.beans.PropertyValue
+    oLoad(0).Name = &quot;Hidden&quot;
+    oLoad(0).Value = True
+    oLoad(1).Name = &quot;UpdateDocMode&quot;
+    oLoad(1).Value = com.sun.star.document.UpdateDocMode.FULL_UPDATE
+
+    Dim oDoc As Object
+    oDoc = StarDesktop.loadComponentFromURL(sOdm, &quot;_blank&quot;, 0, oLoad())
+    LogLine(sLog, &quot;loaded .odm with FULL_UPDATE&quot;, False)
+
+    On Error Resume Next
+    oDoc.updateLinks()
+    On Error Goto ErrHandler3
+    LogLine(sLog, &quot;updateLinks called&quot;, False)
+
+    Dim oSaveOdt(0) As New com.sun.star.beans.PropertyValue
+    oSaveOdt(0).Name = &quot;FilterName&quot;
+    oSaveOdt(0).Value = &quot;writer8&quot;
+    oDoc.storeToURL(sOut, oSaveOdt())
+    LogLine(sLog, &quot;stored .odt&quot;, False)
+
+    If sPdf &lt;&gt; &quot;&quot; Then
+        Dim oSavePdf(0) As New com.sun.star.beans.PropertyValue
+        oSavePdf(0).Name = &quot;FilterName&quot;
+        oSavePdf(0).Value = &quot;writer_pdf_Export&quot;
+        oDoc.storeToURL(sPdf, oSavePdf())
+        LogLine(sLog, &quot;stored .pdf&quot;, False)
+    End If
+
+    WriteDone(sOutPath, &quot;render-odm done&quot;)
+    oDoc.close(False)
+    StarDesktop.terminate()
+    Exit Sub
+
+ErrHandler3:
+    LogLine(sLog, &quot;RENDER ERROR &quot; &amp; Err &amp; &quot; at line &quot; &amp; Erl &amp; &quot;: &quot; &amp; Error$, False)
+    On Error Resume Next
+    StarDesktop.terminate()
+End Sub
+
+Sub WriteDone(sOutPath As String, sMsg As String)
+    Dim iFile As Integer
+    iFile = FreeFile
+    Open sOutPath &amp; &quot;.done&quot; For Output As #iFile
+    Print #iFile, sMsg
+    Close #iFile
+End Sub
+
+Sub LogLine(sLog As String, sMsg As String, bReset As Boolean)
+    Dim iFile As Integer
+    iFile = FreeFile
+    If bReset Then
+        Open sLog For Output As #iFile
+    Else
+        Open sLog For Append As #iFile
+    End If
+    Print #iFile, sMsg
+    Close #iFile
+End Sub
+</script:module>
