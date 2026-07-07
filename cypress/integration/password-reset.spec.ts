@@ -158,6 +158,10 @@ describe("US1 — Full reset flow: set new password, old rejected (SC-001, SC-00
       // Clear the invitation email so only the reset email appears in the buffer
       clearSentEmails();
 
+      // The beforeEach cy.login() authenticated the shared cookie jar as admin so we could
+      // create the test user. Sign out before driving the logged-out reset UI (mirrors translate.spec.js).
+      cy.request("POST", "/api/auth/sign-out");
+
       // Step 1: Navigate to forgot-password via the sign-in page link
       cy.visit("/");
       cy.contains("a", "Forgot password?").click();
@@ -219,6 +223,10 @@ describe("US1 — Full reset flow: set new password, old rejected (SC-001, SC-00
 
     createTestUser(email, oldPassword);
     clearSentEmails();
+
+    // The beforeEach cy.login() authenticated the shared cookie jar as admin so we could
+    // create the test user. Sign out before driving the logged-out reset UI (mirrors translate.spec.js).
+    cy.request("POST", "/api/auth/sign-out");
 
     // Request reset via API (faster than UI for this subsidiary test)
     cy.request("POST", "/api/auth/request-password-reset", { email });
