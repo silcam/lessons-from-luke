@@ -57,19 +57,17 @@ New A1 artifacts: `out/Luke-2-odm.pdf` (scripted `.odm`, 91 pp) and
 87 pp). Method: per-physical-page last-token dump (`pdftotext -layout` + awk) — the same
 page-number-footer pre-screen `verify.sh` uses — diffed page-by-page.
 
-| Dimension                    | A2 (`insertDocumentFromURL`)                   | A1 scripted `.odm`                                                           | A1 Chris's real master                      | Gate?                            |
-| ---------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------- | -------------------------------- |
-| Total pages                  | 91                                             | 91                                                                           | 87 (different sub-doc break behavior)       | —                                |
-| **+1 page-number offset**    | present (p05 prints **6**)                     | **present — identical** (p05 prints **6**)                                   | **present** (p05 prints **6**)              | **all tie → gate FAILS**         |
-| **Odd/right-hand rectos**    | no (starts on even pages)                      | **no — identical**                                                           | **no**                                      | **all tie → gate FAILS**         |
-| First-page suppression       | yes                                            | yes — identical                                                              | yes                                         | tie                              |
-| Per-page number footers      | —                                              | **identical to A2 on all 91 pages** (`diff`=0)                               | same offset pattern                         | tie                              |
-| Footer Lesson/Quarter number | **blank**                                      | blank (unprotected sections)                                                 | **per-lesson `14…25`** (protected sections) | not a gate factor; A1-Chris wins |
-| Native sub-doc page breaks   | needs manual `PAGE_BEFORE` (78 pp without)     | breaks natively (no hack)                                                    | breaks natively                             | A1 (minor)                       |
-| Self-contained editable .odt | **yes** (4.1 MB, 0 links)                      | **no** (42 KB shell, 14 links)                                               | **no** (linked/protected)                   | **A2**                           |
-| Extra mechanism cost         | none                                           | authoring + unproven scripted §15 detach                                     | authoring + detach                          | **A2**                           |
-| Self-contained editable .odt | **yes** (`storeToURL` embeds; 4.1 MB, 0 links) | **no** (master `storeToURL` writes a 42 KB shell; 14 links remain, 0 images) | **A2**                                      |
-| Extra mechanism cost         | none                                           | master-shell authoring **+ unproven scripted §15 detach**                    | **A2**                                      |
+| Dimension                    | A2 (`insertDocumentFromURL`)               | A1 scripted `.odm`                             | A1 Chris's real master                      | Gate?                            |
+| ---------------------------- | ------------------------------------------ | ---------------------------------------------- | ------------------------------------------- | -------------------------------- |
+| Total pages                  | 91                                         | 91                                             | 87 (different sub-doc break behavior)       | —                                |
+| **+1 page-number offset**    | present (p05 prints **6**)                 | **present — identical** (p05 prints **6**)     | **present** (p05 prints **6**)              | **all tie → gate FAILS**         |
+| **Odd/right-hand rectos**    | no (starts on even pages)                  | **no — identical**                             | **no**                                      | **all tie → gate FAILS**         |
+| First-page suppression       | yes                                        | yes — identical                                | yes                                         | tie                              |
+| Per-page number footers      | —                                          | **identical to A2 on all 91 pages** (`diff`=0) | same offset pattern                         | tie                              |
+| Footer Lesson/Quarter number | **blank**                                  | blank (unprotected sections)                   | **per-lesson `14…25`** (protected sections) | not a gate factor; A1-Chris wins |
+| Native sub-doc page breaks   | needs manual `PAGE_BEFORE` (78 pp without) | breaks natively (no hack)                      | breaks natively                             | A1 (minor)                       |
+| Self-contained editable .odt | **yes** (4.1 MB, 0 links)                  | **no** (42 KB shell, 14 links)                 | **no** (linked/protected)                   | **A2**                           |
+| Extra mechanism cost         | none                                       | authoring + unproven scripted §15 detach       | authoring + detach                          | **A2**                           |
 
 **Decisive line:** the +1 offset and even-page lesson starts appear in **all three**
 renders — A2, the scripted `.odm`, and Chris's real master. No route reproduces the
