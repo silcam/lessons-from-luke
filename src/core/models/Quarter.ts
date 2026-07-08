@@ -1,40 +1,59 @@
-import { Book } from "./Lesson";
+import { Book, BaseLesson, TOC_LESSON, isTOCLesson, lessonName } from "./Lesson";
+
+const LESSONS_PER_QUARTER = 13;
 
 /**
  * The 13 absolute lesson numbers that make up a quarter (series).
  * Series 1 → 1..13, series 2 → 14..26, etc.
- *
- * NOT YET IMPLEMENTED — stub for RED task lessons-from-luke-koog.6.1.1;
- * real implementation lands in lessons-from-luke-koog.6.1.2.
  */
-export function expectedLessonNumbers(_series: number): number[] {
-  throw new Error("not implemented");
+export function expectedLessonNumbers(series: number): number[] {
+  const first = (series - 1) * LESSONS_PER_QUARTER + 1;
+  return Array.from({ length: LESSONS_PER_QUARTER }, (_, i) => first + i);
 }
 
-/**
- * Whether the given (book, series) quarter is complete: the TOC lesson and
- * all 13 expected lesson numbers are present among `lessons`.
- *
- * NOT YET IMPLEMENTED — stub for RED task lessons-from-luke-koog.6.1.1.
- */
-export function isCompleteQuarter(
-  _book: Book,
-  _series: number,
-  _lessons: readonly { book: Book; series: number; lesson: number }[]
-): boolean {
-  throw new Error("not implemented");
+function quarterLessons(
+  book: Book,
+  series: number,
+  lessons: readonly BaseLesson[]
+): readonly BaseLesson[] {
+  return lessons.filter((lsn) => lsn.book === book && lsn.series === series);
 }
 
 /**
  * The human-readable names (e.g. "Luke 1-6", "Luke 2-TOC") of the parts of a
  * (book, series) quarter missing from `lessons`. Empty when complete.
- *
- * NOT YET IMPLEMENTED — stub for RED task lessons-from-luke-koog.6.1.1.
  */
 export function missingQuarterParts(
-  _book: Book,
-  _series: number,
-  _lessons: readonly { book: Book; series: number; lesson: number }[]
+  book: Book,
+  series: number,
+  lessons: readonly BaseLesson[]
 ): string[] {
-  throw new Error("not implemented");
+  const present = quarterLessons(book, series, lessons);
+  const hasTOC = present.some(isTOCLesson);
+  const presentLessonNumbers = new Set(
+    present.filter((lsn) => !isTOCLesson(lsn)).map((lsn) => lsn.lesson)
+  );
+
+  const missing: string[] = [];
+  if (!hasTOC) {
+    missing.push(lessonName({ book, series, lesson: TOC_LESSON, lessonId: 0, version: 0 }));
+  }
+  for (const lessonNumber of expectedLessonNumbers(series)) {
+    if (!presentLessonNumbers.has(lessonNumber)) {
+      missing.push(lessonName({ book, series, lesson: lessonNumber, lessonId: 0, version: 0 }));
+    }
+  }
+  return missing;
+}
+
+/**
+ * Whether the given (book, series) quarter is complete: the TOC lesson and
+ * all 13 expected lesson numbers are present among `lessons`.
+ */
+export function isCompleteQuarter(
+  book: Book,
+  series: number,
+  lessons: readonly BaseLesson[]
+): boolean {
+  return missingQuarterParts(book, series, lessons).length === 0;
 }
