@@ -239,6 +239,9 @@ Use subagents liberally and aggressively to conserve the main context window. Av
 
 ## Active Technologies
 
+- TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + Express (server), existing `makeLessonFile` / `mergeXml` per-lesson pipeline, LibreOffice `soffice` headless (already a production dependency via `webifyLesson`), `child_process.exec`/`spawn`, React 16 + Redux Toolkit + styled-components (frontend), Axios + file-saver (download) (007-assembled-quarter-download)
+- No new persistent storage. Domain reads go through the existing `Persistence` interface (`storage.lessons()`, `storage.lesson(id)`). Assembly job state is an **in-memory process-scoped registry** (FR-011 — explicitly non-durable). Output ODTs and constituents live in the existing `docStorage` tmp dir (24 h cleanup reused for result retention). (007-assembled-quarter-download)
+
 - TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) — isomorphic four-layer architecture (`core` / `server` / `frontend` / `desktop`).
 - PostgreSQL with **two isolated drivers**: domain data via porsager `postgres@1.0.2` (`PGStorage`, through the `Persistence` interface); server-only authentication via better-auth on its own `pg` (node-postgres) `Pool` (singleton exported as `getAuthPool()` from `auth.ts`). (001-better-auth-migration)
 - New auth-owned `invitation` table sharing the single `getAuthPool()` singleton (server-only, constitution Principle VI exemption); Node `crypto` for token generation (randomBytes), SHA-256 hash lookup, and AES-256-GCM at-rest token encryption. (002-invitation-system)
