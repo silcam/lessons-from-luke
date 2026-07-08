@@ -1,6 +1,12 @@
+import fs from "fs";
+import path from "path";
 import { Persistence } from "../../core/interfaces/Persistence";
 import { Language } from "../../core/models/Language";
-import { Lesson } from "../../core/models/Lesson";
+import { Lesson, isTOCLesson } from "../../core/models/Lesson";
+import { mkdirSafe } from "../../core/util/fsUtils";
+import makeLessonFile from "./makeLessonFile";
+import { flattenFooterFields } from "./flattenFooterFields";
+import { sofficeAssemble } from "../assembly/sofficeAssemble";
 
 /**
  * assembleQuarter — orchestrates the 14-constituent quarter-book merge
@@ -33,9 +39,6 @@ import { Lesson } from "../../core/models/Lesson";
  * EXACTLY ONCE — the same generated path is reused for both the
  * completeness check and the merge input (Pass 1 finding — no
  * double-generation).
- *
- * NOT YET IMPLEMENTED — stub for RED task lessons-from-luke-koog.6.2.2; real
- * implementation (+ REFACTOR) lands in lessons-from-luke-koog.6.2.3.
  */
 export interface AssembleQuarterOptions {
   /** Storage instance, passed through to `makeLessonFile` for TString lookups. */
@@ -64,12 +67,61 @@ export interface AssembleQuarterOptions {
 /**
  * Run the full order-resolution + copy-before-flatten + `soffice` merge
  * orchestration for one assembly job. See the module doc comment for the
- * full contract this MUST satisfy once implemented.
- *
- * NOT YET IMPLEMENTED — see module doc comment.
+ * full contract this satisfies.
  *
  * @returns Absolute path to the assembled `.odt` once `soffice` has written it.
  */
-export default function assembleQuarter(_options: AssembleQuarterOptions): Promise<string> {
-  throw new Error("not implemented");
+export default async function assembleQuarter(options: AssembleQuarterOptions): Promise<string> {
+  const { storage, lessons, motherLang, majorityLangId, jobId, workRoot } = options;
+
+  const orderedLessons = orderQuarterLessons(lessons);
+  const jobDir = path.join(workRoot, jobId);
+  mkdirSafe(jobDir);
+
+  const files: string[] = [];
+  for (let i = 0; i < orderedLessons.length; i++) {
+    const lesson = orderedLessons[i];
+    const rawPath = await makeLessonFile(storage, lesson, motherLang, majorityLangId);
+    const copyPath = path.join(jobDir, `${zeroPad(i)}.odt`);
+    fs.copyFileSync(rawPath, copyPath);
+    flattenFooterFields({
+      odtPath: copyPath,
+      series: lesson.series,
+      lesson: lesson.lesson,
+    });
+    files.push(copyPath);
+  }
+
+  const outputPath = path.join(jobDir, "assembled.odt");
+  const result = await sofficeAssemble({
+    jobId,
+    files,
+    outputPath,
+    workRoot,
+  });
+
+  if (fs.existsSync(result.outputPath)) {
+    const stats = fs.statSync(result.outputPath);
+    if (stats.size === 0) {
+      throw new Error(`sofficeAssemble produced an empty result at ${result.outputPath}`);
+    }
+  }
+
+  return result.outputPath;
+}
+
+/**
+ * Resolve assembly order: TOC first, then the 13 lessons ascending by
+ * absolute lesson number. NOT `lessonCompare`, which sorts the TOC
+ * lesson's sentinel number (99) to the END rather than the front.
+ */
+function orderQuarterLessons(lessons: readonly Lesson[]): Lesson[] {
+  const toc = lessons.filter(isTOCLesson);
+  const rest = lessons.filter((lsn) => !isTOCLesson(lsn)).sort((a, b) => a.lesson - b.lesson);
+  return [...toc, ...rest];
+}
+
+/** Zero-padded, ASCII, deterministic, insertion-order filename stem (e.g. "00", "13"). */
+function zeroPad(index: number): string {
+  return index < 10 ? `0${index}` : `${index}`;
 }
