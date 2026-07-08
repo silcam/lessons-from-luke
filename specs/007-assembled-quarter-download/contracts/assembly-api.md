@@ -22,10 +22,12 @@ Starts a background assembly for the quarter+mode, **or attaches to an existing 
   (Same body whether newly started or attached to an in-flight job. Attach vs. start is decided by a **synchronous** registry check-then-insert keyed on `(languageId, book, series, mode)`; no `await` may run between the "no live job" check and the placeholder insert, or two concurrent starts race — see data-model "Dedup atomicity", FR-010.)
 - `409 Conflict` / `422 Unprocessable` — `{ "status": "failed", "reason": string, "missing"?: string[] }`
   When the quarter is incomplete at request time (missing TOC or lesson(s)) — `reason` names the missing lesson(s) (US4-1, FR-006). _(May alternatively be surfaced as a `failed` status on first poll; see note.)_
-- `429 Too Many Requests` — `{ "status": "failed", "reason": string }`
+- `429 Too Many Requests` — `{ "reason": string }` (transient — **no `jobId`, no `"status": "failed"`**)
   When the in-memory job registry is at its **max live-job / queue-depth cap** (resource-bounding — see plan "Performance & Resource Bounds"). `reason` is a fixed "server busy, retry shortly" message; the client may retry after a short delay. Prevents an accidental burst of distinct-key requests from growing the queue and tmp-dir footprint without bound.
+  **Cap-vs-attach ordering (Pass 2 finding A, FR-010):** the synchronous critical section is strictly **dedup-check → (on miss) cap-check → insert**. An attach to an existing live job for `(languageId, book, series, mode)` returns that job's `202` **unconditionally** — it neither counts against nor is rejected by the cap; only a genuinely new key can be `429`'d. This preserves FR-010 (a double-click, or a normal POST-then-poll, must show the existing job's progress even when the queue is saturated).
+  **429 is transient, not terminal:** the client MUST branch on **HTTP status**, not on a `status` field — a `429` is "server busy, retry shortly" and MUST NOT be rendered as a terminal `failed` job (it started no work and offers no assembly to "retry"; the client simply re-POSTs after a delay). The `"failed"` tag is reserved for a real job that ran and failed.
 - `404 Not Found` — unknown language / book / series.
-- `400 Bad Request` — invalid `mode`, **or invalid `:book`** (must be `Luke` | `Acts` — validated against the `Book` union, not trusted from the URL).
+- `400 Bad Request` — invalid `mode`, **invalid `:book`** (must be `Luke` | `Acts` — validated against the `Book` union, not trusted from the URL), **or non-numeric `:series` / `:languageId`** (both MUST parse to finite integers; a `NaN` param is rejected here rather than silently degrading to a "missing all lessons" completeness failure — Pass 2 finding E).
 
 **`reason` hygiene (all failure responses)**: `reason` is always drawn from a fixed vocabulary (e.g. `"missing constituent: Luke Q1 L6"`, `"a lesson failed to generate: Luke Q1 L3"`, `"assembly timed out"`, `"assembly failed (internal)"`, `"server busy, retry shortly"`). It MUST NEVER contain raw `soffice` stderr, a Node error stack, or absolute server paths — raw detail is logged server-side only (plan "Error Handling & Failure Modes").
 
@@ -71,8 +73,9 @@ GET /api/assembly/:jobId/download
 
 - `200 OK` — streams the assembled `.odt`.
   - `Content-Type: application/vnd.oasis.opendocument.text`
-  - `Content-Disposition: attachment; filename="<Language>_<Book>-Q<series>-<mode>.odt"`
+  - `Content-Disposition: attachment; filename="<ascii-fallback>.odt"; filename*=UTF-8''<pct-encoded>.odt`
     (filename consistent with `documentName()` conventions; mode disambiguated).
+    **Non-ASCII language names (Pass 2 finding C):** this is a translation app — `<Language>` is routinely a mother-tongue name in a non-Latin script (Arabic, Devanagari, CJK). A bare `filename="…"` param cannot carry those bytes (agents mangle/drop them or reject the header), so the handler MUST emit **both** a sanitized ASCII `filename="…"` fallback **and** an RFC 5987/6266 `filename*=UTF-8''…` parameter with the full name percent-encoded. Percent-encoding is applied **after** the existing CR/LF/quote strip (Pass 1 finding #10), so header-splitting remains prevented.
 - `409 Conflict` — job exists but `status` is not `ready` (still `queued`/`running`, or `failed`) — no partial file is ever served (FR-006/FR-009).
 - `404 Not Found` — unknown/expired job id, **or a `ready` job whose result file has already been pruned by the 24 h `docStorage` cleanup**. The handler MUST `stat` `resultPath` before streaming and return `404` (not a 500/stream error) when it is gone; the client maps `404` to "expired — re-request" (FR-011). The status poll (§2/§3) likewise reports `404` for a `ready` job whose file is missing, so the UI prompts a fresh assemble rather than offering a dead download.
 

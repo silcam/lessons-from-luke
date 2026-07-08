@@ -94,7 +94,8 @@ Responsibilities (no domain data; not in `Persistence`):
 - `startOrAttach(key, mode) → AssemblyJob` — dedup by `AssemblyJobKey`.
 - `get(jobId) → AssemblyJob | undefined`; `getByKey(key) → AssemblyJob | undefined`.
 - Serializes the soffice merge step (**concurrency 1**); additional distinct-key jobs sit in `queued`.
-- Enforces per-job hard timeout + soffice kill → `failed`.
+- Enforces per-job hard timeout + soffice kill → `failed`. **The timeout clock starts at run-start (slot acquisition), not at enqueue (Pass 2 finding D):** with concurrency-1 plus the queue-depth cap, jobs can legitimately sit `queued` behind ~40 s of prior work; timing from enqueue would spuriously `fail` a job before it ever ran. Queued wait is bounded by the queue-depth cap (admission control), not by timing out already-admitted jobs.
+- **Marks `ready` only after verifying a non-empty result (Pass 2 finding F):** after the soffice run, `stat` the result path and require non-zero size (and a valid ODT mimetype-first entry) before `running → ready`; a truncated/zero-byte `storeToURL` output (disk-full, partial write) transitions to `failed` (`"assembly failed (internal)"`) rather than handing the operator a corrupt download.
 - Owns per-job `mktemp` profile lifecycle (create → cleanup on completion/crash).
 
 ---
