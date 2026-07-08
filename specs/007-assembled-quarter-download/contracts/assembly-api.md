@@ -16,6 +16,8 @@ Body: { "mode": "bilingual" | "single-language" }
 
 Starts a background assembly for the quarter+mode, **or attaches to an existing live job** for the same `(languageId, book, series, mode)` (FR-010 — no redundant work).
 
+**Attach vs. restart on a terminal job (Pass 5, FR-009 retry):** attach applies to `queued`, `running`, **and** a still-valid `ready` job (its result file still present → `202 {status:"ready"}`, client re-downloads). A `failed` job — and a `ready` job whose result file has already been **pruned** — is treated as **absent**: the `POST` evicts the terminal entry and starts a **fresh** job (new `jobId`, `queued`). This is what makes FR-009 "re-trigger to retry" work; blindly attaching to a `failed` entry would return the stale failure with no path to retry.
+
 **Responses**
 
 - `202 Accepted` — `{ "jobId": string, "status": "queued" | "running" }`
