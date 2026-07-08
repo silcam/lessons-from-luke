@@ -1,3 +1,10 @@
+import fs from "fs";
+import path from "path";
+import { execFileSync } from "child_process";
+import libxmljs2, { Element, Text } from "libxmljs2";
+import { mkdirSafe, unzip, unlinkRecursive } from "../../core/util/fsUtils";
+import { extractNamespaces } from "../xml/mergeXml";
+
 /**
  * flattenFooterFields — replace an ODT's footer `text:user-defined`
  * Quarter/Lesson field references with literal, XML-escaped text, then
@@ -41,14 +48,94 @@ export interface FlattenFooterFieldsOptions {
   lesson: number;
 }
 
+const FIELD_NAMES = ["Quarter", "Lesson"] as const;
+type FieldName = (typeof FIELD_NAMES)[number];
+type ResolvedFieldValues = Record<FieldName, string>;
+
 /**
  * Flatten `odtPath`'s footer Quarter/Lesson `text:user-defined` fields to
  * literal, XML-escaped text and re-pack it with the ODF-safe mimetype
  * ordering. See the module doc comment for the full contract.
- *
- * NOT YET IMPLEMENTED — stub for RED task lessons-from-luke-koog.6.1.5; real
- * implementation lands in lessons-from-luke-koog.6.1.6.
  */
-export function flattenFooterFields(_options: FlattenFooterFieldsOptions): void {
-  throw new Error("not implemented");
+export function flattenFooterFields(options: FlattenFooterFieldsOptions): void {
+  const { odtPath, series, lesson } = options;
+  const extractDirPath = `${odtPath}_flatten`;
+
+  try {
+    mkdirSafe(extractDirPath);
+    unzip(odtPath, extractDirPath);
+
+    const resolvedValues = resolveFieldValues(`${extractDirPath}/meta.xml`, { series, lesson });
+    flattenStylesXml(`${extractDirPath}/styles.xml`, resolvedValues);
+
+    rezipWithMimetypeFirst(extractDirPath, odtPath);
+  } finally {
+    unlinkRecursive(extractDirPath);
+  }
+}
+
+function resolveFieldValues(
+  metaXmlPath: string,
+  fallback: { series: number; lesson: number }
+): ResolvedFieldValues {
+  const xml = fs.readFileSync(metaXmlPath, "utf8");
+
+  const fallbackValues: ResolvedFieldValues = {
+    Quarter: String(fallback.series),
+    Lesson: String(fallback.lesson),
+  };
+
+  return FIELD_NAMES.reduce((resolved, name) => {
+    const value = extractMetaUserDefinedValue(xml, name)?.trim();
+    resolved[name] = value ? value : fallbackValues[name];
+    return resolved;
+  }, fallbackValues);
+}
+
+/**
+ * Extracts the raw literal text content of a `meta:user-defined` custom
+ * property by name, via regex rather than a strict XML parser.
+ *
+ * `meta.xml` custom property VALUES are not always well-formed XML on their
+ * own (e.g. a user-entered Quarter/Lesson value containing `&`/`<` literally,
+ * unescaped) — a strict parse would either throw or (in recovery mode) drop
+ * the offending content. Since these values are treated as opaque literal
+ * text destined for a `text:user-defined` field replacement (see
+ * `flattenStylesXml`), extracting the raw substring preserves it exactly.
+ */
+function extractMetaUserDefinedValue(metaXml: string, name: FieldName): string | undefined {
+  const pattern = new RegExp(
+    `<meta:user-defined\\b[^>]*\\bmeta:name="${name}"[^>]*>([\\s\\S]*?)<\\/meta:user-defined>`
+  );
+  return pattern.exec(metaXml)?.[1];
+}
+
+function flattenStylesXml(stylesXmlPath: string, resolvedValues: ResolvedFieldValues): void {
+  const xml = fs.readFileSync(stylesXmlPath, "utf8");
+  const xmlDoc = libxmljs2.parseXml(xml);
+  const namespaces = extractNamespaces(xmlDoc);
+
+  FIELD_NAMES.forEach((name) => {
+    const elements = xmlDoc.find<Element>(`//text:user-defined[@text:name='${name}']`, namespaces);
+    elements.forEach((element) => {
+      element.replace(new Text(xmlDoc, resolvedValues[name]));
+    });
+  });
+
+  fs.writeFileSync(stylesXmlPath, xmlDoc.toString(false));
+}
+
+/**
+ * Re-zips `extractDirPath`'s contents to `outPath`, with the `mimetype`
+ * entry stored FIRST and UNCOMPRESSED, as ODF requires. `fsUtils.zip`
+ * (`zip -r`) does not guarantee this ordering, so this reimplements the
+ * standard ODF two-pass zip recipe directly.
+ */
+function rezipWithMimetypeFirst(extractDirPath: string, outPath: string): void {
+  const absOutPath = path.resolve(outPath);
+  fs.rmSync(absOutPath, { force: true });
+  execFileSync("zip", ["-X", "-q", "-0", absOutPath, "mimetype"], { cwd: extractDirPath });
+  execFileSync("zip", ["-X", "-q", "-r", "-D", absOutPath, ".", "-x", "mimetype"], {
+    cwd: extractDirPath,
+  });
 }
