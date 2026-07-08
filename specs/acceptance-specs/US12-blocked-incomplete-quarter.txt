@@ -1,0 +1,16 @@
+;=============================================
+; Assembly is blocked when a lesson or the Table of Contents is missing.
+;=============================================
+GIVEN a quarter missing one or more of its 13 lessons or its Table of Contents.
+WHEN the operator triggers assembly.
+THEN no assembled document is produced.
+THEN the operator sees a message identifying which lesson or lessons are missing.
+
+;=============================================
+; A mid-assembly generation failure ends in a retryable failed state.
+;=============================================
+GIVEN all constituent documents exist but one fails to generate during assembly.
+WHEN the job runs.
+THEN the job ends in a failed state with a human-readable reason identifying the failing lesson where possible.
+THEN the job offers no partial file.
+THEN the operator can re-trigger the action to retry.
