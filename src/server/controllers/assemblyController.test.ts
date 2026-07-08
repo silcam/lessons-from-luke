@@ -16,6 +16,7 @@
  * compile error, not a crash).
  */
 
+import fs from "fs";
 import express, { Express } from "express";
 import request from "supertest";
 import assemblyController from "./assemblyController";
@@ -330,6 +331,21 @@ describe("GET /api/assembly/:jobId/status (poll by job id)", () => {
 });
 
 describe("GET /api/assembly/:jobId/download", () => {
+  const readyResultPath = "/tmp/assembled.odt";
+
+  // The download handler MUST `stat` `resultPath` before streaming (contract
+  // §4 — a pruned `ready` job's file is a 404, never a 500). That means this
+  // "200" case needs a real file on disk at `readyResultPath` to be
+  // distinguishable from the "404: pruned" case below, which intentionally
+  // points at a path that never exists.
+  beforeAll(() => {
+    fs.writeFileSync(readyResultPath, "fake odt contents");
+  });
+
+  afterAll(() => {
+    fs.unlinkSync(readyResultPath);
+  });
+
   it("200: streams the .odt with the correct Content-Type and both Content-Disposition filenames", async () => {
     const registry = makeRegistry({
       get: jest
