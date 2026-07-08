@@ -38,7 +38,7 @@ The invocation to productionize lives in `spike/`:
 - `spike/assemble.sh` — warm-profile → inject macro → run `macro:///Standard.Module1.Assemble`.
 - `spike/macro-template/basic/Standard/Module1.xba` — the `Assemble` macro (`insertDocumentFromURL` + `PAGE_BEFORE` breaks + `storeToURL writer8`).
 - `spike/verify.sh` — the objective link/protection/image/page checks to port into the integration test.
-- `spike/FINDINGS.md` — the two documented gaps to close in implementation: the **+1 page-number offset** (root cause open — top risk, research.md R3) and the **footer field-flatten** (research.md R4).
+- `spike/FINDINGS.md` — the documented gaps. The **+1 page-number offset** is **matched, not fixed** (Chris's reference `.odt` carries the identical offset — research.md R3); the one gap to close in implementation is the **footer field-flatten** (research.md R4).
 
 ## Known gotchas (from spike caveats)
 

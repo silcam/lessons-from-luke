@@ -27,7 +27,7 @@ Automate what is today a manual LibreOffice master-document workflow: from the l
 - **Profile-dir isolation & timeout/kill policy** → per-job `mktemp` profile, warm→inject→run, `rm -rf` on completion/crash; hard timeout with process kill for a hung soffice (research.md R1, R5).
 - **Polling mechanism / job-ID scheme** → REST start + poll endpoints, in-memory registry keyed `(languageId, book, series, mode)`; download by job id (contracts/assembly-api.md).
 - **Where the 13 lessons + TOC are looked up** → `storage.lessons()` filtered by `(book, series)`; completeness validated against the expected 14-part set (data-model.md, research.md R2).
-- **Continuous numbering / footers / editability** → confirmed feasible by the spike; the +1 offset root cause remains open (research.md R3, flagged as top risk).
+- **Continuous numbering / footers / editability** → confirmed feasible by the spike; the +1 page-number offset is **matched, not removed** — Chris's reference `.odt` carries the identical offset (verified 2026-07-08), so A2's pagination already matches the acceptance target (research.md R3). Odd-page starts dropped from scope. Only remaining gap: footer field-flatten (FR-004).
 
 ## Technical Context
 
@@ -152,13 +152,15 @@ cypress/integration/
 
 **Pipeline**: `specs/acceptance-specs/*.txt` → `acceptance/parse-specs.ts` → `acceptance/generate-tests.ts` → `generated-acceptance-tests/*.spec.ts`
 
+**Golden-reference check (FR-003/FR-004)**: The `*.integration.test.ts` layer for the real `soffice` merge asserts pagination/footer parity against a committed reference `.odt` (Chris's `English_Luke-Q<n>-Master-bilingual.odt`, added as a fixture during `sp:05-tasks`). The assertion is **functional/visual equivalence** on the five axes in spec Assumptions ("Reference deliverables") — content + order, continuous numbering, first-page suppression, populated footer fields, and page-number sequence (incl. the reference's +1 offset) — extracted via PDF render + `pdftotext`, **not** a byte-for-byte ODT diff (the LO-merge and manual-export routes never produce clean file diffs).
+
 ## Complexity Tracking
 
 > No Constitution Check violations — section intentionally empty.
 
 ## Risks (carried into red-team / implement)
 
-1. **[TOP RISK] The +1 page-number offset root cause is UNRESOLVED (FR-003).** The spike proved continuous numbering and first-page suppression, but printed number = physical page + 1, and `page-usage="right"` does **not** yield odd rectos until the offset is fixed (LO considers the "right" constraint already satisfied). **FR-003 tension to surface:** the spec's explicit "each lesson begins on an odd (right-hand) page" MUST goes _beyond_ the manual reference output — FINDINGS-odm proved **Chris's actual master also carries the +1 offset and starts no lesson on an odd recto**. So "match the manual workflow" and "odd-page starts" are not the same target. Resolving the offset is a dedicated Phase 0/implementation research task (research.md R3); odd-page work is sequenced strictly after it. Red-team should confirm the odd-page clause is truly required or scope it to a follow-up.
+1. **[RESOLVED — was TOP RISK] The +1 page-number offset and odd-page starts (FR-003).** Closed by the 2026-07-08 decision to match Chris's reference deliverable. Rendering the reference `English_Luke-Q1-Master-bilingual.odt` to PDF confirmed it carries the identical page = physical + 1 offset and starts no lesson on an odd recto — the same behavior A2 already produces. So the offset is **matched, not removed** (no root-cause investigation), and the odd-page-start MUST is **dropped from scope** (no `page-usage="right"` / blank-verso work). The reference `.odt` is now the acceptance oracle for pagination (research.md R3; spec Assumptions "Reference deliverables"). Residual risk is only in the acceptance harness: "match" must be functional/visual equivalence, not a byte-for-byte diff.
 2. **Footer Quarter/Lesson number fields blank after merge (FR-004 consistency).** Closed by the field-flatten pre-process (research.md R4); watch the `zip` mimetype-first / stored-uncompressed sharp edge in `fsUtils.zip`.
 3. **`soffice` single-concurrency + hung-process risk.** Serialize the merge (concurrency 1), per-job isolated profile, hard timeout + kill (a hung soffice sits at 0 % CPU forever). research.md R1/R5.
 4. **Local integration testing on macOS**: LO bundled Python is SIGKILLed; the Basic-macro driver is the cross-platform choice so devs can run `test:integration` before commit. research.md R1.
