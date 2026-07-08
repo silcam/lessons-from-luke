@@ -19,11 +19,15 @@ Starts a background assembly for the quarter+mode, **or attaches to an existing 
 **Responses**
 
 - `202 Accepted` — `{ "jobId": string, "status": "queued" | "running" }`
-  (Same body whether newly started or attached to an in-flight job.)
+  (Same body whether newly started or attached to an in-flight job. Attach vs. start is decided by a **synchronous** registry check-then-insert keyed on `(languageId, book, series, mode)`; no `await` may run between the "no live job" check and the placeholder insert, or two concurrent starts race — see data-model "Dedup atomicity", FR-010.)
 - `409 Conflict` / `422 Unprocessable` — `{ "status": "failed", "reason": string, "missing"?: string[] }`
   When the quarter is incomplete at request time (missing TOC or lesson(s)) — `reason` names the missing lesson(s) (US4-1, FR-006). _(May alternatively be surfaced as a `failed` status on first poll; see note.)_
+- `429 Too Many Requests` — `{ "status": "failed", "reason": string }`
+  When the in-memory job registry is at its **max live-job / queue-depth cap** (resource-bounding — see plan "Performance & Resource Bounds"). `reason` is a fixed "server busy, retry shortly" message; the client may retry after a short delay. Prevents an accidental burst of distinct-key requests from growing the queue and tmp-dir footprint without bound.
 - `404 Not Found` — unknown language / book / series.
-- `400 Bad Request` — invalid `mode`.
+- `400 Bad Request` — invalid `mode`, **or invalid `:book`** (must be `Luke` | `Acts` — validated against the `Book` union, not trusted from the URL).
+
+**`reason` hygiene (all failure responses)**: `reason` is always drawn from a fixed vocabulary (e.g. `"missing constituent: Luke Q1 L6"`, `"a lesson failed to generate: Luke Q1 L3"`, `"assembly timed out"`, `"assembly failed (internal)"`, `"server busy, retry shortly"`). It MUST NEVER contain raw `soffice` stderr, a Node error stack, or absolute server paths — raw detail is logged server-side only (plan "Error Handling & Failure Modes").
 
 **Note**: Completeness may be checked synchronously at start (returning the block immediately) **or** reported as a `failed` job on first poll. Implementation picks one and is consistent; the acceptance spec asserts the operator sees a naming message and no file either way.
 
@@ -70,7 +74,7 @@ GET /api/assembly/:jobId/download
   - `Content-Disposition: attachment; filename="<Language>_<Book>-Q<series>-<mode>.odt"`
     (filename consistent with `documentName()` conventions; mode disambiguated).
 - `409 Conflict` — job exists but `status` is not `ready` (still `queued`/`running`, or `failed`) — no partial file is ever served (FR-006/FR-009).
-- `404 Not Found` — unknown/expired job id.
+- `404 Not Found` — unknown/expired job id, **or a `ready` job whose result file has already been pruned by the 24 h `docStorage` cleanup**. The handler MUST `stat` `resultPath` before streaming and return `404` (not a 500/stream error) when it is gone; the client maps `404` to "expired — re-request" (FR-011). The status poll (§2/§3) likewise reports `404` for a `ready` job whose file is missing, so the UI prompts a fresh assemble rather than offering a dead download.
 
 ---
 

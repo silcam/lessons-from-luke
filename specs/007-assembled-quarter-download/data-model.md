@@ -81,8 +81,11 @@ The transient unit of work (glossary: **Assembly job**).
 ```
 
 - **Attach (FR-010)**: `start` on a key with an existing `queued`/`running` job returns that job — no new job, no redundant work.
+- **Dedup atomicity (FR-010 — red-team)**: `startOrAttach(key)` MUST perform its check-then-insert **synchronously, before any `await`**: on a cache miss it inserts a `queued` placeholder for the key and only _then_ yields to async work (completeness check, generation, merge). If an `await` (e.g. `storage.lessons()`) runs between the "no live job" check and the insert, two concurrent starts (double-click / two operators) both observe "no job" and both start a full assembly — redundant `soffice` work + duplicate profiles. Node's single-threaded loop makes a purely synchronous check-then-insert atomic.
 - **Block before running (FR-006/US4)**: completeness validation runs at the _start_ of `running`; a missing/failing constituent transitions directly to `failed` with a naming reason and **no** `resultPath`.
 - **Interruption (FR-011)**: process restart drops all jobs; not persisted. Operator re-requests.
+- **Terminal-entry eviction (red-team)**: `ready`/`failed` entries are NOT resident forever. The registry evicts a terminal entry on a TTL aligned with the `docStorage` 24 h cleanup window, and drops a `ready` entry as soon as its `resultPath` is found missing (the file having been pruned by `cleanTmpDir`). Without this, a long-lived process accumulates one resident entry per distinct key ever requested — an unbounded memory leak with no adversary involved.
+- **Queue-depth cap (red-team)**: the registry enforces a maximum number of live (`queued` + `running`) jobs. `startOrAttach` rejects (surfaced as `429`, contract §1) when the cap is exceeded, rather than growing the `queued` backlog and tmp-dir footprint without bound.
 
 ### AssemblyJobRegistry (in-memory, server-only)
 
@@ -120,13 +123,16 @@ TOC first, then lessons ascending by absolute number — consistent with `lesson
 
 ## Validation rules summary
 
-| Rule                                                | Source               | Enforced in                                             |
-| --------------------------------------------------- | -------------------- | ------------------------------------------------------- |
-| All 14 constituents exist                           | FR-006, US4-1        | completeness check (pre-merge)                          |
-| Each constituent generates without error            | FR-006, US4-2        | completeness/generation check                           |
-| No stricter translation bar than per-lesson         | FR-005               | reuse `makeLessonFile` unchanged                        |
-| Output fully editable (0 protected / 0 linked)      | FR-002               | soffice merge (spike-confirmed) + integration assertion |
-| Continuous numbering + first-page suppression       | FR-003               | soffice merge + `PAGE_BEFORE` break (spike-confirmed)   |
-| Footer Quarter/Lesson numbers present               | FR-004               | `flattenFooterFields` pre-process                       |
-| One live job per `(languageId, book, series, mode)` | FR-010               | registry dedup                                          |
-| No partial book ever delivered                      | FR-006/FR-009/FR-011 | `failed` carries no `resultPath`                        |
+| Rule                                                        | Source               | Enforced in                                                                                                                                                                              |
+| ----------------------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| All 14 constituents exist                                   | FR-006, US4-1        | completeness check (pre-merge)                                                                                                                                                           |
+| Each constituent generates without error                    | FR-006, US4-2        | completeness/generation check                                                                                                                                                            |
+| No stricter translation bar than per-lesson                 | FR-005               | reuse `makeLessonFile` unchanged                                                                                                                                                         |
+| Output fully editable (0 protected / 0 linked)              | FR-002               | soffice merge (spike-confirmed) + integration assertion                                                                                                                                  |
+| Continuous numbering + first-page suppression               | FR-003               | soffice merge + `PAGE_BEFORE` break (spike-confirmed)                                                                                                                                    |
+| Footer Quarter/Lesson numbers present                       | FR-004               | `flattenFooterFields` pre-process                                                                                                                                                        |
+| Flattened footer values XML-escaped; missing prop tolerated | FR-004 (red-team)    | `flattenFooterFields` escapes `& < >` and falls back (derive from `series`/`lesson`) when the `meta.xml` custom property is absent/empty — else malformed `styles.xml` or a blank footer |
+| One live job per `(languageId, book, series, mode)`         | FR-010               | registry dedup (synchronous check-then-insert — see "Dedup atomicity")                                                                                                                   |
+| No partial book ever delivered                              | FR-006/FR-009/FR-011 | `failed` carries no `resultPath`                                                                                                                                                         |
+| Live-job count within cap; terminal entries evicted         | red-team             | registry queue-depth cap (`429`) + TTL/pruned-file eviction                                                                                                                              |
+| Failure `reason` is fixed-vocabulary (no raw stderr/paths)  | FR-009 (red-team)    | curated message; raw detail logged server-side only                                                                                                                                      |
