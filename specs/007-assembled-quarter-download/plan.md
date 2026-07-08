@@ -54,11 +54,11 @@ Automate what is today a manual LibreOffice master-document workflow: from the l
 
 ### UI Decisions
 
-| Screen / Component                                                                                                  | User Story     | Approach                                                                                                                                                                                                    | Design Skills                                                                                                               |
-| ------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Per-quarter "Assemble quarter" control cluster on `LanguageView` (Bilingual \| Single-Language), grouped per series | US1, US2, US12 | Extend `LanguageView.tsx`: add a per-quarter row/section above or beside the per-lesson table, offering Bilingual and Single-Language assemble actions consistent with existing `GetDocumentButton` styling | `/design-language-to-daisyui` (n/a — this app uses base-components/styled-components, so `/impeccable` + DESIGN.md instead) |
-| "Assembling…" in-progress indicator (indeterminate)                                                                 | US3            | Indeterminate status text/affordance driven by a polling hook; queued/running → "Assembling…", ready → auto-download or "Download" affordance, failed → human-readable reason                               | `/design-clarify` (status + error microcopy), `/design-onboard` (first-run empty/blocked state)                             |
-| Blocked / failed message (names missing or failing lesson(s))                                                       | US4            | Inline human-readable message rendered in place of the progress affordance; identifies missing/failing lesson(s); offers retry (re-trigger)                                                                 | `/design-clarify` (error/blocked copy)                                                                                      |
+| Screen / Component                                                                                                  | User Story    | Approach                                                                                                                                                                                                    | Design Skills                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Per-quarter "Assemble quarter" control cluster on `LanguageView` (Bilingual \| Single-Language), grouped per series | US1, US2, US4 | Extend `LanguageView.tsx`: add a per-quarter row/section above or beside the per-lesson table, offering Bilingual and Single-Language assemble actions consistent with existing `GetDocumentButton` styling | `/design-language-to-daisyui` (n/a — this app uses base-components/styled-components, so `/impeccable` + DESIGN.md instead) |
+| "Assembling…" in-progress indicator (indeterminate)                                                                 | US3           | Indeterminate status text/affordance driven by a polling hook; queued/running → "Assembling…", ready → auto-download or "Download" affordance, failed → human-readable reason                               | `/design-clarify` (status + error microcopy), `/design-onboard` (first-run empty/blocked state)                             |
+| Blocked / failed message (names missing or failing lesson(s))                                                       | US4           | Inline human-readable message rendered in place of the progress affordance; identifies missing/failing lesson(s); offers retry (re-trigger)                                                                 | `/design-clarify` (error/blocked copy)                                                                                      |
 
 ### Quality Pass
 
@@ -145,10 +145,10 @@ cypress/integration/
 
 | User Story                                         | Acceptance Spec File                                            | Scenarios |
 | -------------------------------------------------- | --------------------------------------------------------------- | --------- |
-| US1: Assemble and download a complete quarter book | `specs/acceptance-specs/US01-assemble-and-download-quarter.txt` | 3         |
-| US2: Choose bilingual or single-language output    | `specs/acceptance-specs/US02-bilingual-or-single-language.txt`  | 3         |
-| US3: See progress and receive the finished file    | `specs/acceptance-specs/US03-progress-and-delivery.txt`         | 3         |
-| US4: Blocked when the quarter is incomplete        | `specs/acceptance-specs/US04-blocked-incomplete-quarter.txt`    | 2         |
+| US1: Assemble and download a complete quarter book | `specs/acceptance-specs/US09-assemble-and-download-quarter.txt` | 3         |
+| US2: Choose bilingual or single-language output    | `specs/acceptance-specs/US10-bilingual-or-single-language.txt`  | 3         |
+| US3: See progress and receive the finished file    | `specs/acceptance-specs/US11-progress-and-delivery.txt`         | 3         |
+| US4: Blocked when the quarter is incomplete        | `specs/acceptance-specs/US12-blocked-incomplete-quarter.txt`    | 2         |
 
 **Pipeline**: `specs/acceptance-specs/*.txt` → `acceptance/parse-specs.ts` → `acceptance/generate-tests.ts` → `generated-acceptance-tests/*.spec.ts`
 
