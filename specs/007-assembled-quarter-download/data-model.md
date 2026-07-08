@@ -89,6 +89,8 @@ The transient unit of work (glossary: **Assembly job**).
 
 ### AssemblyJobRegistry (in-memory, server-only)
 
+> **Process-scoping assumption (Pass 3 finding — HIGH).** This registry, the concurrency-1 soffice gate, and the queue-depth cap are **per-process** state and are correct **only under a single app worker**. Production runs under Passenger, whose default pool scales to multiple worker processes (no `passenger_max_pool_size` pin exists today). Under >1 worker each has its own registry, which breaks FR-010 dedup (two workers → two full assemblies for one key), the concurrency-1 _resource_ serializer (N simultaneous merges — the isolated per-job profile prevents corruption but not simultaneity), the cap (per-worker → N× the intended ceiling), and poll-by-key (may hit a worker that never held the job → spurious `404`). This is the **first** server state whose correctness depends on process affinity — every other shared server state lives in Postgres (`getAuthPool()` / better-auth sessions) precisely to survive multiple workers. **Resolution (in-scope; durable/queued infra is a spec non-goal):** pin Passenger to a single app process (`passenger_max_pool_size 1` + `passenger_min_instances 1`) and treat it as a **required operational deploy constraint** (enforcement lives in Passenger/Capistrano config, not application code). See plan.md "Deployment Topology".
+
 Responsibilities (no domain data; not in `Persistence`):
 
 - `startOrAttach(key, mode) → AssemblyJob` — dedup by `AssemblyJobKey`.
@@ -96,7 +98,7 @@ Responsibilities (no domain data; not in `Persistence`):
 - Serializes the soffice merge step (**concurrency 1**); additional distinct-key jobs sit in `queued`.
 - Enforces per-job hard timeout + soffice kill → `failed`. **The timeout clock starts at run-start (slot acquisition), not at enqueue (Pass 2 finding D):** with concurrency-1 plus the queue-depth cap, jobs can legitimately sit `queued` behind ~40 s of prior work; timing from enqueue would spuriously `fail` a job before it ever ran. Queued wait is bounded by the queue-depth cap (admission control), not by timing out already-admitted jobs.
 - **Marks `ready` only after verifying a non-empty result (Pass 2 finding F):** after the soffice run, `stat` the result path and require non-zero size (and a valid ODT mimetype-first entry) before `running → ready`; a truncated/zero-byte `storeToURL` output (disk-full, partial write) transitions to `failed` (`"assembly failed (internal)"`) rather than handing the operator a corrupt download.
-- Owns per-job `mktemp` profile lifecycle (create → cleanup on completion/crash).
+- Owns per-job working-dir + profile lifecycle. **Working dirs live under a single known dedicated root, not a bare `mktemp -d`, and are swept on startup (Pass 3 finding — MEDIUM):** each job's constituents, flattened copies, and soffice profile live under `<docStorage>/assembly-work/<jobId>/` (still isolated per job — preserves Pass 2 finding B's collision fix). They are `rm -rf`'d eagerly on completion/caught-crash **and** the whole `assembly-work/` root is swept on registry init at server startup, because the eager cleanup never runs on abrupt death (SIGKILL / OOM / `custom:restart_passenger`, which fires on **every** Capistrano deploy). Without the startup sweep these orphans have **no app-controlled cleanup path** (they sit outside the `docStorage` 24 h `cleanTmpDir` sweep by Pass 2's design, and OS tmp policy is not guaranteed / does not apply to an app-local root).
 
 ---
 
