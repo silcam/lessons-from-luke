@@ -103,7 +103,7 @@ export default function LanguageView(props: IProps) {
               <tr key={`${book}-${series}`}>
                 <td>{`${t(book)} ${series}`}</td>
                 <td>
-                  {"Assemble Quarter"}
+                  {t("Assemble_quarter")}
                   {":  "}
                   <AssembleQuarterButton
                     language={props.language}

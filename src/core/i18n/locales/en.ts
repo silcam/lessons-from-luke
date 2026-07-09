@@ -63,6 +63,7 @@ const en = {
   Unsaved_changes: "Unsaved Changes",
   Changes_saved: "Changes Saved",
   Download: "Download",
+  Assemble_quarter: "Assemble Quarter",
   Enter_your_code: "Enter the code you were given:",
   Language: "Language",
   Online: "Online",
