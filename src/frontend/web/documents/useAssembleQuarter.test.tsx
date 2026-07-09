@@ -150,4 +150,30 @@ describe("useAssembleQuarter", () => {
       reason: "missing constituent: Luke Q1 L6",
     });
   });
+
+  it("surfaces the reason from a POST 409 (quarter incomplete) without polling", async () => {
+    mockedAxios.post.mockRejectedValue({
+      response: {
+        status: 409,
+        data: {
+          status: "failed",
+          reason: "missing constituent: Luke 1-TOC, Luke 1-6",
+          missing: ["Luke 1-TOC", "Luke 1-6"],
+        },
+      },
+    });
+
+    const { result } = renderHook(() => useAssembleQuarter(language, BOOK, SERIES, "bilingual"));
+
+    await act(async () => {
+      result.current.start();
+      await Promise.resolve();
+    });
+
+    expect(result.current.status).toEqual({
+      tag: "failed",
+      reason: "missing constituent: Luke 1-TOC, Luke 1-6",
+    });
+    expect(mockedAxios.get).not.toHaveBeenCalled();
+  });
 });

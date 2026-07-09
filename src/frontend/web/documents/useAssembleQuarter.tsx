@@ -120,11 +120,42 @@ export default function useAssembleQuarter(
         // this, a same-tick-resolving job would jump straight from click to
         // "ready", and a screen-reader user would hear no progress at all.
         setTimeout(() => void poll(), 0);
-      } catch {
-        setStatus({ tag: "failed", reason: GENERIC_FAILURE_REASON });
+      } catch (err) {
+        // A synchronous 409/422 on the initial POST (quarter incomplete —
+        // contract §1) never reaches the poll loop, so its curated `reason`
+        // (naming the missing lesson(s), US4-1/FR-006) must be pulled from
+        // the error response here rather than falling back to the generic
+        // message. Any other failure shape (network error, no response
+        // body) keeps the generic fallback.
+        const reason = extractErrorResponseReason(err);
+        setStatus({ tag: "failed", reason: reason ?? GENERIC_FAILURE_REASON });
       }
     })();
   }, [basePath, mode, poll, stopPolling]);
 
   return { status, start };
+}
+
+/**
+ * Pulls the curated `reason` string out of an Axios error's response body,
+ * if present — duck-typed (rather than `Axios.isAxiosError`) so it works
+ * against both a real Axios error and a plain `{ response: { data } }`
+ * object in tests. Returns `undefined` for any other failure shape (network
+ * error, no response body, non-string `reason`), so the caller's generic
+ * fallback still applies.
+ */
+function extractErrorResponseReason(err: unknown): string | undefined {
+  if (typeof err !== "object" || err === null || !("response" in err)) {
+    return undefined;
+  }
+  const response = (err as { response?: unknown }).response;
+  if (typeof response !== "object" || response === null || !("data" in response)) {
+    return undefined;
+  }
+  const data = (response as { data?: unknown }).data;
+  if (typeof data !== "object" || data === null || !("reason" in data)) {
+    return undefined;
+  }
+  const reason = (data as { reason?: unknown }).reason;
+  return typeof reason === "string" ? reason : undefined;
 }

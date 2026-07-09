@@ -118,3 +118,37 @@ describe("Assemble Quarter (US3)", () => {
     });
   });
 });
+
+// US4 (specs/007-assembled-quarter-download/spec.md "User Story 4"): the
+// quarter-completeness gate blocks assembly for an incomplete quarter with a
+// message naming the missing lesson(s) and a retry control. Unlike the US3
+// spec above, this exercises the REAL backend completeness check (no
+// cy.intercept on the assembly POST) against `test/fixtures-0.json`'s series
+// 1 — which only has lessons 1-5 (no TOC, no lessons 6-13) — rather than a
+// stubbed lifecycle, so it also covers the frontend's POST-409
+// reason-surfacing path (see useAssembleQuarter.tsx).
+describe("Assemble Quarter — blocked on incomplete quarter (US4)", () => {
+  beforeEach(cy.login);
+
+  it("blocks assembly of the real incomplete series-1 quarter, naming the missing lesson(s), with a retry control", () => {
+    cy.visit("/");
+    cy.contains("button", "Français").click();
+
+    cy.contains("tr", "Luke 1").within(() => {
+      cy.contains("button", "Bilingual").click();
+    });
+
+    // No download: the failure message is shown in place of the
+    // "Assembling…" progress region, naming the missing constituents
+    // (series 1 has no TOC and is missing lessons 6-13).
+    cy.contains("Luke 1-TOC").should("exist");
+    cy.contains("Luke 1-6").should("exist");
+
+    // Retry control: the same "Bilingual" button remains present and
+    // clickable (re-invokes start()) rather than being replaced or
+    // permanently disabled.
+    cy.contains("tr", "Luke 1").within(() => {
+      cy.contains("button", "Bilingual").should("not.be.disabled");
+    });
+  });
+});
