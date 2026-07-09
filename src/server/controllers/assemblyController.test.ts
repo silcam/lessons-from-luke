@@ -22,8 +22,12 @@ import request from "supertest";
 import assemblyController from "./assemblyController";
 import { Persistence } from "../../core/interfaces/Persistence";
 import { Language, ENGLISH_ID } from "../../core/models/Language";
-import { BaseLesson, TOC_LESSON } from "../../core/models/Lesson";
-import { AssemblyJobRegistry, AssemblyJob } from "../assembly/AssemblyJobRegistry";
+import { BaseLesson, Lesson, TOC_LESSON } from "../../core/models/Lesson";
+import { AssemblyJobRegistry, AssemblyJob, AssemblyJobKey } from "../assembly/AssemblyJobRegistry";
+import assembleQuarter from "../actions/assembleQuarter";
+
+jest.mock("../actions/assembleQuarter");
+const mockAssembleQuarter = assembleQuarter as jest.MockedFunction<typeof assembleQuarter>;
 
 const LANGUAGE_ID = ENGLISH_ID;
 const BOOK = "Luke";
@@ -397,5 +401,216 @@ describe("GET /api/assembly/:jobId/download", () => {
     const res = await request(app).get("/api/assembly/job-1/download");
 
     expect(res.status).toBe(404);
+  });
+});
+
+/**
+ * US2/US10 acceptance verification (lessons-from-luke-koog.6.3.5,
+ * specs/acceptance-specs/US10-bilingual-or-single-language.txt): the three
+ * scenarios end-to-end. Scenarios 1-2 exercise `makeRunner`'s
+ * `mode` -> `majorityLangId` derivation (captured off `startOrAttach`'s
+ * second argument and invoked directly, `assembleQuarter` mocked so the
+ * real `soffice` merge never runs) for parity with `documentsController`'s
+ * existing per-lesson default
+ * (`language.motherTongue ? language.defaultSrcLang : language.languageId`
+ * for bilingual, `0` for single-language). Scenario 3 confirms the
+ * completeness gate the POST route enforces (`isCompleteQuarter`) is
+ * constituent-EXISTENCE-only: a quarter whose lessons carry untranslated
+ * strings is never blocked, and every constituent is still handed to
+ * `assembleQuarter` unfiltered — the actual partial-translation fallback is
+ * `makeLessonFile`'s (reused unchanged, covered elsewhere; not re-tested
+ * here).
+ */
+describe("US2/US10 acceptance: bilingual/single-language mode parity + no per-string completeness gate", () => {
+  const ACCEPTANCE_BOOK = "Luke";
+  const ACCEPTANCE_SERIES = 3;
+
+  function fullQuarterLessons(): BaseLesson[] {
+    // `isCompleteQuarter` expects the ABSOLUTE lesson numbers for this
+    // series (e.g. series 3 -> 27..39), not 1..13 — see
+    // core/models/Quarter.ts `expectedLessonNumbers`.
+    const first = (ACCEPTANCE_SERIES - 1) * 13 + 1;
+    const lessons: BaseLesson[] = [];
+    for (let i = 0; i < 13; i++) {
+      const lessonNumber = first + i;
+      lessons.push({
+        lessonId: lessonNumber,
+        book: ACCEPTANCE_BOOK,
+        series: ACCEPTANCE_SERIES,
+        lesson: lessonNumber,
+        version: 1,
+      });
+    }
+    lessons.push({
+      lessonId: 9999,
+      book: ACCEPTANCE_BOOK,
+      series: ACCEPTANCE_SERIES,
+      lesson: TOC_LESSON,
+      version: 1,
+    });
+    return lessons;
+  }
+
+  /**
+   * One `lessonStrings` entry with no mother-tongue counterpart yet — an
+   * untranslated string. This layer (the controller/runner) never inspects
+   * `motherTongue`; the existing per-lesson fallback inside `makeLessonFile`
+   * (reused unchanged) is what actually resolves it. Asserting every
+   * constituent still reaches `assembleQuarter` unfiltered, regardless of
+   * translation state, is scenario 3's "no stricter completeness bar".
+   */
+  function partiallyTranslatedLesson(baseLesson: BaseLesson): Lesson {
+    return {
+      ...baseLesson,
+      lessonStrings: [
+        {
+          lessonStringId: baseLesson.lessonId * 10 + 1,
+          masterId: baseLesson.lessonId * 10 + 1,
+          lessonId: baseLesson.lessonId,
+          lessonVersion: 1,
+          type: "content",
+          xpath: "/translated",
+          motherTongue: true,
+        },
+        {
+          lessonStringId: baseLesson.lessonId * 10 + 2,
+          masterId: baseLesson.lessonId * 10 + 2,
+          lessonId: baseLesson.lessonId,
+          lessonVersion: 1,
+          type: "content",
+          xpath: "/untranslated",
+          motherTongue: false,
+        },
+      ],
+    };
+  }
+
+  function makeFullStorage(language: Language): Persistence {
+    const lessons = fullQuarterLessons();
+    return {
+      language: jest.fn(async () => language),
+      lessons: jest.fn(async () => lessons),
+      lesson: jest.fn(async (id: number) => {
+        const base = lessons.find((lsn) => lsn.lessonId === id);
+        return base ? partiallyTranslatedLesson(base) : null;
+      }),
+    } as unknown as Persistence;
+  }
+
+  /**
+   * Starts a job via the real controller, captures the runner `makeRunner`
+   * built, then invokes it (with `assembleQuarter` mocked) so the
+   * mode -> majorityLangId derivation and constituent pass-through actually
+   * run, exactly as they would in production.
+   */
+  async function startAndRunJob(
+    storage: Persistence,
+    mode: "bilingual" | "single-language",
+    languageId: number
+  ): Promise<void> {
+    const key: AssemblyJobKey = {
+      languageId,
+      book: ACCEPTANCE_BOOK,
+      series: ACCEPTANCE_SERIES,
+      mode,
+    };
+    const job: AssemblyJob = {
+      jobId: "acceptance-job",
+      key,
+      status: { tag: "queued" },
+      createdAt: Date.now(),
+    };
+    let capturedRunner: (() => Promise<string>) | undefined;
+    const registry = makeRegistry({
+      startOrAttach: jest.fn((_key: AssemblyJobKey, runner: () => Promise<string>) => {
+        capturedRunner = runner;
+        return { outcome: "started", job };
+      }),
+      getByKey: jest.fn(() => job),
+    });
+    const app = buildApp(storage, registry);
+
+    const res = await request(app)
+      .post(
+        `/api/languages/${languageId}/quarters/${ACCEPTANCE_BOOK}/${ACCEPTANCE_SERIES}/assembly`
+      )
+      .send({ mode });
+
+    // Scenario 3: a quarter with untranslated strings still starts — never
+    // blocked by a stricter completeness bar than the per-lesson download.
+    expect(res.status).toBe(202);
+    expect(capturedRunner).toBeDefined();
+    await capturedRunner!();
+  }
+
+  beforeEach(() => {
+    mockAssembleQuarter.mockReset();
+    mockAssembleQuarter.mockResolvedValue("/tmp/assembled.odt");
+  });
+
+  it("scenario 1: bilingual + mother-tongue language resolves majorityLangId to defaultSrcLang, matching the per-lesson default", async () => {
+    const language: Language = {
+      languageId: ENGLISH_ID,
+      name: "English",
+      code: "en",
+      motherTongue: true,
+      progress: [],
+      defaultSrcLang: 7,
+    };
+    await startAndRunJob(makeFullStorage(language), "bilingual", language.languageId);
+
+    expect(mockAssembleQuarter).toHaveBeenCalledTimes(1);
+    expect(mockAssembleQuarter.mock.calls[0][0].majorityLangId).toBe(7);
+  });
+
+  it("scenario 1: bilingual + non-mother-tongue language resolves majorityLangId to the language's own id, matching the per-lesson default", async () => {
+    const language: Language = {
+      languageId: 42,
+      name: "Test",
+      code: "tst",
+      motherTongue: false,
+      progress: [],
+      defaultSrcLang: 1,
+    };
+    await startAndRunJob(makeFullStorage(language), "bilingual", language.languageId);
+
+    expect(mockAssembleQuarter).toHaveBeenCalledTimes(1);
+    expect(mockAssembleQuarter.mock.calls[0][0].majorityLangId).toBe(42);
+  });
+
+  it("scenario 2: single-language resolves majorityLangId to 0 regardless of motherTongue, matching the per-lesson single-language download", async () => {
+    const language: Language = {
+      languageId: ENGLISH_ID,
+      name: "English",
+      code: "en",
+      motherTongue: true,
+      progress: [],
+      defaultSrcLang: 7,
+    };
+    await startAndRunJob(makeFullStorage(language), "single-language", language.languageId);
+
+    expect(mockAssembleQuarter).toHaveBeenCalledTimes(1);
+    expect(mockAssembleQuarter.mock.calls[0][0].majorityLangId).toBe(0);
+  });
+
+  it("scenario 3: a quarter with untranslated strings assembles in either mode, passing every constituent through unfiltered", async () => {
+    const language: Language = {
+      languageId: 42,
+      name: "Test",
+      code: "tst",
+      motherTongue: false,
+      progress: [],
+      defaultSrcLang: 1,
+    };
+    const storage = makeFullStorage(language);
+
+    await startAndRunJob(storage, "bilingual", language.languageId);
+    await startAndRunJob(storage, "single-language", language.languageId);
+
+    expect(mockAssembleQuarter).toHaveBeenCalledTimes(2);
+    for (const call of mockAssembleQuarter.mock.calls) {
+      expect(call[0].lessons).toHaveLength(14);
+      expect(call[0].lessons.every((lsn: Lesson) => lsn.lessonStrings.length === 2)).toBe(true);
+    }
   });
 });
