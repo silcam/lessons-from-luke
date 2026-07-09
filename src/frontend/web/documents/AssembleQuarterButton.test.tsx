@@ -138,6 +138,47 @@ describe("AssembleQuarterButton", () => {
     });
   });
 
+  it("moves focus to the failure message and offers a working retry control when the job fails (US4, RED)", async () => {
+    mockedAxios.post.mockResolvedValueOnce({ data: { jobId: "job-1", status: "queued" } });
+    mockedAxios.get.mockResolvedValueOnce({
+      data: { jobId: "job-1", status: "failed", reason: "missing constituent: Luke Q1 L6" },
+    });
+
+    const { getByText } = render(
+      <AssembleQuarterButton
+        language={language}
+        book="Luke"
+        series={1}
+        mode="bilingual"
+        text="Assemble Quarter 1"
+      />
+    );
+
+    fireEvent.click(getByText("Assemble Quarter 1"));
+
+    await waitFor(() => {
+      expect(getByText(/missing constituent: Luke Q1 L6/)).toBeTruthy();
+    });
+
+    // The failure reason must be reliably discoverable without a visual
+    // scan (spec: "on transition to failed, move focus to (or otherwise
+    // reliably announce) the error message"): focus moves to the message
+    // once the job transitions to failed.
+    await waitFor(() => {
+      const message = getByText(/missing constituent: Luke Q1 L6/);
+      expect(document.activeElement).toBe(message);
+    });
+
+    // Retry re-triggers assembly via the normal start action (a fresh
+    // POST to the same endpoint) — no special client logic beyond that.
+    mockedAxios.post.mockResolvedValueOnce({ data: { jobId: "job-2", status: "queued" } });
+    fireEvent.click(getByText("Assemble Quarter 1"));
+
+    await waitFor(() => {
+      expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+    });
+  });
+
   it("downloads via file-saver once the job is ready", async () => {
     mockedAxios.post.mockResolvedValue({ data: { jobId: "job-1", status: "queued" } });
     mockedAxios.get.mockResolvedValueOnce({ data: { jobId: "job-1", status: "ready" } });
