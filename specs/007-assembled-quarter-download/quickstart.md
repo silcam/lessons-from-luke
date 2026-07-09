@@ -59,6 +59,42 @@ yarn test:integration -t AssembleQuarter
 # assembleQuarter.integration.test.ts — 6 passed (real soffice, real .odt assembly)
 ```
 
+## US4 verification log (blocked incomplete quarter, 6.5.7)
+
+Closed out both `specs/acceptance-specs/US12-blocked-incomplete-quarter.txt` scenarios against a
+live `dev-web`/Cypress run plus the existing unit coverage (dev ports were free for this run,
+unlike 6.4.7):
+
+- **Scenario 1 — incomplete quarter blocks, message names the missing lesson(s)** —
+  `cypress/integration/assembleQuarter.spec.js` ("blocks assembly of the real incomplete series-1
+  quarter, naming the missing lesson(s), with a retry control") exercises the **real** backend
+  completeness check (no stubbed POST) against `test/fixtures-0.json`'s series 1 (lessons 1-5 only,
+  no TOC). Assembly `POST` returns `409`; no download fires; the UI names `Luke 1-TOC` and
+  `Luke 1-6` as missing; the `Bilingual` button remains present and un-disabled as the retry
+  control. Authored in 6.5.6 (commit `2c16df2`).
+- **Scenario 2 — mid-run generation failure ends in a retryable failed state** —
+  `src/server/actions/assembleQuarter.test.ts` ("a constituent that throws during generation
+  rejects with a curated reason naming that lesson", "the rejected reason never leaks a stack
+  trace or a filesystem path") asserts the soffice merge is never invoked once a constituent fails
+  (`sofficeAssembleMock` not called — no partial file offered) and the rejection carries a curated,
+  human-readable reason naming the failing lesson without leaking raw paths/stack traces.
+  `src/frontend/web/documents/AssembleQuarterButton.test.tsx` ("moves focus to the failure message
+  and offers a working retry control when the job fails") confirms the failed-state UI surfaces the
+  reason, moves focus to it, and the same control re-triggers `start()` to retry. Authored in
+  6.5.4/6.5.5 (commits `b302d8e`, `b9a0f63`).
+
+Re-ran on 2026-07-09 as evidence for this close:
+
+```
+npx jest src/server/actions/assembleQuarter.test.ts src/server/assembly/AssemblyJobRegistry.test.ts \
+  src/frontend/web/documents/useAssembleQuarter.test.tsx src/frontend/web/documents/AssembleQuarterButton.test.tsx \
+  --runInBand
+# 4 suites, 36 tests passed
+
+yarn test-e2e -- --spec cypress/integration/assembleQuarter.spec.js
+# 3 passing, including the real-backend US4 blocked-quarter case
+```
+
 ## Spike reference (proven mechanism)
 
 The invocation to productionize lives in `spike/`:
