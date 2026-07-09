@@ -90,7 +90,17 @@ export default function useAssembleQuarter(
         setStatus({ tag: data.status });
       } else if (data.status === "ready") {
         stopPolling();
-        await downloadAndFinish();
+        // Deliberately outside the try/catch above's scope of concern: once
+        // the job is confirmed `ready`, a failure here (network drop, "result
+        // expired" 404, etc.) is a real, user-visible failure — not a
+        // transient poll hiccup — so it must not be swallowed by the generic
+        // catch below (see lessons-from-luke-koog.10).
+        try {
+          await downloadAndFinish();
+        } catch (err) {
+          const reason = extractErrorResponseReason(err);
+          setStatus({ tag: "failed", reason: reason ?? GENERIC_FAILURE_REASON });
+        }
       } else {
         stopPolling();
         setStatus({ tag: "failed", reason: data.reason ?? GENERIC_FAILURE_REASON });

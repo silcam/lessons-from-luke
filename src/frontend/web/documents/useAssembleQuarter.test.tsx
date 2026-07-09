@@ -151,6 +151,28 @@ describe("useAssembleQuarter", () => {
     });
   });
 
+  it("surfaces a failed status when the download itself fails after a ready poll", async () => {
+    mockedAxios.post.mockResolvedValue({ data: { jobId: "job-1", status: "queued" } });
+    mockedAxios.get.mockResolvedValueOnce({ data: { jobId: "job-1", status: "ready" } });
+    mockedAxios.get.mockRejectedValueOnce(new Error("network error"));
+
+    const { result } = renderHook(() => useAssembleQuarter(language, BOOK, SERIES, "bilingual"));
+
+    await act(async () => {
+      result.current.start();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(result.current.status.tag).toBe("failed");
+    expect(mockedSaveAs).not.toHaveBeenCalled();
+  });
+
   it("surfaces the reason from a POST 409 (quarter incomplete) without polling", async () => {
     mockedAxios.post.mockRejectedValue({
       response: {
