@@ -20,10 +20,8 @@ import { AssemblyMode } from "../assembly/AssemblyJobRegistry";
  * completeness bar than the existing per-lesson partial-translation
  * fallback).
  *
- * NOT YET IMPLEMENTED — stub for RED task lessons-from-luke-koog.6.3.2; real
- * implementation (+ reuse-wiring into both controllers) lands in
- * lessons-from-luke-koog.6.3.3.
  */
-export default function deriveMajorityLanguageId(_mode: AssemblyMode, _language: Language): number {
-  throw new Error("not implemented");
+export default function deriveMajorityLanguageId(mode: AssemblyMode, language: Language): number {
+  if (mode === "single-language") return 0;
+  return language.motherTongue ? language.defaultSrcLang : language.languageId;
 }

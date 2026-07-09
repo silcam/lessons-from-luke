@@ -11,6 +11,7 @@ import {
 } from "../assembly/AssemblyJobRegistry";
 import { requireSameOrigin } from "../middle/requireSameOrigin";
 import assembleQuarter from "../actions/assembleQuarter";
+import deriveMajorityLanguageId from "../actions/deriveMajorityLanguageId";
 
 /**
  * assemblyController — start/status/download endpoints for the assembled
@@ -30,11 +31,11 @@ import assembleQuarter from "../actions/assembleQuarter";
  * The completeness gate here is the cheap EXISTENCE-only check
  * (`missingQuarterParts`); the fuller generation-time gate (a constituent
  * that throws during `makeLessonFile`) and the curated failure-reason
- * vocabulary land with US4 (lessons-from-luke-koog.6.5.2/.3). Likewise the
- * `mode` → majority-language derivation below mirrors the existing
- * per-lesson-download rule (`documentsController.ts`) as a placeholder;
- * partial-translation fallback parity is US2's job
- * (lessons-from-luke-koog.6.3.2/.3).
+ * vocabulary land with US4 (lessons-from-luke-koog.6.5.2/.3). The `mode` →
+ * majority-language derivation is delegated to `deriveMajorityLanguageId`
+ * (the single source of truth shared with `documentsController.ts`'s
+ * per-lesson-download rule) — see that module's doc comment for the full
+ * contract.
  */
 export interface AssemblyControllerOptions {
   /** In-memory, process-scoped job registry (FR-011). */
@@ -129,12 +130,7 @@ function makeRunner(
       if (fullLesson) lessons.push(fullLesson);
     }
 
-    const majorityLangId =
-      key.mode === "single-language"
-        ? 0
-        : motherLang.motherTongue
-          ? motherLang.defaultSrcLang
-          : motherLang.languageId;
+    const majorityLangId = deriveMajorityLanguageId(key.mode, motherLang);
 
     return assembleQuarter({
       storage,
