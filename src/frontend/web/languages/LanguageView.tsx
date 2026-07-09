@@ -18,6 +18,21 @@ import SelectInput from "../../common/base-components/SelectInput";
 import Label from "../../common/base-components/Label";
 import { pushLanguageUpdate } from "../../common/state/languageSlice";
 import { usePush } from "../../common/api/useLoad";
+import AssembleQuarterButton from "../documents/AssembleQuarterButton";
+import { BaseLesson } from "../../../core/models/Lesson";
+
+/** One row per distinct (book, series) pair, in first-seen order. */
+function quarters(lessons: BaseLesson[]): Pick<BaseLesson, "book" | "series">[] {
+  const seen = new Set<string>();
+  const result: Pick<BaseLesson, "book" | "series">[] = [];
+  for (const lesson of lessons) {
+    const key = `${lesson.book}-${lesson.series}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push({ book: lesson.book, series: lesson.series });
+  }
+  return result;
+}
 
 interface IProps {
   language: Language;
@@ -83,6 +98,22 @@ export default function LanguageView(props: IProps) {
           <Div padVert>
             <ToggleMotherTongue save={handleMTChange} language={{ ...activeLang }} />
           </Div>
+          <Table>
+            {quarters(lessons).map(({ book, series }) => (
+              <tr key={`${book}-${series}`}>
+                <td>{`${t(book)} ${series}`}</td>
+                <td>
+                  <AssembleQuarterButton
+                    language={props.language}
+                    book={book}
+                    series={series}
+                    mode="bilingual"
+                    text="Assemble Quarter"
+                  />
+                </td>
+              </tr>
+            ))}
+          </Table>
           <Table>
             {lessons.map((lesson) => {
               const progress = findBy(
