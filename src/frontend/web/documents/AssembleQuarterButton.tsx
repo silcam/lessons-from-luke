@@ -6,14 +6,27 @@ import Div from "../../common/base-components/Div";
 import Label from "../../common/base-components/Label";
 import useAssembleQuarter, { AssembleMode } from "./useAssembleQuarter";
 
+const noop = () => {
+  /* intentionally does nothing — the control is aria-disabled while a job
+     is queued/running, so a stray click must not restart it. */
+};
+
 /**
- * "Assemble quarter" control (US1) — mirrors `GetDocumentButton`'s
- * button/loading-affordance pattern, driven by `useAssembleQuarter`'s
+ * "Assemble quarter" control — mirrors `GetDocumentButton`'s button/loading-
+ * affordance pattern, driven by `useAssembleQuarter`'s
  * queued/running/ready/failed lifecycle.
  *
- * Scope note (per task): the happy-path click -> "Assembling…" -> download
- * wiring plus basic queued/running rendering. Full aria-live/focus polish
- * (US3) and richer blocked/failed UI (US4) are out of scope here.
+ * Accessibility (US3): the "Assembling…" indicator lives in a `role="status"`
+ * region (implicit `aria-live="polite"`) rather than a purely visual spinner,
+ * so a screen-reader user hears progress. The control keeps its accessible
+ * name (`props.text`, via `aria-label`) and uses `aria-disabled` — never the
+ * `disabled` attribute — while busy, so it stays focusable and announced
+ * instead of dropping out of the tab order. On transition to `ready` the
+ * live region announces that the download completed (the auto-download
+ * itself is otherwise silent to a screen-reader user).
+ *
+ * The failed-state focus/announce behavior belongs to US4 and is out of
+ * scope here.
  */
 export default function AssembleQuarterButton(props: {
   language: PublicLanguage;
@@ -29,14 +42,6 @@ export default function AssembleQuarterButton(props: {
     props.mode
   );
 
-  if (status.tag === "queued" || status.tag === "running") {
-    return (
-      <Div>
-        <Label text="Assembling…" />
-      </Div>
-    );
-  }
-
   if (status.tag === "failed") {
     return (
       <Div>
@@ -46,5 +51,20 @@ export default function AssembleQuarterButton(props: {
     );
   }
 
-  return <Button link text={props.text} onClick={start} />;
+  const busy = status.tag === "queued" || status.tag === "running";
+  const statusMessage =
+    status.tag === "ready" ? "Ready — file downloaded." : busy ? "Assembling…" : null;
+
+  return (
+    <Div>
+      {statusMessage !== null && <div role="status">{statusMessage}</div>}
+      <Button
+        link
+        text={busy ? "Assembling…" : props.text}
+        aria-label={props.text}
+        aria-disabled={busy ? "true" : undefined}
+        onClick={busy ? noop : start}
+      />
+    </Div>
+  );
 }

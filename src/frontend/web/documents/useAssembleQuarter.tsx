@@ -110,11 +110,16 @@ export default function useAssembleQuarter(
         intervalRef.current = setInterval(() => {
           void poll();
         }, POLL_INTERVAL_MS);
-        // Poll once immediately in case the job is already ready/failed by
-        // the time the POST resolves — an interval-only loop can leave the
-        // UI stuck showing "queued" for up to POLL_INTERVAL_MS with nothing
-        // to show for it.
-        void poll();
+        // Poll once (almost) immediately in case the job is already
+        // ready/failed by the time the POST resolves — an interval-only loop
+        // can leave the UI stuck showing "queued" for up to POLL_INTERVAL_MS
+        // with nothing to show for it. Deferred a tick (rather than called
+        // inline) so the "queued"/"running" state — and its aria-live
+        // "Assembling…" announcement (US3) — actually commits and is
+        // observable before a fast job's result can overwrite it; without
+        // this, a same-tick-resolving job would jump straight from click to
+        // "ready", and a screen-reader user would hear no progress at all.
+        setTimeout(() => void poll(), 0);
       } catch {
         setStatus({ tag: "failed", reason: GENERIC_FAILURE_REASON });
       }
