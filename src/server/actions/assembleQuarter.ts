@@ -95,7 +95,14 @@ export default async function assembleQuarter(options: AssembleQuarterOptions): 
 
   const orderedLessons = orderQuarterLessons(lessons);
   const jobDir = path.join(workRoot, jobId);
-  mkdirSafe(jobDir);
+  try {
+    mkdirSafe(jobDir);
+  } catch {
+    // Curated, fixed-vocabulary reason ONLY — a mkdir failure (e.g. EACCES,
+    // ENOSPC) can carry an absolute filesystem path; never forward it (see
+    // the makeLessonFile catch below for the full "reason hygiene" contract).
+    throw new Error("failed to prepare assembly working directory");
+  }
 
   const files: string[] = [];
   for (let i = 0; i < orderedLessons.length; i++) {
@@ -113,8 +120,8 @@ export default async function assembleQuarter(options: AssembleQuarterOptions): 
     }
     const suffix = zeroPad(i);
     const copyPath = path.join(jobDir, `${suffix}.odt`);
-    fs.copyFileSync(rawPath, copyPath);
     try {
+      fs.copyFileSync(rawPath, copyPath);
       renameMasterPageStyles({ odtPath: copyPath, suffix });
       flattenFooterFields({
         odtPath: copyPath,
@@ -123,9 +130,10 @@ export default async function assembleQuarter(options: AssembleQuarterOptions): 
       });
     } catch {
       // Curated, fixed-vocabulary reason ONLY — see the makeLessonFile catch
-      // above. A renameMasterPageStyles/flattenFooterFields failure (e.g. an
-      // execFileSync 'zip' failure or a libxmljs2 parse error) can carry an
-      // absolute filesystem path or a full command line; never forward it.
+      // above. A copyFileSync/renameMasterPageStyles/flattenFooterFields
+      // failure (e.g. an EACCES/ENOSPC copy error, an execFileSync 'zip'
+      // failure, or a libxmljs2 parse error) can carry an absolute
+      // filesystem path or a full command line; never forward it.
       throw new Error(`a lesson failed to prepare for assembly: ${lessonName(lesson)}`);
     }
     files.push(copyPath);

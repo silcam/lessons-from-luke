@@ -116,18 +116,33 @@ function makeRunner(
     }
     const jobId = job.jobId;
 
-    const motherLang = await storage.language({ languageId: key.languageId });
+    // Curated, fixed-vocabulary reason ONLY for every storage-layer call
+    // below — a `Persistence` implementation failure (e.g. a raw DB driver
+    // error) can carry connection details or query text; never forward it
+    // verbatim (data-model.md "reason hygiene" — see assembleQuarter.ts's
+    // catches for the full contract this mirrors at the runner boundary).
+    let motherLang;
+    let baseLessons;
+    try {
+      motherLang = await storage.language({ languageId: key.languageId });
+      baseLessons = (await storage.lessons()).filter(
+        (lsn) => lsn.book === key.book && lsn.series === key.series
+      );
+    } catch {
+      throw new Error("assembly failed (internal)");
+    }
     if (!motherLang) {
       throw new Error("assembly failed (internal)");
     }
 
-    const baseLessons = (await storage.lessons()).filter(
-      (lsn) => lsn.book === key.book && lsn.series === key.series
-    );
     const lessons = [];
-    for (const baseLesson of baseLessons) {
-      const fullLesson = await storage.lesson(baseLesson.lessonId);
-      if (fullLesson) lessons.push(fullLesson);
+    try {
+      for (const baseLesson of baseLessons) {
+        const fullLesson = await storage.lesson(baseLesson.lessonId);
+        if (fullLesson) lessons.push(fullLesson);
+      }
+    } catch {
+      throw new Error("assembly failed (internal)");
     }
 
     const majorityLangId = deriveMajorityLanguageId(key.mode, motherLang);

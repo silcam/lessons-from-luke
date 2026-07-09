@@ -441,6 +441,76 @@ describe("assembleQuarter — US4 generation-failure curated reason", () => {
     expect(message).not.toMatch(/\//);
   });
 
+  test("a mkdirSafe (job working-dir setup) failure yields a curated, path-free reason", async () => {
+    const rawDetail =
+      "EACCES: permission denied, mkdir " +
+      "'/Users/eykd/code/js/lessons-from-luke/tmp/assembly-work/job-us4-7'";
+
+    const mkdirSpy = jest.spyOn(fs, "mkdirSync").mockImplementationOnce(() => {
+      throw new Error(rawDetail);
+    });
+
+    let caught: unknown;
+    try {
+      await assembleQuarter({
+        storage,
+        lessons: unorderedQuarterLessons(),
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId: "job-us4-7",
+        workRoot: fixtureDir,
+      });
+    } catch (error) {
+      caught = error;
+    }
+    mkdirSpy.mockRestore();
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    expect(message).not.toMatch(/\//);
+    expect(message).not.toMatch(/EACCES/);
+    expect(message).not.toBe(rawDetail);
+    expect(makeLessonFileMock).not.toHaveBeenCalled();
+  });
+
+  test("a copyFileSync (raw constituent copy) failure yields a curated, path-free reason naming the lesson", async () => {
+    const rawDetail =
+      "ENOSPC: no space left on device, copyfile " +
+      "'/Users/eykd/code/js/lessons-from-luke/docs/Luke-1-01v01.odt' -> " +
+      "'/tmp/assembly-work/job-us4-8/00.odt'";
+
+    makeLessonFileMock.mockImplementation(async (_storage: Persistence, lsn: Lesson) => {
+      const rawPath = path.join(fixtureDir, `raw-${lsn.lesson}.odt`);
+      fs.writeFileSync(rawPath, `raw contents for lesson ${lsn.lesson}`);
+      return rawPath;
+    });
+    const copySpy = jest.spyOn(fs, "copyFileSync").mockImplementationOnce(() => {
+      throw new Error(rawDetail);
+    });
+
+    let caught: unknown;
+    try {
+      await assembleQuarter({
+        storage,
+        lessons: unorderedQuarterLessons(),
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId: "job-us4-8",
+        workRoot: fixtureDir,
+      });
+    } catch (error) {
+      caught = error;
+    }
+    copySpy.mockRestore();
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    expect(message).not.toMatch(/\//);
+    expect(message).not.toMatch(/ENOSPC/);
+    expect(message).not.toBe(rawDetail);
+    expect(sofficeAssembleMock).not.toHaveBeenCalled();
+  });
+
   test("an empty (zero-byte) sofficeAssemble result is treated as a failure with a path-free reason", async () => {
     makeLessonFileMock.mockImplementation(async (_storage: Persistence, lsn: Lesson) => {
       const rawPath = path.join(fixtureDir, `raw-${lsn.lesson}.odt`);

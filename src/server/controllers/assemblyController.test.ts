@@ -487,6 +487,94 @@ describe("US4: generation-time failure flows a curated reason through a REAL reg
 });
 
 /**
+ * Remediation (security-review MINOR, info-disclosure): `makeRunner`'s
+ * `storage.language`/`storage.lessons`/`storage.lesson` calls sit OUTSIDE
+ * `assembleQuarter`'s curated catches, so a raw `Persistence` failure (e.g.
+ * a DB driver error carrying connection details or query text) could
+ * previously escape to the unauthenticated `GET .../assembly?mode=` status
+ * route verbatim. These calls are now wrapped at the runner boundary with a
+ * fixed-vocabulary "assembly failed (internal)" reason.
+ */
+describe("makeRunner storage-layer failure never leaks a raw DB/fs error as the job reason", () => {
+  it("a storage.language rejection surfaces the curated internal-failure reason, not the raw driver error", async () => {
+    const rawDetail = "Error: connect ECONNREFUSED 127.0.0.1:5432 (pg driver, database lessons)";
+    // The POST route handler validates the language BEFORE starting the job
+    // (a separate call site from the runner's own lookup); only the
+    // runner's (second) call should fail, so the job actually starts.
+    let languageCalls = 0;
+    const storage = makeStorage({
+      language: jest.fn(async () => {
+        languageCalls += 1;
+        if (languageCalls > 1) {
+          throw new Error(rawDetail);
+        }
+        return motherLang;
+      }),
+    });
+    const registry = new AssemblyJobRegistry({
+      maxLiveJobs: 10,
+      timeoutMs: 60_000,
+      ttlMs: 60_000,
+      fileExists: () => true,
+      now: () => Date.now(),
+      makeJobId: () => "internal-fail-job-1",
+    });
+    const app = buildApp(storage, registry);
+
+    const startRes = await request(app).post(BASE_PATH).send({ mode: "bilingual" });
+    expect(startRes.status).toBe(202);
+
+    for (let i = 0; i < 10; i++) {
+      await Promise.resolve();
+    }
+
+    const statusRes = await request(app).get(`${BASE_PATH}?mode=bilingual`);
+
+    expect(statusRes.status).toBe(200);
+    expect(statusRes.body.status).toBe("failed");
+    expect(statusRes.body.reason).toBe("assembly failed (internal)");
+    expect(statusRes.body.reason).not.toMatch(/\//);
+    expect(statusRes.body.reason).not.toMatch(/ECONNREFUSED/);
+    expect(statusRes.body.reason).not.toBe(rawDetail);
+  });
+
+  it("a storage.lesson rejection surfaces the curated internal-failure reason, not the raw driver error", async () => {
+    const rawDetail = 'Error: relation "lessons" does not exist (pg driver)';
+    const baseLessons = completeQuarterLessons();
+    const storage = makeStorage({
+      lessons: jest.fn(async () => baseLessons),
+      lesson: jest.fn(async () => {
+        throw new Error(rawDetail);
+      }),
+    });
+    const registry = new AssemblyJobRegistry({
+      maxLiveJobs: 10,
+      timeoutMs: 60_000,
+      ttlMs: 60_000,
+      fileExists: () => true,
+      now: () => Date.now(),
+      makeJobId: () => "internal-fail-job-2",
+    });
+    const app = buildApp(storage, registry);
+
+    const startRes = await request(app).post(BASE_PATH).send({ mode: "bilingual" });
+    expect(startRes.status).toBe(202);
+
+    for (let i = 0; i < 10; i++) {
+      await Promise.resolve();
+    }
+
+    const statusRes = await request(app).get(`${BASE_PATH}?mode=bilingual`);
+
+    expect(statusRes.status).toBe(200);
+    expect(statusRes.body.status).toBe("failed");
+    expect(statusRes.body.reason).toBe("assembly failed (internal)");
+    expect(statusRes.body.reason).not.toMatch(/\//);
+    expect(statusRes.body.reason).not.toBe(rawDetail);
+  });
+});
+
+/**
  * US2/US10 acceptance verification (lessons-from-luke-koog.6.3.5,
  * specs/acceptance-specs/US10-bilingual-or-single-language.txt): the three
  * scenarios end-to-end. Scenarios 1-2 exercise `makeRunner`'s
