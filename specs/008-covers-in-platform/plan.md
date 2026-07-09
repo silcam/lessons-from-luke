@@ -257,12 +257,30 @@ that harness: add cover lessons to storage, re-run, assert byte-identical output
 `missingQuarterParts`/`isCompleteQuarter` results.
 
 **FR-005/FR-008 real-fixture check (US13/US15)**: extraction of the cover masters' actual
-style names and — critically — the `motherTongue` flag assigned to bare cover styles
-(`Copyright_20_text`, `Book_20_number`, address paragraphs) is verified by a
-`*.integration.test.ts` that parses a **real** committed cover master fixture and asserts each
-extracted string's `motherTongue`/majority-language classification, then round-trips it through
-`makeLessonFile` in both bilingual and single-language modes. This is the executable resolution
-of research.md R2.
+style names and the `motherTongue` flag assigned to bare cover styles (`Copyright_20_text`,
+`Book_20_number`, address paragraphs) is verified by a `*.integration.test.ts` that parses a
+**real** committed cover master fixture. Because the flag is set deterministically by
+`knownStyleNames` membership, "round-trips through `makeLessonFile` in both modes" is **not a
+sufficient assertion** — the gate MUST pin all three concrete consumers of the flag or it lets a
+mis-classification through silently:
+
+1. **Extracted flag value** — assert the `motherTongue` boolean on each extracted bare-style
+   string (title/subtitle, copyright, book number, each address line) against the intended value.
+2. **Progress semantics** (`calcLessonProgress`, `Language.ts:70`) — for a mother-tongue language,
+   only `motherTongue` strings count toward completeness; assert the cover reaches 100% progress
+   when (and only when) the intended strings are translated, so the flag does not silently
+   inflate/deflate the cover-completeness denominator.
+3. **Monolingual output** (`singleLanguageize`, `DocString.ts:35`) — assert the single-language
+   render blanks exactly the intended paragraphs and that a standalone `motherTongue` string with
+   no majority-language sibling does **not** mis-blank a later string via suppress-queue pollution.
+
+**Spike outcome → action matrix** (the executable resolution of research.md R2):
+
+| Spike finding                                                         | Action                                                                                                                                                                            |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bare styles classify `motherTongue: true` and that is correct pairing | Add the style names to `knownStyleNames` only — no further change.                                                                                                                |
+| Copyright/address should be majority-language-only (not paired)       | Do **not** add those styles to the M.T. set; classify them `motherTongue: false` (they still extract via `allStrings`) — a targeted classification change, no new entity/mapping. |
+| Style-name spelling differs from R2's guess                           | Correct the `knownStyleNames` additions to the real names; re-run the gate.                                                                                                       |
 
 ## Complexity Tracking
 
@@ -271,29 +289,59 @@ of research.md R2.
 ## Risks (carried into red-team / implement)
 
 1. **[TOP — OPEN UNKNOWN] Bare cover styles' `motherTongue` classification (FR-005/FR-008).**
-   `Copyright_20_text`, `Book_20_number`, and the publisher-address paragraphs are **not**
-   `M.T.`/`L.M.`-prefixed, so how `parseNodes` sets their `motherTongue` flag — which drives
-   bilingual pairing and therefore whether downloaded covers pair correctly — is unverified and
-   cannot be settled without a real cover master. Mitigation: resolve early with a parse spike
-   against one real cover fixture before building the download path (research.md R2). If the
-   flag is wrong, a small pairing-rule or style-classification adjustment is needed — but still
-   no new entity or mapping layer.
-2. **[HIGH — the one real code defect] Covers leak into assembly (FR-012).**
+   **Mechanism correction (red-team, verifiable now):** `parseNodes` does **not** set
+   `motherTongue`; `parse.ts:70–73` sets `motherTongue: true` **deterministically for any style
+   in `knownStyleNames`** (non-members flow through `allStrings` at `motherTongue: false` and are
+   still returned — the text is extracted either way; membership only flips the flag). So adding
+   `Copyright_20_text` / `Book_20_number` to `knownStyleNames` will classify them
+   `motherTongue: true` — this is knowable from the code today. What genuinely needs the real
+   fixture is only (a) the **exact style-name spelling/hyphenation**, and (b) whether
+   `motherTongue: true` is the **semantically correct** pairing for the copyright/address fields.
+   The flag has three concrete downstream consumers the gate must pin (see Acceptance Test
+   Strategy): the extracted flag value, `calcLessonProgress` (`Language.ts:70` counts only
+   `motherTongue` strings for a mother-tongue language → the flag defines cover-completeness
+   semantics), and `singleLanguageize` (`DocString.ts:35` — a `motherTongue` string with **no**
+   majority-language sibling can push a masterId onto the suppress-queue that is never popped,
+   risking a mis-blanked later string in monolingual output). Mitigation: resolve early with a
+   parse spike against one real cover fixture before building the download path (research.md R2).
+   If the flag is wrong, a small pairing-rule or style-classification adjustment is needed — but
+   still no new entity or mapping layer.
+2. **[HIGH — UN-OWNED EXTERNAL DEPENDENCY] The FR-005/FR-008 gate rests on a fixture that does not
+   exist.** The entire executable resolution of Risk 1 (the parse spike + `*.integration.test.ts`)
+   depends on **real committed cover-master ODT fixtures** that do not yet exist and must be
+   created from the maintainer's Drive copy (spec Assumptions). There is currently **no task,
+   owner, or fallback** for acquiring them. If `sp:05-tasks` emits an integration-test task that
+   points at a nonexistent fixture, the test will stub/skip/`.passWithNoTests` and the feature can
+   ship with bilingual/monolingual cover pairing **unverified** — silently defeating the Risk 1
+   gate. Mitigation: `sp:05-tasks` MUST create an explicit **blocking** "acquire + commit real
+   Luke cover-master fixtures (A4=97, A3=98)" task, ordered **before** every download-path /
+   FR-008 / R2-integration task, so the gate cannot be bypassed. If the fixtures cannot be
+   obtained, the download-path stories (US15/US3) are **blocked**, not shipped on faith.
+3. **[HIGH — the one real code defect] Covers leak into assembly (FR-012).**
    `assemblyController.ts:128` selects constituents by `(book, series)` only; once covers exist,
    97/98 append after lesson 13 in `orderQuarterLessons`. This fires in US16 scenario 2 (complete
    quarter + covers present). Mitigation: filter the constituent set to
    `TOC ∪ expectedLessonNumbers(series)` in the controller (real fix), optionally guard
    `orderQuarterLessons` (defense-in-depth). Completeness is already correct — do **not** touch it.
-3. **[MEDIUM] FR-011 leak surfaces.** A cover rendered as "Lesson 97" anywhere is a defect. All
-   known display paths route through `lessonName`/`documentName`, but `sp:05-tasks`/red-team
-   should sweep for any raw `lesson.lesson` interpolation (e.g. `LessonsBox`, `TranslateHome`,
-   admin lesson lists) that bypasses the helper.
-4. **[MEDIUM] SC-003 depends on byte-identical English text.** Auto-population only fires when the
+4. **[CRITICAL — CONFIRMED LEAK] FR-011 violation in `TranslateIndex`.** The red-team sweep for
+   raw `lesson.lesson` interpolation found a **confirmed** leak: `TranslateIndex.tsx:24` renders
+   `` `${lesson.book} ${lesson.series}-${lesson.lesson}` `` directly instead of calling
+   `lessonName(lesson, t)`. For a cover this yields **"Luke 1-97"/"Luke 1-98"** on the
+   translator's own lesson index (the US2 path) — a bare reserved-number leak that violates the
+   absolute FR-011 / SC-005 guarantee. (It also already mis-renders the TOC as "Luke 1-99"
+   today; covers make the defect active.) **Fix (implement): replace the raw interpolation with
+   `lessonName(lesson, t)`** and add a unit/Cypress assertion that a cover row in the translation
+   index never shows 97/98. This falsifies the contract's "every display path routes through
+   `lessonName`" claim — `contracts/covers-surface.md` is corrected to list `TranslateIndex` as a
+   surface that must be routed through `lessonName`. `sp:05-tasks` must still confirm no other raw
+   interpolation exists in admin lesson lists / `LessonsBox`, but `TranslateIndex` is the known,
+   must-fix instance.
+5. **[MEDIUM] SC-003 depends on byte-identical English text.** Auto-population only fires when the
    cover's title/subtitle is byte-for-byte identical to the existing front-matter/TOC master
    string (dedup is exact-text). If the cover master's title differs by whitespace/punctuation, it
    mints a new master and SC-003 fails. Verify against the real cover fixture; if mismatched, it is
    a source-document normalization issue, not a code change.
-5. **[LOW] Upload misdetection today.** `metaFromFilename` has no cover branch, so a cover filename
+6. **[LOW] Upload misdetection today.** `metaFromFilename` has no cover branch, so a cover filename
    currently falls through to `lesson = TOC_LESSON` — a cover would be misdetected as a TOC. The
    new cover-detection branch must run **before** the TOC fallthrough and be covered by a unit test
    for each of the 8 real master filenames (both `Q` and `T` prefixes) per SC-002.

@@ -54,12 +54,19 @@ cover-only strings are translated once and remain editable (FR-007).
 Guaranteed by the `core` helpers (`lessonName`, `documentName`, `isCoverLesson`); asserted by unit
 tests and Cypress:
 
-| Surface                                                      | Cover rendering                                                     |
-| ------------------------------------------------------------ | ------------------------------------------------------------------- |
-| Document/lesson lists (`LessonsBox`, `TranslateHome`, admin) | `Cover (A4)` / `Cover (A3)` — never `Lesson 97/98`                  |
-| Language-page download rows (`LanguageView`)                 | `Cover (A4)` / `Cover (A3)` with Bilingual \| Single-Language links |
-| Download filename                                            | `<Language>_<Book>-Q<series>-Cover-<A4\|A3>.odt`                    |
-| Upload form (detection)                                      | Pre-selected Cover + format from filename, with manual override     |
+| Surface                                                      | Cover rendering                                                                  |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| Document/lesson lists (`LessonsBox`, `TranslateHome`, admin) | `Cover (A4)` / `Cover (A3)` — never `Lesson 97/98`                               |
+| Translation index (`TranslateIndex`)                         | `Cover (A4)` / `Cover (A3)` via `lessonName` — **currently bypassed** (see note) |
+| Language-page download rows (`LanguageView`)                 | `Cover (A4)` / `Cover (A3)` with Bilingual \| Single-Language links              |
+| Download filename                                            | `<Language>_<Book>-Q<series>-Cover-<A4\|A3>.odt`                                 |
+| Upload form (detection)                                      | Pre-selected Cover + format from filename, with manual override                  |
+
+> **FR-011 correction (red-team):** not every display path currently routes through `lessonName`.
+> `TranslateIndex.tsx:24` interpolates `` `${lesson.book} ${lesson.series}-${lesson.lesson}` ``
+> directly, so a cover renders as **"Luke 1-97"** — a confirmed reserved-number leak (also mis-renders
+> the TOC as "Luke 1-99" today). Implementation MUST replace that interpolation with
+> `lessonName(lesson, t)`. See plan Risk 3.
 
 ## Client detection contract (FR-003)
 

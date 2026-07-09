@@ -44,23 +44,44 @@ today:
 Adding these names to `knownStyleNames` is a mechanical, unit-testable change (the extraction
 xpath is built from that list — `parse.ts:47–66`).
 
-**OPEN unknown (the feature's one genuine technical risk)**: whether the **bare** cover styles
-(`Copyright_20_text`, `Book_20_number`) and the publisher-address paragraphs extract as
-**majority-language** strings under the existing bilingual pairing rules. These styles are not
-`M.T._20_*` / `L.M.*` prefixed, and the `motherTongue` boolean that `parseNodes` assigns to each
-`DocString` is what drives bilingual pairing in `makeLessonFile` (FR-008). If the flag is
-mis-assigned, downloaded bilingual covers would pair the copyright/address text incorrectly.
+**Mechanism (corrected in red-team — knowable from the code today)**: `parseNodes` does **not**
+assign `motherTongue`. `parse.ts:70–73` sets `motherTongue: true` for **every** string matched by
+the `knownStyleNames` xpath; `allStrings` (the whole document) is mapped at `motherTongue: false`
+(`parse.ts:75–78`) and merged so any node not in the translatable set keeps `false`. The text is
+extracted **either way** — membership in `knownStyleNames` does not decide whether a string
+appears, only whether its flag is `true`. Therefore adding `Copyright_20_text` / `Book_20_number`
+to `knownStyleNames` will deterministically classify them `motherTongue: true`. This is settled by
+code reading, not by the fixture.
 
-**Why it cannot be resolved now**: it depends on the exact XML structure of the real cover
+**What genuinely still needs the real fixture** (the residual OPEN part): (a) the **exact
+style-name spelling/hyphenation** in the real masters, and (b) whether `motherTongue: true` is the
+**semantically correct** pairing for the copyright/address fields, i.e. should they be paired
+mother-tongue/majority in bilingual output, or appear once as majority-language-only? The flag has
+three concrete downstream consumers that any answer must satisfy:
+
+- **Bilingual pairing** in `makeLessonFile` (FR-008).
+- **`calcLessonProgress`** (`src/core/models/Language.ts:70`) — for a mother-tongue language, only
+  `motherTongue` strings count toward completeness, so the flag defines cover-completeness
+  semantics.
+- **`singleLanguageize`** (`src/core/models/DocString.ts:35`) — a `motherTongue` string with no
+  majority-language sibling pushes its masterId onto a suppress-queue that is never popped, a
+  concrete monolingual-output mis-blank hazard.
+
+**Why (b) cannot be resolved now**: it depends on the exact XML structure of the real cover
 masters (paragraph nesting, style parentage, whether address lines sit inside an `M.T.` pair or
 stand alone). The fixtures do not yet exist (spec Assumptions — they must be created from the
-maintainer's Drive copy).
+maintainer's Drive copy), and **have no acquisition task/owner/fallback yet** (see plan Risk 6:
+`sp:05-tasks` must make fixture creation an explicit blocking task, or the gate below can be
+silently skipped).
 
-**Plan**: create one real cover-master fixture early, write a `*.integration.test.ts` that parses
-it and asserts the `motherTongue`/majority classification of every extracted string, then round-
-trips it through `makeLessonFile` in bilingual and single-language modes. This test is the
-executable resolution. If the classification is wrong, the fix is a small style-classification or
-pairing-rule adjustment in `parse.ts` — still no new entity, mapping, or schema.
+**Plan**: create one real cover-master fixture early (blocking), write a `*.integration.test.ts`
+that parses it and asserts (1) the `motherTongue` value of every extracted string, (2)
+`calcLessonProgress` completeness semantics, and (3) `singleLanguageize` monolingual output
+(including the no-sibling suppress-queue case) — not merely "round-trips in both modes." This test
+is the executable resolution. If the classification is wrong, the fix is targeted: **omit** the
+copyright/address styles from the M.T. set so they classify `motherTongue: false` (they still
+extract via `allStrings`), or correct the style-name spelling — still no new entity, mapping, or
+schema. See the plan's "Spike outcome → action matrix."
 
 **Alternatives considered**: a metadata-driven field-mapping layer (rejected by the brainstorm —
 ~6 short strings, no payoff); assuming the flag is correct and skipping verification (rejected —

@@ -24,8 +24,13 @@ A cover **is** a `Lesson`. No new fields.
 Cover text is extracted into `DocString`s by `parse.ts`, deduplicated to `TString` master ids by
 `storage.addOrFindMasterStrings`, and linked as `LessonString`s — identical to lessons and the
 TOC. A cover string's `motherTongue` flag (on `DocString`/`LessonString`) drives bilingual pairing
-in `makeLessonFile`, exactly as for lessons. **Open verification**: the flag assigned to bare cover
-styles (`Copyright_20_text`, `Book_20_number`, address paragraphs) — see research.md R2.
+in `makeLessonFile`, `calcLessonProgress` completeness (`Language.ts:70`), and `singleLanguageize`
+monolingual collapse (`DocString.ts:35`), exactly as for lessons. **Mechanism**: the flag is set
+deterministically by `knownStyleNames` membership at `parse.ts:70–73` (not by `parseNodes`); adding
+a bare cover style to that list classifies it `motherTongue: true`. **Open verification** (needs
+the real fixture): the exact style-name spelling and whether `motherTongue: true` is the correct
+pairing semantic for `Copyright_20_text` / `Book_20_number` / address paragraphs — see research.md
+R2 and the plan's "Spike outcome → action matrix."
 
 ## New constants & helpers (`src/core/models/Lesson.ts`) — additions only
 
