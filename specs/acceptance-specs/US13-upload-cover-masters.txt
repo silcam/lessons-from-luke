@@ -1,0 +1,29 @@
+;=============================================
+; Uploading a cover master pre-selects book, series, and format from the filename.
+;=============================================
+GIVEN the English-document upload page.
+WHEN the operator selects a file named English-Luke-Q1-Cover-A4.odt.
+THEN the form pre-selects book Luke, series 1, and cover format A4.
+THEN a visible manual override control is shown.
+
+;=============================================
+; The T series prefix is recognized identically to the Q prefix.
+;=============================================
+GIVEN a cover master file whose name uses the T series prefix, English-Luke-T1-Cover-A4.odt.
+WHEN the operator selects it.
+THEN the series is detected identically to the Q prefix form.
+
+;=============================================
+; Uploading a cover master extracts all translatable cover text.
+;=============================================
+GIVEN a valid cover master upload.
+WHEN processing completes.
+THEN the title, subtitle, copyright line, and publisher address lines are all extracted as translatable strings.
+
+;=============================================
+; Covers display with human-readable names, never a bare lesson number.
+;=============================================
+GIVEN an uploaded A4 cover for Luke series 1.
+WHEN the operator views document or lesson lists.
+THEN it displays as "Cover (A4)".
+THEN it never displays as a bare lesson number.
