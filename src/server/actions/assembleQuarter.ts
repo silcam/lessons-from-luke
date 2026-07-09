@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { Persistence } from "../../core/interfaces/Persistence";
 import { Language } from "../../core/models/Language";
-import { Lesson, isTOCLesson } from "../../core/models/Lesson";
+import { Lesson, isTOCLesson, lessonName } from "../../core/models/Lesson";
 import { mkdirSafe } from "../../core/util/fsUtils";
 import makeLessonFile from "./makeLessonFile";
 import { flattenFooterFields } from "./flattenFooterFields";
@@ -100,7 +100,17 @@ export default async function assembleQuarter(options: AssembleQuarterOptions): 
   const files: string[] = [];
   for (let i = 0; i < orderedLessons.length; i++) {
     const lesson = orderedLessons[i];
-    const rawPath = await makeLessonFile(storage, lesson, motherLang, majorityLangId);
+    let rawPath: string;
+    try {
+      rawPath = await makeLessonFile(storage, lesson, motherLang, majorityLangId);
+    } catch {
+      // Curated, fixed-vocabulary reason ONLY — never forward the raw
+      // thrown error (data-model.md "reason hygiene"): it can carry a
+      // stack trace or an absolute filesystem path, which
+      // `AssemblyJobRegistry`'s `promoteNext().catch` would otherwise use
+      // verbatim as the failed job's human-facing `reason`.
+      throw new Error(`a lesson failed to generate: ${lessonName(lesson)}`);
+    }
     const suffix = zeroPad(i);
     const copyPath = path.join(jobDir, `${suffix}.odt`);
     fs.copyFileSync(rawPath, copyPath);
