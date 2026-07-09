@@ -23,6 +23,11 @@ Spec: specs/007-assembled-quarter-download/spec.md
 Keywords: transactional email, Mailgun, email service, send email, SMTP, password reset, forgot password, reset link, self-service recovery, account recovery, locked out, change password, set new password, email-and-password auth, better-auth sendResetPassword, account enumeration, invalidate sessions, sign out other sessions, auto-email invitation, invitation email, resend invitation, resend email, invitation delivery, email-bound invite, environment-gated email, fail-fast secrets, log transport, dev/test email logging, secrets.json, sending domain, from-address, rate limiting, email flooding, server-only email, web-only
 Spec: specs/005-transactional-email-reset/spec.md
 
+## Covers in the Platform
+
+Keywords: cover, covers, quarter cover, cover page, front cover, book cover, A4 cover, A3 cover, cut-sheet, booklet, cover format, reserved lesson number, 97, 98, TOC 99 precedent, cover upload, cover download, cover translation, auto-populate translations, TString dedup, master string reuse, copyright line, publisher address, title subtitle, hand-edit elimination, LibreOffice hand-editing, SOP 22, SOP 30.2, WS-3, filename detection, Q vs T series prefix, Cover (A4) display name, print handoff, color cover, quarter assembly unaffected
+Spec: specs/008-covers-in-platform/spec.md
+
 ## How to Update This File
 
 - Add one entry per feature spec, before this section.
