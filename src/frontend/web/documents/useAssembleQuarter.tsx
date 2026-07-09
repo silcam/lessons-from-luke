@@ -1,3 +1,6 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import Axios from "axios";
+import { saveAs } from "file-saver";
 import { Book } from "../../../core/models/Lesson";
 import { PublicLanguage } from "../../../core/models/Language";
 
@@ -11,12 +14,6 @@ export type AssembleMode = "bilingual" | "single-language";
  * Discriminated-union client-side view of an assembly job's lifecycle.
  * Mirrors the server's `queued | running | ready | failed` poll states
  * (contract §2), plus a local `idle` state before the first POST.
- *
- * NOT YET IMPLEMENTED — stub for RED task lessons-from-luke-koog.6.2.11; the
- * GREEN task (lessons-from-luke-koog.6.2.12) wires this hook up for real.
- * `start` currently does nothing so the RED tests fail on their assertions
- * (no POST/GET calls, no state transitions, no download) rather than on a
- * compile/import error.
  */
 export type AssembleStatus =
   | { tag: "idle" }
@@ -30,16 +27,99 @@ export interface UseAssembleQuarterResult {
   start: () => void;
 }
 
+/** How often to poll for job status once assembly has started — contract
+ * "Client interaction sketch": "loop GET …/assembly?mode=… every ~1–2s". */
+const POLL_INTERVAL_MS = 2000;
+
+interface AssemblyJobResponse {
+  jobId: string;
+  status: "queued" | "running" | "ready" | "failed";
+  reason?: string;
+}
+
+const GENERIC_FAILURE_REASON = "assembly failed (internal)";
+
+/**
+ * Drives an assembly job (US1): POST to start/attach, poll for status, and
+ * download + save the finished document once ready. Mirrors the existing
+ * `useGetDocument` blob-download pattern; adds only the poll loop (see
+ * specs/007-assembled-quarter-download/contracts/assembly-api.md).
+ */
 export default function useAssembleQuarter(
-  _language: PublicLanguage,
-  _book: Book,
-  _series: number,
-  _mode: AssembleMode
+  language: PublicLanguage,
+  book: Book,
+  series: number,
+  mode: AssembleMode
 ): UseAssembleQuarterResult {
-  return {
-    status: { tag: "idle" },
-    start: () => {
-      /* not yet implemented — see lessons-from-luke-koog.6.2.12 */
-    },
-  };
+  const [status, setStatus] = useState<AssembleStatus>({ tag: "idle" });
+  const jobIdRef = useRef<string | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const basePath = `/api/languages/${language.languageId}/quarters/${book}/${series}/assembly`;
+
+  const stopPolling = useCallback(() => {
+    if (intervalRef.current !== null) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }, []);
+
+  // Stop any in-flight polling on unmount.
+  useEffect(() => stopPolling, [stopPolling]);
+
+  const downloadAndFinish = useCallback(async () => {
+    const jobId = jobIdRef.current;
+    if (jobId === null) {
+      return;
+    }
+    const response = await Axios.get(`/api/assembly/${jobId}/download`, {
+      responseType: "blob",
+    });
+    saveAs(new Blob([response.data]), `${language.name} - ${book} Q${series} (${mode}).odt`);
+    setStatus({ tag: "ready" });
+  }, [book, language.name, mode, series]);
+
+  const poll = useCallback(async () => {
+    // Transient poll failures (e.g. a dropped/unmocked request) are not a
+    // job failure — only an explicit server `"failed"` status is (contract
+    // §2). Leave status untouched and let the next tick retry.
+    try {
+      const response = await Axios.get<AssemblyJobResponse>(`${basePath}?mode=${mode}`);
+      const data = response.data;
+      if (data.status === "queued" || data.status === "running") {
+        setStatus({ tag: data.status });
+      } else if (data.status === "ready") {
+        stopPolling();
+        await downloadAndFinish();
+      } else {
+        stopPolling();
+        setStatus({ tag: "failed", reason: data.reason ?? GENERIC_FAILURE_REASON });
+      }
+    } catch {
+      /* swallow — see comment above */
+    }
+  }, [basePath, mode, stopPolling, downloadAndFinish]);
+
+  const start = useCallback(() => {
+    void (async () => {
+      try {
+        const response = await Axios.post<AssemblyJobResponse>(basePath, { mode });
+        jobIdRef.current = response.data.jobId;
+        setStatus({ tag: response.data.status === "running" ? "running" : "queued" });
+        stopPolling();
+        intervalRef.current = setInterval(() => {
+          void poll();
+        }, POLL_INTERVAL_MS);
+        // Poll once immediately in case the job is already ready/failed by
+        // the time the POST resolves — an interval-only loop can leave the
+        // UI stuck showing "queued" for up to POLL_INTERVAL_MS with nothing
+        // to show for it.
+        void poll();
+      } catch {
+        setStatus({ tag: "failed", reason: GENERIC_FAILURE_REASON });
+      }
+    })();
+  }, [basePath, mode, poll, stopPolling]);
+
+  return { status, start };
 }
