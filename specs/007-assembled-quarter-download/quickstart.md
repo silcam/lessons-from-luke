@@ -29,7 +29,35 @@ How to exercise and verify this feature during development. Assumes the standard
   Covers: quarter lesson-set resolution + ordering, completeness/block logic (soffice mocked), footer field-flatten against a fixture, registry dedup + lifecycle + concurrency-1 + timeout→failed.
 - **Integration (real soffice, opt-in, serialized)** — `yarn test:integration` (runs `assembleQuarter.integration.test.ts`).
   Asserts on the produced `.odt`: 0 `text:protected`, 0 linked `.odt`, 0 `text:section-source`; image-reference count preserved; footer fields resolved to literal text; page count matches the with-`PAGE_BEFORE` expectation. Mirrors the spike's `verify.sh` checks. **Close LibreOffice first.**
-- **E2E (Cypress)** — `cypress/integration/assembleQuarter.cy.ts`: start → "Assembling…" → download for a complete quarter; blocked message for an incomplete one.
+- **E2E (Cypress)** — `cypress/integration/assembleQuarter.spec.js`: start → "Assembling…" → download for a complete quarter; rapid double-click attaches to the running job (no duplicate work).
+
+## US3 verification log (progress + delivery, 6.4.7)
+
+Closed out the three US3 acceptance scenarios (`specs/acceptance-specs/US11-progress-and-delivery.txt`)
+against the automated coverage rather than a live `dev-web` session, since a shared local server was
+already occupying the dev ports:
+
+- **In-progress indicator never freezes** — `cypress/integration/assembleQuarter.spec.js` ("shows
+  Assembling… while queued/running, then downloads on ready") asserts the `role="status"` region reads
+  "Assembling…" and the control is `aria-disabled` (not `disabled`, so it stays focusable/responsive)
+  while queued/running. Authored and green in 6.4.6 (commit `1b8ea1a`).
+- **Download available on ready** — same spec: after the poll transitions to `ready`, the download
+  fires and the status region reads "Ready — file downloaded."
+- **Duplicate request attaches to the running job** — `cypress/integration/assembleQuarter.spec.js`
+  ("attaches a rapid double-click to the same job") asserts exactly one `POST .../assembly` call fires
+  across a rapid triple-click. Backed by `AssemblyJobRegistry.test.ts`'s dedup/lifecycle/concurrency-1
+  coverage.
+
+Re-ran on 2026-07-08 as evidence for this close:
+
+```
+npx jest src/server/actions/assembleQuarter.test.ts src/server/assembly/AssemblyJobRegistry.test.ts \
+  src/server/actions/flattenFooterFields.test.ts --runInBand
+# 3 suites, 25 tests passed
+
+yarn test:integration -t AssembleQuarter
+# assembleQuarter.integration.test.ts — 6 passed (real soffice, real .odt assembly)
+```
 
 ## Spike reference (proven mechanism)
 
