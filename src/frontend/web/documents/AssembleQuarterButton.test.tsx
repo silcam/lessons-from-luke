@@ -98,6 +98,46 @@ describe("AssembleQuarterButton", () => {
     });
   });
 
+  it("announces queued/running/ready progress via an aria-live region and uses aria-disabled (not disabled) while assembling (US3, RED)", async () => {
+    mockedAxios.post.mockResolvedValue({ data: { jobId: "job-1", status: "queued" } });
+    mockedAxios.get.mockResolvedValueOnce({ data: { jobId: "job-1", status: "ready" } });
+    mockedAxios.get.mockResolvedValueOnce({ data: new ArrayBuffer(8) });
+
+    const { getByText, getByRole } = render(
+      <AssembleQuarterButton
+        language={language}
+        book="Luke"
+        series={1}
+        mode="bilingual"
+        text="Assemble Quarter 1"
+      />
+    );
+
+    fireEvent.click(getByText("Assemble Quarter 1"));
+
+    // The busy state must be exposed via `role="status"` (an implicit
+    // `aria-live="polite"` region), not a silent visual-only indicator, and
+    // the control must stay focusable/announced via `aria-disabled`
+    // (never the `disabled` attribute, which drops it from the tab order).
+    await waitFor(() => {
+      const status = getByRole("status");
+      expect(status.textContent).toMatch(/assembling/i);
+    });
+    const control = getByRole("button", { name: "Assemble Quarter 1" });
+    expect(control.getAttribute("aria-disabled")).toBe("true");
+    expect(control.hasAttribute("disabled")).toBe(false);
+
+    // Once the job transitions to ready, the live region must announce
+    // that the download is available (the auto-download itself is silent
+    // to a screen-reader user otherwise).
+    await waitFor(() => {
+      expect(mockedSaveAs).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(getByRole("status").textContent).toMatch(/ready|available|downloaded/i);
+    });
+  });
+
   it("downloads via file-saver once the job is ready", async () => {
     mockedAxios.post.mockResolvedValue({ data: { jobId: "job-1", status: "queued" } });
     mockedAxios.get.mockResolvedValueOnce({ data: { jobId: "job-1", status: "ready" } });
