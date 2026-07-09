@@ -220,3 +220,118 @@ describe("assembleQuarter", () => {
     files.forEach((f) => expect(rawPaths.has(f)).toBe(false));
   });
 });
+
+/**
+ * US4 (lessons-from-luke-koog.6.5.2/.3): completeness gate + curated
+ * failure-reason vocabulary. Spec: specs/007-assembled-quarter-download/
+ * data-model.md "Quarter completeness (FR-006 / US4)",
+ * specs/acceptance-specs/US12-blocked-incomplete-quarter.txt scenario 2
+ * ("A mid-assembly generation failure ends in a retryable failed state").
+ *
+ * The generation-time half of the completeness gate (each of the 14
+ * constituents generates via `makeLessonFile` without error) is NOT a
+ * synchronous pre-check — it runs as part of the per-constituent loop
+ * `assembleQuarter` already has. RED: today a `makeLessonFile` failure
+ * propagates as the raw thrown error (whatever message `makeLessonFile`
+ * happens to throw), which `AssemblyJobRegistry` uses verbatim as the
+ * `failed` job's `reason` (`error.message`, `AssemblyJobRegistry.ts`
+ * `promoteNext`'s `.catch`). That raw message can carry a stack trace or an
+ * absolute filesystem path — exactly what the curated-vocabulary rule
+ * (data-model.md "reason hygiene") forbids reaching a human. `assembleQuarter`
+ * MUST catch a per-constituent generation failure and re-throw a curated,
+ * fixed-vocabulary `Error` naming the failing lesson instead.
+ */
+describe("assembleQuarter — US4 generation-failure curated reason", () => {
+  let fixtureDir: string;
+
+  beforeEach(() => {
+    fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembleQuarter-us4-test-"));
+
+    makeLessonFileMock.mockReset();
+    flattenFooterFieldsMock.mockReset();
+    flattenFooterFieldsMock.mockImplementation(() => undefined);
+    renameMasterPageStylesMock.mockReset();
+    renameMasterPageStylesMock.mockImplementation(() => undefined);
+    sofficeAssembleMock.mockReset();
+    sofficeAssembleMock.mockImplementation(
+      async (options: { outputPath: string; files: string[] }) => ({
+        outputPath: options.outputPath,
+      })
+    );
+  });
+
+  afterEach(() => {
+    fs.rmSync(fixtureDir, { recursive: true, force: true });
+  });
+
+  test("a constituent that throws during generation rejects with a curated reason naming that lesson (Luke 1-3), not the raw error", async () => {
+    // Raw failure detail deliberately includes an absolute path and an
+    // "Error:"-prefixed stack, exactly the kind of internal detail the
+    // curated reason MUST NOT leak.
+    const rawDetail =
+      "Error: soffice conversion failed\n" +
+      "    at /Users/eykd/code/js/lessons-from-luke/src/server/actions/makeLessonFile.ts:34:11";
+
+    makeLessonFileMock.mockImplementation(async (_storage: Persistence, lsn: Lesson) => {
+      if (lsn.lesson === 3) {
+        throw new Error(rawDetail);
+      }
+      const rawPath = path.join(fixtureDir, `raw-${lsn.lesson}.odt`);
+      fs.writeFileSync(rawPath, `raw contents for lesson ${lsn.lesson}`);
+      return rawPath;
+    });
+
+    await expect(
+      assembleQuarter({
+        storage,
+        lessons: unorderedQuarterLessons(),
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId: "job-us4-1",
+        workRoot: fixtureDir,
+      })
+    ).rejects.toThrow(/Luke 1-3/);
+
+    // The soffice merge must never run once a constituent has failed to
+    // generate — no partial file offered (US12 scenario 2).
+    expect(sofficeAssembleMock).not.toHaveBeenCalled();
+  });
+
+  test("the rejected reason never leaks a stack trace or a filesystem path", async () => {
+    const rawDetail =
+      "Error: ENOENT: no such file or directory, open " +
+      "'/Users/eykd/code/js/lessons-from-luke/docs/dev/Luke-1-05v01.odt'";
+
+    makeLessonFileMock.mockImplementation(async (_storage: Persistence, lsn: Lesson) => {
+      if (lsn.lesson === 5) {
+        throw new Error(rawDetail);
+      }
+      const rawPath = path.join(fixtureDir, `raw-${lsn.lesson}.odt`);
+      fs.writeFileSync(rawPath, `raw contents for lesson ${lsn.lesson}`);
+      return rawPath;
+    });
+
+    let caught: unknown;
+    try {
+      await assembleQuarter({
+        storage,
+        lessons: unorderedQuarterLessons(),
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId: "job-us4-2",
+        workRoot: fixtureDir,
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    // No absolute-path separators, no raw "Error:"/ENOENT leakage, and the
+    // curated message must not simply be the raw thrown message forwarded.
+    expect(message).not.toMatch(/\//);
+    expect(message).not.toMatch(/Error:/);
+    expect(message).not.toMatch(/ENOENT/);
+    expect(message).not.toBe(rawDetail);
+  });
+});

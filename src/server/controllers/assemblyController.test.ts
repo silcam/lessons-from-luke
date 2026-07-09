@@ -140,6 +140,24 @@ describe("POST .../assembly (start or attach)", () => {
     expect(registry.startOrAttach).not.toHaveBeenCalled();
   });
 
+  it("409 or 422: incomplete quarter — reason names the specific missing lesson (series 1, missing lesson 6), not a generic message (US4)", async () => {
+    // Series 1 is a REAL incomplete fixture in this codebase (missing lesson
+    // 6) per data-model.md "Quarter completeness (FR-006 / US4)" — used
+    // directly here rather than a synthetic incomplete quarter.
+    const storage = makeStorage({ lessons: jest.fn(async () => incompleteQuarterLessons()) });
+    const registry = makeRegistry();
+    const app = buildApp(storage, registry);
+
+    const res = await request(app).post(BASE_PATH).send({ mode: "bilingual" });
+
+    expect([409, 422]).toContain(res.status);
+    expect(res.body.status).toBe("failed");
+    // Must name the missing constituent specifically ("Luke 1-6"), not a
+    // vague "quarter is incomplete"-style generic message.
+    expect(res.body.reason).toMatch(/Luke 1-6/);
+    expect(res.body.missing).toEqual(["Luke 1-6"]);
+  });
+
   it("429: at the queue-depth cap — {reason} with NO jobId and NO status:'failed'", async () => {
     const registry = makeRegistry({
       startOrAttach: jest
@@ -401,6 +419,70 @@ describe("GET /api/assembly/:jobId/download", () => {
     const res = await request(app).get("/api/assembly/job-1/download");
 
     expect(res.status).toBe(404);
+  });
+});
+
+/**
+ * US4 (lessons-from-luke-koog.6.5.2/.3): generation-time completeness gate.
+ * Spec: specs/007-assembled-quarter-download/data-model.md "Quarter
+ * completeness (FR-006 / US4)", specs/acceptance-specs/
+ * US12-blocked-incomplete-quarter.txt scenario 2. The cheap
+ * existence-only gate lives at POST-accept time (already covered above);
+ * this exercises the OTHER half — a constituent that fails to generate
+ * mid-`running` — end to end through a REAL `AssemblyJobRegistry` (not the
+ * mocked-registry doubles used elsewhere in this file), because the curated
+ * failure-reason contract is enforced by how the runner's rejection reaches
+ * the registry (`AssemblyJobRegistry.ts`'s `promoteNext().catch` uses
+ * `error.message` verbatim as the `failed` job's `reason` — so the
+ * curation MUST already have happened by the time `assembleQuarter`'s
+ * promise rejects, not somewhere in the registry or controller).
+ *
+ * RED: `assembleQuarter` does not yet curate a generation failure (see
+ * assembleQuarter.test.ts's "US4 generation-failure curated reason" describe
+ * block) — mocking it here to reject with an already-curated reason
+ * documents the FINAL intended contract for how that reason flows through
+ * the real registry and back out the polling routes.
+ */
+describe("US4: generation-time failure flows a curated reason through a REAL registry", () => {
+  it("job ends 'failed' with the curated reason, no resultPath, and never leaks a stack trace or filesystem path", async () => {
+    const curatedReason = "a lesson failed to generate: Luke 1-3";
+    mockAssembleQuarter.mockReset();
+    mockAssembleQuarter.mockRejectedValue(new Error(curatedReason));
+
+    const registry = new AssemblyJobRegistry({
+      maxLiveJobs: 10,
+      timeoutMs: 60_000,
+      ttlMs: 60_000,
+      fileExists: () => true,
+      now: () => Date.now(),
+      makeJobId: () => "us4-job",
+    });
+    const baseLessons = completeQuarterLessons();
+    const storage = makeStorage({
+      lessons: jest.fn(async () => baseLessons),
+      lesson: jest.fn(async (id: number) => {
+        const base = baseLessons.find((lsn) => lsn.lessonId === id);
+        return base ? { ...base, lessonStrings: [] } : null;
+      }),
+    });
+    const app = buildApp(storage, registry);
+
+    const startRes = await request(app).post(BASE_PATH).send({ mode: "bilingual" });
+    expect(startRes.status).toBe(202);
+
+    // Flush the microtask queue so the runner's rejection is recorded.
+    for (let i = 0; i < 10; i++) {
+      await Promise.resolve();
+    }
+
+    const statusRes = await request(app).get(`${BASE_PATH}?mode=bilingual`);
+
+    expect(statusRes.status).toBe(200);
+    expect(statusRes.body.status).toBe("failed");
+    expect(statusRes.body.reason).toBe(curatedReason);
+    expect(statusRes.body.resultPath).toBeUndefined();
+    expect(statusRes.body.reason).not.toMatch(/\//);
+    expect(statusRes.body.reason).not.toMatch(/Error:/);
   });
 });
 
