@@ -3,7 +3,6 @@ import path from "path";
 import { Persistence } from "../../core/interfaces/Persistence";
 import { Language } from "../../core/models/Language";
 import { Lesson, isTOCLesson, lessonName } from "../../core/models/Lesson";
-import { mkdirSafe } from "../../core/util/fsUtils";
 import makeLessonFile from "./makeLessonFile";
 import { flattenFooterFields } from "./flattenFooterFields";
 import { renameMasterPageStyles } from "./renameMasterPageStyles";
@@ -96,7 +95,11 @@ export default async function assembleQuarter(options: AssembleQuarterOptions): 
   const orderedLessons = orderQuarterLessons(lessons);
   const jobDir = path.join(workRoot, jobId);
   try {
-    mkdirSafe(jobDir);
+    // Recursive so the dedicated `<docStorage>/assembly-work` root is created
+    // on first use — nothing else provisions it (the startup sweep only
+    // *removes* entries when the root already exists), so a non-recursive
+    // mkdir here ENOENTs on its missing parent and fails every assembly.
+    fs.mkdirSync(jobDir, { recursive: true });
   } catch {
     // Curated, fixed-vocabulary reason ONLY — a mkdir failure (e.g. EACCES,
     // ENOSPC) can carry an absolute filesystem path; never forward it (see
