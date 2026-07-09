@@ -2,6 +2,7 @@
 
 jest.mock("./makeLessonFile");
 jest.mock("./flattenFooterFields");
+jest.mock("./renameMasterPageStyles");
 jest.mock("../assembly/sofficeAssemble");
 
 import fs from "fs";
@@ -12,11 +13,13 @@ import { Language, ENGLISH_ID } from "../../core/models/Language";
 import { Lesson, TOC_LESSON } from "../../core/models/Lesson";
 import makeLessonFile from "./makeLessonFile";
 import { flattenFooterFields } from "./flattenFooterFields";
+import { renameMasterPageStyles } from "./renameMasterPageStyles";
 import { sofficeAssemble } from "../assembly/sofficeAssemble";
 import assembleQuarter from "./assembleQuarter";
 
 const makeLessonFileMock = makeLessonFile as unknown as jest.Mock;
 const flattenFooterFieldsMock = flattenFooterFields as unknown as jest.Mock;
+const renameMasterPageStylesMock = renameMasterPageStyles as unknown as jest.Mock;
 const sofficeAssembleMock = sofficeAssemble as unknown as jest.Mock;
 
 const SERIES = 1;
@@ -75,6 +78,9 @@ describe("assembleQuarter", () => {
 
     flattenFooterFieldsMock.mockReset();
     flattenFooterFieldsMock.mockImplementation(() => undefined);
+
+    renameMasterPageStylesMock.mockReset();
+    renameMasterPageStylesMock.mockImplementation(() => undefined);
 
     sofficeAssembleMock.mockReset();
     sofficeAssembleMock.mockImplementation(
@@ -168,6 +174,35 @@ describe("assembleQuarter", () => {
       expect(rawPaths.has(odtPath)).toBe(false);
       expect(odtPath.startsWith(path.join(fixtureDir, "job-4"))).toBe(true);
     });
+  });
+
+  test("renames each constituent's master-page styles (per-constituent-unique suffix) before flattening its footer", async () => {
+    await assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId: "job-6",
+      workRoot: fixtureDir,
+    });
+
+    expect(renameMasterPageStylesMock).toHaveBeenCalledTimes(14);
+    const rawPaths = new Set(rawPathsByLessonNumber.values());
+    const seenSuffixes = new Set<string>();
+
+    renameMasterPageStylesMock.mock.calls.forEach(([options]) => {
+      const { odtPath, suffix } = options as { odtPath: string; suffix: string };
+      expect(rawPaths.has(odtPath)).toBe(false);
+      expect(odtPath.startsWith(path.join(fixtureDir, "job-6"))).toBe(true);
+      expect(seenSuffixes.has(suffix)).toBe(false);
+      seenSuffixes.add(suffix);
+    });
+    expect(seenSuffixes.size).toBe(14);
+
+    // Renamed before the footer is flattened, on the same copy path each time.
+    expect(renameMasterPageStylesMock.mock.invocationCallOrder[0]).toBeLessThan(
+      flattenFooterFieldsMock.mock.invocationCallOrder[0]
+    );
   });
 
   test("never passes a raw makeLessonFile path to the soffice merge", async () => {

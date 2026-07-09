@@ -6,6 +6,7 @@ import { Lesson, isTOCLesson } from "../../core/models/Lesson";
 import { mkdirSafe } from "../../core/util/fsUtils";
 import makeLessonFile from "./makeLessonFile";
 import { flattenFooterFields } from "./flattenFooterFields";
+import { renameMasterPageStyles } from "./renameMasterPageStyles";
 import { sofficeAssemble } from "../assembly/sofficeAssemble";
 
 /**
@@ -39,6 +40,24 @@ import { sofficeAssemble } from "../assembly/sofficeAssemble";
  * EXACTLY ONCE — the same generated path is reused for both the
  * completeness check and the merge input (Pass 1 finding — no
  * double-generation).
+ *
+ * **Per-constituent master-page/page-layout renaming (real soffice-merge
+ * defect)**: all 14 constituents share one Word/LibreOffice template, so
+ * they all use the SAME `style:master-page` names. `sofficeAssemble`'s
+ * merge macro imports constituents one at a time into a shared base
+ * document; on a page-style name collision (true for every constituent
+ * after the first) LibreOffice's import keeps the FIRST-imported style
+ * definition and discards the rest — even though each constituent's own
+ * body content still references its style BY NAME. Since the TOC is
+ * inserted first, its footer (whose own `meta.xml` has no `Lesson`
+ * property, so it falls back to the sentinel lesson number) becomes the
+ * ONE footer definition used for the entire merged book. `renameMasterPageStyles`
+ * suffixes each copy's master-page/page-layout names (and every reference
+ * to them, in both `styles.xml` and `content.xml`) with its own
+ * zero-padded index BEFORE the merge, so the collision never occurs and
+ * each of the 14 footers `flattenFooterFields` already correctly flattened
+ * survives independently. See `renameMasterPageStyles.ts`'s doc comment for
+ * the full contract.
  */
 export interface AssembleQuarterOptions {
   /** Storage instance, passed through to `makeLessonFile` for TString lookups. */
@@ -82,8 +101,10 @@ export default async function assembleQuarter(options: AssembleQuarterOptions): 
   for (let i = 0; i < orderedLessons.length; i++) {
     const lesson = orderedLessons[i];
     const rawPath = await makeLessonFile(storage, lesson, motherLang, majorityLangId);
-    const copyPath = path.join(jobDir, `${zeroPad(i)}.odt`);
+    const suffix = zeroPad(i);
+    const copyPath = path.join(jobDir, `${suffix}.odt`);
     fs.copyFileSync(rawPath, copyPath);
+    renameMasterPageStyles({ odtPath: copyPath, suffix });
     flattenFooterFields({
       odtPath: copyPath,
       series: lesson.series,
