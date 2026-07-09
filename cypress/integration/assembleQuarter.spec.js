@@ -79,7 +79,7 @@ describe("Assemble Quarter (US3)", () => {
 
     // Queued/running: aria-live status region announces "Assembling…" and
     // the control is aria-disabled (not disabled — stays focusable).
-    cy.get("div[role='status']").should("contain.text", "Assembling…");
+    cy.get("[role='status']").should("contain.text", "Assembling…");
     cy.contains("tr", "Luke 2").within(() => {
       cy.get("button[aria-disabled='true']").should("exist");
     });
@@ -87,7 +87,7 @@ describe("Assemble Quarter (US3)", () => {
     cy.wait("@pollStatus");
     cy.wait("@download");
 
-    cy.get("div[role='status']").should("contain.text", "Ready — file downloaded.");
+    cy.get("[role='status']").should("contain.text", "Ready — file downloaded.");
   });
 
   it("attaches a rapid double-click to the same job (no duplicate start)", () => {
