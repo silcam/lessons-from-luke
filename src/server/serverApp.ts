@@ -28,15 +28,12 @@ const PRODUCTION = process.env.NODE_ENV == "production";
 
 /**
  * `<docStorage>/assembly-work` — the dedicated per-job working-dir root
- * (plan.md Red-Team Pass 3 "Temp-Dir Lifecycle"). Mirrors `docStorage.ts`'s
- * own `docsDirPath()` env branching so it lands beside the same per-env docs
- * root that feature already uses.
+ * (plan.md Red-Team Pass 3 "Temp-Dir Lifecycle"). Delegates to
+ * `docStorage.ts`'s shared `docsDirPath()` so there is a single source of
+ * truth for the per-env docs root.
  */
 function assemblyWorkRoot(): string {
-  const env = process.env.NODE_ENV;
-  const subpath =
-    env === "test" ? "/test/docs/serverDocs" : env === "development" ? "/docs/dev" : "/docs";
-  return path.join(process.cwd() + subpath, "assembly-work");
+  return path.join(docStorage.docsDirPath(), "assembly-work");
 }
 
 // In-memory, process-scoped assembly job registry (FR-011 — explicitly
