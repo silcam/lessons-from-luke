@@ -1,9 +1,8 @@
 import fs from "fs";
-import path from "path";
-import { execFileSync } from "child_process";
 import libxmljs2, { Element } from "libxmljs2";
 import { mkdirSafe, unzip, unlinkRecursive } from "../../core/util/fsUtils";
 import { extractNamespaces } from "../xml/mergeXml";
+import { rezipWithMimetypeFirst } from "../xml/rezipWithMimetypeFirst";
 
 /**
  * renameMasterPageStyles — suffix every `style:master-page` / `style:page-layout`
@@ -205,19 +204,5 @@ function rewriteMasterPageNameRefs(
     if (!attr) return;
     const renamed = masterPageNameMap.get(attr.value());
     if (renamed) attr.value(renamed);
-  });
-}
-
-/**
- * Re-zips `extractDirPath`'s contents to `outPath`, with the `mimetype`
- * entry stored FIRST and UNCOMPRESSED, as ODF requires. Mirrors
- * `flattenFooterFields`'s `rezipWithMimetypeFirst`.
- */
-function rezipWithMimetypeFirst(extractDirPath: string, outPath: string): void {
-  const absOutPath = path.resolve(outPath);
-  fs.rmSync(absOutPath, { force: true });
-  execFileSync("zip", ["-X", "-q", "-0", absOutPath, "mimetype"], { cwd: extractDirPath });
-  execFileSync("zip", ["-X", "-q", "-r", "-D", absOutPath, ".", "-x", "mimetype"], {
-    cwd: extractDirPath,
   });
 }

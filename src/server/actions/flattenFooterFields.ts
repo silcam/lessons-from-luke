@@ -1,9 +1,8 @@
 import fs from "fs";
-import path from "path";
-import { execFileSync } from "child_process";
 import libxmljs2, { Element, Text } from "libxmljs2";
 import { mkdirSafe, unzip, unlinkRecursive } from "../../core/util/fsUtils";
 import { extractNamespaces } from "../xml/mergeXml";
+import { rezipWithMimetypeFirst } from "../xml/rezipWithMimetypeFirst";
 
 /**
  * flattenFooterFields — replace an ODT's footer `text:user-defined`
@@ -123,19 +122,4 @@ function flattenStylesXml(stylesXmlPath: string, resolvedValues: ResolvedFieldVa
   });
 
   fs.writeFileSync(stylesXmlPath, xmlDoc.toString(false));
-}
-
-/**
- * Re-zips `extractDirPath`'s contents to `outPath`, with the `mimetype`
- * entry stored FIRST and UNCOMPRESSED, as ODF requires. `fsUtils.zip`
- * (`zip -r`) does not guarantee this ordering, so this reimplements the
- * standard ODF two-pass zip recipe directly.
- */
-function rezipWithMimetypeFirst(extractDirPath: string, outPath: string): void {
-  const absOutPath = path.resolve(outPath);
-  fs.rmSync(absOutPath, { force: true });
-  execFileSync("zip", ["-X", "-q", "-0", absOutPath, "mimetype"], { cwd: extractDirPath });
-  execFileSync("zip", ["-X", "-q", "-r", "-D", absOutPath, ".", "-x", "mimetype"], {
-    cwd: extractDirPath,
-  });
 }
