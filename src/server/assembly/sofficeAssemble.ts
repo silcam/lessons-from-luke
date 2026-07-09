@@ -1,6 +1,7 @@
 import path from "path";
 import fs from "fs";
 import { spawn, type ChildProcess } from "child_process";
+import { MODULE1_XBA } from "./macro/module1Xba";
 
 /**
  * sofficeAssemble — productionized wrapper around the spike's three-step
@@ -94,9 +95,6 @@ export function profileDirFor(workRoot: string, jobId: string): string {
   return path.join(workRoot, jobId, "profile");
 }
 
-/** The Basic macro module injected into every per-job profile before the run step. */
-const MODULE1_XBA_PATH = path.join(__dirname, "macro", "Module1.xba");
-
 /**
  * Best-effort, synchronous profile prep: warm throwaway file, `user/basic`
  * scaffolding, macro copy, stale `.lock` removal. See module doc comment for
@@ -117,7 +115,10 @@ function injectMacro(profileDir: string): void {
   try {
     const basicDir = path.join(profileDir, "user", "basic", "Standard");
     fs.mkdirSync(basicDir, { recursive: true });
-    fs.copyFileSync(MODULE1_XBA_PATH, path.join(basicDir, "Module1.xba"));
+    // Embedded (module1Xba.ts) rather than copied from a sibling .xba: tsc does
+    // not emit non-.ts assets into dist, so a copyFileSync(__dirname/...) ENOENTs
+    // in every built layout (dev-flat and prod-nested dist alike).
+    fs.writeFileSync(path.join(basicDir, "Module1.xba"), MODULE1_XBA);
     fs.rmSync(path.join(profileDir, ".lock"), { force: true });
   } catch (err) {
     console.warn("sofficeAssemble: macro inject failed", err);
