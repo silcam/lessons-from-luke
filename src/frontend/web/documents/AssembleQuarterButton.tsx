@@ -1,9 +1,8 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Book } from "../../../core/models/Lesson";
 import { PublicLanguage } from "../../../core/models/Language";
 import Button from "../../common/base-components/Button";
 import Div from "../../common/base-components/Div";
-import Label from "../../common/base-components/Label";
 import useAssembleQuarter, { AssembleMode } from "./useAssembleQuarter";
 
 const noop = () => {
@@ -25,8 +24,12 @@ const noop = () => {
  * live region announces that the download completed (the auto-download
  * itself is otherwise silent to a screen-reader user).
  *
- * The failed-state focus/announce behavior belongs to US4 and is out of
- * scope here.
+ * Failed state (US4): the failure reason is rendered in a `tabIndex={-1}`
+ * span so it can receive programmatic focus; on transition to `failed` the
+ * component moves focus there, making the reason reliably discoverable
+ * without a visual scan (screen readers announce the focused content).
+ * Retry re-uses the normal `start()` action — clicking the button again
+ * simply re-triggers assembly via a fresh POST.
  */
 export default function AssembleQuarterButton(props: {
   language: PublicLanguage;
@@ -42,10 +45,20 @@ export default function AssembleQuarterButton(props: {
     props.mode
   );
 
+  const failureMessageRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (status.tag === "failed") {
+      failureMessageRef.current?.focus();
+    }
+  }, [status.tag]);
+
   if (status.tag === "failed") {
     return (
       <Div>
-        <Label text={status.reason} />
+        <span ref={failureMessageRef} tabIndex={-1}>
+          {status.reason}
+        </span>
         <Button link text={props.text} onClick={start} />
       </Div>
     );
