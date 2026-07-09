@@ -114,12 +114,20 @@ export default async function assembleQuarter(options: AssembleQuarterOptions): 
     const suffix = zeroPad(i);
     const copyPath = path.join(jobDir, `${suffix}.odt`);
     fs.copyFileSync(rawPath, copyPath);
-    renameMasterPageStyles({ odtPath: copyPath, suffix });
-    flattenFooterFields({
-      odtPath: copyPath,
-      series: lesson.series,
-      lesson: lesson.lesson,
-    });
+    try {
+      renameMasterPageStyles({ odtPath: copyPath, suffix });
+      flattenFooterFields({
+        odtPath: copyPath,
+        series: lesson.series,
+        lesson: lesson.lesson,
+      });
+    } catch {
+      // Curated, fixed-vocabulary reason ONLY — see the makeLessonFile catch
+      // above. A renameMasterPageStyles/flattenFooterFields failure (e.g. an
+      // execFileSync 'zip' failure or a libxmljs2 parse error) can carry an
+      // absolute filesystem path or a full command line; never forward it.
+      throw new Error(`a lesson failed to prepare for assembly: ${lessonName(lesson)}`);
+    }
     files.push(copyPath);
   }
 
@@ -131,11 +139,11 @@ export default async function assembleQuarter(options: AssembleQuarterOptions): 
     workRoot,
   });
 
-  if (fs.existsSync(result.outputPath)) {
-    const stats = fs.statSync(result.outputPath);
-    if (stats.size === 0) {
-      throw new Error(`sofficeAssemble produced an empty result at ${result.outputPath}`);
-    }
+  // Curated, path-free reason: covers both a never-written outputPath (e.g.
+  // soffice exited 0 but the macro silently no-oped — previously silently
+  // returned a path to a nonexistent file) and a written-but-empty result.
+  if (!fs.existsSync(result.outputPath) || fs.statSync(result.outputPath).size === 0) {
+    throw new Error("assembly produced no result");
   }
 
   return result.outputPath;

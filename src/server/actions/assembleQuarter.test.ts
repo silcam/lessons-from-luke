@@ -84,9 +84,10 @@ describe("assembleQuarter", () => {
 
     sofficeAssembleMock.mockReset();
     sofficeAssembleMock.mockImplementation(
-      async (options: { outputPath: string; files: string[] }) => ({
-        outputPath: options.outputPath,
-      })
+      async (options: { outputPath: string; files: string[] }) => {
+        fs.writeFileSync(options.outputPath, "assembled contents");
+        return { outputPath: options.outputPath };
+      }
     );
   });
 
@@ -254,9 +255,10 @@ describe("assembleQuarter — US4 generation-failure curated reason", () => {
     renameMasterPageStylesMock.mockImplementation(() => undefined);
     sofficeAssembleMock.mockReset();
     sofficeAssembleMock.mockImplementation(
-      async (options: { outputPath: string; files: string[] }) => ({
-        outputPath: options.outputPath,
-      })
+      async (options: { outputPath: string; files: string[] }) => {
+        fs.writeFileSync(options.outputPath, "assembled contents");
+        return { outputPath: options.outputPath };
+      }
     );
   });
 
@@ -333,5 +335,139 @@ describe("assembleQuarter — US4 generation-failure curated reason", () => {
     expect(message).not.toMatch(/Error:/);
     expect(message).not.toMatch(/ENOENT/);
     expect(message).not.toBe(rawDetail);
+  });
+
+  test("a renameMasterPageStyles failure (e.g. a raw execFileSync/zip error) yields a curated, path-free reason", async () => {
+    const rawDetail =
+      "Command failed: zip -d " +
+      "/Users/eykd/code/js/lessons-from-luke/tmp/job-us4-3/00.odt styles.xml\n" +
+      "zip warning: name not matched";
+
+    makeLessonFileMock.mockImplementation(async (_storage: Persistence, lsn: Lesson) => {
+      const rawPath = path.join(fixtureDir, `raw-${lsn.lesson}.odt`);
+      fs.writeFileSync(rawPath, `raw contents for lesson ${lsn.lesson}`);
+      return rawPath;
+    });
+    renameMasterPageStylesMock.mockImplementation(() => {
+      throw new Error(rawDetail);
+    });
+
+    let caught: unknown;
+    try {
+      await assembleQuarter({
+        storage,
+        lessons: unorderedQuarterLessons(),
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId: "job-us4-3",
+        workRoot: fixtureDir,
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    expect(message).not.toMatch(/\//);
+    expect(message).not.toMatch(/Command failed/);
+    expect(message).not.toBe(rawDetail);
+    expect(sofficeAssembleMock).not.toHaveBeenCalled();
+  });
+
+  test("a flattenFooterFields failure (e.g. a raw libxmljs2 parse error) yields a curated, path-free reason", async () => {
+    const rawDetail =
+      "libxmljs2: parse error at " +
+      "/Users/eykd/code/js/lessons-from-luke/tmp/job-us4-4/03.odt:12:4";
+
+    makeLessonFileMock.mockImplementation(async (_storage: Persistence, lsn: Lesson) => {
+      const rawPath = path.join(fixtureDir, `raw-${lsn.lesson}.odt`);
+      fs.writeFileSync(rawPath, `raw contents for lesson ${lsn.lesson}`);
+      return rawPath;
+    });
+    flattenFooterFieldsMock.mockImplementation(() => {
+      throw new Error(rawDetail);
+    });
+
+    let caught: unknown;
+    try {
+      await assembleQuarter({
+        storage,
+        lessons: unorderedQuarterLessons(),
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId: "job-us4-4",
+        workRoot: fixtureDir,
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    expect(message).not.toMatch(/\//);
+    expect(message).not.toMatch(/libxmljs2/);
+    expect(message).not.toBe(rawDetail);
+    expect(sofficeAssembleMock).not.toHaveBeenCalled();
+  });
+
+  test("a missing (never-written) sofficeAssemble outputPath is treated as a failure, not a ready result", async () => {
+    makeLessonFileMock.mockImplementation(async (_storage: Persistence, lsn: Lesson) => {
+      const rawPath = path.join(fixtureDir, `raw-${lsn.lesson}.odt`);
+      fs.writeFileSync(rawPath, `raw contents for lesson ${lsn.lesson}`);
+      return rawPath;
+    });
+    sofficeAssembleMock.mockImplementation(async (options: { outputPath: string }) =>
+      // Resolves successfully (soffice exited 0) but never actually wrote
+      // outputPath — e.g. the macro silently no-oped.
+      ({ outputPath: options.outputPath })
+    );
+
+    let caught: unknown;
+    try {
+      await assembleQuarter({
+        storage,
+        lessons: unorderedQuarterLessons(),
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId: "job-us4-5",
+        workRoot: fixtureDir,
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    expect(message).not.toMatch(/\//);
+  });
+
+  test("an empty (zero-byte) sofficeAssemble result is treated as a failure with a path-free reason", async () => {
+    makeLessonFileMock.mockImplementation(async (_storage: Persistence, lsn: Lesson) => {
+      const rawPath = path.join(fixtureDir, `raw-${lsn.lesson}.odt`);
+      fs.writeFileSync(rawPath, `raw contents for lesson ${lsn.lesson}`);
+      return rawPath;
+    });
+    sofficeAssembleMock.mockImplementation(async (options: { outputPath: string }) => {
+      fs.writeFileSync(options.outputPath, "");
+      return { outputPath: options.outputPath };
+    });
+
+    let caught: unknown;
+    try {
+      await assembleQuarter({
+        storage,
+        lessons: unorderedQuarterLessons(),
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId: "job-us4-6",
+        workRoot: fixtureDir,
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    expect(message).not.toMatch(/\//);
   });
 });
