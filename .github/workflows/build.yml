@@ -358,6 +358,11 @@ jobs:
               "database": "lessons-from-luke-test",
               "username": "lessons-from-luke",
               "password": "lessons-from-luke"
+            },
+            "email": {
+              "apiKey": "ci-test-fake-mailgun-api-key",
+              "domain": "mg.ci-test.example.com",
+              "fromAddress": "noreply@mg.ci-test.example.com"
             }
           }
           EOF

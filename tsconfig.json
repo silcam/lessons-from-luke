@@ -21,6 +21,15 @@
     // rootDir up to src/ and nest every output (dist/server/server/server.js).
     "**/jestGlobalSetup.ts",
     "**/jestSetupAfterEnv.ts",
-    "**/jestSilenceConsole.ts"
+    "**/jestSilenceConsole.ts",
+    // Cypress E2E specs have their own runtime (browser, mocha/chai globals) and
+    // are never part of the app build. This config has no "include", so without
+    // this exclusion any *.ts file under cypress/ is swept into the default
+    // include — and Cypress's bundled global Chai typings (Assertion/expect)
+    // then clobber @types/jest's `expect` for every ts-jest consumer that falls
+    // back to this root config (no project pins an explicit tsconfig path —
+    // see jest.config.js), breaking `expect(...).toHaveBeenCalledWith` etc.
+    // project-wide.
+    "cypress"
   ]
 }

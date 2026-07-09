@@ -18,6 +18,11 @@ Spec: specs/002-invitation-system/spec.md
 Keywords: assembled quarter, quarter book, quarter download, assemble quarter, whole quarter, full book, combine lessons, merge lessons, single document, one file download, TOC plus 13 lessons, table of contents, series download, editable ODT, continuous page numbering, first-page number suppression, master document, LibreOffice assembly, soffice, background job, in-progress assembling, bilingual, single-language, monolingual, publishing automation, SOP 30.1, WS-2b, replace odm master document, no PDF, no covers
 Spec: specs/007-assembled-quarter-download/spec.md
 
+## Transactional Email & Self-Service Password Reset
+
+Keywords: transactional email, Mailgun, email service, send email, SMTP, password reset, forgot password, reset link, self-service recovery, account recovery, locked out, change password, set new password, email-and-password auth, better-auth sendResetPassword, account enumeration, invalidate sessions, sign out other sessions, auto-email invitation, invitation email, resend invitation, resend email, invitation delivery, email-bound invite, environment-gated email, fail-fast secrets, log transport, dev/test email logging, secrets.json, sending domain, from-address, rate limiting, email flooding, server-only email, web-only
+Spec: specs/005-transactional-email-reset/spec.md
+
 ## How to Update This File
 
 - Add one entry per feature spec, before this section.

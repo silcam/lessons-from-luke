@@ -17,7 +17,7 @@ import { renderWithProviders, defaultSyncState } from "../../common/testHelpers"
 import PublicHome from "./PublicHome";
 
 // authClient is mapped to src/frontend/__mocks__/authClient.ts via jest moduleNameMapper
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+
 const { authClient } = require("../../web/auth/authClient") as {
   authClient: { getSession: jest.Mock; signIn: { email: jest.Mock }; signOut: jest.Mock };
 };
@@ -94,6 +94,17 @@ describe("PublicHome", () => {
     expect(authClient.signIn.email).toHaveBeenCalledWith(
       expect.objectContaining({ callbackURL: "/" })
     );
+  });
+
+  it("renders a 'Forgot password?' link that points to /forgot-password", () => {
+    const { getByText } = renderWithProviders(<PublicHome />, {
+      syncState: defaultSyncState,
+      currentUser: { user: null, locale: "en", loaded: false },
+    });
+
+    const link = getByText("Forgot password?");
+    expect(link).toBeTruthy();
+    expect(link.closest("a")?.getAttribute("href")).toBe("/forgot-password");
   });
 
   it("renders email and password inputs", () => {
