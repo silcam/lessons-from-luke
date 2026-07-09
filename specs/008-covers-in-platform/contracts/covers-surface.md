@@ -66,7 +66,7 @@ tests and Cypress:
 > `TranslateIndex.tsx:24` interpolates `` `${lesson.book} ${lesson.series}-${lesson.lesson}` ``
 > directly, so a cover renders as **"Luke 1-97"** — a confirmed reserved-number leak (also mis-renders
 > the TOC as "Luke 1-99" today). Implementation MUST replace that interpolation with
-> `lessonName(lesson, t)`. See plan Risk 3.
+> `lessonName(lesson, t)`. See plan Risk 4.
 
 ## Client detection contract (FR-003)
 
