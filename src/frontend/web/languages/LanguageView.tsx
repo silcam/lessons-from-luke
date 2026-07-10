@@ -131,12 +131,12 @@ export default function LanguageView(props: IProps) {
                 "lessonId",
                 lesson.lessonId
               )?.progress;
-              if (!progress) return null;
+              if (!progress && !isCoverLesson(lesson.lesson)) return null;
               return (
                 <tr key={lesson.lessonId}>
                   <td>{lessonName(lesson, t)}</td>
                   <td>
-                    <ProgressBar percent={progress} fixed />
+                    <ProgressBar percent={progress ?? 0} fixed />
                   </td>
                   <td>
                     {t("Download")}
