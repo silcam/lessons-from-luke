@@ -9,7 +9,15 @@ import {
 import Heading from "../../common/base-components/Heading";
 import { useDropzone } from "react-dropzone";
 import SelectInput, { optionsDisplayIsKey } from "../../common/base-components/SelectInput";
-import { Book, AllBooks, BaseLesson, lessonName, TOC_LESSON } from "../../../core/models/Lesson";
+import {
+  Book,
+  AllBooks,
+  BaseLesson,
+  lessonName,
+  TOC_LESSON,
+  COVER_A4_LESSON,
+  COVER_A3_LESSON,
+} from "../../../core/models/Lesson";
 import NumberPicker from "../../common/base-components/NumberPicker";
 import Button from "../../common/base-components/Button";
 import Label from "../../common/base-components/Label";
@@ -152,6 +160,8 @@ export function metaFromFilename(filename: string): EnglishUploadMeta {
 
   match = /L(\d+)/.exec(filename);
   if (match) meta.lesson = parseInt(match[1]);
+  else if (/Cover-A4/i.test(filename)) meta.lesson = COVER_A4_LESSON;
+  else if (/Cover-A3/i.test(filename)) meta.lesson = COVER_A3_LESSON;
   else meta.lesson = TOC_LESSON;
 
   return meta;
