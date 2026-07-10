@@ -31,6 +31,7 @@ import {
   missingQuarterParts,
 } from "../../core/models/Quarter";
 import assembleQuarter from "./assembleQuarter";
+import { selectAssemblyConstituents } from "../controllers/assemblyController";
 
 // The real merge (~14 `soffice` inserts + a `--convert-to pdf` verification
 // pass) comfortably exceeds Jest's 5s default. `sofficeAssemble`'s own hard
@@ -321,8 +322,8 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
  * pipeline, unmocked, exactly as the top-level golden-reference block above
  * exercises it. Today, (a) fails outright (the reproduced selection logic
  * includes 97/98) and (b) fails because the real merge pulls in visible
- * cover content (the "Publisher address" / "Lessons from" boilerplate every
- * committed cover-master fixture carries — see
+ * cover content (the "Year of Publication" boilerplate every committed
+ * cover-master fixture carries — see
  * `src/server/xml/coverExtraction.integration.test.ts`).
  */
 describe("assembleQuarter (real soffice merge) — US16 covers never affect assembly (FR-012)", () => {
@@ -337,16 +338,14 @@ describe("assembleQuarter (real soffice merge) — US16 covers never affect asse
   let fullTextWithCovers: string;
 
   /**
-   * Reproduces `assemblyController.ts`'s CURRENT `makeRunner` constituent
-   * selection (`storage.lessons().filter((lsn) => lsn.book === key.book &&
-   * lsn.series === key.series)`) — no exclusion of reserved cover lesson
-   * numbers. Once lessons-from-luke-l96d.5.9.2 lands (`TOC ∪
-   * expectedLessonNumbers(series)`), production stops leaking 97/98 through
-   * this path; this helper intentionally keeps reproducing TODAY's formula
-   * so the test below documents and fails against the live defect.
+   * Calls the REAL production constituent-selection logic
+   * (`assemblyController.ts`'s exported `selectAssemblyConstituents` —
+   * `TOC ∪ expectedLessonNumbers(series)`, added by
+   * lessons-from-luke-l96d.5.9.2 to fix the FR-012 leak), so this test
+   * exercises the actual fix rather than a hand-reproduced formula.
    */
   function currentControllerConstituentSelection(allQuarterLessons: readonly Lesson[]): Lesson[] {
-    return allQuarterLessons.filter((lsn) => lsn.book === BOOK && lsn.series === SERIES);
+    return selectAssemblyConstituents(allQuarterLessons, BOOK, SERIES);
   }
 
   /** The desired FR-012 contract: TOC ∪ the 13 expected lesson numbers — reserved cover numbers excluded. */
@@ -421,10 +420,15 @@ describe("assembleQuarter (real soffice merge) — US16 covers never affect asse
   });
 
   test("(FR-012, scenario 2, part b — THE DEFECT, observable) the assembled output contains no cover content", () => {
-    // "Publisher address" is bare cover-master boilerplate present in every
-    // committed cover fixture (both A4 and A3) and in no real lesson
-    // constituent — see coverExtraction.integration.test.ts. Its presence in
-    // the assembled book is direct, real-merge proof the covers leaked in.
-    expect(fullTextWithCovers).not.toContain("Publisher address");
+    // "Year of Publication" (capital P) is cover-exclusive boilerplate,
+    // present in BOTH committed cover fixtures (A4 and A3 — confirmed via
+    // `unzip -p ... content.xml | grep -c "Year of Publication"`) and in NO
+    // real constituent, including the TOC — whose own front title page
+    // carries the visually-similar but textually distinct "Year of
+    // publication" (lowercase p) colophon line, so that string alone
+    // doesn't discriminate covers from the TOC's own boilerplate. This
+    // marker's presence in the assembled book is direct, real-merge proof
+    // the covers leaked in.
+    expect(fullTextWithCovers).not.toContain("Year of Publication");
   });
 });
