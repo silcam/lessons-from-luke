@@ -177,17 +177,6 @@ function parseNodes(nodes: Element[]) {
   return docStrings;
 }
 
-// function extractStrings(docStrings: SrcStrings) {
-//   return docStrings.map(strObject => strObject.text);
-// }
-
-// function removeDuplicates(strings) {
-//   return strings.reduce((accumStrings, string) => {
-//     if (!accumStrings.includes(string)) return accumStrings.concat([string]);
-//     return accumStrings;
-//   }, []);
-// }
-
 function removeTrackedChanges(doc: Document, namespaces: Namespaces) {
   const trackedChangesNodes = doc.root()!.find("//text:tracked-changes", namespaces);
   trackedChangesNodes.forEach((node) => node.remove());
