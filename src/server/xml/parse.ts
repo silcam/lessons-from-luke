@@ -41,6 +41,10 @@ function parseContent(contentXml: string) {
     "M.T._20_Cover_20_title",
     "M.T._20_Cover_20_subtitle",
     "M.T._20_Example_20_text",
+    "M.T._20_-_20_Cover_20_Title",
+    "M.T._20_-_20_Cover_20_subtitle",
+    "Copyright_20_text",
+    "Book_20_number",
   ];
   const knownStyleNamePatterns = ["M.T._20_Text", "L.M."];
 
