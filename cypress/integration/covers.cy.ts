@@ -69,10 +69,10 @@ describe("US13: Upload English cover masters", () => {
     cy.wait("@uploadCover", { timeout: 30000 });
     cy.contains("h2", "No issues").should("exist");
     cy.contains("button", "View Lesson").click();
-    cy.contains("span.lessonString", "title", { matchCase: false }).should("exist");
-    cy.contains("span.lessonString", "subtitle", { matchCase: false }).should("exist");
-    cy.contains("span.lessonString", "copyright", { matchCase: false }).should("exist");
-    cy.contains("span.lessonString", "address", { matchCase: false }).should("exist");
+    cy.contains("Lessons from Luke").should("exist");
+    cy.contains("Guide moniteur", { matchCase: false }).should("exist");
+    cy.contains("Publisher").should("exist");
+    cy.contains("Publisher address").should("exist");
   });
 
   // GIVEN an uploaded A4 cover for Luke series 1 WHEN the operator views
