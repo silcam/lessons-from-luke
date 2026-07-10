@@ -69,4 +69,29 @@ describe("isCompleteQuarter / missingQuarterParts", () => {
     expect(isCompleteQuarter("Luke", 1, lessons)).toBe(false);
     expect(missingQuarterParts("Luke", 1, lessons)).toEqual(["Luke 1-6"]);
   });
+
+  // Guard: reserved cover lesson numbers (97 = A4, 98 = A3) must never be
+  // examined by completeness logic — a complete 1-13+TOC quarter stays
+  // complete whether or not cover lessons are present, and their
+  // translation/version status is irrelevant.
+  test("reserved cover lessons 97/98 never affect completeness (present or absent, translated or not)", () => {
+    const coreLessons: BaseLesson[] = [
+      makeLesson({ book: "Luke", series: 1, lesson: TOC_LESSON }),
+      ...Array.from({ length: 13 }, (_, i) =>
+        makeLesson({ book: "Luke", series: 1, lesson: 1 + i })
+      ),
+    ];
+
+    expect(isCompleteQuarter("Luke", 1, coreLessons)).toBe(true);
+    expect(missingQuarterParts("Luke", 1, coreLessons)).toEqual([]);
+
+    const withCovers: BaseLesson[] = [
+      ...coreLessons,
+      makeLesson({ book: "Luke", series: 1, lesson: 97, version: 0 }),
+      makeLesson({ book: "Luke", series: 1, lesson: 98, version: 5 }),
+    ];
+
+    expect(isCompleteQuarter("Luke", 1, withCovers)).toBe(true);
+    expect(missingQuarterParts("Luke", 1, withCovers)).toEqual([]);
+  });
 });
