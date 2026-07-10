@@ -3,6 +3,7 @@ import path from "path";
 import { Persistence } from "../../core/interfaces/Persistence";
 import { Language } from "../../core/models/Language";
 import { Lesson, isTOCLesson, lessonName } from "../../core/models/Lesson";
+import { expectedLessonNumbers } from "../../core/models/Quarter";
 import makeLessonFile from "./makeLessonFile";
 import { flattenFooterFields } from "./flattenFooterFields";
 import { renameMasterPageStyles } from "./renameMasterPageStyles";
@@ -164,10 +165,25 @@ export default async function assembleQuarter(options: AssembleQuarterOptions): 
  * Resolve assembly order: TOC first, then the 13 lessons ascending by
  * absolute lesson number. NOT `lessonCompare`, which sorts the TOC
  * lesson's sentinel number (99) to the END rather than the front.
+ *
+ * **Defense-in-depth guard (FR-012, US16)**: the real fix for the
+ * covers-in-platform lesson-number leak lives in the caller
+ * (`assemblyController`'s constituent filter, `TOC ∪
+ * expectedLessonNumbers(series)`). This function drops any non-TOC lesson
+ * whose absolute number falls outside `expectedLessonNumbers(rest[0].series)`
+ * so a future caller of `assembleQuarter` cannot reintroduce the leak even
+ * if that upstream filter regresses. Does not change behavior for any
+ * already-passing caller, which only ever passes exactly the 13 expected
+ * lesson numbers plus the TOC.
  */
 function orderQuarterLessons(lessons: readonly Lesson[]): Lesson[] {
   const toc = lessons.filter(isTOCLesson);
-  const rest = lessons.filter((lsn) => !isTOCLesson(lsn)).sort((a, b) => a.lesson - b.lesson);
+  const nonTOC = lessons.filter((lsn) => !isTOCLesson(lsn));
+  const series = nonTOC[0]?.series ?? toc[0]?.series;
+  const expected = series === undefined ? undefined : new Set(expectedLessonNumbers(series));
+  const rest = nonTOC
+    .filter((lsn) => expected === undefined || expected.has(lsn.lesson))
+    .sort((a, b) => a.lesson - b.lesson);
   return [...toc, ...rest];
 }
 
