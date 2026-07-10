@@ -7,6 +7,10 @@ import {
   lessonCompare,
   isTOCLesson,
   TOC_LESSON,
+  isCoverLesson,
+  coverFormat,
+  COVER_A4_LESSON,
+  COVER_A3_LESSON,
   BaseLesson,
   Lesson,
 } from "./Lesson";
@@ -18,6 +22,30 @@ const makeLesson = (overrides = {}): BaseLesson => ({
   lesson: 1,
   version: 1,
   ...overrides,
+});
+
+describe("isCoverLesson", () => {
+  test.each([
+    [COVER_A4_LESSON, true],
+    [COVER_A3_LESSON, true],
+    [1, false],
+    [13, false],
+    [TOC_LESSON, false],
+  ])("isCoverLesson(%i) === %s", (lesson, expected) => {
+    expect(isCoverLesson(lesson)).toBe(expected);
+  });
+});
+
+describe("coverFormat", () => {
+  test.each([
+    [COVER_A4_LESSON, "A4"],
+    [COVER_A3_LESSON, "A3"],
+    [1, null],
+    [13, null],
+    [TOC_LESSON, null],
+  ])("coverFormat(%i) === %s", (lesson, expected) => {
+    expect(coverFormat(lesson)).toBe(expected);
+  });
 });
 
 describe("isTOCLesson", () => {

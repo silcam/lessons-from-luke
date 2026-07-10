@@ -7,6 +7,14 @@ export type Book = (typeof AllBooks)[number];
 
 export const TOC_LESSON = 99;
 
+/** Reserved lesson number for the A4 (cut-sheet) cover. */
+export const COVER_A4_LESSON = 97;
+/** Reserved lesson number for the A3 (full-spread booklet) cover. */
+export const COVER_A3_LESSON = 98;
+
+/** The two supported cover print formats. */
+export type CoverFormat = "A4" | "A3";
+
 export interface BaseLesson {
   lessonId: number;
   book: Book;
@@ -46,4 +54,22 @@ export function lessonCompare(a: BaseLesson, b: BaseLesson) {
 
 export function isTOCLesson(lesson: BaseLesson) {
   return lesson.lesson == TOC_LESSON;
+}
+
+/**
+ * True iff the given lesson number is one of the reserved cover lesson
+ * numbers (A4 or A3).
+ */
+export function isCoverLesson(lesson: number): boolean {
+  return lesson === COVER_A4_LESSON || lesson === COVER_A3_LESSON;
+}
+
+/**
+ * The cover format for a reserved cover lesson number, or `null` if the
+ * given lesson number is not a reserved cover lesson number.
+ */
+export function coverFormat(lesson: number): CoverFormat | null {
+  if (lesson === COVER_A4_LESSON) return "A4";
+  if (lesson === COVER_A3_LESSON) return "A3";
+  return null;
 }
