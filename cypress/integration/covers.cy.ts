@@ -162,8 +162,10 @@ describe("US14: Cover text auto-populates from existing translations", () => {
     // shows the translated title — no translator action was taken on it.
     cy.visit("/translate/DEF");
     cy.contains("button", "Cover (A3)").click();
-    cy.get("span.lessonString", { timeout: 20000 }).should("exist");
-    cy.contains("span.lessonString", "Leçons de Luc").should("exist");
+    cy.contains("div", "Lessons from Luke", { timeout: 20000 })
+      .parent()
+      .find("textarea")
+      .should("have.value", "Leçons de Luc");
   });
 
   // GIVEN an untranslated cover-only string such as the copyright line WHEN
@@ -174,23 +176,29 @@ describe("US14: Cover text auto-populates from existing translations", () => {
 
     cy.visit("/translate/DEF");
     cy.contains("button", "Cover (A4)").click();
-    cy.get("span.lessonString", { timeout: 20000 }).should("exist");
 
-    // WHEN the translator clicks the untranslated copyright line and types a
-    // translation into the normal per-string textarea.
-    cy.contains("span.lessonString", "Year of Publication").click();
-    cy.get("textarea").clear().type("© 2024 Mission Publishers", { delay: 0 });
+    // WHEN the translator types a translation into the untranslated
+    // copyright line's per-string textarea.
+    cy.contains("div", "Year of Publication", { timeout: 20000 })
+      .parent()
+      .find("textarea")
+      .clear()
+      .type("© 2024 Mission Publishers", { delay: 0 });
     cy.contains("Unsaved Changes").should("exist");
     cy.intercept("POST", "/api/tStrings").as("saveCopyright");
-    cy.contains("button", "Save").click();
+    // The fallback UI has no Save button — it autosaves per-string on blur.
+    cy.contains("div", "Year of Publication").parent().find("textarea").blur();
     cy.wait("@saveCopyright");
     cy.contains("Changes Saved").should("exist");
 
     // THEN it saved, and remains an ordinary, editable string afterward.
+    // (The lesson selection persists in localStorage across the revisit, so
+    // the "Cover (A4)" item reopens automatically already-selected.)
     cy.visit("/translate/DEF");
-    cy.contains("button", "Cover (A4)").click();
-    cy.contains("span.lessonString", "© 2024 Mission Publishers").click();
-    cy.get("textarea").should("have.value", "© 2024 Mission Publishers");
+    cy.contains("div", "Year of Publication", { timeout: 20000 })
+      .parent()
+      .find("textarea")
+      .should("have.value", "© 2024 Mission Publishers");
   });
 
   // GIVEN a translated copyright line WHEN the publication year changes
@@ -230,18 +238,26 @@ describe("US14: Cover text auto-populates from existing translations", () => {
     // through the same textarea/Save mechanism as any other string.
     cy.visit("/translate/DEF");
     cy.contains("button", "Cover (A4)").click();
-    cy.contains("span.lessonString", "© 2024 Mission Publishers").click();
-    cy.get("textarea").clear().type("© 2025 Mission Publishers", { delay: 0 });
+    cy.contains("div", "Year of Publication", { timeout: 20000 })
+      .parent()
+      .find("textarea")
+      .should("have.value", "© 2024 Mission Publishers")
+      .clear()
+      .type("© 2025 Mission Publishers", { delay: 0 });
     cy.intercept("POST", "/api/tStrings").as("saveCopyrightEdit");
-    cy.contains("button", "Save").click();
+    // The fallback UI has no Save button — it autosaves per-string on blur.
+    cy.contains("div", "Year of Publication").parent().find("textarea").blur();
     cy.wait("@saveCopyrightEdit");
     cy.contains("Changes Saved").should("exist");
 
     // THEN the new year is saved, with no special workflow beyond an
     // ordinary string edit.
+    // (The lesson selection persists in localStorage across the revisit, so
+    // the "Cover (A4)" item reopens automatically already-selected.)
     cy.visit("/translate/DEF");
-    cy.contains("button", "Cover (A4)").click();
-    cy.contains("span.lessonString", "© 2025 Mission Publishers").should("exist");
-    cy.contains("span.lessonString", "© 2024 Mission Publishers").should("not.exist");
+    cy.contains("div", "Year of Publication", { timeout: 20000 })
+      .parent()
+      .find("textarea")
+      .should("have.value", "© 2025 Mission Publishers");
   });
 });
