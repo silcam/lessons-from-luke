@@ -330,11 +330,27 @@ describe("US15: Download translated covers from the language page", () => {
     );
   });
 
-  // GIVEN a bilingual language configuration WHEN a cover is downloaded
-  // THEN the output request carries the mother-tongue/majority-language
-  // pairing the same way a lesson download does; GIVEN a monolingual
-  // download THEN majorityLanguageId is omitted (0), as for lessons.
-  it("requests bilingual and single-language cover downloads the same way lesson downloads do", () => {
+  // GIVEN a bilingual (mother-tongue) language configuration WHEN a cover
+  // is downloaded THEN the output request carries the mother-tongue/
+  // majority-language pairing the same way a bilingual lesson download
+  // does — majorityLanguageId is the language's defaultSrcLang.
+  it("requests a bilingual cover download the same way a bilingual lesson download does", () => {
+    uploadCover("English-Luke-Q1-Cover-A3.odt", "A3");
+
+    cy.visit("/");
+    cy.contains("Batanga").click();
+    cy.contains("button", "Cover (A3)").should("exist");
+
+    cy.intercept("GET", /\/api\/languages\/3\/lessons\/\d+\/document.*/).as("downloadCover");
+    cy.contains("button", "Cover (A3)").click();
+    cy.wait("@downloadCover").its("request.url").should("include", "majorityLanguageId=1");
+  });
+
+  // GIVEN a monolingual (non-mother-tongue) language configuration WHEN a
+  // cover is downloaded THEN the output request carries the language's own
+  // id as majorityLanguageId — the same way a monolingual lesson download
+  // does.
+  it("requests a monolingual cover download the same way a monolingual lesson download does", () => {
     uploadCover("English-Luke-Q1-Cover-A3.odt", "A3");
 
     cy.visit("/");
@@ -343,7 +359,7 @@ describe("US15: Download translated covers from the language page", () => {
 
     cy.intercept("GET", /\/api\/languages\/2\/lessons\/\d+\/document.*/).as("downloadCover");
     cy.contains("button", "Cover (A3)").click();
-    cy.wait("@downloadCover").its("request.url").should("include", "majorityLanguageId=1");
+    cy.wait("@downloadCover").its("request.url").should("include", "majorityLanguageId=2");
   });
 
   // GIVEN a language page listing downloadable documents WHEN covers are
