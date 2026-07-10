@@ -24,7 +24,12 @@ import crypto from "crypto";
 import { execFileSync } from "child_process";
 import { Persistence } from "../../core/interfaces/Persistence";
 import { Language, ENGLISH_ID } from "../../core/models/Language";
-import { Lesson, TOC_LESSON } from "../../core/models/Lesson";
+import { Lesson, TOC_LESSON, COVER_A4_LESSON, COVER_A3_LESSON } from "../../core/models/Lesson";
+import {
+  expectedLessonNumbers,
+  isCompleteQuarter,
+  missingQuarterParts,
+} from "../../core/models/Quarter";
 import assembleQuarter from "./assembleQuarter";
 
 // The real merge (~14 `soffice` inserts + a `--convert-to pdf` verification
@@ -290,5 +295,136 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
     const finalPrintedPageNumber = numberedPages[numberedPages.length - 1];
 
     expect(finalPrintedPageNumber).toBe(physicalPageCount + 1);
+  });
+});
+
+/**
+ * US16 — covers never affect quarter assembly (FR-012 regression fence).
+ *
+ * Spec: specs/008-covers-in-platform/spec.md §User Story 4, §FR-012.
+ * Acceptance spec: specs/acceptance-specs/US16-covers-never-affect-assembly.txt
+ *
+ * The reserved cover lesson numbers (`COVER_A4_LESSON` = 97,
+ * `COVER_A3_LESSON` = 98) live in the SAME (book, series) as the quarter's
+ * real 14 constituents (the TOC + 13 lessons) — cover masters are uploaded
+ * per (book, series), not per-quarter-only. `assemblyController.ts`'s
+ * current constituent-selection logic (`makeRunner`, `assemblyController.ts`
+ * line ~128) filters `storage.lessons()` by `(book, series)` ONLY, so it
+ * happily lets 97/98 leak into the constituent set handed to
+ * `assembleQuarter` — the confirmed FR-012 defect (plan.md "Risks item 3",
+ * research.md §R3). This block reproduces that exact selection logic
+ * in-test (there is no exported helper to call directly yet — providing one
+ * is the Green task's job, lessons-from-luke-l96d.5.9.2) against a quarter
+ * whose lesson set includes both covers, and asserts BOTH the desired
+ * constituent-selection contract (a) and its real, observable consequence
+ * for the assembled `.odt` (b) — the actual `assembleQuarter`/`sofficeAssemble`
+ * pipeline, unmocked, exactly as the top-level golden-reference block above
+ * exercises it. Today, (a) fails outright (the reproduced selection logic
+ * includes 97/98) and (b) fails because the real merge pulls in visible
+ * cover content (the "Publisher address" / "Lessons from" boilerplate every
+ * committed cover-master fixture carries — see
+ * `src/server/xml/coverExtraction.integration.test.ts`).
+ */
+describe("assembleQuarter (real soffice merge) — US16 covers never affect assembly (FR-012)", () => {
+  const COVER_LESSON_NUMBERS = [COVER_A4_LESSON, COVER_A3_LESSON];
+  /** TOC + 13 real lessons + the two reserved cover lesson numbers, all sharing (BOOK, SERIES) — exactly how cover masters are actually uploaded (per-book/series, not per-quarter). */
+  const ALL_LESSON_NUMBERS_INCLUDING_COVERS = [...ORDERED_LESSON_NUMBERS, ...COVER_LESSON_NUMBERS];
+
+  let workDir: string;
+  let workRoot: string;
+  let jobId: string;
+  let outputPath: string;
+  let fullTextWithCovers: string;
+
+  /**
+   * Reproduces `assemblyController.ts`'s CURRENT `makeRunner` constituent
+   * selection (`storage.lessons().filter((lsn) => lsn.book === key.book &&
+   * lsn.series === key.series)`) — no exclusion of reserved cover lesson
+   * numbers. Once lessons-from-luke-l96d.5.9.2 lands (`TOC ∪
+   * expectedLessonNumbers(series)`), production stops leaking 97/98 through
+   * this path; this helper intentionally keeps reproducing TODAY's formula
+   * so the test below documents and fails against the live defect.
+   */
+  function currentControllerConstituentSelection(allQuarterLessons: readonly Lesson[]): Lesson[] {
+    return allQuarterLessons.filter((lsn) => lsn.book === BOOK && lsn.series === SERIES);
+  }
+
+  /** The desired FR-012 contract: TOC ∪ the 13 expected lesson numbers — reserved cover numbers excluded. */
+  function isExpectedAssemblyConstituent(lessonNumber: number): boolean {
+    return lessonNumber === TOC_LESSON || expectedLessonNumbers(SERIES).includes(lessonNumber);
+  }
+
+  beforeAll(async () => {
+    execFileSync("soffice", ["--version"]);
+    execFileSync("pdftotext", ["-v"]);
+
+    // Cover-master fixtures for series 2 must exist (committed alongside the
+    // rest of the golden-reference fixtures — see
+    // src/server/xml/coverExtraction.integration.test.ts's doc comment).
+    COVER_LESSON_NUMBERS.forEach((n) => {
+      expect(fs.existsSync(sourcePathFor(n))).toBe(true);
+    });
+
+    workDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembleQuarter-covers-leak-"));
+    workRoot = path.join(workDir, "assembly-work");
+    fs.mkdirSync(workRoot, { recursive: true });
+    jobId = "covers-leak-check";
+    fs.mkdirSync(path.join(workRoot, jobId), { recursive: true });
+
+    const allQuarterLessons = ALL_LESSON_NUMBERS_INCLUDING_COVERS.map(lesson);
+
+    outputPath = await assembleQuarter({
+      storage,
+      // What production actually hands `assembleQuarter` today, per the
+      // reproduced (book, series)-only selection above.
+      lessons: currentControllerConstituentSelection(allQuarterLessons),
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId,
+      workRoot,
+    });
+    expect(fs.existsSync(outputPath)).toBe(true);
+
+    const profileDir = path.join(workDir, "pdf-profile");
+    const pdfPath = convertToPdf(outputPath, workDir, profileDir);
+    fullTextWithCovers = pdfToText(pdfPath);
+  });
+
+  afterAll(() => {
+    if (workDir) fs.rmSync(workDir, { recursive: true, force: true });
+  });
+
+  test("(FR-012, scenario 1) a quarter with no covers uploaded still reports complete — covers are not missing parts", () => {
+    // Already correct today (research.md §R3) — included as the documented
+    // invariant this fix must not regress, not a new defect.
+    const noCoversLessons = ORDERED_LESSON_NUMBERS.map(lesson);
+    expect(missingQuarterParts(BOOK, SERIES, noCoversLessons)).toEqual([]);
+    expect(isCompleteQuarter(BOOK, SERIES, noCoversLessons)).toBe(true);
+  });
+
+  test("(FR-012, scenario 1 continued) completeness is unchanged once covers are uploaded — covers never count as extra/missing parts", () => {
+    const withCoversLessons = ALL_LESSON_NUMBERS_INCLUDING_COVERS.map(lesson);
+    expect(missingQuarterParts(BOOK, SERIES, withCoversLessons)).toEqual([]);
+    expect(isCompleteQuarter(BOOK, SERIES, withCoversLessons)).toBe(true);
+  });
+
+  test("(FR-012, scenario 2, part a — THE DEFECT) the constituent set handed to assembleQuarter excludes reserved cover lesson numbers", () => {
+    const allQuarterLessons = ALL_LESSON_NUMBERS_INCLUDING_COVERS.map(lesson);
+    const constituents = currentControllerConstituentSelection(allQuarterLessons);
+    const leaked = constituents
+      .map((lsn) => lsn.lesson)
+      .filter((n) => !isExpectedAssemblyConstituent(n));
+
+    // Fails today: `currentControllerConstituentSelection` (== production's
+    // live (book, series)-only filter) lets both 97 and 98 through.
+    expect(leaked).toEqual([]);
+  });
+
+  test("(FR-012, scenario 2, part b — THE DEFECT, observable) the assembled output contains no cover content", () => {
+    // "Publisher address" is bare cover-master boilerplate present in every
+    // committed cover fixture (both A4 and A3) and in no real lesson
+    // constituent — see coverExtraction.integration.test.ts. Its presence in
+    // the assembled book is direct, real-merge proof the covers leaked in.
+    expect(fullTextWithCovers).not.toContain("Publisher address");
   });
 });
