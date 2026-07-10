@@ -139,7 +139,7 @@ function DocUploadInput(props: { file: File | null; setFile: (f: File) => void }
   );
 }
 
-function metaFromFilename(filename: string): EnglishUploadMeta {
+export function metaFromFilename(filename: string): EnglishUploadMeta {
   const meta = defaultEnglishUploadMeta();
   if (filename.includes("Act")) meta.book = "Acts";
 
