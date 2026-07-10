@@ -125,6 +125,21 @@ describe("documentName", () => {
     const lesson = makeLesson({ book: "Acts", series: 1, lesson: 12 });
     expect(documentName("Swahili", lesson)).toBe("Swahili_Acts-Q1-L12.odt");
   });
+
+  test("returns A4 cover document name", () => {
+    const lesson = makeLesson({ book: "Luke", series: 1, lesson: COVER_A4_LESSON });
+    expect(documentName("Espanol", lesson)).toBe("Espanol_Luke-Q1-Cover-A4.odt");
+  });
+
+  test("returns A3 cover document name", () => {
+    const lesson = makeLesson({ book: "Luke", series: 1, lesson: COVER_A3_LESSON });
+    expect(documentName("Espanol", lesson)).toBe("Espanol_Luke-Q1-Cover-A3.odt");
+  });
+
+  test("returns cover document name across a different series and language", () => {
+    const lesson = makeLesson({ book: "Acts", series: 3, lesson: COVER_A4_LESSON });
+    expect(documentName("Swahili", lesson)).toBe("Swahili_Acts-Q3-Cover-A4.odt");
+  });
 });
 
 describe("lessonStringsFromLesson", () => {

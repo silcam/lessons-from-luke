@@ -38,10 +38,13 @@ export function lessonName(lesson: BaseLesson | undefined | null, t: TFunc = (s:
 }
 
 export function documentName(languageName: string, lesson: BaseLesson) {
-  return (
-    `${languageName}_${lesson.book}-Q${lesson.series}-` +
-    (isTOCLesson(lesson) ? "TOC.odt" : `L${zeroPad(lesson.lesson, 2)}.odt`)
-  );
+  const format = coverFormat(lesson.lesson);
+  const suffix = format
+    ? `Cover-${format}.odt`
+    : isTOCLesson(lesson)
+      ? "TOC.odt"
+      : `L${zeroPad(lesson.lesson, 2)}.odt`;
+  return `${languageName}_${lesson.book}-Q${lesson.series}-${suffix}`;
 }
 
 export function lessonStringsFromLesson(lesson: BaseLesson | Lesson) {
