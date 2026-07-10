@@ -4,6 +4,8 @@ const en = {
   Lessons: "Lessons",
   "Cover (A4)": "Cover (A4)",
   "Cover (A3)": "Cover (A3)",
+  Cover: "Cover",
+  Format: "Format",
   Save: "Save",
   Saved: "Saved",
   Locked: "Locked",

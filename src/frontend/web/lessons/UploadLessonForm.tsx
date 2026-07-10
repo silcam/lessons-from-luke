@@ -17,6 +17,7 @@ import {
   TOC_LESSON,
   COVER_A4_LESSON,
   COVER_A3_LESSON,
+  isCoverLesson,
 } from "../../../core/models/Lesson";
 import NumberPicker from "../../common/base-components/NumberPicker";
 import Button from "../../common/base-components/Button";
@@ -69,9 +70,35 @@ export default function UploadLessonForm(props: { done: () => void }) {
           <Checkbox
             label={t("Table_of_Contents")}
             value={uploadMeta.lesson == TOC_LESSON}
+            disabled={isCoverLesson(uploadMeta.lesson)}
             setValue={(toc) => setUploadMeta({ ...uploadMeta, lesson: toc ? TOC_LESSON : 1 })}
           />
-          {uploadMeta.lesson != TOC_LESSON && (
+          <Checkbox
+            label={t("Cover")}
+            value={isCoverLesson(uploadMeta.lesson)}
+            disabled={uploadMeta.lesson == TOC_LESSON}
+            setValue={(cover) =>
+              setUploadMeta({ ...uploadMeta, lesson: cover ? COVER_A4_LESSON : 1 })
+            }
+          />
+          {isCoverLesson(uploadMeta.lesson) && (
+            <Label text={t("Format")}>
+              <SelectInput
+                value={uploadMeta.lesson == COVER_A3_LESSON ? "A3" : "A4"}
+                setValue={(format) =>
+                  setUploadMeta({
+                    ...uploadMeta,
+                    lesson: format == "A3" ? COVER_A3_LESSON : COVER_A4_LESSON,
+                  })
+                }
+                options={[
+                  ["A4", "A4"],
+                  ["A3", "A3"],
+                ]}
+              />
+            </Label>
+          )}
+          {uploadMeta.lesson != TOC_LESSON && !isCoverLesson(uploadMeta.lesson) && (
             <Label text={t("Lesson")}>
               <NumberPicker
                 value={uploadMeta.lesson}
