@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Language, ENGLISH_ID } from "../../../core/models/Language";
 import Heading from "../../common/base-components/Heading";
 import { useAppSelector } from "../../common/state/appState";
-import { lessonName } from "../../../core/models/Lesson";
+import { lessonName, isCoverLesson } from "../../../core/models/Lesson";
 import { findBy } from "../../../core/util/arrayUtils";
 import ProgressBar from "../../common/base-components/ProgressBar";
 import Button from "../../common/base-components/Button";
@@ -141,23 +141,38 @@ export default function LanguageView(props: IProps) {
                   <td>
                     {t("Download")}
                     {":  "}
-                    <GetDocumentButton
-                      language={props.language}
-                      lesson={lesson}
-                      text="Bilingual"
-                      majorityLanguageId={
-                        props.language.motherTongue
-                          ? props.language.defaultSrcLang
-                          : props.language.languageId
-                      }
-                    />
-                    {" | "}
-                    <GetDocumentButton
-                      language={props.language}
-                      lesson={lesson}
-                      text="Single-Language"
-                      majorityLanguageId={0}
-                    />
+                    {isCoverLesson(lesson.lesson) ? (
+                      <GetDocumentButton
+                        language={props.language}
+                        lesson={lesson}
+                        text={lessonName(lesson, t)}
+                        majorityLanguageId={
+                          props.language.motherTongue
+                            ? props.language.defaultSrcLang
+                            : props.language.languageId
+                        }
+                      />
+                    ) : (
+                      <React.Fragment>
+                        <GetDocumentButton
+                          language={props.language}
+                          lesson={lesson}
+                          text="Bilingual"
+                          majorityLanguageId={
+                            props.language.motherTongue
+                              ? props.language.defaultSrcLang
+                              : props.language.languageId
+                          }
+                        />
+                        {" | "}
+                        <GetDocumentButton
+                          language={props.language}
+                          lesson={lesson}
+                          text="Single-Language"
+                          majorityLanguageId={0}
+                        />
+                      </React.Fragment>
+                    )}
                   </td>
                 </tr>
               );

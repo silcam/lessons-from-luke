@@ -140,26 +140,28 @@ describe("LanguageView — cover rows in the download table (US15)", () => {
     });
   }
 
-  it("renders a 'Cover (A4)' row for lesson 97 with Bilingual | Single-Language download links", () => {
-    const { getByText, getAllByText } = renderWithCover();
+  it("renders a 'Cover (A4)' row for lesson 97 with a single Cover download button", () => {
+    const { getAllByText } = renderWithCover();
 
     // The cover row is labelled via lessonName, same as ordinary lesson rows.
-    const coverLabel = getByText("Cover (A4)");
-    expect(coverLabel).toBeTruthy();
+    // There are two occurrences: the row label cell and the download button.
+    expect(getAllByText("Cover (A4)")).toHaveLength(2);
 
-    const coverRow = coverLabel.closest("tr");
+    const coverRow = getAllByText("Cover (A4)")[0].closest("tr");
     expect(coverRow).not.toBeNull();
 
-    // Every ordinary lesson row (3) plus the cover row (1) gets its own
-    // Bilingual/Single-Language download pair, on top of the 2 per-quarter
-    // assemble control pairs from US1/US2.
-    expect(getAllByText("Bilingual")).toHaveLength(3 + 1 + 2);
-    expect(getAllByText("Single-Language")).toHaveLength(3 + 1 + 2);
+    // Ordinary lesson rows (3) still each get a Bilingual/Single-Language
+    // download pair, on top of the 2 per-quarter assemble control pairs from
+    // US1/US2. The cover row does not add to these counts — it exposes a
+    // single Cover-labeled button instead.
+    expect(getAllByText("Bilingual")).toHaveLength(3 + 2);
+    expect(getAllByText("Single-Language")).toHaveLength(3 + 2);
 
-    // The cover row itself must carry a Bilingual and Single-Language link,
-    // not just the page overall.
-    expect(coverRow?.textContent).toContain("Bilingual");
-    expect(coverRow?.textContent).toContain("Single-Language");
+    // The cover row itself must carry the single Cover download button, not
+    // separate Bilingual/Single-Language links.
+    expect(coverRow?.textContent).toContain("Cover (A4)");
+    expect(coverRow?.textContent).not.toContain("Bilingual");
+    expect(coverRow?.textContent).not.toContain("Single-Language");
   });
 
   it("exposes the cover download as a single button labeled 'Cover (A4)' that downloads with the majorityLanguageId used by ordinary Bilingual links", async () => {
