@@ -88,6 +88,26 @@ describe("lessonName", () => {
     const t = (s: string) => (s === "Luke" ? "Luc" : s);
     expect(lessonName(lesson, t)).toBe("Luc 3-TOC");
   });
+
+  test("returns 'Cover (A4)' for the A4 cover lesson, never the raw number", () => {
+    const lesson = makeLesson({ book: "Luke", series: 1, lesson: COVER_A4_LESSON });
+    const name = lessonName(lesson);
+    expect(name).toBe("Cover (A4)");
+    expect(name).not.toContain(String(COVER_A4_LESSON));
+  });
+
+  test("returns 'Cover (A3)' for the A3 cover lesson, never the raw number", () => {
+    const lesson = makeLesson({ book: "Luke", series: 1, lesson: COVER_A3_LESSON });
+    const name = lessonName(lesson);
+    expect(name).toBe("Cover (A3)");
+    expect(name).not.toContain(String(COVER_A3_LESSON));
+  });
+
+  test("applies translation function to the cover label", () => {
+    const lesson = makeLesson({ book: "Luke", series: 1, lesson: COVER_A4_LESSON });
+    const t = (s: string) => (s === "Cover (A4)" ? "Couverture (A4)" : s);
+    expect(lessonName(lesson, t)).toBe("Couverture (A4)");
+  });
 });
 
 describe("documentName", () => {

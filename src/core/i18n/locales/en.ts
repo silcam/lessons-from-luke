@@ -2,6 +2,8 @@ const en = {
   Luke: "Luke",
   Acts: "Acts",
   Lessons: "Lessons",
+  "Cover (A4)": "Cover (A4)",
+  "Cover (A3)": "Cover (A3)",
   Save: "Save",
   Saved: "Saved",
   Locked: "Locked",

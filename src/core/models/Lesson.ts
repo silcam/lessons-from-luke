@@ -30,6 +30,8 @@ export type DraftLesson = Omit<BaseLesson, "lessonId" | "version">;
 
 export function lessonName(lesson: BaseLesson | undefined | null, t: TFunc = (s: string) => s) {
   if (!lesson) return "";
+  const format = coverFormat(lesson.lesson);
+  if (format) return t(format === "A4" ? "Cover (A4)" : "Cover (A3)");
   return isTOCLesson(lesson)
     ? `${t(lesson.book)} ${lesson.series}-TOC`
     : `${t(lesson.book)} ${lesson.series}-${lesson.lesson}`;
