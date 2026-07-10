@@ -6,6 +6,7 @@ const en = {
   "Cover (A3)": "Cover (A3)",
   Cover: "Cover",
   Format: "Format",
+  Cover_format: "Cover format",
   Save: "Save",
   Saved: "Saved",
   Locked: "Locked",

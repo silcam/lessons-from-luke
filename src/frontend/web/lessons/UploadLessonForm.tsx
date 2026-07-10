@@ -82,7 +82,7 @@ export default function UploadLessonForm(props: { done: () => void }) {
             }
           />
           {isCoverLesson(uploadMeta.lesson) && (
-            <Label text={t("Format")}>
+            <Label text={t("Cover_format")}>
               <SelectInput
                 value={uploadMeta.lesson == COVER_A3_LESSON ? "A3" : "A4"}
                 setValue={(format) =>

@@ -112,6 +112,14 @@ describe("UploadLessonForm Cover override control", () => {
     expect(optionValues).toEqual(expect.arrayContaining(["A4", "A3"]));
   });
 
+  it("labels the format selector 'Cover format' (US13 acceptance spec)", async () => {
+    const { getByLabelText } = await renderWithFile();
+
+    fireEvent.click(getByLabelText(/^cover$/i));
+
+    expect(() => getByLabelText(/^cover format$/i)).not.toThrow();
+  });
+
   it("deselects/disables the TOC checkbox and hides the lesson-number picker when Cover is selected", async () => {
     const { getByLabelText, queryByText } = await renderWithFile();
 
