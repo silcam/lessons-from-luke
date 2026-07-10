@@ -161,4 +161,22 @@ describe("LanguageView — cover rows in the download table (US15)", () => {
     expect(coverRow?.textContent).toContain("Bilingual");
     expect(coverRow?.textContent).toContain("Single-Language");
   });
+
+  it("exposes the cover download as a single button labeled 'Cover (A4)' that downloads with the majorityLanguageId used by ordinary Bilingual links", async () => {
+    mockedAxios.get.mockResolvedValue({ data: new Blob() });
+
+    const { getByRole } = renderWithCover();
+
+    const coverButton = getByRole("button", { name: "Cover (A4)" });
+    expect(coverButton).toBeTruthy();
+
+    fireEvent.click(coverButton);
+
+    await waitFor(() => {
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        "/api/languages/42/lessons/97/document?majorityLanguageId=42",
+        { responseType: "blob" }
+      );
+    });
+  });
 });
