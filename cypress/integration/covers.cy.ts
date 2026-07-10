@@ -261,3 +261,103 @@ describe("US14: Cover text auto-populates from existing translations", () => {
       .should("have.value", "© 2025 Mission Publishers");
   });
 });
+
+describe("US15: Download translated covers from the language page", () => {
+  beforeEach(cy.login);
+
+  function uploadCover(fixtureName: string, format: "A4" | "A3") {
+    cy.visit("/");
+    cy.contains("button", "Add Lesson").click();
+    cy.fixture(fixtureName, "base64").then((fileContent) => {
+      cy.get("input[type='file']").selectFile(
+        {
+          contents: Cypress.Buffer.from(fileContent, "base64"),
+          fileName: fixtureName,
+          mimeType: "application/vnd.oasis.opendocument.text",
+        },
+        { action: "drag-drop", force: true }
+      );
+    });
+    cy.inLabel("Cover format").select(format);
+    cy.intercept("POST", "/api/admin/documents").as("uploadCover");
+    cy.contains("button", "Save").click();
+    cy.wait("@uploadCover", { timeout: 30000 });
+  }
+
+  // GIVEN a language with translated cover strings WHEN the operator
+  // downloads the A4 cover for Luke quarter 1 THEN the file is named
+  // <Language>_Luke-Q1-Cover-A4.odt.
+  //
+  // The odt-content assertions (translated text fields present,
+  // bilingual/mono paragraph pairing) are covered by the R2 integration
+  // test gate already exercised in US13 behavior 4 (makeLessonFile is
+  // shared, unmodified, between lessons and covers) — not duplicated here.
+  it("downloads a translated A4 cover named <Language>_Luke-Q1-Cover-A4.odt via a link labeled 'Cover (A4)'", () => {
+    uploadCover("English-Luke-Q1-Cover-A4.odt", "A4");
+
+    // GIVEN: the cover's title string is translated into Français.
+    cy.request("GET", "/api/lessons").then(({ body: lessons }) => {
+      const a4 = lessons.find(
+        (l: { book: string; series: number; lesson: number }) =>
+          l.book === "Luke" && l.series === 1 && l.lesson === 97
+      );
+      cy.request("GET", `/api/languages/1/lessons/${a4.lessonId}/tStrings`).then(
+        ({ body: engStrings }) => {
+          const titleMaster = engStrings.find(
+            (ts: { text: string }) => ts.text === "Lessons from Luke"
+          );
+          expect(Boolean(titleMaster), "title master string exists in English").to.eq(true);
+          cy.request("POST", "/api/tStrings", {
+            code: "DEF",
+            tStrings: [
+              { masterId: titleMaster.masterId, languageId: 2, text: "Leçons de Luc", history: [] },
+            ],
+          });
+        }
+      );
+    });
+
+    // WHEN: the operator downloads the A4 cover from the Français language
+    // page THEN the download link reads "Cover (A4)" (a human-readable
+    // cover name, never a bare lesson number) and the saved file follows
+    // the SOP filename convention.
+    cy.visit("/");
+    cy.contains("Français").click();
+    cy.contains("a", "97").should("not.exist");
+    cy.contains("button", "Cover (A4)").should("exist").click();
+    cy.readFile("cypress/downloads/Français_Luke-Q1-Cover-A4.odt", { timeout: 20000 }).should(
+      "exist"
+    );
+  });
+
+  // GIVEN a bilingual language configuration WHEN a cover is downloaded
+  // THEN the output request carries the mother-tongue/majority-language
+  // pairing the same way a lesson download does; GIVEN a monolingual
+  // download THEN majorityLanguageId is omitted (0), as for lessons.
+  it("requests bilingual and single-language cover downloads the same way lesson downloads do", () => {
+    uploadCover("English-Luke-Q1-Cover-A3.odt", "A3");
+
+    cy.visit("/");
+    cy.contains("Français").click();
+    cy.contains("button", "Cover (A3)").should("exist");
+
+    cy.intercept("GET", /\/api\/languages\/2\/lessons\/\d+\/document.*/).as("downloadCover");
+    cy.contains("button", "Cover (A3)").click();
+    cy.wait("@downloadCover").its("request.url").should("include", "majorityLanguageId=1");
+  });
+
+  // GIVEN a language page listing downloadable documents WHEN covers are
+  // listed THEN their download links use human-readable cover names —
+  // never the reserved lesson number (97/98).
+  it("lists cover download links with human-readable cover names, never a bare lesson number", () => {
+    uploadCover("English-Luke-Q1-Cover-A4.odt", "A4");
+    uploadCover("English-Luke-Q1-Cover-A3.odt", "A3");
+
+    cy.visit("/");
+    cy.contains("Français").click();
+    cy.contains("button", "Cover (A4)").should("exist");
+    cy.contains("button", "Cover (A3)").should("exist");
+    cy.contains("97").should("not.exist");
+    cy.contains("98").should("not.exist");
+  });
+});
