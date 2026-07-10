@@ -114,3 +114,51 @@ describe("LanguageView — Bilingual | Single-Language assemble actions (US2)", 
     });
   });
 });
+
+describe("LanguageView — cover rows in the download table (US15)", () => {
+  const coverLessons = [
+    ...lessons,
+    { lessonId: 97, book: "Luke" as const, series: 1, lesson: 97, version: 1, lessonStrings: [] },
+  ];
+
+  const coverLanguage = {
+    ...sampleLanguage,
+    progress: [
+      { lessonId: 1, progress: 50 },
+      { lessonId: 2, progress: 50 },
+      { lessonId: 3, progress: 50 },
+      { lessonId: 97, progress: 50 },
+    ],
+  };
+
+  function renderWithCover() {
+    return renderWithProviders(<LanguageView language={coverLanguage} done={() => {}} />, {
+      syncState: defaultSyncState,
+      languages: { languages: [], adminLanguages: [] },
+      currentUser: { user: null, locale: "en", loaded: false },
+      lessons: coverLessons,
+    });
+  }
+
+  it("renders a 'Cover (A4)' row for lesson 97 with Bilingual | Single-Language download links", () => {
+    const { getByText, getAllByText } = renderWithCover();
+
+    // The cover row is labelled via lessonName, same as ordinary lesson rows.
+    const coverLabel = getByText("Cover (A4)");
+    expect(coverLabel).toBeTruthy();
+
+    const coverRow = coverLabel.closest("tr");
+    expect(coverRow).not.toBeNull();
+
+    // Every ordinary lesson row (3) plus the cover row (1) gets its own
+    // Bilingual/Single-Language download pair, on top of the 2 per-quarter
+    // assemble control pairs from US1/US2.
+    expect(getAllByText("Bilingual")).toHaveLength(3 + 1 + 2);
+    expect(getAllByText("Single-Language")).toHaveLength(3 + 1 + 2);
+
+    // The cover row itself must carry a Bilingual and Single-Language link,
+    // not just the page overall.
+    expect(coverRow?.textContent).toContain("Bilingual");
+    expect(coverRow?.textContent).toContain("Single-Language");
+  });
+});
