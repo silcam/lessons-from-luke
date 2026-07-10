@@ -164,6 +164,32 @@ describe("LanguageView — cover rows in the download table (US15)", () => {
     expect(coverRow?.textContent).not.toContain("Single-Language");
   });
 
+  it("still renders the cover download row when the cover is untranslated (0% progress)", () => {
+    const untranslatedCoverLanguage = {
+      ...sampleLanguage,
+      progress: [
+        { lessonId: 1, progress: 50 },
+        { lessonId: 2, progress: 50 },
+        { lessonId: 3, progress: 50 },
+        { lessonId: 97, progress: 0 },
+      ],
+    };
+
+    const { getAllByText } = renderWithProviders(
+      <LanguageView language={untranslatedCoverLanguage} done={() => {}} />,
+      {
+        syncState: defaultSyncState,
+        languages: { languages: [], adminLanguages: [] },
+        currentUser: { user: null, locale: "en", loaded: false },
+        lessons: coverLessons,
+      }
+    );
+
+    // Even at 0% progress, the cover row (and its download button) must
+    // still render — progress-based hiding should not apply to covers.
+    expect(getAllByText("Cover (A4)")).toHaveLength(2);
+  });
+
   it("exposes the cover download as a single button labeled 'Cover (A4)' that downloads with the majorityLanguageId used by ordinary Bilingual links", async () => {
     mockedAxios.get.mockResolvedValue({ data: new Blob() });
 
