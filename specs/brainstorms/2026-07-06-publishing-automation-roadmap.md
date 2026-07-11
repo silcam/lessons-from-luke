@@ -165,7 +165,7 @@ WS-2 is the priority.
 ### Workstream 2 — Assembled quarter download _(flagship; SOP §30.1)_
 
 **Goal.** One click on a language page downloads a complete quarter — TOC + 13 lessons —
-as a single, self-contained, **editable** `.odt` (and, in a later phase, a PDF), with
+as a single, self-contained, **editable** `.odt` (PDF export: won't do — see 2c), with
 sections unprotected and unlinked, continuous page numbering, first-page number
 suppression per lesson, and correct footers. This replaces SOP §13–§15 (the `.odm`
 assembly, export, unlock, detach steps) while explicitly preserving the human visual-QA
@@ -242,10 +242,13 @@ possible alternative to A2's field-flatten fix for the footer gap.
   (`LanguageView.tsx`), reusing the `useGetDocument` blob/save pattern. Long-running:
   assembly of 14 docs + soffice will exceed comfortable request time — plan for an
   async job + polling or a generous timeout; decide in planning.
-- **2c. PDF output.** Same endpoint with `format=pdf` via `soffice --convert-to pdf`.
-  Out of scope for automation (leave manual per SOP): A3 imposition and PDF
-  compression — desktop-tool territory (Cheap Imposter, PDF Shrink) unless a later
-  workstream adopts a Node imposition library.
+- **2c. PDF output — WON'T DO (descoped 2026-07-11).** Out of scope for this
+  project: PDF export stays a manual step. The operator downloads the assembled
+  `.odt` (2b), applies the quarter styles template, does the visual-QA pass (SOP
+  §30.8), and exports PDFs from LibreOffice by hand per SOP §17–§23 — as do A3
+  imposition and PDF compression (desktop-tool territory: Cheap Imposter, PDF
+  Shrink). Original sketch, if ever revisited: same endpoint with `format=pdf`
+  via `soffice --convert-to pdf`.
 
 **Seed requirements** (for the eventual `/sp:01-brainstorm`):
 
@@ -309,7 +312,7 @@ into 006's role model — schedule after WS-0).
 ```
 WS-0 (auth merges: 005 → 003 → 004 → 006)
   └─ WS-1 (housekeeping: commit makeStorage, remove Docker)
-       ├─ WS-2a spike ─ WS-2b quarter ODT ─ WS-2c PDF     ← priority path
+       ├─ WS-2a spike ─ WS-2b quarter ODT                 ← priority path (WS-2c PDF: won't do)
        ├─ WS-4 verse refs                                  ← parallel-safe
        ├─ WS-3 covers                                      ← after 2b ideally
        └─ WS-5 locking/labels                              ← needs 006's roles
@@ -342,6 +345,8 @@ WS-0 (auth merges: 005 → 003 → 004 → 006)
 
 ## Scope Boundaries
 
+- No PDF export in the platform (WS-2c descoped to "won't do" 2026-07-11): the
+  assembled `.odt` is the deliverable; PDF export stays manual per SOP §17–§23.
 - No automation of A3 imposition or PDF compression (desktop tools remain, SOP §21/§23).
 - No changes to the translation interface or the per-lesson download endpoints.
 - No Google Drive integration; file organization (SOP §12, §26) stays manual.
