@@ -138,6 +138,7 @@ export function sofficeAssemble(options: SofficeAssembleOptions): Promise<Soffic
     jobId,
     files,
     outputPath,
+    templatePath,
     workRoot,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     sofficeBin = "soffice",
@@ -187,6 +188,7 @@ export function sofficeAssemble(options: SofficeAssembleOptions): Promise<Soffic
         ...env,
         SPIKE_FILES: files.join("\n"),
         SPIKE_OUT_URL: `file://${outputPath}`,
+        SPIKE_TEMPLATE_URL: `file://${templatePath}`,
       };
       const runChild = spawn(sofficeBin, runArgs, { detached: true, env: runEnv });
       currentChild = runChild;
