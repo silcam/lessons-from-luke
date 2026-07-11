@@ -52,6 +52,8 @@ export interface SofficeAssembleOptions {
   files: string[];
   /** Absolute path to write the assembled `.odt` to. */
   outputPath: string;
+  /** Absolute path to the print-styles template `.ott`/`.odt` to apply during assembly. */
+  templatePath: string;
   /**
    * The dedicated, single known root all per-job working dirs live under
    * (`<docStorage>/assembly-work`, NOT a bare `mktemp -d` — see the class doc
