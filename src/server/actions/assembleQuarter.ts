@@ -146,7 +146,15 @@ export default async function assembleQuarter(options: AssembleQuarterOptions): 
   }
 
   const templatePath = resolveTemplatePath();
-  validateTemplateAsset(templatePath);
+  try {
+    validateTemplateAsset(templatePath);
+  } catch {
+    // Curated, path-free reason ONLY — a missing/unreadable template asset
+    // error (e.g. ENOENT) carries an absolute filesystem path; never forward
+    // it (see the makeLessonFile catch above for the full "reason hygiene"
+    // contract).
+    throw new Error("quarter styles template asset is missing or unreadable");
+  }
 
   const outputPath = path.join(jobDir, "assembled.odt");
   const result = await sofficeAssemble({
