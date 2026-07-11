@@ -115,6 +115,23 @@ Sub Assemble
         End If
     End If
 
+    Dim sTemplate As String
+    sTemplate = Environ(&quot;SPIKE_TEMPLATE_URL&quot;)
+
+    Dim oProps(4) As New com.sun.star.beans.PropertyValue
+    oProps(0).Name = &quot;OverwriteStyles&quot;
+    oProps(0).Value = True
+    oProps(1).Name = &quot;LoadTextStyles&quot;
+    oProps(1).Value = True
+    oProps(2).Name = &quot;LoadPageStyles&quot;
+    oProps(2).Value = False
+    oProps(3).Name = &quot;LoadNumberingStyles&quot;
+    oProps(3).Value = False
+    oProps(4).Name = &quot;LoadFrameStyles&quot;
+    oProps(4).Value = False
+
+    oDoc.StyleFamilies.loadStylesFromURL(sTemplate, oProps())
+
     LogLine(sLog, &quot;saving -> &quot; &amp; sOutPath, False)
     Dim oSave(0) As New com.sun.star.beans.PropertyValue
     oSave(0).Name = &quot;FilterName&quot;
