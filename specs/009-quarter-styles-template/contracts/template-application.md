@@ -58,7 +58,7 @@ Between the constituent-insert loop and `storeToURL`:
 ' Read the template URL (set by sofficeAssemble)
 sTemplate = Environ("SPIKE_TEMPLATE_URL")
 
-' Fail loudly: no template ⇒ abort before storeToURL (no output written)
+' Fail loudly: a load error ⇒ abort before storeToURL (no output written)
 On Error Goto TemplateFail
 
 Dim oProps(4) As New com.sun.star.beans.PropertyValue
@@ -69,18 +69,46 @@ oProps(3).Name = "LoadNumberingStyles" : oProps(3).Value = False
 oProps(4).Name = "LoadFrameStyles"     : oProps(4).Value = False
 
 oDoc.StyleFamilies.loadStylesFromURL(sTemplate, oProps())
-' ... then storeToURL as today
+
+' CRITICAL: reset the handler so the trap covers ONLY the load — a later
+' storeToURL failure MUST still hard-fail (crash → non-zero exit) as today,
+' not be swallowed into TemplateFail (which could leave a partial, non-zero
+' output file that passes the wrapper's existsSync+size guard).
+On Error Goto 0
+
+' ... then storeToURL + ".done" write as today ...
+
+Exit Sub                 ' success path must NOT fall through into TemplateFail
+
+TemplateFail:
+    ' No storeToURL, no ".done" → wrapper surfaces a failed job.
+    ' MUST terminate, or the process lingers until the ~100 s hard timeout.
+    StarDesktop.terminate()
+End Sub
 ```
 
 **Contract**:
 
-- On a load error (missing/unreadable asset, style-import failure), the macro
-  MUST branch to a fail path that does **not** call `storeToURL` and does not
-  write the `.done` sentinel → the wrapper's existing "not written / empty"
-  guard in `assembleQuarter` surfaces a `failed` job.
-- Page styles and numbering styles MUST NOT be imported (flags above) so the 007
-  clean page-style set, chapterized footers, and the `finalizeAssembledQuarter`
-  outline-numbering patch are untouched.
+- `On Error Goto TemplateFail` MUST be **reset with `On Error Goto 0`
+  immediately after** a successful `loadStylesFromURL`. StarBasic error handlers
+  are procedure-scoped, not block-scoped; without the reset, a subsequent
+  `storeToURL` failure would branch to `TemplateFail` and be silently swallowed
+  (today it hard-fails via non-zero exit). A partial, non-zero-length `storeToURL`
+  write MUST NOT be delivered — see the `existsSync + size>0` guard note below.
+- The success path MUST `Exit Sub` before the `TemplateFail:` label; `TemplateFail`
+  MUST call `StarDesktop.terminate()` and write no output / no `.done` sentinel,
+  so a load failure fails **fast** rather than lingering until the hard timeout.
+- On a load error (unreadable/corrupt asset, style-import failure), the macro
+  branches to `TemplateFail` and writes **no output file** → the wrapper's guard
+  in `assembleQuarter` (`!existsSync(outputPath) || size === 0`, NOT the `.done`
+  sentinel) surfaces a `failed` job.
+- Page styles and numbering styles MUST NOT be imported (`LoadPageStyles=False,
+LoadNumberingStyles=False`) so the 007 clean page-style set and the
+  `text:outline-style` chapter-numbering are untouched. Note: `LoadTextStyles=True
+  - OverwriteStyles=True`DOES overwrite the heading **paragraph** styles by name,
+which carry`style:default-outline-level` — so footer/outline participation is
+    NOT protected by the flags and MUST be pinned by §5's footer-value assertion.
+- `LoadFrameStyles=False` (avoid importing the template's frame styles; YAGNI).
 - `module1Xba.ts` MUST be regenerated from the edited `.xba` via
   `scripts/genMacroConstant.js` (drift guarded by `module1Xba.test.ts`).
 
@@ -104,12 +132,15 @@ oDoc.StyleFamilies.loadStylesFromURL(sTemplate, oProps())
 Re-run of the 007 `assembleQuarter.integration.test.ts` axes AFTER template
 application, plus new assertions:
 
-| Guarantee                                            | Assertion                                                                                                                                                |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| M.T. highlight-off (NEW, FR-002/SC-003)              | In the assembled book's `styles.xml`, the `M.T.*` **body paragraph** family has no `fo:background-color` highlight (`M.T. Text` = `transparent`/absent). |
-| Single clean master-page set (007)                   | Every page-style display name appears once; none carries a numeric constituent suffix — UNCHANGED.                                                       |
-| Chapterized footers + per-lesson values (007)        | Per-lesson footer values populated; no "Lesson 99" bleed — UNCHANGED.                                                                                    |
-| Continuous pagination + first-page suppression (007) | Adjacent numbered pages increment by 1; each lesson's first page suppresses its number — UNCHANGED.                                                      |
-| Outline numbering (007)                              | Level-1 outline style `num-format="1"`, `start-value=14` (series 2) — UNCHANGED (numbering not imported).                                                |
-| Editability                                          | No protected/linked sections introduced by the style load.                                                                                               |
-| Source immutability (007 Pass 6)                     | Every constituent source `.odt` byte-identical after assembly — UNCHANGED.                                                                               |
+| Guarantee                                                  | Assertion                                                                                                                                                                                                                                                                                                                |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| M.T. highlight-off (NEW, FR-002/SC-003)                    | In the assembled book's `styles.xml`, the `M.T.*` **body paragraph** family has no `fo:background-color` highlight (`M.T. Text` = `transparent`/absent).                                                                                                                                                                 |
+| Highlight is style-based, not direct-formatted (NEW)       | Precondition on the series-2 constituents: the M.T. highlight is defined on the **style**, not as direct run/paragraph `fo:background-color`. If direct-formatted, `loadStylesFromURL` cannot remove it and the style-scoped M.T. assertion would pass on a still-highlighted rendered book (plan Edge Cases).           |
+| Footer chapter-number resolution AFTER overwrite (NEW/007) | The **discriminating** guard for the overwrite-scope risk: per-lesson footer chapter-number **values** still resolve correctly after template application. This — NOT the outline start-value row — catches heading paragraph styles losing `style:default-outline-level` when `LoadTextStyles` overwrites them by name. |
+| Single clean master-page set (007)                         | Every page-style display name appears once; none carries a numeric constituent suffix — UNCHANGED.                                                                                                                                                                                                                       |
+| Chapterized footers + per-lesson values (007)              | Per-lesson footer values populated; no "Lesson 99" bleed — UNCHANGED.                                                                                                                                                                                                                                                    |
+| Continuous pagination + first-page suppression (007)       | Adjacent numbered pages increment by 1; each lesson's first page suppresses its number — UNCHANGED.                                                                                                                                                                                                                      |
+| Outline numbering (007)                                    | Level-1 outline style `num-format="1"`, `start-value=14` (series 2) — UNCHANGED (numbering not imported). NOTE: this passes even if headings drop out of the outline, so it is **not** the outline-participation guard — see the footer-value row above.                                                                 |
+| Editability                                                | No protected/linked sections introduced by the style load.                                                                                                                                                                                                                                                               |
+| Source immutability (007 Pass 6)                           | Every constituent source `.odt` byte-identical after assembly — UNCHANGED.                                                                                                                                                                                                                                               |
+| Corrupt-template fail-loud (NEW, US2/FR-004)               | A **corrupt** (present, non-empty, unreadable) template — distinct from a **missing** one — MUST produce a `failed` job (not a delivered book), and SHOULD confirm `--headless` makes `loadStylesFromURL` raise a trappable error rather than block on a modal dialog until the hard timeout.                            |

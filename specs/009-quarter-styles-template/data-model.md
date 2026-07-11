@@ -24,8 +24,18 @@ onto every assembled quarter book during assembly.
 
 **Style-family scope actually applied** (research R2): only paragraph +
 character styles are imported and overwritten
-(`LoadTextStyles=True, OverwriteStyles=True`); page styles and numbering styles
-are explicitly NOT imported (`LoadPageStyles=False, LoadNumberingStyles=False`).
+(`LoadTextStyles=True, OverwriteStyles=True`); page styles, numbering styles, and
+frame styles are explicitly NOT imported
+(`LoadPageStyles=False, LoadNumberingStyles=False, LoadFrameStyles=False`).
+
+**Overwrite scope caveat** (red-team): `LoadTextStyles + OverwriteStyles`
+overwrites **every** paragraph/character style **by name**, not just `M.T.*` — so
+the heading paragraph styles (which carry `style:default-outline-level`, the basis
+of the 007 chapterized-footer resolution) are replaced too. `LoadNumberingStyles=False`
+protects the chapter-numbering **definition** but not the outline-level on those
+paragraph styles; footer/outline participation is therefore pinned by the
+integration test's per-lesson footer-value assertion, not by the OFF flags. See
+plan Edge Cases § "Overwrite scope" and contract §5.
 
 **Observable guarantee** (FR-002 / SC-003, scoped per research R3): after
 application, the `M.T.*` **body paragraph** family carries no background

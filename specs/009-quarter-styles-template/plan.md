@@ -12,9 +12,13 @@ approach adds **one** `StyleFamilies.loadStylesFromURL` call inside the existing
 assembly StarBasic macro — after the 14-constituent insert loop, before
 `storeToURL` — loading a single, global, swappable **template asset** shipped
 with the application. Load flags are scoped
-(`OverwriteStyles=True, LoadTextStyles=True, LoadPageStyles=False, LoadNumberingStyles=False`)
-so template paragraph styles win while the 007 clean page-style set, chapterized
-footers, and outline-numbering finalize patches are provably untouched. If the
+(`OverwriteStyles=True, LoadTextStyles=True, LoadPageStyles=False, LoadNumberingStyles=False, LoadFrameStyles=False`)
+so template paragraph styles win while the 007 clean page-style set is untouched.
+The OFF page & numbering flags protect the page-style set and the `text:outline-style`
+(chapter numbering) by construction; the chapterized footers and per-lesson outline
+participation — which depend on `style:default-outline-level` carried on the
+overwritten heading **paragraph** styles (see Edge Cases § "Overwrite scope") — are
+pinned by the golden-reference integration test, not guaranteed by the flags alone. If the
 asset is missing/unreadable or the load errors, the job fails loudly with a
 curated reason — no unstyled book is ever delivered. The stand-in asset is
 derived from Chris's hand-assembled Q2 reference master
@@ -47,10 +51,17 @@ change.
   style definitions verbatim (optional content-strip for size only); no runtime
   cleaning; evidence-based on the reference master's `styles.xml`.
 - Which style-family load flags → **research R2**: `OverwriteStyles=True,
-LoadTextStyles=True, LoadPageStyles=False, LoadNumberingStyles=False`.
+LoadTextStyles=True, LoadPageStyles=False, LoadNumberingStyles=False,
+LoadFrameStyles=False`.
 - Style-load orthogonality to outline-numbering + finalize metadata, and
-  pagination parity → **research R2 + cross-cutting**: guaranteed by the OFF page
-  & numbering flags; pinned by the golden-reference integration test.
+  pagination parity → **research R2 + cross-cutting**: the OFF page & numbering
+  flags protect the page-style set and the chapter-numbering (`text:outline-style`)
+  by construction. But `LoadTextStyles=True + OverwriteStyles=True` overwrites
+  **every** paragraph/character style by name — including the heading styles the
+  007 footer/outline mechanism depends on (`style:default-outline-level` lives on
+  the paragraph style, not the numbering style). So footer-value resolution and
+  outline participation are **pinned by the golden-reference integration test**,
+  not proven by the flags. See Edge Cases § "Overwrite scope".
 - Where the asset lives and startup-vs-per-job validation → **research R4**:
   committed `assets/quarter-styles-template.odt`, resolved from `process.cwd()`;
   per-job existence check is the gate.
@@ -176,6 +187,103 @@ SC-003 literal wording vs. this scoped assertion.
 
 **Pipeline**: `specs/acceptance-specs/*.txt` → `acceptance/parse-specs.ts` →
 `acceptance/generate-tests.ts` → `generated-acceptance-tests/*.spec.ts`
+
+## Edge Cases & Error Handling
+
+_Adversarial review (sp:04-red-team). Design-impacting items are propagated to
+`contracts/template-application.md` and `data-model.md`; the mitigations below are
+authoritative._
+
+### Macro error-handler scope (HIGH)
+
+StarBasic `On Error Goto <label>` is **procedure-scoped, not block-scoped** — once
+set before `loadStylesFromURL` it stays live through `storeToURL` and the `.done`
+write unless explicitly reset. The `Assemble` sub today has **no** error handler,
+so a `storeToURL` failure crashes the macro → non-zero exit → `settleReject`
+(hard fail). Adding a naïve `On Error Goto TemplateFail` around the load would
+**silently swallow a later `storeToURL` failure** into the fail path; worse, a
+partial non-zero-length write could pass the `existsSync + size>0` guard in
+`assembleQuarter` and be delivered as a "valid" but corrupt book (a new FR-003/
+FR-004 regression the template step would introduce). Mitigations (see contract
+§3):
+
+- Reset with `On Error Goto 0` **immediately after** a successful
+  `loadStylesFromURL`, so `storeToURL` errors still hard-fail as they do today.
+- Place an `Exit Sub` before the `TemplateFail:` label so the success path does
+  not fall through into it.
+- `TemplateFail` MUST call `StarDesktop.terminate()` (and write no output / no
+  `.done`), or a load failure lingers until the ~100 s hard timeout instead of
+  failing fast.
+
+### Overwrite scope — non-M.T. paragraph styles (HIGH)
+
+`LoadTextStyles=True + OverwriteStyles=True` overwrites **every** paragraph and
+character style **by name**, not just the `M.T.*` family. The stand-in derives
+from Chris's Q2 master, so it also carries `Standard`, `Heading 1..N`, footer,
+and cover styles. The 007 chapterized footers resolve positionally from **hidden
+level-1 outline headings**, and `style:default-outline-level` is a property of the
+**heading paragraph style** — which this load overwrites. `LoadNumberingStyles=False`
+protects the `text:outline-style` (chapter-numbering definition) but **not** the
+outline-level carried on the overwritten heading paragraph styles. The existing
+"outline start-value = 14" assertion would still pass even if headings dropped out
+of the outline (the numbering definition survives); the assertion that actually
+catches this is **per-lesson footer-value resolution after overwrite**. The spec
+Assumption ("template maps styles by name onto the same style families the source
+masters use") makes a clobber low-probability but unverified. Mitigation: the
+golden-reference integration test MUST assert footer chapter-number values still
+resolve per-lesson **after** template application (see contract §5, made explicit);
+do not rely on the numbering-start assertion as the outline-level guard.
+
+### Highlight must be style-based, not direct-formatted (MEDIUM)
+
+SC-003 and every planned assertion are scoped to **style definitions**
+(`M.T. Text = transparent`). `loadStylesFromURL` only touches style definitions —
+so if any **constituent** carries the M.T. highlight as **direct paragraph
+formatting** rather than via the style, the overwrite will not remove it and the
+style-scoped test still passes while the rendered book shows the highlight. Chris's
+manual "Format → Styles → Load Styles" workflow (which only affects style
+definitions) strongly implies the highlight is style-based, but the current test
+cannot see direct formatting. Mitigation: confirm the highlight in the series-2
+constituents is style-based (no `fo:background-color` in direct run/paragraph
+properties on M.T. content); if a constituent direct-formats it, this style-only
+approach does not deliver FR-002 and the design must widen.
+
+### Corrupt (present-but-unreadable) template (MEDIUM)
+
+US2's independent test conflates **missing** (Node `validateTemplateAsset`
+fast-fails with the specific curated reason) with **corrupt/truncated/wrong-format**
+(passes the exists+non-empty gate, then `soffice` must handle it). A corrupt source
+fails **safe** — either `loadStylesFromURL` raises a trappable Basic error (fast
+fail → generic "assembly produced no result") or, worst case, `soffice` blocks on a
+modal until the ~100 s hard timeout — but neither delivers a bad book. Mitigations
+(see contract §3/§5): add an integration case that feeds a deliberately **corrupt**
+template (distinct from missing) and asserts a failed job; confirm `--headless`
+makes the load raise a trappable runtime error rather than block on an interactive
+dialog.
+
+### Non-Latin mother tongues vs. an English-derived template (MEDIUM)
+
+The stand-in derives from an **English** master and its `M.T.*` styles may carry a
+western `fo:language`/`style:font-name` (and no CTL/CJK complex-script font). Since
+the single global template's text styles are overwritten onto books of **any**
+mother tongue (per-language/RTL variants are explicitly out of scope), overwriting
+could clobber the language/font on non-Latin mother-tongue paragraphs — a regression
+invisible to the English series-2 test masters. Mitigation: confirm the stand-in's
+`M.T.*` styles do not hardcode a Latin-only `fo:language`/font that would break
+complex-script rendering; treat non-Latin fidelity as an accepted risk tied to the
+deferred per-language-variant scope, and note it for the operator when the real
+template is dropped in.
+
+## Performance Considerations
+
+### Style-source document size (LOW)
+
+`loadStylesFromURL` ignores the source document's body, but `soffice` must still
+open, unzip, and parse the entire style-source **each job**. Shipping the raw
+~4.4 MB reference master (research R3 "acceptable for correctness") costs ~1–2 s of
+per-job parse against the ~40 s merge baseline — small, but avoidable. Prefer the
+content-stripped, style-only variant (research R3 already permits it) so the per-job
+load stays minimal and the committed asset stays lean.
 
 ## Complexity Tracking
 
