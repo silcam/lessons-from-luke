@@ -154,6 +154,55 @@ function extractStylesXml(outputPath: string, workDir: string, subdir: string): 
   return fs.readFileSync(path.join(extractDir, "styles.xml"), "utf8");
 }
 
+/**
+ * Extracts the `M.T. Text` paragraph style's `fo:background-color` value from
+ * a `styles.xml` string. Returns `undefined` if the style or the attribute is
+ * absent (a template that never sets it, vs. one that sets it to
+ * `"transparent"`, which returns the literal string `"transparent"`).
+ */
+function mtTextBackgroundColor(stylesXml: string): string | undefined {
+  const mtTextStyle = /<style:style style:name="M\.T\._20_Text"[^>]*>[\s\S]*?<\/style:style>/.exec(
+    stylesXml
+  )?.[0];
+  if (!mtTextStyle) return undefined;
+  return /fo:background-color="([^"]*)"/.exec(mtTextStyle)?.[1];
+}
+
+/**
+ * Builds a test-only style-source fixture `.odt`: a byte-for-byte copy of the
+ * real shipped `assets/quarter-styles-template.odt` (never mutated itself)
+ * with its `M.T. Text` paragraph style's `fo:background-color` patched to a
+ * distinguishing marker color. Used to prove per-job re-read (US3/FR-005):
+ * two jobs pointed at two fixtures built this way must carry visibly
+ * different resolved `M.T.*` style properties in their own assembled output.
+ */
+function buildStyleSourceFixture(workDir: string, name: string, backgroundColor: string): string {
+  const fixturePath = path.join(workDir, `${name}.odt`);
+  fs.copyFileSync(path.join(process.cwd(), "assets", "quarter-styles-template.odt"), fixturePath);
+
+  const extractDir = path.join(workDir, `${name}-extract`);
+  fs.mkdirSync(extractDir, { recursive: true });
+  execFileSync("unzip", ["-o", "-q", fixturePath, "styles.xml", "-d", extractDir]);
+  const stylesPath = path.join(extractDir, "styles.xml");
+  const original = fs.readFileSync(stylesPath, "utf8");
+  const patched = original.replace(
+    /(<style:style style:name="M\.T\._20_Text"[^>]*>[\s\S]*?<style:paragraph-properties[^>]*fo:background-color=")[^"]*(")/,
+    `$1${backgroundColor}$2`
+  );
+  if (patched === original) {
+    throw new Error(
+      "buildStyleSourceFixture: failed to patch the M.T. Text style's fo:background-color — fixture builder is out of sync with the real asset's styles.xml shape"
+    );
+  }
+  fs.writeFileSync(stylesPath, patched, "utf8");
+  // Update the existing styles.xml entry in place (not a full rebuild) —
+  // preserves every other entry (incl. the required-uncompressed `mimetype`
+  // entry) byte-for-byte.
+  execFileSync("zip", ["-q", fixturePath, "styles.xml"], { cwd: extractDir });
+
+  return fixturePath;
+}
+
 /** The printed page-number footer token on a page, e.g. `"14"` from `"...  Page 14"`, or `undefined` if the page carries no page-number footer (front matter's own first page, and every lesson's own first page — FR-003 suppression). */
 function pageNumberFooterOn(pageText: string): string | undefined {
   const matches = [...pageText.matchAll(/\bPage\s+(\S+)/g)];
@@ -439,4 +488,67 @@ describe("assembleQuarter (real soffice merge, corrupt-template fail-loud — 00
     const outputPath = path.join(jobWorkRoot, jobId, "assembled.odt");
     expect(fs.existsSync(outputPath)).toBe(false);
   }, 100_000);
+});
+
+describe("assembleQuarter (real soffice merge, template asset swap — 009 US3/FR-005, contracts/template-application.md §1/§4)", () => {
+  // Proves the template asset is re-read PER JOB, with no caching, so
+  // replacing the asset at the resolved path changes the very next job's
+  // output styles with zero code change. Exercised via two test-only
+  // alternate style-source fixtures substituted at the resolved path (via
+  // the same `resolveTemplatePath` seam the corrupt-template test above
+  // uses) — never mutating the real committed
+  // `assets/quarter-styles-template.odt`, which stays untouched throughout.
+  let workDir: string;
+  let fixtureA: string;
+  let fixtureB: string;
+
+  beforeAll(() => {
+    execFileSync("soffice", ["--version"]);
+
+    workDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembleQuarter-template-swap-"));
+    fixtureA = buildStyleSourceFixture(workDir, "fixture-a", "#123456");
+    fixtureB = buildStyleSourceFixture(workDir, "fixture-b", "#abcdef");
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  afterAll(() => {
+    if (workDir) fs.rmSync(workDir, { recursive: true, force: true });
+  });
+
+  async function assembleWithFixture(fixturePath: string, jobId: string): Promise<string> {
+    jest.spyOn(quarterStylesTemplate, "resolveTemplatePath").mockReturnValue(fixturePath);
+
+    const jobWorkRoot = path.join(workDir, "assembly-work");
+    fs.mkdirSync(path.join(jobWorkRoot, jobId), { recursive: true });
+
+    const outputPath = await assembleQuarter({
+      storage,
+      // A single lesson suffices — this test only checks the resolved M.T.
+      // style property, not the full golden-reference content/ordering axes.
+      lessons: [lesson(LESSON_NUMBERS[0])],
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId,
+      workRoot: jobWorkRoot,
+    });
+    expect(fs.existsSync(outputPath)).toBe(true);
+    return outputPath;
+  }
+
+  test("two jobs run back-to-back with two different style-source fixtures at the resolved path produce two books carrying each fixture's own M.T. Text background-color, with no caching from the first job into the second", async () => {
+    const outputA = await assembleWithFixture(fixtureA, "template-swap-a");
+    const stylesXmlA = extractStylesXml(outputA, workDir, "styles-extract-a");
+    expect(mtTextBackgroundColor(stylesXmlA)).toBe("#123456");
+
+    const outputB = await assembleWithFixture(fixtureB, "template-swap-b");
+    const stylesXmlB = extractStylesXml(outputB, workDir, "styles-extract-b");
+    expect(mtTextBackgroundColor(stylesXmlB)).toBe("#abcdef");
+
+    // The real committed asset was never touched by either job.
+    const realAssetPath = path.join(process.cwd(), "assets", "quarter-styles-template.odt");
+    expect(fs.existsSync(realAssetPath)).toBe(true);
+  }, 200_000);
 });
