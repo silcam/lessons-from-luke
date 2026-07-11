@@ -1,8 +1,8 @@
 /// <reference types="jest" />
 
 jest.mock("./makeLessonFile");
-jest.mock("./flattenFooterFields");
-jest.mock("./renameMasterPageStyles");
+jest.mock("./prepareConstituentForAssembly");
+jest.mock("./finalizeAssembledQuarter");
 jest.mock("../assembly/sofficeAssemble");
 
 import fs from "fs";
@@ -12,14 +12,14 @@ import { Persistence } from "../../core/interfaces/Persistence";
 import { Language, ENGLISH_ID } from "../../core/models/Language";
 import { Lesson, TOC_LESSON } from "../../core/models/Lesson";
 import makeLessonFile from "./makeLessonFile";
-import { flattenFooterFields } from "./flattenFooterFields";
-import { renameMasterPageStyles } from "./renameMasterPageStyles";
+import { prepareConstituentForAssembly } from "./prepareConstituentForAssembly";
+import { finalizeAssembledQuarter } from "./finalizeAssembledQuarter";
 import { sofficeAssemble } from "../assembly/sofficeAssemble";
 import assembleQuarter from "./assembleQuarter";
 
 const makeLessonFileMock = makeLessonFile as unknown as jest.Mock;
-const flattenFooterFieldsMock = flattenFooterFields as unknown as jest.Mock;
-const renameMasterPageStylesMock = renameMasterPageStyles as unknown as jest.Mock;
+const prepareConstituentForAssemblyMock = prepareConstituentForAssembly as unknown as jest.Mock;
+const finalizeAssembledQuarterMock = finalizeAssembledQuarter as unknown as jest.Mock;
 const sofficeAssembleMock = sofficeAssemble as unknown as jest.Mock;
 
 const SERIES = 1;
@@ -76,11 +76,16 @@ describe("assembleQuarter", () => {
       return rawPath;
     });
 
-    flattenFooterFieldsMock.mockReset();
-    flattenFooterFieldsMock.mockImplementation(() => undefined);
+    prepareConstituentForAssemblyMock.mockReset();
+    prepareConstituentForAssemblyMock.mockImplementation(
+      (options: { isTOC: boolean }): { title: string; subject: string } =>
+        options.isTOC
+          ? { title: "Lessons from Luke", subject: "Teacher's Guide" }
+          : { title: "Lessons from Luke", subject: "Some Lesson Title" }
+    );
 
-    renameMasterPageStylesMock.mockReset();
-    renameMasterPageStylesMock.mockImplementation(() => undefined);
+    finalizeAssembledQuarterMock.mockReset();
+    finalizeAssembledQuarterMock.mockImplementation(() => undefined);
 
     sofficeAssembleMock.mockReset();
     sofficeAssembleMock.mockImplementation(
@@ -157,7 +162,7 @@ describe("assembleQuarter", () => {
     expect(makeLessonFileMock).toHaveBeenCalledTimes(14);
   });
 
-  test("copies each constituent into the per-job dir before flatten is invoked, never mutating the raw makeLessonFile path", async () => {
+  test("prepares each constituent on its per-job COPY (never the raw makeLessonFile path), TOC flagged and lesson numbers passed through", async () => {
     await assembleQuarter({
       storage,
       lessons: unorderedQuarterLessons(),
@@ -167,43 +172,76 @@ describe("assembleQuarter", () => {
       workRoot: fixtureDir,
     });
 
-    expect(flattenFooterFieldsMock).toHaveBeenCalledTimes(14);
+    expect(prepareConstituentForAssemblyMock).toHaveBeenCalledTimes(14);
     const rawPaths = new Set(rawPathsByLessonNumber.values());
 
-    flattenFooterFieldsMock.mock.calls.forEach(([options]) => {
-      const { odtPath } = options as { odtPath: string };
-      expect(rawPaths.has(odtPath)).toBe(false);
-      expect(odtPath.startsWith(path.join(fixtureDir, "job-4"))).toBe(true);
+    const calls = prepareConstituentForAssemblyMock.mock.calls.map(
+      ([options]) =>
+        options as {
+          odtPath: string;
+          series: number;
+          lesson: number;
+          isTOC: boolean;
+          fallbackTitle: string;
+        }
+    );
+    calls.forEach((options) => {
+      expect(rawPaths.has(options.odtPath)).toBe(false);
+      expect(options.odtPath.startsWith(path.join(fixtureDir, "job-4"))).toBe(true);
+      expect(options.series).toBe(SERIES);
+    });
+    // Insertion order: the TOC (and only the TOC) first, then lessons ascending.
+    expect(calls.map((options) => options.isTOC)).toEqual([
+      true,
+      ...Array.from({ length: 13 }, () => false),
+    ]);
+    expect(calls.map((options) => options.lesson)).toEqual([
+      TOC_LESSON,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+    ]);
+    calls.slice(1).forEach((options, i) => {
+      expect(options.fallbackTitle).toBe(`Luke ${SERIES}-${i + 1}`);
     });
   });
 
-  test("renames each constituent's master-page styles (per-constituent-unique suffix) before flattening its footer", async () => {
+  test("finalizes the merged output once, with the series, the quarter's first absolute lesson number, and the TOC's own title/subject", async () => {
     await assembleQuarter({
       storage,
       lessons: unorderedQuarterLessons(),
       motherLang,
       majorityLangId: ENGLISH_ID,
-      jobId: "job-6",
+      jobId: "job-7",
       workRoot: fixtureDir,
     });
 
-    expect(renameMasterPageStylesMock).toHaveBeenCalledTimes(14);
-    const rawPaths = new Set(rawPathsByLessonNumber.values());
-    const seenSuffixes = new Set<string>();
-
-    renameMasterPageStylesMock.mock.calls.forEach(([options]) => {
-      const { odtPath, suffix } = options as { odtPath: string; suffix: string };
-      expect(rawPaths.has(odtPath)).toBe(false);
-      expect(odtPath.startsWith(path.join(fixtureDir, "job-6"))).toBe(true);
-      expect(seenSuffixes.has(suffix)).toBe(false);
-      seenSuffixes.add(suffix);
-    });
-    expect(seenSuffixes.size).toBe(14);
-
-    // Renamed before the footer is flattened, on the same copy path each time.
-    expect(renameMasterPageStylesMock.mock.invocationCallOrder[0]).toBeLessThan(
-      flattenFooterFieldsMock.mock.invocationCallOrder[0]
-    );
+    expect(finalizeAssembledQuarterMock).toHaveBeenCalledTimes(1);
+    const [options] = finalizeAssembledQuarterMock.mock.calls[0] as [
+      {
+        odtPath: string;
+        series: number;
+        firstLessonNumber: number;
+        title: string;
+        subject: string;
+      },
+    ];
+    expect(options.odtPath).toBe(path.join(fixtureDir, "job-7", "assembled.odt"));
+    expect(options.series).toBe(SERIES);
+    expect(options.firstLessonNumber).toBe(1);
+    // The TOC's meta (the first constituent's), not a lesson's.
+    expect(options.title).toBe("Lessons from Luke");
+    expect(options.subject).toBe("Teacher's Guide");
   });
 
   test("never passes a raw makeLessonFile path to the soffice merge", async () => {
@@ -254,15 +292,14 @@ describe("assembleQuarter", () => {
  * The generation-time half of the completeness gate (each of the 14
  * constituents generates via `makeLessonFile` without error) is NOT a
  * synchronous pre-check — it runs as part of the per-constituent loop
- * `assembleQuarter` already has. RED: today a `makeLessonFile` failure
- * propagates as the raw thrown error (whatever message `makeLessonFile`
- * happens to throw), which `AssemblyJobRegistry` uses verbatim as the
- * `failed` job's `reason` (`error.message`, `AssemblyJobRegistry.ts`
- * `promoteNext`'s `.catch`). That raw message can carry a stack trace or an
- * absolute filesystem path — exactly what the curated-vocabulary rule
- * (data-model.md "reason hygiene") forbids reaching a human. `assembleQuarter`
- * MUST catch a per-constituent generation failure and re-throw a curated,
- * fixed-vocabulary `Error` naming the failing lesson instead.
+ * `assembleQuarter` already has. A `makeLessonFile` failure would otherwise
+ * propagate as the raw thrown error, which `AssemblyJobRegistry` uses
+ * verbatim as the failed job's human-facing `reason`
+ * (`AssemblyJobRegistry.ts` `promoteNext`'s `.catch`). That raw message can
+ * carry a stack trace or an absolute filesystem path — exactly what the
+ * curated-vocabulary rule (data-model.md "reason hygiene") forbids reaching
+ * a human. `assembleQuarter` MUST catch each step's failure and re-throw a
+ * curated, fixed-vocabulary `Error` instead.
  */
 describe("assembleQuarter — US4 generation-failure curated reason", () => {
   let fixtureDir: string;
@@ -271,10 +308,10 @@ describe("assembleQuarter — US4 generation-failure curated reason", () => {
     fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembleQuarter-us4-test-"));
 
     makeLessonFileMock.mockReset();
-    flattenFooterFieldsMock.mockReset();
-    flattenFooterFieldsMock.mockImplementation(() => undefined);
-    renameMasterPageStylesMock.mockReset();
-    renameMasterPageStylesMock.mockImplementation(() => undefined);
+    prepareConstituentForAssemblyMock.mockReset();
+    prepareConstituentForAssemblyMock.mockImplementation(() => ({ title: "", subject: "" }));
+    finalizeAssembledQuarterMock.mockReset();
+    finalizeAssembledQuarterMock.mockImplementation(() => undefined);
     sofficeAssembleMock.mockReset();
     sofficeAssembleMock.mockImplementation(
       async (options: { outputPath: string; files: string[] }) => {
@@ -359,44 +396,7 @@ describe("assembleQuarter — US4 generation-failure curated reason", () => {
     expect(message).not.toBe(rawDetail);
   });
 
-  test("a renameMasterPageStyles failure (e.g. a raw execFileSync/zip error) yields a curated, path-free reason", async () => {
-    const rawDetail =
-      "Command failed: zip -d " +
-      "/Users/eykd/code/js/lessons-from-luke/tmp/job-us4-3/00.odt styles.xml\n" +
-      "zip warning: name not matched";
-
-    makeLessonFileMock.mockImplementation(async (_storage: Persistence, lsn: Lesson) => {
-      const rawPath = path.join(fixtureDir, `raw-${lsn.lesson}.odt`);
-      fs.writeFileSync(rawPath, `raw contents for lesson ${lsn.lesson}`);
-      return rawPath;
-    });
-    renameMasterPageStylesMock.mockImplementation(() => {
-      throw new Error(rawDetail);
-    });
-
-    let caught: unknown;
-    try {
-      await assembleQuarter({
-        storage,
-        lessons: unorderedQuarterLessons(),
-        motherLang,
-        majorityLangId: ENGLISH_ID,
-        jobId: "job-us4-3",
-        workRoot: fixtureDir,
-      });
-    } catch (error) {
-      caught = error;
-    }
-
-    expect(caught).toBeInstanceOf(Error);
-    const message = (caught as Error).message;
-    expect(message).not.toMatch(/\//);
-    expect(message).not.toMatch(/Command failed/);
-    expect(message).not.toBe(rawDetail);
-    expect(sofficeAssembleMock).not.toHaveBeenCalled();
-  });
-
-  test("a flattenFooterFields failure (e.g. a raw libxmljs2 parse error) yields a curated, path-free reason", async () => {
+  test("a prepareConstituentForAssembly failure (e.g. a raw libxmljs2/zip error, or the outline-participant validation) yields a curated, path-free reason naming the lesson", async () => {
     const rawDetail =
       "libxmljs2: parse error at " +
       "/Users/eykd/code/js/lessons-from-luke/tmp/job-us4-4/03.odt:12:4";
@@ -406,7 +406,7 @@ describe("assembleQuarter — US4 generation-failure curated reason", () => {
       fs.writeFileSync(rawPath, `raw contents for lesson ${lsn.lesson}`);
       return rawPath;
     });
-    flattenFooterFieldsMock.mockImplementation(() => {
+    prepareConstituentForAssemblyMock.mockImplementation(() => {
       throw new Error(rawDetail);
     });
 
@@ -430,6 +430,41 @@ describe("assembleQuarter — US4 generation-failure curated reason", () => {
     expect(message).not.toMatch(/libxmljs2/);
     expect(message).not.toBe(rawDetail);
     expect(sofficeAssembleMock).not.toHaveBeenCalled();
+  });
+
+  test("a finalizeAssembledQuarter failure yields a curated, path-free reason (never the raw error)", async () => {
+    const rawDetail =
+      "Command failed: zip -X -q -0 " +
+      "/Users/eykd/code/js/lessons-from-luke/tmp/job-us4-9/assembled.odt mimetype";
+
+    makeLessonFileMock.mockImplementation(async (_storage: Persistence, lsn: Lesson) => {
+      const rawPath = path.join(fixtureDir, `raw-${lsn.lesson}.odt`);
+      fs.writeFileSync(rawPath, `raw contents for lesson ${lsn.lesson}`);
+      return rawPath;
+    });
+    finalizeAssembledQuarterMock.mockImplementation(() => {
+      throw new Error(rawDetail);
+    });
+
+    let caught: unknown;
+    try {
+      await assembleQuarter({
+        storage,
+        lessons: unorderedQuarterLessons(),
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId: "job-us4-9",
+        workRoot: fixtureDir,
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    expect(message).not.toMatch(/\//);
+    expect(message).not.toMatch(/Command failed/);
+    expect(message).not.toBe(rawDetail);
   });
 
   test("a missing (never-written) sofficeAssemble outputPath is treated as a failure, not a ready result", async () => {
@@ -461,6 +496,8 @@ describe("assembleQuarter — US4 generation-failure curated reason", () => {
     expect(caught).toBeInstanceOf(Error);
     const message = (caught as Error).message;
     expect(message).not.toMatch(/\//);
+    // The merge output never appeared — finalization must not run against it.
+    expect(finalizeAssembledQuarterMock).not.toHaveBeenCalled();
   });
 
   test("a mkdirSafe (job working-dir setup) failure yields a curated, path-free reason", async () => {
@@ -561,5 +598,6 @@ describe("assembleQuarter — US4 generation-failure curated reason", () => {
     expect(caught).toBeInstanceOf(Error);
     const message = (caught as Error).message;
     expect(message).not.toMatch(/\//);
+    expect(finalizeAssembledQuarterMock).not.toHaveBeenCalled();
   });
 });

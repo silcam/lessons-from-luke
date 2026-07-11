@@ -8,8 +8,9 @@ import { execFileSync } from "child_process";
  * uncompressed (`-0`) so ODF-aware consumers can identify the file type by
  * reading only the first bytes of the archive.
  *
- * Shared by `flattenFooterFields.ts` and `renameMasterPageStyles.ts`, both
- * of which re-pack an ODT after mutating its extracted XML in place.
+ * Shared by `prepareConstituentForAssembly.ts` and
+ * `finalizeAssembledQuarter.ts`, both of which re-pack an ODT after mutating
+ * its extracted XML in place.
  */
 export function rezipWithMimetypeFirst(extractDirPath: string, outPath: string): void {
   const absOutPath = path.resolve(outPath);

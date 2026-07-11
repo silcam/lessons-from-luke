@@ -47,19 +47,23 @@ const ORDERED_LESSON_NUMBERS = [TOC_LESSON, ...LESSON_NUMBERS];
 const SERVER_DOCS_DIR = path.join(process.cwd(), "test", "docs", "serverDocs");
 
 /**
- * The literal, per-lesson-unique footer text `flattenFooterFields` bakes into
- * each constituent BEFORE the merge (e.g. `"Quarter 2 Lesson 14"`). Used as
- * BOTH the content/ordering marker (it only appears within that lesson's own
- * body pages, generated in-line by the flatten step, never as a review-list
- * entry) and the presence/regression marker (empirically confirmed absent
- * from the TOC's own "Quarter 2 Table of Contents" listing, which repeats
- * every lesson's title/truth/story TEXT but never its footer). Deliberately
- * NOT `dc:subject` (each lesson's title, e.g. "The Twelve Apostles"): the
- * real TOC constituent is a genuine Table of Contents that lists every
- * lesson's own title as a REVIEW ENTRY on its own pages — confirmed against
- * the real merge output — so a title-text marker's first occurrence in the
- * merged book is on the TOC's OWN pages, not that lesson's real content
- * pages, making it useless for ordering/first-page checks.
+ * The per-lesson-unique rendered footer text (e.g. `"Quarter 2 Lesson 14"`).
+ * The Quarter value renders from the live `text:user-defined[Quarter]` field
+ * (resolved against the `finalizeAssembledQuarter`-written book metadata) and
+ * the Lesson value from the live `text:chapter` number field
+ * `prepareConstituentForAssembly` chapterized (resolved positionally from
+ * each lesson's level-1 outline heading) — rendered text identical to the
+ * old pre-merge literal flattening. Used as BOTH the content/ordering marker
+ * (it only appears within that lesson's own body pages, never as a
+ * review-list entry) and the presence/regression marker (empirically
+ * confirmed absent from the TOC's own "Quarter 2 Table of Contents" listing,
+ * which repeats every lesson's title/truth/story TEXT but never its footer).
+ * Deliberately NOT `dc:subject` (each lesson's title, e.g. "The Twelve
+ * Apostles"): the real TOC constituent is a genuine Table of Contents that
+ * lists every lesson's own title as a REVIEW ENTRY on its own pages —
+ * confirmed against the real merge output — so a title-text marker's first
+ * occurrence in the merged book is on the TOC's OWN pages, not that lesson's
+ * real content pages, making it useless for ordering/first-page checks.
  */
 function footerMarkerFor(lessonNumber: number): string {
   return `Quarter ${SERIES} Lesson ${lessonNumber}`;
@@ -188,8 +192,8 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
       sourceHashesBefore.set(n, sha256(srcPath));
     });
 
-    // --- The real merge. Unmocked makeLessonFile/flattenFooterFields/
-    // renameMasterPageStyles/sofficeAssemble — the actual production path.
+    // --- The real merge. Unmocked makeLessonFile/prepareConstituentForAssembly/
+    // sofficeAssemble/finalizeAssembledQuarter — the actual production path.
     outputPath = await assembleQuarter({
       storage,
       lessons: ORDERED_LESSON_NUMBERS.map(lesson),
@@ -283,6 +287,40 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
       const titlePageIndex = firstContentPageIndex - 1;
       expect(pageNumberFooterOn(pages[titlePageIndex])).toBeUndefined();
     });
+  });
+
+  test("single clean master-page set: every display name appears ONCE and none carries a numeric constituent suffix (the duplicated-page-styles defect this fix removes)", () => {
+    const extractDir = path.join(workDir, "styles-extract");
+    fs.mkdirSync(extractDir, { recursive: true });
+    execFileSync("unzip", ["-o", "-q", outputPath, "styles.xml", "-d", extractDir]);
+    const stylesXml = fs.readFileSync(path.join(extractDir, "styles.xml"), "utf8");
+
+    const masterPageTags = stylesXml.match(/<style:master-page [^>]*>/g) ?? [];
+    expect(masterPageTags.length).toBeGreaterThan(0);
+
+    const displayNames = masterPageTags.map(
+      (tag) => /style:display-name="([^"]*)"/.exec(tag)?.[1] ?? /style:name="([^"]*)"/.exec(tag)![1]
+    );
+    // The exact defect signature: "Coloring Page 00".."Coloring Page 13".
+    displayNames.forEach((name) => expect(name).not.toMatch(/ \d{2}$/));
+    // One definition per display name — the template-compatible clean set.
+    expect(new Set(displayNames).size).toBe(displayNames.length);
+    // The client's key styles survived the merge under their ORIGINAL names.
+    ["Coloring Page", "Lesson Content", "First Page"].forEach((expected) => {
+      expect(displayNames.filter((name) => name === expected)).toHaveLength(1);
+    });
+  });
+
+  test("outline numbering: the merged book's level-1 outline style starts at the quarter's first absolute lesson number (14), so chapter-number footer fields render", () => {
+    const extractDir = path.join(workDir, "styles-extract-outline");
+    fs.mkdirSync(extractDir, { recursive: true });
+    execFileSync("unzip", ["-o", "-q", outputPath, "styles.xml", "-d", extractDir]);
+    const stylesXml = fs.readFileSync(path.join(extractDir, "styles.xml"), "utf8");
+
+    const level1 = /<text:outline-level-style text:level="1"[^>]*>/.exec(stylesXml)?.[0];
+    expect(level1).toBeDefined();
+    expect(level1).toContain('style:num-format="1"');
+    expect(level1).toContain(`text:start-value="${(SERIES - 1) * 13 + 1}"`);
   });
 
   test("page-offset parity: the produced book's final printed page number carries the known +1 offset vs. physical PDF page count (research.md R3 — matched, not fixed)", () => {
