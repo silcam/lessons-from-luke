@@ -4,8 +4,8 @@ import { Persistence } from "../../core/interfaces/Persistence";
 import { Language } from "../../core/models/Language";
 import { Lesson, isTOCLesson, lessonName } from "../../core/models/Lesson";
 import makeLessonFile from "./makeLessonFile";
-import { flattenFooterFields } from "./flattenFooterFields";
-import { renameMasterPageStyles } from "./renameMasterPageStyles";
+import { prepareConstituentForAssembly, ConstituentMeta } from "./prepareConstituentForAssembly";
+import { finalizeAssembledQuarter } from "./finalizeAssembledQuarter";
 import { sofficeAssemble } from "../assembly/sofficeAssemble";
 
 /**
@@ -19,15 +19,15 @@ import { sofficeAssemble } from "../assembly/sofficeAssemble";
  * lesson number — NOT `lessonCompare` (which sorts the TOC's sentinel lesson
  * number, 99, to the END, not the front).
  *
- * **Copy-before-flatten (CRITICAL, Pass 5)**: `makeLessonFile` is reused
+ * **Copy-before-transform (CRITICAL, Pass 5)**: `makeLessonFile` is reused
  * unchanged. For the English-mother-tongue-bilingual case
  * (`makeLessonFile.ts:15`) it returns the RAW ADMIN-UPLOADED SOURCE `.odt`
  * under `docs/` — not a tmp copy. Every `makeLessonFile`-returned path MUST
  * be treated as strictly read-only: this function copies each of the 14
- * results into `<workRoot>/<jobId>/` BEFORE `flattenFooterFields` or the
- * `soffice` merge ever sees them. `flattenFooterFields` mutates its
- * `odtPath` in place, and an in-place mutation (or deletion) of the raw
- * source would destroy non-recoverable data.
+ * results into `<workRoot>/<jobId>/` BEFORE `prepareConstituentForAssembly`
+ * or the `soffice` merge ever sees them. `prepareConstituentForAssembly`
+ * mutates its `odtPath` in place, and an in-place mutation (or deletion) of
+ * the raw source would destroy non-recoverable data.
  *
  * **Naming**: the copies are named ASCII, deterministic, insertion-order —
  * `00.odt` (TOC) .. `13.odt` — so `sofficeAssemble`'s injected StarBasic
@@ -40,23 +40,21 @@ import { sofficeAssemble } from "../assembly/sofficeAssemble";
  * completeness check and the merge input (Pass 1 finding — no
  * double-generation).
  *
- * **Per-constituent master-page/page-layout renaming (real soffice-merge
- * defect)**: all 14 constituents share one Word/LibreOffice template, so
- * they all use the SAME `style:master-page` names. `sofficeAssemble`'s
- * merge macro imports constituents one at a time into a shared base
- * document; on a page-style name collision (true for every constituent
- * after the first) LibreOffice's import keeps the FIRST-imported style
- * definition and discards the rest — even though each constituent's own
- * body content still references its style BY NAME. Since the TOC is
- * inserted first, its footer (whose own `meta.xml` has no `Lesson`
- * property, so it falls back to the sentinel lesson number) becomes the
- * ONE footer definition used for the entire merged book. `renameMasterPageStyles`
- * suffixes each copy's master-page/page-layout names (and every reference
- * to them, in both `styles.xml` and `content.xml`) with its own
- * zero-padded index BEFORE the merge, so the collision never occurs and
- * each of the 14 footers `flattenFooterFields` already correctly flattened
- * survives independently. See `renameMasterPageStyles.ts`'s doc comment for
- * the full contract.
+ * **Merge-safe page styles (the duplicated-page-styles fix)**: all 14
+ * constituents share one template, so they use the SAME `style:master-page`
+ * names, and `sofficeAssemble`'s merge dedupes page styles by DISPLAY NAME,
+ * first definition wins. Instead of suffixing every constituent's page-style
+ * names per-constituent (the removed `renameMasterPageStyles`, which
+ * multiplied every page style 14x in the assembled book — "Coloring Page
+ * 00".."13" — and broke applying the client's quarter styles template),
+ * `prepareConstituentForAssembly` makes all 14 page-style sets IDENTICAL and
+ * per-lesson-correct: footer Lesson fields become live chapter-number fields
+ * resolving positionally from each lesson's (hidden) level-1 outline
+ * heading, so the ONE surviving footer definition serves every lesson.
+ * `finalizeAssembledQuarter` then patches the merged book's outline
+ * numbering (start value = first absolute lesson number) and book-level
+ * metadata so those live fields resolve. See both modules' doc comments for
+ * the full design.
  */
 export interface AssembleQuarterOptions {
   /** Storage instance, passed through to `makeLessonFile` for TString lookups. */
@@ -83,9 +81,9 @@ export interface AssembleQuarterOptions {
 }
 
 /**
- * Run the full order-resolution + copy-before-flatten + `soffice` merge
- * orchestration for one assembly job. See the module doc comment for the
- * full contract this satisfies.
+ * Run the full order-resolution + copy-before-transform + `soffice` merge +
+ * finalization orchestration for one assembly job. See the module doc
+ * comment for the full contract this satisfies.
  *
  * @returns Absolute path to the assembled `.odt` once `soffice` has written it.
  */
@@ -108,6 +106,8 @@ export default async function assembleQuarter(options: AssembleQuarterOptions): 
   }
 
   const files: string[] = [];
+  /** The FIRST constituent's (the TOC's) own meta — the assembled book's title/subject source. */
+  let bookMeta: ConstituentMeta | undefined;
   for (let i = 0; i < orderedLessons.length; i++) {
     const lesson = orderedLessons[i];
     let rawPath: string;
@@ -125,18 +125,20 @@ export default async function assembleQuarter(options: AssembleQuarterOptions): 
     const copyPath = path.join(jobDir, `${suffix}.odt`);
     try {
       fs.copyFileSync(rawPath, copyPath);
-      renameMasterPageStyles({ odtPath: copyPath, suffix });
-      flattenFooterFields({
+      const constituentMeta = prepareConstituentForAssembly({
         odtPath: copyPath,
         series: lesson.series,
         lesson: lesson.lesson,
+        isTOC: isTOCLesson(lesson),
+        fallbackTitle: lessonName(lesson),
       });
+      if (i === 0) bookMeta = constituentMeta;
     } catch {
       // Curated, fixed-vocabulary reason ONLY — see the makeLessonFile catch
-      // above. A copyFileSync/renameMasterPageStyles/flattenFooterFields
-      // failure (e.g. an EACCES/ENOSPC copy error, an execFileSync 'zip'
-      // failure, or a libxmljs2 parse error) can carry an absolute
-      // filesystem path or a full command line; never forward it.
+      // above. A copyFileSync/prepareConstituentForAssembly failure (e.g. an
+      // EACCES/ENOSPC copy error, an execFileSync 'zip' failure, a libxmljs2
+      // parse error, or the outline-participant validation) can carry an
+      // absolute filesystem path or a full command line; never forward it.
       throw new Error(`a lesson failed to prepare for assembly: ${lessonName(lesson)}`);
     }
     files.push(copyPath);
@@ -155,6 +157,21 @@ export default async function assembleQuarter(options: AssembleQuarterOptions): 
   // returned a path to a nonexistent file) and a written-but-empty result.
   if (!fs.existsSync(result.outputPath) || fs.statSync(result.outputPath).size === 0) {
     throw new Error("assembly produced no result");
+  }
+
+  const firstLesson = orderedLessons.find((lsn) => !isTOCLesson(lsn));
+  try {
+    finalizeAssembledQuarter({
+      odtPath: result.outputPath,
+      series: firstLesson?.series ?? orderedLessons[0].series,
+      firstLessonNumber: firstLesson?.lesson ?? 1,
+      title: bookMeta?.title ?? "",
+      subject: bookMeta?.subject ?? "",
+    });
+  } catch {
+    // Curated, path-free reason ONLY — a finalization failure (zip/libxmljs2)
+    // can carry an absolute path or a full command line.
+    throw new Error("assembly failed to finalize the merged book");
   }
 
   return result.outputPath;
