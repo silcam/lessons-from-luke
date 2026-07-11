@@ -131,6 +131,27 @@ describe("assembleQuarter", () => {
     expect(validateOrder).toBeLessThan(sofficeOrder);
   });
 
+  test("fails the job loudly with a curated reason when the template asset is missing or unreadable, without invoking sofficeAssemble", async () => {
+    validateTemplateAssetMock.mockImplementation(() => {
+      throw new Error(
+        "ENOENT: no such file or directory, open '/Users/eykd/code/js/lessons-from-luke/docs/quarter-styles-template.odt'"
+      );
+    });
+
+    await expect(
+      assembleQuarter({
+        storage,
+        lessons: unorderedQuarterLessons(),
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId: "job-template-missing-1",
+        workRoot: fixtureDir,
+      })
+    ).rejects.toThrow("quarter styles template asset is missing or unreadable");
+
+    expect(sofficeAssembleMock).not.toHaveBeenCalled();
+  });
+
   test("orders constituents TOC first, then lessons ascending by absolute number", async () => {
     await assembleQuarter({
       storage,
