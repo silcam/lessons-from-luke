@@ -7,7 +7,7 @@ import makeLessonFile from "./makeLessonFile";
 import { prepareConstituentForAssembly, ConstituentMeta } from "./prepareConstituentForAssembly";
 import { finalizeAssembledQuarter } from "./finalizeAssembledQuarter";
 import { sofficeAssemble } from "../assembly/sofficeAssemble";
-import { resolveTemplatePath } from "../assembly/quarterStylesTemplate";
+import { resolveTemplatePath, validateTemplateAsset } from "../assembly/quarterStylesTemplate";
 
 /**
  * assembleQuarter — orchestrates the 14-constituent quarter-book merge
@@ -145,13 +145,16 @@ export default async function assembleQuarter(options: AssembleQuarterOptions): 
     files.push(copyPath);
   }
 
+  const templatePath = resolveTemplatePath();
+  validateTemplateAsset(templatePath);
+
   const outputPath = path.join(jobDir, "assembled.odt");
   const result = await sofficeAssemble({
     jobId,
     files,
     outputPath,
     workRoot,
-    templatePath: resolveTemplatePath(),
+    templatePath,
   });
 
   // Curated, path-free reason: covers both a never-written outputPath (e.g.
