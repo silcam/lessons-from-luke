@@ -263,16 +263,31 @@ dialog.
 
 ### Non-Latin mother tongues vs. an English-derived template (MEDIUM)
 
-The stand-in derives from an **English** master and its `M.T.*` styles may carry a
-western `fo:language`/`style:font-name` (and no CTL/CJK complex-script font). Since
-the single global template's text styles are overwritten onto books of **any**
-mother tongue (per-language/RTL variants are explicitly out of scope), overwriting
-could clobber the language/font on non-Latin mother-tongue paragraphs — a regression
-invisible to the English series-2 test masters. Mitigation: confirm the stand-in's
-`M.T.*` styles do not hardcode a Latin-only `fo:language`/font that would break
-complex-script rendering; treat non-Latin fidelity as an accepted risk tied to the
-deferred per-language-variant scope, and note it for the operator when the real
-template is dropped in.
+Verified directly against the reference master's `styles.xml` (extracted 2026-07-11):
+every `M.T.*` **paragraph** style that sets `style:font-name` points to a Latin
+font (`Andika4`/`Andika`/`Andika1`/`Andika New Basic`); the base style
+`M.T. Text` additionally carries `fo:language="en"`. None of the `M.T.*`
+**paragraph** styles set `style:font-name-complex` or `style:language-complex` —
+so there is no explicit CTL override to lose, only the implicit western default
+carried on `M.T. Text`. (The one `M.T.*` style that _does_ carry an explicit CTL
+font — `M.T. Text highlight`, `style:font-name-complex="Times New Roman2"`,
+`style:language-complex="hi"`/`"IN"` — is style-**family="text"**, i.e. a
+character style, out of scope for the run/character formatting propagated by
+this feature's paragraph-only concern; it is unaffected by which mother tongue
+is assembled since `LoadTextStyles=True` overwrites it identically for every
+job regardless of the source document's language.) Since the single global
+template's paragraph styles are overwritten by name onto books of **any**
+mother tongue (per-language/RTL variants are explicitly out of scope),
+overwriting **replaces** whatever CTL/CJK font settings a non-Latin
+mother-tongue master's own `M.T.*` paragraph styles may have carried with the
+stand-in's implicit Latin default — a regression invisible to the English
+series-2 test masters, which already match the stand-in's language. Mitigation:
+treat non-Latin fidelity as an accepted risk tied to the deferred
+per-language-variant scope (no code change delivers this feature can safely
+avoid it — the overwrite-by-name semantic is inherent to `OverwriteStyles=True`);
+document it explicitly for the operator when the real template is dropped in,
+and flag it as a follow-up spec question for a future per-language-variant
+template feature.
 
 ## Performance Considerations
 
