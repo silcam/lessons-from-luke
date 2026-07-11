@@ -115,6 +115,11 @@ Sub Assemble
         End If
     End If
 
+    &apos; Load the quarter styles template&apos;s text/paragraph styles into the
+    &apos; assembled doc (SPIKE_TEMPLATE_URL). OverwriteStyles+LoadTextStyles apply
+    &apos; the template&apos;s named styles over whatever the constituents brought in;
+    &apos; page/numbering/frame styles are left alone so per-lesson footers and
+    &apos; pagination (see above) are unaffected.
     Dim sTemplate As String
     sTemplate = Environ(&quot;SPIKE_TEMPLATE_URL&quot;)
 
