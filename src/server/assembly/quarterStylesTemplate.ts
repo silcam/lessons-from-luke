@@ -2,6 +2,13 @@ import { existsSync, statSync } from "fs";
 import { join } from "path";
 
 /**
+ * Curated, path-free error message thrown by `validateTemplateAsset` when
+ * the shipped quarter-styles template asset is missing or unreadable.
+ */
+export const TEMPLATE_ASSET_MISSING_MESSAGE =
+  "quarter styles template asset is missing or unreadable";
+
+/**
  * Returns the absolute path to the shipped quarter-styles template asset.
  * Pure/deterministic; performs no I/O.
  */
@@ -15,6 +22,6 @@ export function resolveTemplatePath(): string {
  */
 export function validateTemplateAsset(templatePath: string): void {
   if (!existsSync(templatePath) || statSync(templatePath).size === 0) {
-    throw new Error("quarter styles template asset is missing or unreadable");
+    throw new Error(TEMPLATE_ASSET_MISSING_MESSAGE);
   }
 }
