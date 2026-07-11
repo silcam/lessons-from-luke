@@ -138,6 +138,27 @@ Sub Assemble
     &apos; Fail loudly: a load error &#8658; abort before storeToURL (no output written)
     On Error Goto TemplateFail
 
+    &apos; loadStylesFromURL alone does NOT raise a StarBasic error for a present,
+    &apos; non-empty, but unreadable/non-ODT template &#8212; it silently no-ops and
+    &apos; leaves the assembled doc&apos;s styles untouched, so the job would otherwise
+    &apos; complete and deliver a book with no template applied (US2/FR-004
+    &apos; regression). Opening the template as a real hidden document FIRST
+    &apos; forces LibreOffice to actually parse it as an ODF package, which DOES
+    &apos; raise a trappable error for a corrupt/non-zip source &#8212; giving this
+    &apos; trap something to catch before falling through to the style load.
+    &apos; FilterName is REQUIRED here: without it, LibreOffice&apos;s type-detection
+    &apos; leniently guesses a plain-text import for a non-ODF/non-zip payload and
+    &apos; loads it &quot;successfully&quot; as garbage text instead of raising an error &#8212;
+    &apos; forcing the ODF filter makes an invalid package fail to open, as intended.
+    Dim oTplArgs(1) As New com.sun.star.beans.PropertyValue
+    oTplArgs(0).Name = &quot;Hidden&quot;
+    oTplArgs(0).Value = True
+    oTplArgs(1).Name = &quot;FilterName&quot;
+    oTplArgs(1).Value = &quot;writer8&quot;
+    Dim oTemplateDoc As Object
+    oTemplateDoc = StarDesktop.loadComponentFromURL(sTemplate, &quot;_blank&quot;, 0, oTplArgs())
+    oTemplateDoc.close(False)
+
     oDoc.StyleFamilies.loadStylesFromURL(sTemplate, oProps())
 
     &apos; CRITICAL: reset the handler so the trap covers ONLY the load &#8212; a later
