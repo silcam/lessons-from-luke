@@ -102,12 +102,13 @@ End Sub
   branches to `TemplateFail` and writes **no output file** → the wrapper's guard
   in `assembleQuarter` (`!existsSync(outputPath) || size === 0`, NOT the `.done`
   sentinel) surfaces a `failed` job.
-- Page styles and numbering styles MUST NOT be imported (`LoadPageStyles=False,
-LoadNumberingStyles=False`) so the 007 clean page-style set and the
-  `text:outline-style` chapter-numbering are untouched. Note: `LoadTextStyles=True
-  - OverwriteStyles=True`DOES overwrite the heading **paragraph** styles by name,
-which carry`style:default-outline-level` — so footer/outline participation is
-    NOT protected by the flags and MUST be pinned by §5's footer-value assertion.
+- Page styles and numbering styles MUST NOT be imported
+  (`LoadPageStyles=False, LoadNumberingStyles=False`) so the 007 clean page-style
+  set and the `text:outline-style` chapter-numbering are untouched. Note:
+  `LoadTextStyles` + `OverwriteStyles` DOES overwrite the heading **paragraph**
+  styles by name, which carry `style:default-outline-level` — so footer/outline
+  participation is NOT protected by the flags and MUST be pinned by §5's
+  footer-value assertion.
 - `LoadFrameStyles=False` (avoid importing the template's frame styles; YAGNI).
 - `module1Xba.ts` MUST be regenerated from the edited `.xba` via
   `scripts/genMacroConstant.js` (drift guarded by `module1Xba.test.ts`).
