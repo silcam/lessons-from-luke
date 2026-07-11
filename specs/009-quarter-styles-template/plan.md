@@ -289,6 +289,23 @@ document it explicitly for the operator when the real template is dropped in,
 and flag it as a follow-up spec question for a future per-language-variant
 template feature.
 
+### Live asset swap atomicity (LOW)
+
+FR-005/US3 make the real template a drop-in: a maintainer replaces
+`assets/quarter-styles-template.odt` on a running server with no restart, and
+per-job validation (research R4) deliberately re-reads the asset each job so the
+swap takes effect without a bounce. That creates a swap-during-read window on a
+**concurrent** job: a non-atomic copy (`cp` over the file) can leave the asset
+truncated exactly when another job's `validateTemplateAsset` runs or `soffice`
+opens it. This fails **safe** — a truncated read is just a corrupt template, which
+the corrupt-template path (contract §5: `soffice` → trappable load error →
+`TemplateFail` → no output → `failed` job) already routes to a failed job, never a
+bad book. The blast radius is at most one spurious job failure during a rare
+one-time maintainer swap. Mitigation is operational, not code: document that the
+swap MUST be atomic (write a temp file in the same directory, then `mv`/rename
+into place) so no job ever observes a partial file. No interface or data-shape
+impact — plan-only; contracts and data-model unchanged.
+
 ## Performance Considerations
 
 ### Style-source document size (LOW)
