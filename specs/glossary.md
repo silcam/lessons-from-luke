@@ -37,11 +37,15 @@
 
 **LessonString** (noun): Links a master string (TString) to a Lesson with type (content/styles/meta) and xpath.
 
-## P
+## M
+
+**M.T. styles** (noun): The mother-tongue paragraph-style family (`M.T.*`) in lesson masters, carrying a yellow background highlight as a working aid during translation so mother-tongue text is easy to spot. The highlight is not a print style; the Quarter styles template removes it. [Docs: specs/009-quarter-styles-template/spec.md] [See: Quarter styles template]
 
 ## Q
 
 **Quarter** (noun): A grouping of 13 lessons plus a Table of Contents within a Book — the `series` field on a Lesson (`BaseLesson.series`). Rendered as `Q{series}` in document names (e.g. `English_Luke-Q1-…`). "Quarter" (product/publishing term) and "series" (code field) refer to the same concept. [See: Lesson, Assembled quarter book, TOC lesson]
+
+**Quarter styles template** (noun): A single, global, swappable application asset — a style-source document whose named styles are applied onto every Assembled quarter book during assembly, making the book print-ready (notably removing the M.T. styles highlight). Ships with the application; replacing the file swaps the styles with no code change. Until the operator's real file arrives, a stand-in derived from the Q2 reference master is used. [Docs: specs/009-quarter-styles-template/spec.md] [See: Assembled quarter book, M.T. styles]
 
 ## P
 
