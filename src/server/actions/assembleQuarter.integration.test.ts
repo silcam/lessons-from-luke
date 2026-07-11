@@ -305,6 +305,38 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
     });
   });
 
+  test("footer chapter-number VALUES resolve correctly per lesson after template application (009 overwrite-scope discriminating guard, contracts/template-application.md §5): the actual per-lesson footer text must contain the lesson's own absolute number, not a stale/uniform value", () => {
+    // Distinct from the outline start-value assertion below: that row only
+    // asserts the level-1 outline STYLE's start-value survives, which would
+    // still pass even if a heading's own chapter-number FIELD failed to
+    // resolve (e.g. because template application dropped/renamed the
+    // outline-derived numbering a heading's `text:chapter` field depends on).
+    // This assertion walks each lesson's own first footer occurrence and
+    // confirms the rendered VALUE is that lesson's own absolute number.
+    LESSON_NUMBERS.forEach((n) => {
+      const marker = footerMarkerFor(n);
+      const index = fullText.indexOf(marker);
+      expect(index).toBeGreaterThan(-1);
+      // The rendered footer text must be exactly "Quarter <SERIES> Lesson <n>"
+      // with no stray digits immediately trailing (which would indicate a
+      // collided/misresolved chapter-number field, e.g. "Lesson 1499").
+      const tail = fullText.slice(index + marker.length, index + marker.length + 1);
+      expect(/\d/.test(tail)).toBe(false);
+    });
+  });
+
+  test('M.T. Text paragraph style carries no legacy highlight after template application (009 FR-002/FR-003): `styles.xml`\'s `M.T. Text` style has no fo:background-color="#ffffcc"', () => {
+    const extractDir = path.join(workDir, "styles-extract-mt");
+    fs.mkdirSync(extractDir, { recursive: true });
+    execFileSync("unzip", ["-o", "-q", outputPath, "styles.xml", "-d", extractDir]);
+    const stylesXml = fs.readFileSync(path.join(extractDir, "styles.xml"), "utf8");
+
+    const mtTextStyle =
+      /<style:style style:name="M\.T\._20_Text"[^>]*>[\s\S]*?<\/style:style>/.exec(stylesXml)?.[0];
+    expect(mtTextStyle).toBeDefined();
+    expect(mtTextStyle).not.toContain('fo:background-color="#ffffcc"');
+  });
+
   test("outline numbering: the merged book's level-1 outline style starts at the quarter's first absolute lesson number (14), so chapter-number footer fields render", () => {
     const extractDir = path.join(workDir, "styles-extract-outline");
     fs.mkdirSync(extractDir, { recursive: true });
