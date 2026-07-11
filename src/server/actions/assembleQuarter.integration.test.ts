@@ -145,6 +145,14 @@ function pagesOf(fullText: string): string[] {
   return fullText.split("\f");
 }
 
+/** Extracts and reads `styles.xml` from the assembled book into a fresh subdir of `workDir` — shared by the styles/outline assertions below, each of which needs its own extraction target to avoid clobbering a concurrently-running unzip. */
+function extractStylesXml(outputPath: string, workDir: string, subdir: string): string {
+  const extractDir = path.join(workDir, subdir);
+  fs.mkdirSync(extractDir, { recursive: true });
+  execFileSync("unzip", ["-o", "-q", outputPath, "styles.xml", "-d", extractDir]);
+  return fs.readFileSync(path.join(extractDir, "styles.xml"), "utf8");
+}
+
 /** The printed page-number footer token on a page, e.g. `"14"` from `"...  Page 14"`, or `undefined` if the page carries no page-number footer (front matter's own first page, and every lesson's own first page — FR-003 suppression). */
 function pageNumberFooterOn(pageText: string): string | undefined {
   const matches = [...pageText.matchAll(/\bPage\s+(\S+)/g)];
@@ -284,10 +292,7 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
   });
 
   test("single clean master-page set: every display name appears ONCE and none carries a numeric constituent suffix (the duplicated-page-styles defect this fix removes)", () => {
-    const extractDir = path.join(workDir, "styles-extract");
-    fs.mkdirSync(extractDir, { recursive: true });
-    execFileSync("unzip", ["-o", "-q", outputPath, "styles.xml", "-d", extractDir]);
-    const stylesXml = fs.readFileSync(path.join(extractDir, "styles.xml"), "utf8");
+    const stylesXml = extractStylesXml(outputPath, workDir, "styles-extract");
 
     const masterPageTags = stylesXml.match(/<style:master-page [^>]*>/g) ?? [];
     expect(masterPageTags.length).toBeGreaterThan(0);
@@ -326,10 +331,7 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
   });
 
   test('M.T. Text paragraph style carries no legacy highlight after template application (009 FR-002/FR-003): `styles.xml`\'s `M.T. Text` style has no fo:background-color="#ffffcc"', () => {
-    const extractDir = path.join(workDir, "styles-extract-mt");
-    fs.mkdirSync(extractDir, { recursive: true });
-    execFileSync("unzip", ["-o", "-q", outputPath, "styles.xml", "-d", extractDir]);
-    const stylesXml = fs.readFileSync(path.join(extractDir, "styles.xml"), "utf8");
+    const stylesXml = extractStylesXml(outputPath, workDir, "styles-extract-mt");
 
     const mtTextStyle =
       /<style:style style:name="M\.T\._20_Text"[^>]*>[\s\S]*?<\/style:style>/.exec(stylesXml)?.[0];
@@ -338,10 +340,7 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
   });
 
   test("outline numbering: the merged book's level-1 outline style starts at the quarter's first absolute lesson number (14), so chapter-number footer fields render", () => {
-    const extractDir = path.join(workDir, "styles-extract-outline");
-    fs.mkdirSync(extractDir, { recursive: true });
-    execFileSync("unzip", ["-o", "-q", outputPath, "styles.xml", "-d", extractDir]);
-    const stylesXml = fs.readFileSync(path.join(extractDir, "styles.xml"), "utf8");
+    const stylesXml = extractStylesXml(outputPath, workDir, "styles-extract-outline");
 
     const level1 = /<text:outline-level-style text:level="1"[^>]*>/.exec(stylesXml)?.[0];
     expect(level1).toBeDefined();
