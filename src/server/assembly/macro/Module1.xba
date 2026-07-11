@@ -135,7 +135,16 @@ Sub Assemble
     oProps(4).Name = &quot;LoadFrameStyles&quot;
     oProps(4).Value = False
 
+    &apos; Fail loudly: a load error &#8658; abort before storeToURL (no output written)
+    On Error Goto TemplateFail
+
     oDoc.StyleFamilies.loadStylesFromURL(sTemplate, oProps())
+
+    &apos; CRITICAL: reset the handler so the trap covers ONLY the load &#8212; a later
+    &apos; storeToURL failure MUST still hard-fail (crash &#8594; non-zero exit) as today,
+    &apos; not be swallowed into TemplateFail (which could leave a partial, non-zero
+    &apos; output file that passes the wrapper&apos;s existsSync+size guard).
+    On Error Goto 0
 
     LogLine(sLog, &quot;saving -> &quot; &amp; sOutPath, False)
     Dim oSave(0) As New com.sun.star.beans.PropertyValue
@@ -151,6 +160,13 @@ Sub Assemble
     LogLine(sLog, &quot;done inserted=&quot; &amp; nInserted, False)
 
     oDoc.close(False)
+    StarDesktop.terminate()
+
+    Exit Sub
+
+TemplateFail:
+    &apos; No storeToURL, no &quot;.done&quot; &#8594; wrapper surfaces a failed job.
+    &apos; MUST terminate, or the process lingers until the ~100 s hard timeout.
     StarDesktop.terminate()
 End Sub
 
