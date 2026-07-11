@@ -26,6 +26,7 @@ import { Persistence } from "../../core/interfaces/Persistence";
 import { Language, ENGLISH_ID } from "../../core/models/Language";
 import { Lesson, TOC_LESSON } from "../../core/models/Lesson";
 import assembleQuarter from "./assembleQuarter";
+import * as quarterStylesTemplate from "../assembly/quarterStylesTemplate";
 
 // The real merge (~14 `soffice` inserts + a `--convert-to pdf` verification
 // pass) comfortably exceeds Jest's 5s default. `sofficeAssemble`'s own hard
@@ -360,4 +361,82 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
 
     expect(finalPrintedPageNumber).toBe(physicalPageCount + 1);
   });
+});
+
+describe("assembleQuarter (real soffice merge, corrupt-template fail-loud — 009 US2/FR-004, contracts/template-application.md §5)", () => {
+  // A PRESENT, non-empty, but unreadable template — distinct from a MISSING
+  // one (which `validateTemplateAsset`'s existence/size gate already
+  // catches, unit-tested elsewhere without soffice). This deliberately
+  // corrupt fixture is separate from the real shipped
+  // `assets/quarter-styles-template.odt` baseline — it is never touched.
+  let workDir: string;
+  let corruptTemplatePath: string;
+
+  beforeAll(() => {
+    execFileSync("soffice", ["--version"]);
+
+    workDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembleQuarter-corrupt-template-"));
+    corruptTemplatePath = path.join(workDir, "corrupt-template.odt");
+    // A non-empty, non-ODT (non-zip) payload: passes the pre-run
+    // existence/size gate (`validateTemplateAsset`) but is not a loadable
+    // style source, so the failure must surface at `loadStylesFromURL`
+    // inside the macro, not at the pre-run gate.
+    fs.writeFileSync(corruptTemplatePath, "this is not a valid ODT/zip file\n".repeat(50));
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  afterAll(() => {
+    if (workDir) fs.rmSync(workDir, { recursive: true, force: true });
+  });
+
+  test("a corrupt (present, non-empty, unreadable) template fails the job loudly — not a delivered book, and well before the ~100s hard timeout", async () => {
+    const resolveTemplatePathSpy = jest
+      .spyOn(quarterStylesTemplate, "resolveTemplatePath")
+      .mockReturnValue(corruptTemplatePath);
+
+    const jobId = "corrupt-template";
+    const jobWorkRoot = path.join(workDir, "assembly-work");
+    fs.mkdirSync(path.join(jobWorkRoot, jobId), { recursive: true });
+
+    const startedAt = Date.now();
+    let outcome: { rejected: boolean; value?: unknown };
+    try {
+      const value = await assembleQuarter({
+        storage,
+        // A single lesson is enough to exercise the failure — this test is
+        // not re-asserting the golden-reference content/ordering axes above.
+        lessons: [lesson(LESSON_NUMBERS[0])],
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId,
+        workRoot: jobWorkRoot,
+      });
+      outcome = { rejected: false, value };
+    } catch {
+      outcome = { rejected: true };
+    }
+    const elapsedMs = Date.now() - startedAt;
+
+    // Confirm the spy actually fired — i.e. `assembleQuarter` really used
+    // the corrupt fixture, not the real shipped (valid) asset (5.1
+    // guarantees it exists), which would make this whole test a phantom
+    // regardless of which way `outcome` comes out.
+    expect(resolveTemplatePathSpy).toHaveBeenCalled();
+
+    // The actual behavioral guarantee (US2/FR-004): a corrupt template
+    // MUST fail the job, not deliver a book.
+    expect(outcome.rejected).toBe(true);
+
+    // Confirms the error trap fails FAST (via `On Error Goto TemplateFail` +
+    // `StarDesktop.terminate()`), not via `sofficeAssemble`'s own ~100s hard
+    // timeout kill.
+    expect(elapsedMs).toBeLessThan(90_000);
+
+    // No delivered book: the macro's TemplateFail path writes no output file.
+    const outputPath = path.join(jobWorkRoot, jobId, "assembled.odt");
+    expect(fs.existsSync(outputPath)).toBe(false);
+  }, 100_000);
 });
