@@ -168,9 +168,9 @@ comment. No `core`/`frontend`/`desktop` files change.
 
 | User Story                                               | Acceptance Spec File                                            | Scenarios |
 | -------------------------------------------------------- | --------------------------------------------------------------- | --------- |
-| US1: Downloaded quarter book arrives print-styled        | `specs/acceptance-specs/US01-quarter-book-print-styled.txt`     | 3         |
-| US2: Template failure fails the job loudly               | `specs/acceptance-specs/US02-template-failure-fails-loudly.txt` | 2         |
-| US3: Swapping in the real template is a file replacement | `specs/acceptance-specs/US03-template-drop-in-swap.txt`         | 2         |
+| US1: Downloaded quarter book arrives print-styled        | `specs/acceptance-specs/US13-quarter-book-print-styled.txt`     | 3         |
+| US2: Template failure fails the job loudly               | `specs/acceptance-specs/US14-template-failure-fails-loudly.txt` | 2         |
+| US3: Swapping in the real template is a file replacement | `specs/acceptance-specs/US15-template-drop-in-swap.txt`         | 2         |
 
 **Scope note for US1 / FR-002 / SC-003 (from research R3 — flag for red-team &
 the user)**: the acceptance assertion is scoped to the **`M.T.*` body paragraph

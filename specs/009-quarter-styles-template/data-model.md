@@ -49,11 +49,11 @@ styles and one `text`-family highlight style retain the reference's own
 
 Not a stored entity — a transient value flowing through the pipeline.
 
-| Field                | Type / shape                         | Source → sink                                                              |
-| -------------------- | ------------------------------------ | -------------------------------------------------------------------------- |
-| `templatePath`       | absolute `string`                    | `quarterStylesTemplate.resolve()` → `assembleQuarter` → `sofficeAssemble`. |
-| `SPIKE_TEMPLATE_URL` | `file://<templatePath>` env string   | `sofficeAssemble` sets it on the run child → macro `Environ()`.            |
-| load properties      | `com.sun.star.beans.PropertyValue[]` | Constructed inside the macro (fixed flag set, research R2).                |
+| Field                | Type / shape                         | Source → sink                                                                          |
+| -------------------- | ------------------------------------ | -------------------------------------------------------------------------------------- |
+| `templatePath`       | absolute `string`                    | `quarterStylesTemplate.resolveTemplatePath()` → `assembleQuarter` → `sofficeAssemble`. |
+| `SPIKE_TEMPLATE_URL` | `file://<templatePath>` env string   | `sofficeAssemble` sets it on the run child → macro `Environ()`.                        |
+| load properties      | `com.sun.star.beans.PropertyValue[]` | Constructed inside the macro (fixed flag set, research R2).                            |
 
 **State transitions (assembly job — existing 007 states, one new failure cause)**:
 
