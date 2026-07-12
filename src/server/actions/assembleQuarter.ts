@@ -7,7 +7,11 @@ import makeLessonFile from "./makeLessonFile";
 import { prepareConstituentForAssembly, ConstituentMeta } from "./prepareConstituentForAssembly";
 import { finalizeAssembledQuarter } from "./finalizeAssembledQuarter";
 import { sofficeAssemble } from "../assembly/sofficeAssemble";
-import { resolveTemplatePath, validateTemplateAsset } from "../assembly/quarterStylesTemplate";
+import {
+  resolveTemplatePath,
+  validateTemplateAsset,
+  TEMPLATE_ASSET_MISSING_MESSAGE,
+} from "../assembly/quarterStylesTemplate";
 
 /**
  * assembleQuarter — orchestrates the 14-constituent quarter-book merge
@@ -153,7 +157,7 @@ export default async function assembleQuarter(options: AssembleQuarterOptions): 
     // error (e.g. ENOENT) carries an absolute filesystem path; never forward
     // it (see the makeLessonFile catch above for the full "reason hygiene"
     // contract).
-    throw new Error("quarter styles template asset is missing or unreadable");
+    throw new Error(TEMPLATE_ASSET_MISSING_MESSAGE);
   }
 
   const outputPath = path.join(jobDir, "assembled.odt");

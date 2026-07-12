@@ -52,7 +52,11 @@ export interface SofficeAssembleOptions {
   files: string[];
   /** Absolute path to write the assembled `.odt` to. */
   outputPath: string;
-  /** Absolute path to the print-styles template `.ott`/`.odt` to apply during assembly. */
+  /**
+   * Absolute path to the print-styles template `.odt` to apply during
+   * assembly. Must be `.odt` — the macro's `loadComponentFromURL` hardcodes
+   * `FilterName="writer8"` (ODF text), so `.ott` is not supported.
+   */
   templatePath: string;
   /**
    * The dedicated, single known root all per-job working dirs live under
