@@ -132,6 +132,129 @@ project MEMORY — `soffice` and jest require the Bash sandbox disabled — is
 captured in Technical Context and research.md rather than as a solution
 reference._
 
+## Adversarial Review Findings (Red Team — Pass 1)
+
+> These findings come from running the **actual parser** (`dist/server/xml/parse.js`)
+> against the **actual committed corpus** (`test/docs/serverDocs/`). They are
+> evidence-backed, not speculative. **The CRITICAL and HIGH-1 findings block
+> `/sp:05-tasks`**: Decisions 1 and 2 in `research.md` and the SC-003 basis rest on
+> a premise the corpus contradicts, so tasks generated from them would implement a
+> mechanism that matches 0 of the 95 references. Correct the mechanism in
+> `/sp:03-plan` before generating tasks. Do **not** paper over it in tasks.
+
+### CRITICAL — Corpus reference paragraphs are already `<text:s/>`-fragmented; the span rewrite (Decision 1) matches none of them
+
+**Evidence.** Both SC-003 target styles encode the book/numeric separator as an ODT
+`<text:s/>` space element, not a literal space:
+
+- `M.T. Text - Lesson Title Scrip Reference` (Luke-1-01v01):
+  `<text:p …>Luke <text:s/>1:5–25 <text:s/>Luke <text:s/>1:57–64</text:p>`
+- `M.T. Table of Contents` (Luke-1-99v01):
+  `<text:p …>Luke <text:s/>1:5–25</text:p>`
+
+Running `parse()` on Luke-1-01v01 already emits `Luke`, `1:5–25`, `Luke`, `1:57–64`
+as **four separate `DocString`s** (distinct xpaths `text:p[3]/text()[1..4]`,
+`motherTongue=true`) — because a `<text:s/>` element node splits the surrounding
+character data into separate text nodes, and `parseNode` emits one `DocString` per
+non-whitespace text node.
+
+**Consequence.**
+
+1. The reference paragraphs are **already split today** — the book name `Luke` and
+   the numeric `1:5–25` already exist as separate master strings. The combined
+   `Luke 1:5–25` single string that the spec (US1 Acceptance 1) and Decision 1
+   assume exists **does not exist** for any `<text:s/>`-fragmented reference (i.e.
+   all 95 in the sampled Q1/TOC masters).
+2. Decision 1's own conservatism red-line — "normalize **only if** inline content is
+   a single unstyled text run (no `text:s` / styled span / soft break)" — **explicitly
+   skips** every `<text:s/>`-bearing paragraph. So `normalizeReferences` would rewrite
+   **0 of 95** references. The plan's SC-003 recall claim ("95 matched by the span
+   rewrite") is empirically false for the sampled corpus.
+3. `parseVerseReferences` (Decision 2), which expects a whole-string `book chapter:verse`,
+   never receives one in the real pipeline — the pipeline hands it the already-split
+   fragments `Luke` and `1:5–25` individually, each of which the grammar returns `null`
+   for ("a reference with no book word does not qualify"; a bare book word is not a
+   reference). So the shape detector as specified classifies nothing in the live flow.
+
+**Required correction (for `/sp:03-plan`, not tasks).** Determine empirically, per
+style across Q1–Q4, whether _any_ reference paragraph is a genuine single literal-space
+run (which would still need splitting) vs. already `<text:s/>`-fragmented (which needs
+nothing structural). For the fragmented majority, the numeric string already exists and
+the **only** change needed is the auto-translate predicate (add `:`). Re-derive SC-003
+recall against the strings the pipeline actually produces, not against a hypothetical
+combined string.
+
+### HIGH-1 — Numeric master strings are shared across isolated references and prose; SC-003 precision is not structurally guaranteed
+
+**Evidence.** The "Bible Story" prose paragraph is _also_ `<text:s/>`-fragmented:
+`<text:p text:style-name="P19">Bible Story: <text:s/>Luke <text:s/>1:5–25 <text:s/>Luke <text:s/>1:57–64</text:p>`.
+Its numeric fragment `1:5–25` is byte-identical to the isolated reference's `1:5–25`.
+`addOrFindMasterStrings` dedupes by text alone, and `motherTongue` is a **`LessonString`**
+property — it is _not_ carried onto the master string or the per-language `tString`.
+`defaultTranslations` reads `storage.tStrings({ languageId: ENGLISH_ID })` and filters by
+`canAutoTranslate(text)` only — there is **no `motherTongue` gate**.
+
+**Consequence.** The isolated reference's `1:5–25` and the prose's `1:5–25` are the
+**same master id**. Auto-population operates at master-string granularity, so filling
+the isolated numeric necessarily fills the prose numeric too. The plan's structural
+separation strategy (keep prose intact, only fill isolated refs) is defeated at the
+master-string layer by text-identity dedup — for both the predicate approach **and** the
+span rewrite. SC-003's "0 of 160 prose strings affected" is therefore not structurally
+enforceable; it holds only incidentally because the numeric is language-neutral (the
+prose renders unchanged). This must be reconciled with SC-003/US2 wording in
+`/sp:03-plan`: either redefine "affected" (prose _rendering_ unchanged, which holds), or
+accept that master-level dedup makes paragraph-level precision unachievable.
+
+### HIGH-2 — `canAutoTranslate` `:` broadening is coarse and silently hides strings from the update-issues flow
+
+Adding `:` admits **any** `^[\d–\-:[\]()\s]*$` string to auto-population — times
+(`3:00`), ratios/scores (`10:1`), aspect dimensions — not just verse numerics. Two
+compounding effects: (a) such strings auto-populate verbatim into every new language
+without translator review; (b) via the unified predicate in `findTSubs.usefulEngSub`
+they are **filtered out of the update-issues flow**, so a translator never sees they
+changed. Research Decision 3 mandates a one-time scan of _current_ masters, but nothing
+guards _future_ masters — a `3:00` added next quarter silently auto-fills and vanishes
+from update issues. Mitigation options for `/sp:03-plan`: tighten the predicate to a true
+verse-numeric shape (`\d+:\d+` with optional ranges) rather than a permissive char class,
+or document the accepted broadening and add a standing lint/scan.
+
+### MEDIUM-1 — `normalizeReferences` in-place `content.xml` rewrite risks corrupting the master on crash
+
+The contract states `normalizeReferences` "rewrites `content.xml` inside the odt **in
+place**." On the upload path the odt just saved by `saveDoc` **is** the master source of
+truth; a crash between unzip and rezip leaves a corrupt master with no pre-parse backup.
+Mitigation: write to a temp odt and atomically rename over the original only on success.
+(The re-normalization task is safer — it operates on a fresh next-version copy — but
+upload is not.)
+
+### MEDIUM-2 — Re-normalization idempotence guards against duplicate strings but not version churn / phantom update-issues
+
+`renormalizeEnglish` copies the odt to the next version and runs
+`parseDocStrings` + `saveDocStrings` (which bumps `version`) **per run**. FR-014's
+"no destructive change / no duplicate strings" can hold while each re-run still bumps the
+lesson version and produces an empty diff that surfaces as a phantom entry in the
+update-issues flow — operator noise and translator confusion. The task should no-op
+(no version bump, no new lesson version) when normalization changes nothing.
+
+### MEDIUM-3 — Existing projects render a blank book name after backfill until the update-issue is resolved
+
+For an existing language that had translated the combined reference, the book span
+(`Luke`) is **not** auto-populated (FR-007) and the language has no standalone `Luke`
+translation. After re-normalize + backfill, the numeric fills but the book renders blank
+(or English fallback) until the translator carries over their prior work via the
+update-issue. US4 guarantees the prior translation survives as the "from" side, but says
+nothing about **rendered output** in the interim. `/sp:03-plan` should define the merge
+fallback for an untranslated book span (English fallback vs. blank) so re-normalized
+in-progress projects don't temporarily render half a reference.
+
+### LOW — `parseVerseReferences` grammar has nested quantifiers (catastrophic-backtracking risk)
+
+The grammar `book = (?:\d\s+)?\p{L}[\p{L}.]*(?:\s+\p{L}[\p{L}.]*)*` inside a repeated
+`(book\s+numeric)*` whole-string anchor has nested quantifiers over whitespace. Input is
+trusted curriculum, so exploitation risk is low, but a pathological long paragraph at
+upload could pin CPU. Bound input length or use a linear tokeniser. (Largely moot if
+Decision 2 is reworked per the CRITICAL finding.)
+
 ## Brainstorm Context
 
 **Source**: [specs/brainstorms/2026-07-13-verse-reference-auto-population-requirements.md](../brainstorms/2026-07-13-verse-reference-auto-population-requirements.md)

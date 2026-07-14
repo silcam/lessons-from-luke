@@ -21,6 +21,16 @@ Request/response JSON shapes are unchanged for all three.
 
 ## Internal function contracts (new / modified)
 
+> **⚠ BLOCKED pending `/sp:03-plan` revision (Red Team Pass 1).** Running the actual
+> parser on the actual corpus shows that reference paragraphs in **both** SC-003 target
+> styles are `<text:s/>`-fragmented (`Luke <text:s/>1:5–25`), so the existing parser
+> **already** emits `Luke` and `1:5–25` as separate strings, and `normalizeReferences`'s
+> "single unstyled text run" precondition **skips all 95** of them. `parseVerseReferences`
+> never receives a combined `book chapter:verse` string in the live pipeline. The two
+> internal function contracts below therefore do **not** match the real data flow and must
+> be corrected before `/sp:05-tasks`. See plan.md "Adversarial Review Findings (Red Team —
+> Pass 1)" for evidence.
+
 ### `parseVerseReferences(text: string): VerseReferenceSegment[] | null` (new, core)
 
 - **Returns** ordered non-empty segments iff the entire trimmed `text` is one or
@@ -39,12 +49,28 @@ Request/response JSON shapes are unchanged for all three.
   left untouched (round-trip red-line).
 - **Guarantee**: rendered output is visually identical to the original
   (FR-003, SC-004).
+- **⚠ Red Team (CRITICAL):** the "single unstyled text run" precondition skips every
+  `<text:s/>`-fragmented reference paragraph — which is **all 95** in the sampled corpus —
+  so this function rewrites nothing there. Its role and SC-003 recall basis must be
+  re-derived in `/sp:03-plan`.
+- **⚠ Red Team (MEDIUM-1):** "in place" rewrite of the just-saved master risks a corrupt
+  master on crash between unzip and rezip. Write a temp odt and atomically rename on
+  success instead.
 
 ### `canAutoTranslate(text: string): boolean` (modified, unified)
 
 - Pattern `/^[\d–\-:[\]()\s]*$/`. Single exported definition imported by
   `defaultTranslations`, `findTSubs`, and `defaultTranslateAll` (removes the
   duplicated `shouldAutoTranslate`).
+- **⚠ Red Team (HIGH-2):** this char class admits **any** `d:d` string (times `3:00`,
+  ratios `10:1`), not just verse numerics — those auto-populate without review and are
+  filtered out of the update-issues flow. The one-time scan (research Decision 3) covers
+  today's masters but not future ones. Consider a true verse-numeric shape
+  (`\d+:\d+(?:[–-]\d+(?::\d+)?)?`) instead of the permissive class. Also note (HIGH-1):
+  `1:5–25` in an isolated reference and in `Bible Story: …1:5–25` share **one master id**
+  (dedup is by text; `motherTongue` does not gate `defaultTranslations`), so
+  auto-population is master-granular — SC-003 paragraph-level precision is not
+  structurally enforceable.
 
 ## CLI task contracts (operator-run, server)
 

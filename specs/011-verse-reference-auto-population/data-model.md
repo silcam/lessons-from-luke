@@ -3,6 +3,19 @@
 **Feature**: 011-verse-reference-auto-population
 **Date**: 2026-07-14
 
+> **⚠ Red Team Pass 1 — BLOCKER (blocks `/sp:05-tasks`).** Empirically (running the real
+> parser on the committed corpus), isolated-reference paragraphs are `<text:s/>`-fragmented
+> (`Luke <text:s/>1:5–25`) in **both** SC-003 target styles, so the existing parser
+> **already** emits `Luke` and `1:5–25` as separate `DocString`s. The claim below that a
+> normalized paragraph goes from "one `DocString`" to "multiple" is false for these
+> paragraphs — they are already multiple. And because master strings dedupe by text and
+> `motherTongue` is a `LessonString` field (not carried onto the master/tString read by
+> `defaultTranslations`), the numeric `1:5–25` of an isolated reference and of a prose
+> `Bible Story: …1:5–25` share **one master id** — auto-population is master-granular, not
+> paragraph-granular. The `parseVerseReferences` and predicate rows below must be
+> re-derived in `/sp:03-plan` against the strings the pipeline actually produces. See
+> plan.md "Adversarial Review Findings (Red Team — Pass 1)".
+
 No new database tables, columns, or migrations. The feature reshapes how a
 document paragraph maps onto **existing** entities (`DocString`, master string /
 `TString`, `LessonString`) and adds one in-memory value type for the reference
