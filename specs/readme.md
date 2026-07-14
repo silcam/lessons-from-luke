@@ -30,7 +30,7 @@ Spec: specs/009-quarter-styles-template/spec.md
 
 ## Auto-Populate Verse-Reference Strings
 
-Keywords: verse reference, scripture reference, book name split, numeric reference, chapter verse, auto-populate references, pre-fill references, isolated verse reference, reference normalization, split book name, translate once, master string dedup, upload normalization, backfill references, re-normalize masters, lesson-update issues, prose reference, en-dash range, numbered books, Table of Contents story column, lesson title scripture reference, M.T. Table of Contents, auto-translate, defaultTranslations, WS-4, SOP 30.3, publishing automation
+Keywords: verse reference, scripture reference, book name split, numeric reference, chapter verse, auto-populate references, pre-fill references, isolated verse reference, text-shape recognition, canAutoTranslate predicate, unsplit reference splitter, split book name, translate once, master string dedup, trim whitespace dedup, hyphen en-dash dash, cross-chapter range, backfill references, re-normalize masters, lesson-update issues, prose reference false positive, numbered books, Sub-Head 1, M.T. Text Lesson Title Scrip Reference, M.T. Table of Contents, Lesson Title Scrip Reference, four reference styles, auto-translate, defaultTranslations, WS-4, SOP 30.3, publishing automation
 Spec: specs/011-verse-reference-auto-population/spec.md
 
 ## How to Update This File
