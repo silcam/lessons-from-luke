@@ -113,6 +113,95 @@ extends existing files. Domain persistence remains behind `Persistence`.
 **Pipeline**: `specs/acceptance-specs/*.txt` → `acceptance/parse-specs.ts` →
 `acceptance/generate-tests.ts` → `generated-acceptance-tests/*.spec.ts`
 
+## Edge Cases & Error Handling
+
+> Added by `/sp:04-red-team` (Pass 1). Adversarial review of the two-mechanism
+> design surfaced the following. Each is a design-impacting consideration for
+> `/sp:05-tasks`, not a code-review item.
+
+### Update-issue suppression for changed numeric references (second-order effect of extending `canAutoTranslate`) — HIGH
+
+Extending the **shared** `canAutoTranslate` predicate (Decision 1) has a
+second-order effect on `findTSubs.usefulEngSub` that Decision 1's blast-radius
+check only half-covered. `usefulEngSub` keeps an update-issue only when
+`engFrom.some(tStr => !canAutoTranslate(tStr.text))`. Broadening the predicate to
+accept numeric ranges **monotonically increases suppression**: any update-issue
+whose changed English "from" strings are **all** now-auto-translatable numeric
+references flips from _surfaced_ to _suppressed_.
+
+Research Decision 1 verified only the **split** direction (`Luke 1:26–38` "from"
+contains letters → still surfaced). The uncovered direction is a plain **numeric
+reference correction** on an already-split reference — e.g. a master revision
+changes `1:5–25` → `1:5–24`. That produces a **new** numeric master (masters
+dedup by exact text), so:
+
+1. `usefulEngSub` now **suppresses** the update-issue (the changed "from" string
+   `1:5–25` is now auto-translatable) — before this feature it was surfaced.
+2. The master-update path does **not** re-apply auto-translation: verified in code
+   — `uploadEnglishDoc` → `saveDocStrings` bumps the version but never calls
+   `defaultTranslations` or any auto-translate. Auto-population happens **only** at
+   project-create (`defaultTranslations`) and via the manual `defaultTranslateAll`
+   backfill.
+
+**Net effect**: after any ad-hoc master revision that changes a numeric reference,
+existing in-progress projects get **neither** a surfaced update-issue **nor**
+auto-repopulation — the new numeric master is silently blank (and the old
+reference's carried value is stale) until an operator manually re-runs the
+backfill. A wrong/blank scripture reference is a real curriculum-correctness
+defect, so this is HIGH. (Note: this suppression-without-repopulation gap already
+existed latently for pure-digit masters like lesson numbers; this feature
+**extends** it to semantically meaningful scripture references, raising the
+stakes.)
+
+**Design mitigation (must land in tasks, not deferred to hardening)**: close the
+gap for changed auto-translatable masters on the update path. Preferred: have the
+master-update/upload path (and the re-processing task) re-apply the backfill for
+**changed** auto-translatable numeric masters into existing projects — filling
+only masters a language does not yet have, never overwriting translator work
+(reuse the `defaultTranslateAll` skip logic; FR-011/SC-005 semantics). If instead
+the team accepts a manual-backfill requirement, it MUST be documented as a
+standing operational invariant ("run the backfill after **any** English master
+revision that changes references", not only the one-time FR-013 migration) and the
+acceptance suite MUST cover the "reference corrected in an existing project"
+scenario so the silent-staleness path is exercised. FR-010's non-destruction of
+prior translations is preserved either way.
+
+### Batch re-processing partial-failure handling & resumability (FR-012) — MEDIUM
+
+The one-time re-processing task runs the splitter over all 67 stored masters. The
+plan specifies per-file atomicity and per-splitter idempotency, but not the
+**batch's** behavior when the splitter (or a `saveDocStrings` write) throws on one
+master mid-run. Left unspecified, a thrown error could abort the batch, leaving
+some masters split and others not — then a subsequent backfill copies numeric
+masters unevenly across projects, an inconsistent partial state that is hard to
+detect. Mitigation: the re-processing task MUST continue-on-error with per-master
+success/skip/failure logging and a final summary, so a failed master is visible
+and the operator can safely re-run (the splitter's idempotency, FR-015, makes
+re-run non-destructive). A task-level test SHOULD assert the batch completes and
+reports the failure when one master is unprocessable.
+
+### Concurrency: operator scripts vs. live server writes — LOW
+
+The re-processing and backfill scripts are operator-run against the production
+`PGStorage`. Nothing coordinates them with concurrent live writes (a
+document upload bumping a version, or a project-create running
+`defaultTranslations`) to the same masters/lessons, which could interleave version
+bumps or read a master mid-rewrite. Mitigation: document (quickstart /
+operational-sequence) that re-processing and backfill assume server quiescence
+(maintenance window) with no concurrent admin uploads or project creation; note
+this alongside the FR-013 sequence.
+
+### Splitter single-run precondition made explicit — LOW
+
+Decision 3's splitter assumes each residual unsplit reference is a **single** text
+run. A reference stored as multiple inline-formatted runs (e.g. book bold, numeric
+not) would not match the single-run precondition. Mitigation: make the precondition
+explicit — the splitter fires only when the entire reference paragraph is one
+unstyled-boundary text run in a reference-bearing style; any reference stored as
+multiple runs is out of scope and MUST degrade **safely** (left unchanged: no
+auto-population, and never mis-split or mangled). A splitter unit test SHOULD assert
+a multi-run reference paragraph is left byte-identical.
+
 ## Complexity Tracking
 
 > No Constitution Check violations. Section intentionally empty.

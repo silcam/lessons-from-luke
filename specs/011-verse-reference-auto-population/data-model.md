@@ -94,14 +94,15 @@ spaced-dash variant), it splits the run into `book-name run` + `<text:s/>` +
 
 ## State transitions
 
-| Event                                 | Before                                   | After                                                                 |
-| ------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------- |
-| Upload master (already-split refs)    | `Luke` + `1:5–25` as two masters         | unchanged; numeric master now recognized as auto-translatable         |
-| Upload master (residual unsplit ref)  | `Luke 1:26–38` single master             | splitter → `Luke` + `1:26–38`; numeric auto-translatable              |
-| Create new-language project           | numeric masters untranslated             | numeric masters auto-populated verbatim; book-name masters empty      |
-| Translate book name once              | one reference shows translated book      | all references in that language show translated book + numeric        |
-| Re-process residual master (existing) | project has combined `Luke 1:26–38`      | update-issue surfaces `Luke 1:26–38` → `Luke` + `1:26–38`; prior kept |
-| Backfill existing project             | some numeric refs blank, some translated | blanks filled from English; translated ones untouched (SC-005)        |
+| Event                                              | Before                                   | After                                                                                                                                                                                                                          |
+| -------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Upload master (already-split refs)                 | `Luke` + `1:5–25` as two masters         | unchanged; numeric master now recognized as auto-translatable                                                                                                                                                                  |
+| Upload master (residual unsplit ref)               | `Luke 1:26–38` single master             | splitter → `Luke` + `1:26–38`; numeric auto-translatable                                                                                                                                                                       |
+| Create new-language project                        | numeric masters untranslated             | numeric masters auto-populated verbatim; book-name masters empty                                                                                                                                                               |
+| Translate book name once                           | one reference shows translated book      | all references in that language show translated book + numeric                                                                                                                                                                 |
+| Re-process residual master (existing)              | project has combined `Luke 1:26–38`      | update-issue surfaces `Luke 1:26–38` → `Luke` + `1:26–38`; prior kept                                                                                                                                                          |
+| Revise numeric ref in a master (`1:5–25`→`1:5–24`) | project has old numeric master           | update-issue is **suppressed** (`usefulEngSub`, new "from" is auto-translatable) AND update path does not auto-repopulate → new numeric master silently blank until backfill re-carries it (red-team Pass 1 HIGH; see plan.md) |
+| Backfill existing project                          | some numeric refs blank, some translated | blanks filled from English; translated ones untouched (SC-005)                                                                                                                                                                 |
 
 ## Validation rules (from requirements)
 
@@ -114,4 +115,11 @@ spaced-dash variant), it splits the run into `book-name run` + `<text:s/>` +
   an existing translation.
 - FR-014: source-language translation data and history are never modified or
   destroyed; only run structure of unsplit references changes.
+- FR-010 (red-team Pass 1 HIGH): because extending `canAutoTranslate` makes
+  `usefulEngSub` suppress update-issues for changed numeric references, the update
+  path (upload + re-processing) MUST re-carry changed auto-translatable numeric
+  masters into existing projects (fill-only, `defaultTranslateAll` skip semantics),
+  or a manual backfill after every reference-changing master revision MUST be a
+  documented operational invariant. Otherwise a corrected reference goes silently
+  blank in existing projects.
   </content>

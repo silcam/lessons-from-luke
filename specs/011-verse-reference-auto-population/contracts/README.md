@@ -17,6 +17,20 @@ server scripts.
 Request/response shapes are unchanged; there is nothing new to specify as an
 OpenAPI contract.
 
+**Update-path re-population (red-team Pass 1, HIGH).** Broadening the shared
+`canAutoTranslate` predicate causes `findTSubs.usefulEngSub` to **suppress**
+update-issues whose changed English "from" strings are all numeric references. A
+master **revision** that corrects a numeric reference (e.g. `1:5–25` → `1:5–24`)
+therefore no longer surfaces to translators, and `POST /api/admin/documents`
+(`uploadEnglishDoc` → `saveDocStrings`) does **not** re-apply auto-translation on
+update — so the changed numeric master would be silently blank in existing
+projects until a manual backfill runs. To preserve FR-010's intent, the update
+path (upload + re-processing task) MUST re-carry **changed** auto-translatable
+numeric masters into existing projects (fill-only, never overwrite; `defaultTranslateAll`
+skip semantics), or the manual-backfill-after-every-revision requirement MUST be
+documented as a standing operational invariant. See plan.md § Edge Cases & Error
+Handling.
+
 ## Manually-run server scripts (not HTTP; extend existing precedents)
 
 These are operator-run Node scripts under `src/server/tasks/`, mirroring the
