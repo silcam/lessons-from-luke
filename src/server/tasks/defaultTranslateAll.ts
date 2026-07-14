@@ -1,5 +1,6 @@
 import { ENGLISH_ID } from "../../core/models/Language";
 import PGStorage from "../storage/PGStorage";
+import { canAutoTranslate } from "../actions/defaultTranslations";
 
 /*
     This script is designed to be run manually on the server 
@@ -11,7 +12,7 @@ defaultTranslateAll();
 async function defaultTranslateAll() {
   const storage = new PGStorage();
   const englishStrings = await storage.tStrings({ languageId: ENGLISH_ID });
-  const autoTranslatableStrings = englishStrings.filter((tStr) => shouldAutoTranslate(tStr.text));
+  const autoTranslatableStrings = englishStrings.filter((tStr) => canAutoTranslate(tStr.text));
 
   const languages = await storage.languages();
   for (let i = 0; i < languages.length; ++i) {
@@ -33,10 +34,4 @@ async function defaultTranslateAll() {
   }
   console.log("Done");
   process.exit();
-}
-
-function shouldAutoTranslate(text: string) {
-  // Auto-translate strings with nothing but digits, dashes, brackets and whitespace
-  const autoTranslatePattern = /^[\d–\-[\]()\s]*$/;
-  return autoTranslatePattern.test(text);
 }

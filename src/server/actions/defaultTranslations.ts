@@ -18,7 +18,10 @@ export default async function defaultTranslations(storage: Persistence, language
 }
 
 export function canAutoTranslate(text: string) {
+  const trimmed = text.trim();
   // Auto-translate strings with nothing but digits, dashes, brackets and whitespace
   const autoTranslatePattern = /^[\d–\-[\]()\s]*$/;
-  return autoTranslatePattern.test(text);
+  // Auto-translate numeric verse-reference ranges, e.g. "1:5–25" or "18:35–19:10"
+  const verseRangePattern = /^\d+:\d+\s*[-–]\s*\d+(?::\d+)?$/;
+  return autoTranslatePattern.test(trimmed) || verseRangePattern.test(trimmed);
 }
