@@ -1,69 +1,74 @@
 # Quickstart: Auto-Populate Verse-Reference Strings
 
 **Feature**: 011-verse-reference-auto-population
+**Framing**: Two-mechanism model (2026-07-14 spec amendment).
 
 ## What this feature does
 
-Isolated verse references in English masters (the TOC "Story" column and each
-lesson's title scripture reference) are split at upload into two translatable
-strings: a **book name** (`Luke`) and a **language-neutral numeric reference**
-(`1:5–25`). Numeric references auto-populate verbatim when a new language project
-is created; the book name is translated once and propagates everywhere via
-master-string deduplication. Prose that merely contains a reference is never
-touched.
+Isolated verse references in English masters (the TOC "Story" column, each
+lesson's title scripture reference, and the matching sub-headings) consist of a
+**book name** (`Luke`) and a **language-neutral numeric reference** (`1:5–25`).
+
+- **Mechanism 1 (recognition, no document mutation)**: for the ~141 reference
+  paragraphs the parser already stores as two runs, the numeric part is already
+  its own master string. Extending the shared auto-translate predicate makes
+  those numeric masters auto-populate verbatim when a new language project is
+  created. The book name is translated once and propagates everywhere via
+  master-string deduplication. Prose that merely contains a reference is never
+  touched (structurally: it is never a standalone master).
+- **Mechanism 2 (narrow splitter, document mutation)**: the ~15 residual
+  references still stored as a single unsplit run are split at upload (and during
+  one-time re-processing) into a book run + numeric run, so their numeric part
+  becomes its own master and flows into Mechanism 1.
 
 ## Developer walkthrough
 
-### New-project pre-fill (US1, US2 — primary path)
+### New-project pre-fill (US1, US2 — primary path, no splitter needed)
 
-1. Upload an English master via `POST /api/admin/documents`. Isolated-reference
-   paragraphs are normalized into book + numeric spans; prose is left intact.
-2. Create a language via `POST /api/admin/languages`. Every numeric reference
-   string is auto-populated from English; book-name strings remain empty.
+1. Upload an English master via `POST /api/admin/documents`. Already-split
+   references need no mutation; residual unsplit references are split by
+   Mechanism 2; prose is left intact.
+2. Create a language via `POST /api/admin/languages`. Every numeric-reference
+   master is auto-populated from English; book-name masters remain empty.
 3. Translate the book name (`Luke`) once → every reference in that language shows
    the translated book name + the pre-filled numeric part.
 
-### Verify the shape detector against the corpus (SC-003)
+### Verify recognition against the corpus (SC-003 / SC-006)
 
-The committed `test/docs/serverDocs/` masters cover Luke Q1–Q4. Unit-test
-`parseVerseReferences` against the extracted reference + prose fixture: 95
-standalone references parse to non-null segments, 0 of the 160 colon-bearing
-prose strings parse to non-null.
+The committed `test/docs/serverDocs/` masters cover Luke Q1–Q4. **Derive the
+benchmark by extraction at test time** — the reference-bearing paragraphs across
+the four styles (`M.T. Text - Lesson Title Scrip Reference`, `Sub-Head 1`,
+`M.T. Table of Contents`, `Lesson Title Scrip Reference`) and their distinct
+numeric tokens — **never** a hardcoded count. Assert: 100% of the extracted
+standalone numeric-reference masters are recognized, and 0 prose paragraphs are
+affected (0 false positives).
 
-### Verify round-trip identity (US3, SC-004)
+### Verify the splitter round-trips (US3 / SC-004)
 
-Run the round-trip `*.integration.test.ts` with the sandbox disabled (soffice
-hangs in-sandbox; jest needs localhost Postgres):
+Take a master containing a residual unsplit reference, run the splitter, then
+download/merge and compare rendered output to the original via a LibreOffice
+`soffice --headless` round-trip: identical visible text, styles, spacing, layout.
+Run the splitter a second time and confirm no further change (idempotent) and no
+duplicate strings.
 
-```bash
-yarn test:integration   # normalize → merge → soffice → assert visual identity
-```
+### Existing projects: re-processing then backfill (US4 / FR-013)
 
-## Operator post-deploy sequence (US4 — run in this order, FR-012)
+1. Run the one-time **re-processing** task (mirrors `reparseEnglish.ts`) — splits
+   residual references in every stored master and surfaces changes through the
+   lesson-update-issues flow (`GET /api/admin/lessons/:id/lessonUpdateIssues`).
+   On a real re-processed master, open `UpdateIssuesPage` and confirm the
+   one→two split presents acceptably with the prior combined translation visible
+   as the "from" side (FR-010).
+2. Run the **backfill** (extends `defaultTranslateAll.ts`) — fills only missing
+   numeric references in existing projects; leaves every already-translated
+   string unchanged (SC-005).
 
-```bash
-# 1. Re-normalize all stored English masters (splits references, routes changes
-#    through the lesson-update-issues flow).
-node dist/server/server/tasks/renormalizeEnglish.js
+## Guardrails
 
-# 2. Backfill: give existing projects the missing numeric reference strings.
-#    Skips anything already translated; never overwrites translator work.
-node dist/server/server/tasks/defaultTranslateAll.js
-```
-
-After step 1, translators opening an affected project see the change through the
-existing lesson-update-issues screen, with their prior combined-reference
-translation shown as the "from" side to carry over.
-
-Both tasks are idempotent — re-running either produces no duplicate strings and
-destroys no work.
-
-## Key files
-
-- `src/core/util/verseReference.ts` — `parseVerseReferences` (shape detector).
-- `src/server/xml/normalizeReferences.ts` — odt content.xml span rewrite.
-- `src/server/actions/defaultTranslations.ts` — unified `canAutoTranslate`
-  (colon added), auto-population on project create.
-- `src/server/tasks/renormalizeEnglish.ts` — one-time re-normalization task.
-- `src/server/tasks/defaultTranslateAll.ts` — backfill (imports unified
-  predicate).
+- Recognition is text-shape only (FR-016): no book-name-adjacency guard. The
+  `3:00`-style residual risk is accepted (and does not match the range shape).
+- Source-language translation data and history are never modified or destroyed
+  (FR-014); only run structure of unsplit references changes.
+- Re-running re-processing or backfill is safe: no duplicate strings, no
+  overwritten work (FR-009, FR-015).
+  </content>
