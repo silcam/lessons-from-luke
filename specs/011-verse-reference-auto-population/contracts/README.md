@@ -65,6 +65,13 @@ Request/response JSON shapes are unchanged for all three.
   actually changed, so callers (`renormalizeEnglish`) can skip the
   version-bump/parse/save path entirely when nothing changed (Red Team
   MEDIUM-2).
+- **No-op leaves the odt byte-identical** (Red Team MEDIUM-5): when no paragraph
+  qualifies for splitting (the case for every current-corpus master, and every
+  English upload today), the function returns `{ changed: false }` and does **not**
+  unzip/rezip/rename — the input odt is left untouched byte-for-byte. The temp
+  write + atomic rename runs **only** when at least one paragraph is actually
+  rewritten. This prevents every English upload from needlessly rezipping (and
+  thereby perturbing) the persisted master that parse and merge both read.
 - **Guarantee**: rendered output is visually identical to the original
   (FR-003, SC-004).
 
@@ -83,11 +90,17 @@ Request/response JSON shapes are unchanged for all three.
   regex alone, since a time and a verse reference are lexically identical.
   Mitigated by (a) a one-time scan of the current corpus (this pass — all 96
   matches are genuine verse numerics, none are times/ratios) and (b) a standing
-  **non-blocking** log emitted on English upload for any newly introduced
-  colon-numeric master string whose paragraph style is not one of the two known
-  reference styles, so a future `3:00` is surfaced for operator review rather
-  than silently vanishing from the update-issues flow. Picture numbers (`12`,
-  `[3]`) are unaffected — they still match only the unchanged first branch.
+  **non-blocking** log emitted for any `VERSE_NUMERIC`-shaped paragraph whose
+  paragraph style is not one of the two known reference styles, so a future
+  `3:00` is surfaced for operator review rather than silently vanishing from the
+  update-issues flow. **Location (Red Team MEDIUM-5→MEDIUM-4 correction)**: this
+  log lives in the **XML layer** (`normalizeReferences` / a `parse`-layer helper),
+  **not** in `uploadEnglishDoc`. `DocString` and the master strings carry only
+  `{ type, xpath, motherTongue, text }` — no `text:style-name` — so
+  `uploadEnglishDoc` cannot tell a reference-style `1:5–25` from a stray `3:00`.
+  The XML layer already walks `content.xml` paragraphs and their `text:style-name`,
+  so the style-aware check must run there. Picture numbers (`12`, `[3]`) are
+  unaffected — they still match only the unchanged first branch.
 - **Red Team HIGH-1, ratified provisionally (flagged for `/sp:02-specify`
   confirmation)**: `1:5–25` in an isolated reference and in
   `Bible Story: …1:5–25` share **one master id** (dedup is by text;

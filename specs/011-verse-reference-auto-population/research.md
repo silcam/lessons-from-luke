@@ -79,7 +79,12 @@ re-normalization task after copying the odt), **never** inside `parseDocStrings`
 (which non-English uploads also call). **Write to a temp odt and atomically
 rename over the original only on success** (Red Team MEDIUM-1) — never rewrite
 `content.xml` in place inside the just-saved master, so a crash between unzip
-and rezip cannot leave a corrupt master.
+and rezip cannot leave a corrupt master. **When nothing changes** (Red Team
+MEDIUM-5), `normalizeReferences` returns `{ changed: false }` and leaves the
+input odt **byte-identical** — no temp write, no rezip, no rename. The atomic
+rename runs only when a paragraph is actually rewritten, so the no-op path this
+takes on every current-corpus English upload does not needlessly rezip and
+perturb the persisted master that parse and merge both read.
 
 On the current corpus this rewrite is a **no-op for all 96 known references**
 (they are already spans-of-a-kind via `<text:s/>`, which the parser already
@@ -221,15 +226,20 @@ a solved one. Two standing mitigations, both required:
 2. **Standing regression guard for future masters** (new, addresses "nothing
    guards future masters"): add a **non-blocking** check — logged, not
    rejected, so legitimate future colon-bearing content is never silently
-   rejected — that runs on every English upload and reports any _newly
-   introduced_ master string matching `VERSE_NUMERIC` whose paragraph style is
-   **not** one of the two known reference styles (`M.T. Text - Lesson Title
-Scrip Reference`, `M.T. Table of Contents`) or a future style using the
+   rejected — that reports any `VERSE_NUMERIC`-shaped paragraph whose paragraph
+   style is **not** one of the two known reference styles (`M.T. Text - Lesson
+Title Scrip Reference`, `M.T. Table of Contents`) or a future style using the
    `normalizeReferences` book/numeric split. This surfaces a stray `3:00` for
-   operator review without blocking upload. Implemented as a log line in
-   `uploadEnglishDoc`, covered by a unit test asserting the log fires for a
-   non-reference-style colon-numeric string and does not fire for the known
-   reference styles.
+   operator review without blocking upload. **Location (Red Team MEDIUM-4
+   correction)**: this check must live in the **XML layer** (`normalizeReferences`
+   or a small `parse`-layer helper), **not** in `uploadEnglishDoc`. `DocString`
+   and the master strings expose only `{ type, xpath, motherTongue, text }` —
+   there is no `text:style-name` on them, so `uploadEnglishDoc` (which sees only
+   `docStrings`) cannot distinguish a reference-style `1:5–25` from a stray
+   `3:00`. `parse.ts` already selects nodes by `text:style-name`, and the XML
+   layer holds the paragraph nodes, so the style-aware log belongs there. Covered
+   by a unit test asserting the log fires for a non-reference-style colon-numeric
+   paragraph and does not fire for the known reference styles.
 
 **Alternative rejected**: a sibling numeric-reference predicate. It would leave
 `findTSubs` unaware that numeric refs are auto-fillable, causing them to surface

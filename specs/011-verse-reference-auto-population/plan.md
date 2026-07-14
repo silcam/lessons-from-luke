@@ -368,6 +368,80 @@ trusted curriculum, so exploitation risk is low, but a pathological long paragra
 upload could pin CPU. Bound input length or use a linear tokeniser. (Largely moot if
 Decision 2 is reworked per the CRITICAL finding.)
 
+## Adversarial Review Findings (Red Team — Pass 2, second-order on Pass 1 mitigations)
+
+> Pass 1 (via deepen-plan) restructured the design around the corpus-fragmentation
+> evidence and introduced two new mitigation mechanisms. This pass reviews **those
+> mitigations against the actual code** and finds two feasibility/contract gaps.
+> Both are **Medium**; no new Critical/High findings surfaced — the plan is
+> adequately hardened.
+
+### MEDIUM-4 — The HIGH-2 "standing upload-time log" is mis-located; paragraph style is not available where the plan puts the check — ✅ RESOLVED (relocated to XML layer)
+
+**Evidence.** Decision 3 mitigation #2 specifies a non-blocking guard "implemented
+as a log line in `uploadEnglishDoc`" that fires for a newly-introduced
+`VERSE_NUMERIC` master string "whose paragraph style is **not** one of the two
+known reference styles." But the data that check needs does not exist at that
+site: `DocString` (`src/core/models/DocString.ts`) and the master strings derived
+from it carry only `{ type, xpath, motherTongue, text }` — **no paragraph
+style-name**. `parse.ts` uses `text:style-name` internally to _select_ nodes
+(`xPathForPWithStyle`) but never emits the style onto a `DocString`.
+`uploadEnglishDoc` (`src/server/actions/uploadDocument.ts`) only sees
+`docStrings` and never the paragraph nodes. So "a log line in `uploadEnglishDoc`"
+cannot distinguish a reference-style `1:5–25` from a stray `3:00` — it would have
+to re-parse `content.xml`, resolve each new numeric string's `xpath` up to its
+ancestor `text:p`, and read `text:style-name`.
+
+**Consequence.** As written the mitigation is under-specified and would silently
+degrade to "log every new colon-numeric string" (no style discrimination) or not
+be built at all — leaving HIGH-2's accepted residual (`3:00` auto-fills and
+vanishes from update-issues) unguarded for future masters.
+
+**Resolution.** The style-aware check belongs in the **XML layer**, where
+paragraph style is in hand: `normalizeReferences` (and/or a small `parse`-layer
+helper) already walks `content.xml` paragraphs and their `text:style-name`. Emit
+the non-blocking log there — for any paragraph whose text matches `VERSE_NUMERIC`
+whose style is not a known reference style — rather than in `uploadEnglishDoc`
+over style-less master strings. Applied to research.md Decision 3 and
+contracts/README.md. (The `3:00` residual itself is unchanged and stays accepted;
+this only corrects _where_ the guard runs.)
+
+### MEDIUM-5 — `normalizeReferences` must leave the odt byte-identical when `changed:false`, or every English upload rezips the master — ✅ RESOLVED (contract clarified)
+
+**Evidence.** Pass 1 added `normalizeReferences` to the upload path
+(`uploadEnglishDoc` after `saveDoc`), running on **every** English master upload,
+and gave it a temp-file + atomic-rename write (MEDIUM-1) returning
+`{ changed: boolean }` (MEDIUM-2). The contract says it "atomically renames over
+the original **only on success**" — but "success" is ambiguous between "the
+operation completed" and "a paragraph was actually changed." For the current
+corpus every upload is a no-op (all paragraphs already `<text:s/>`-fragmented). If
+a no-op still unzips → rezips → renames, then **every English upload rewrites the
+master odt's bytes** via a fresh zip (different compression/entry ordering) even
+though nothing changed — unnecessary churn, and a needless perturbation of the
+persisted source of truth that parse and merge both read.
+
+**Consequence.** Not a rendering break (content.xml is preserved, so SC-004
+holds), but it makes the "no-op" path mutate the master on every upload — the
+opposite of the MEDIUM-1/MEDIUM-2 intent — and could complicate any future
+byte-level provenance/round-trip assertion.
+
+**Resolution.** Contract clarified: when `normalizeReferences` changes no
+paragraph it returns `{ changed: false }` and **leaves the input odt untouched
+byte-for-byte** — no temp write, no rezip, no rename. The atomic-rename path runs
+**only** when at least one paragraph was rewritten. Applied to research.md
+Decision 1 and contracts/README.md.
+
+### LOW — Spec says 95 references, design says 96 (full-corpus count) — ⚠ OPEN, defer to `/sp:02-specify`
+
+Spec SC-003/US2 state **95** standalone references; research.md/plan.md/data-model.md
+say **96** after full-corpus verification. This reads as a genuine off-by-one
+surfaced by counting all 67 masters (vs. the earlier sample), i.e. a **stale spec
+number**, not a paragraphs-vs-strings unit mismatch. It rides with the SC-003
+"affected" redefinition already flagged for a `/sp:02-specify` amendment. Action
+for `/sp:05-tasks`: the SC-003 benchmark fixture must be derived by extraction,
+**not** hardcode `95` (or `96`), so the count is asserted from the corpus rather
+than a literal.
+
 ## Brainstorm Context
 
 **Source**: [specs/brainstorms/2026-07-13-verse-reference-auto-population-requirements.md](../brainstorms/2026-07-13-verse-reference-auto-population-requirements.md)
