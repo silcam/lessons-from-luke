@@ -191,6 +191,67 @@ operational-sequence) that re-processing and backfill assume server quiescence
 (maintenance window) with no concurrent admin uploads or project creation; note
 this alongside the FR-013 sequence.
 
+### Re-carry-on-upload fans auto-population writes across all projects (second-order effect of the Pass 1 mitigation) — MEDIUM
+
+> Added by `/sp:04-red-team` (Pass 2). Second-order effect of the Pass 1 HIGH
+> mitigation, not a restatement of it.
+
+The Pass 1 HIGH mitigation's **preferred** option is that the master-update/upload
+path re-apply the fill-only backfill for changed auto-translatable numeric masters
+into existing projects. If the team adopts that option, it changes the blast radius
+of `POST /api/admin/documents` (`uploadEnglishDoc`): today that path only bumps the
+master version and surfaces update-issues — it performs **no** translation writes.
+After the mitigation it would **fan out auto-population writes across every existing
+project that has the affected lesson**. Two consequences fall out that the batch
+re-processing finding (below, FR-012) covers only for the operator-run script, not
+for this interactive path:
+
+1. **Cross-project write fan-out on an interactive request**: a single admin
+   correcting one reference now triggers writes into N projects synchronously on the
+   upload request. This is not a latency-critical surface (batch upload), but it is a
+   materially larger side-effect than the current version-bump-only behavior and
+   should be an intentional, documented part of the upload contract, not an emergent
+   surprise.
+2. **Partial-failure atomicity on the upload path**: if the fan-out throws partway
+   (one project's `saveDocStrings`/auto-translate fails), some projects are
+   re-carried and others are not — the same inconsistent partial state flagged for
+   the batch task, but now reachable via a normal HTTP upload with no operator
+   watching a summary log. The upload path MUST define whether the re-carry is
+   best-effort-with-logging (upload still succeeds; failures reported) or
+   all-or-nothing, and MUST NOT let a re-carry failure silently corrupt or half-apply
+   across projects.
+
+**Design mitigation (must land in tasks if the re-carry option is chosen)**: treat
+the upload-path re-carry with the same continue-on-error + per-project
+success/skip/failure logging discipline as the batch re-processing task, and
+document the widened `POST /api/admin/documents` side-effect (auto-population fan-out
+across existing projects) in the contract. This finding is **conditional**: it does
+not arise under the alternative Pass 1 option (documented manual-backfill-after-every-
+revision invariant), which the artifacts still present as acceptable. The task
+breakdown MUST pick one option explicitly so this second-order surface is either
+handled or provably absent.
+
+### One-string→multi-string split carry-over depends on unverified update-issue correlation — LOW
+
+Re-processing a residual master splits one combined `LessonString` (`Luke 1:26–38`
+at xpath X) into two (`Luke` + `1:26–38` at new xpaths). FR-010 / US4-scenario-3
+claim the translator's prior combined-reference translation stays visible as the
+"from" side. That claim rests on an **unverified assumption** about how the existing
+lesson-update-issues diff correlates a 1→N structural split (the numeric run lands
+at a new xpath and may surface as a brand-new string with no "from"). The blast
+radius is corpus-bounded and small: the **numeric** portion auto-fills verbatim from
+English regardless (nothing lost), and the **book-name** master `Luke` is shared
+across all ~141 already-split references, so any existing project that has translated
+even one already-split `Luke` reference inherits the book name on the new master for
+free. The only residual loss is a project whose _only_ translated `Luke`-bearing
+strings are among the ~15 residual unsplit ones AND whose diff fails to correlate
+old-combined→new-book — worst case, re-typing one book name; no data or history is
+destroyed (FR-014 holds). Mitigation: the "verify the carry-over experience on a real
+re-processed master" item already in spec § Deferred to Planning MUST be exercised by
+the US3/US4 acceptance suite against a real 1→2 split, asserting the numeric fills and
+the book name carries; no additional design change is required if that assertion
+passes.
+
 ### Splitter single-run precondition made explicit — LOW
 
 Decision 3's splitter assumes each residual unsplit reference is a **single** text

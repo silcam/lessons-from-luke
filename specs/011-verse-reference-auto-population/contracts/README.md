@@ -31,6 +31,18 @@ skip semantics), or the manual-backfill-after-every-revision requirement MUST be
 documented as a standing operational invariant. See plan.md § Edge Cases & Error
 Handling.
 
+**Re-carry widens the upload side-effect (red-team Pass 2, MEDIUM — conditional).**
+If the re-carry option above is chosen, `POST /api/admin/documents` changes from
+version-bump-only to **fanning out fill-only auto-population writes across every
+existing project holding the affected lesson**. That widened side-effect MUST be an
+intentional, documented part of this endpoint's behavior, and the fan-out MUST adopt
+the same continue-on-error + per-project success/skip/failure logging discipline
+specified for the batch re-processing task, so a partial failure cannot silently
+half-apply across projects on an interactive request. This does not arise under the
+alternative option (documented manual-backfill-after-every-revision invariant); the
+task breakdown MUST pick one option explicitly. See plan.md § Edge Cases & Error
+Handling.
+
 ## Manually-run server scripts (not HTTP; extend existing precedents)
 
 These are operator-run Node scripts under `src/server/tasks/`, mirroring the
