@@ -5,18 +5,33 @@
 
 ## Summary
 
+> **Revised in deepen-plan Pass 2** (see "Adversarial Review Findings" below for
+> the full evidence trail). Full-corpus verification (all 67 committed masters,
+> Luke Q1–Q4) confirms Red Team Pass 1's finding **holds corpus-wide**: every one
+> of the 96 known isolated verse references is **already** `<text:s/>`-fragmented
+> into separate `Luke` and `1:5–25` `DocString`s by the existing parser — the
+> two-string model this feature wants already exists structurally for the
+> current corpus. The mechanism is corrected accordingly.
+
 Split isolated verse references in English masters into a translatable **book
 name** (`Luke`) and a language-neutral **numeric reference** (`1:5–25`) so the
 book name is translated once (propagating via master-string deduplication) and
-the numeric part auto-populates like picture numbers. Achieved with **zero
-parser/merge changes** by (1) rewriting qualifying reference paragraphs into
-`<text:span>` runs upstream of parse and persisting the normalized odt, and (2)
-extending the shared `canAutoTranslate` predicate to include the colon. Existing
-projects are upgraded by an operator-run re-normalization task (routing changes
-through the existing lesson-update-issues flow) followed by the existing
-idempotent backfill. Server-side only; desktop inherits auto-population via the
-shared core path. See [research.md](./research.md) for the evidence behind each
-decision.
+the numeric part auto-populates like picture numbers. For the **current
+corpus**, this two-string split already exists (authored via `<text:s/>`), so
+the feature's actual, primary mechanism is extending the shared
+`canAutoTranslate` predicate (union with a verse-numeric shape, not a bare
+colon addition) so the already-existing numeric strings auto-populate, plus
+running the existing idempotent backfill (`defaultTranslateAll`) for existing
+projects. A span-rewrite mechanism (`normalizeReferences`/`parseVerseReferences`,
+upstream of parse, **zero parser/merge changes**) is retained as a **defensive,
+forward-compatible safety net** for a hypothetical future paragraph authored as
+a single literal-space run — it is a no-op against every known corpus master
+today. The one-time re-normalization task (`renormalizeEnglish`) reports "0
+lessons changed" against the current corpus and is a no-op-with-guard (no
+version bump when nothing changes), existing only to catch that same future
+case. Server-side only; desktop inherits auto-population via the shared core
+path. See [research.md](./research.md) for the evidence behind each decision,
+now revised with corpus-wide verification.
 
 ## Technical Context
 
@@ -76,22 +91,35 @@ specs/011-verse-reference-auto-population/
 src/
 ├── core/
 │   └── util/
-│       ├── verseReference.ts            # NEW: parseVerseReferences + VerseReferenceSegment (pure, isomorphic)
-│       └── verseReference.test.ts       # NEW: unit tests incl. Q1–Q4 corpus fixture (SC-003)
+│       ├── verseReference.ts            # NEW: parseVerseReferences + VerseReferenceSegment (pure, isomorphic).
+│       │                                 #      Defensive path only — synthetic fixtures, not exercised by
+│       │                                 #      the real corpus (see Pass 2 correction below).
+│       └── verseReference.test.ts       # NEW: unit tests over synthetic single-run fixtures (defensive path)
 ├── server/
 │   ├── xml/
-│   │   ├── normalizeReferences.ts       # NEW: rewrite content.xml reference paragraphs into spans
-│   │   ├── normalizeReferences.test.ts  # NEW: unit tests over content.xml fixtures
+│   │   ├── normalizeReferences.ts       # NEW: temp-file + atomic-rename rewrite of content.xml reference
+│   │   │                                 #      paragraphs into spans. No-op against the current corpus
+│   │   │                                 #      (all 96 known references are already <text:s/>-fragmented);
+│   │   │                                 #      defensive guard for a future single-run paragraph. Returns
+│   │   │                                 #      { changed: boolean } (MEDIUM-1/MEDIUM-2 corrections).
+│   │   ├── normalizeReferences.test.ts  # NEW: unit tests over content.xml fixtures (incl. already-fragmented
+│   │   │                                 #      input asserting no-op, per corpus evidence)
 │   │   └── normalizeReferences.integration.test.ts  # NEW: soffice round-trip identity (SC-004)
 │   ├── actions/
 │   │   ├── uploadDocument.ts            # EDIT: invoke normalizeReferences on English master after saveDoc
-│   │   └── defaultTranslations.ts       # EDIT: canAutoTranslate pattern += ':'; single exported source
+│   │   └── defaultTranslations.ts       # EDIT: canAutoTranslate = union(existing class, verse-numeric shape);
+│   │                                     #      single exported source (Pass 2 correction — not a bare ':' add)
 │   └── tasks/
-│       ├── defaultTranslateAll.ts       # EDIT: import unified canAutoTranslate (drop shouldAutoTranslate)
-│       └── renormalizeEnglish.ts        # NEW: one-time re-normalization task (mirrors reparseEnglish)
+│       ├── defaultTranslateAll.ts       # EDIT: import unified canAutoTranslate (drop shouldAutoTranslate).
+│       │                                 #      Primary mechanism delivering FR-005/SC-003 for the current corpus.
+│       └── renormalizeEnglish.ts        # NEW: one-time re-normalization task (mirrors reparseEnglish).
+│                                         #      Skips version bump when normalizeReferences reports no change
+│                                         #      (MEDIUM-2 correction) — expected to report 0 changed lessons
+│                                         #      against the current corpus.
 └── (frontend/, desktop/ unchanged)
 
-test/docs/serverDocs/                    # existing Luke Q1–Q4 masters = SC-003 benchmark source
+test/docs/serverDocs/                    # existing Luke Q1–Q4 masters = SC-003 benchmark source (all 67 files
+                                          # verified corpus-wide in deepen-plan Pass 2: 96/96 already fragmented)
 ```
 
 **Structure Decision**: Web / isomorphic four-layer. The book-agnostic shape
@@ -132,17 +160,56 @@ project MEMORY — `soffice` and jest require the Bash sandbox disabled — is
 captured in Technical Context and research.md rather than as a solution
 reference._
 
-## Adversarial Review Findings (Red Team — Pass 1)
+**New learning from deepen-plan Pass 2**: when a red-team finding is based on a
+small file sample (here, 2 of 67 masters), re-verify it against the **full**
+committed corpus before accepting it as the design's premise — the finding held
+(96/96, not just the sampled subset), but a partial sample could equally have
+missed a counter-example (e.g. one quarter authored differently from another).
+The verification method — unzip each `.odt`, regex the two target
+`text:style-name` values (matching the URL-encoded internal style id, not the
+human `style:display-name`, which lives in `styles.xml`), and classify by
+presence of `<text:s/>` vs. plain single-run text — is cheap (a few seconds,
+pure Python, no `soffice`/sandbox issues) and reusable for any future ODT
+structural claim in this codebase.
+
+## Adversarial Review Findings (Red Team — Pass 1) — RESOLVED in deepen-plan Pass 2
 
 > These findings come from running the **actual parser** (`dist/server/xml/parse.js`)
 > against the **actual committed corpus** (`test/docs/serverDocs/`). They are
-> evidence-backed, not speculative. **The CRITICAL and HIGH-1 findings block
-> `/sp:05-tasks`**: Decisions 1 and 2 in `research.md` and the SC-003 basis rest on
-> a premise the corpus contradicts, so tasks generated from them would implement a
-> mechanism that matches 0 of the 95 references. Correct the mechanism in
-> `/sp:03-plan` before generating tasks. Do **not** paper over it in tasks.
+> evidence-backed, not speculative.
+>
+> **Pass 2 resolution summary.** The CRITICAL finding was **re-verified against
+> the full corpus** (all 67 masters spanning Luke Q1–Q4, not just the original
+> 2-file sample): 96/96 reference-shaped paragraphs in both SC-003 target
+> styles are already `<text:s/>`-fragmented; 0 are a single literal-space run
+> or styled span. This confirms the finding holds corpus-wide. `research.md`
+> (Decisions 1–6), `data-model.md`, and `contracts/README.md` are corrected:
+> the span-rewrite mechanism (`normalizeReferences`/`parseVerseReferences`) is
+> retained as a **defensive, forward-compatible safety net** (no-op against the
+> current corpus, exercised only by synthetic unit fixtures), and the mechanism
+> that actually delivers FR-005/SC-003 for the current corpus is the extended
+> `canAutoTranslate` predicate acting on the numeric strings that already exist
+> as separate master strings. HIGH-1's precision claim is redefined at
+> prose-paragraph granularity (flagged for `/sp:02-specify` ratification, not
+> silently settled). HIGH-2's predicate is corrected to a **union** (not a bare
+> colon addition), with its residual "3:00 vs verse ref" ambiguity accepted and
+> mitigated by a one-time scan (done, this pass) plus a standing non-blocking
+> upload-time log. MEDIUM-1 (atomic rename) and MEDIUM-2 (no-op on unchanged)
+> are incorporated directly into the corrected contracts. MEDIUM-3 is now
+> largely moot for the current corpus (no new "Luke" string is introduced by
+> re-normalization, since it already exists) but remains a caveat for the
+> defensive path. LOW (backtracking) remains a valid hardening note for the
+> now-fully-defensive grammar. **This resolves the block on `/sp:05-tasks`** —
+> the corrected mechanism below is what tasks should implement.
 
-### CRITICAL — Corpus reference paragraphs are already `<text:s/>`-fragmented; the span rewrite (Decision 1) matches none of them
+### CRITICAL — Corpus reference paragraphs are already `<text:s/>`-fragmented; the span rewrite (Decision 1) matches none of them — ✅ RESOLVED (re-verified corpus-wide)
+
+> **Resolution.** Re-verified against all 67 committed masters (not just the
+> 2-file sample): 96/96 reference-shaped paragraphs already `<text:s/>`-fragmented,
+> 0 single-run. Correction applied in research.md Decisions 1–2, data-model.md,
+> and contracts/README.md — the span rewrite is now documented as a defensive
+> no-op against the current corpus; the predicate change (Decision 3/HIGH-2) is
+> the mechanism that delivers the feature.
 
 **Evidence.** Both SC-003 target styles encode the book/numeric separator as an ODT
 `<text:s/>` space element, not a literal space:
@@ -184,7 +251,15 @@ the **only** change needed is the auto-translate predicate (add `:`). Re-derive 
 recall against the strings the pipeline actually produces, not against a hypothetical
 combined string.
 
-### HIGH-1 — Numeric master strings are shared across isolated references and prose; SC-003 precision is not structurally guaranteed
+### HIGH-1 — Numeric master strings are shared across isolated references and prose; SC-003 precision is not structurally guaranteed — ⚠ RATIFIED PROVISIONALLY (flag for `/sp:02-specify`)
+
+> **Resolution.** "Affected" is redefined as _prose paragraph text/rendering
+> unchanged_ (holds structurally), not "master id exempt from auto-population"
+> (not achievable). Applied in data-model.md's Invariants and Predicate-change
+> sections and contracts/README.md. This is a spec-observable wording change
+> (SC-003/US2) made under auto-mode's "reasonable call" — it should be
+> confirmed in a future `/sp:02-specify` amendment rather than treated as
+> silently settled.
 
 **Evidence.** The "Bible Story" prose paragraph is _also_ `<text:s/>`-fragmented:
 `<text:p text:style-name="P19">Bible Story: <text:s/>Luke <text:s/>1:5–25 <text:s/>Luke <text:s/>1:57–64</text:p>`.
@@ -205,7 +280,17 @@ prose renders unchanged). This must be reconciled with SC-003/US2 wording in
 `/sp:03-plan`: either redefine "affected" (prose _rendering_ unchanged, which holds), or
 accept that master-level dedup makes paragraph-level precision unachievable.
 
-### HIGH-2 — `canAutoTranslate` `:` broadening is coarse and silently hides strings from the update-issues flow
+### HIGH-2 — `canAutoTranslate` `:` broadening is coarse and silently hides strings from the update-issues flow — ✅ RESOLVED (union predicate + standing scan)
+
+> **Resolution.** Corrected to a **union** of the existing picture-number class
+> and a strict verse-numeric shape (`\d+:\d+(?:[–-]\d+(?::\d+)?)?`) rather than
+> a bare colon addition — this does not regress picture numbers. The
+> `3:00`-vs-verse-reference ambiguity is _not_ fully solvable by regex (accepted,
+> documented limitation): mitigated by (a) the one-time corpus scan performed
+> this pass (96/96 confirmed genuine verse numerics, 0 times/ratios) and (b) a
+> new standing non-blocking upload-time log for future colon-numeric strings
+> outside the two known reference styles. See research.md Decision 3 and
+> contracts/README.md.
 
 Adding `:` admits **any** `^[\d–\-:[\]()\s]*$` string to auto-population — times
 (`3:00`), ratios/scores (`10:1`), aspect dimensions — not just verse numerics. Two
@@ -218,7 +303,11 @@ from update issues. Mitigation options for `/sp:03-plan`: tighten the predicate 
 verse-numeric shape (`\d+:\d+` with optional ranges) rather than a permissive char class,
 or document the accepted broadening and add a standing lint/scan.
 
-### MEDIUM-1 — `normalizeReferences` in-place `content.xml` rewrite risks corrupting the master on crash
+### MEDIUM-1 — `normalizeReferences` in-place `content.xml` rewrite risks corrupting the master on crash — ✅ RESOLVED
+
+> **Resolution.** `normalizeReferences` now writes to a temp odt and atomically
+> renames over the original only on success, for both the upload path and the
+> re-normalization task. Applied in contracts/README.md.
 
 The contract states `normalizeReferences` "rewrites `content.xml` inside the odt **in
 place**." On the upload path the odt just saved by `saveDoc` **is** the master source of
@@ -227,7 +316,14 @@ Mitigation: write to a temp odt and atomically rename over the original only on 
 (The re-normalization task is safer — it operates on a fresh next-version copy — but
 upload is not.)
 
-### MEDIUM-2 — Re-normalization idempotence guards against duplicate strings but not version churn / phantom update-issues
+### MEDIUM-2 — Re-normalization idempotence guards against duplicate strings but not version churn / phantom update-issues — ✅ RESOLVED
+
+> **Resolution.** `normalizeReferences` now returns `{ changed: boolean }`;
+> `renormalizeEnglish` only copies the odt / bumps version / calls
+> `parseDocStrings`+`saveDocStrings` when `changed` is true. Against the
+> current corpus this means the task reports "0 lessons changed" — expected
+> and correct, not a defect. Applied in research.md Decision 6 and
+> contracts/README.md.
 
 `renormalizeEnglish` copies the odt to the next version and runs
 `parseDocStrings` + `saveDocStrings` (which bumps `version`) **per run**. FR-014's
@@ -236,7 +332,16 @@ lesson version and produces an empty diff that surfaces as a phantom entry in th
 update-issues flow — operator noise and translator confusion. The task should no-op
 (no version bump, no new lesson version) when normalization changes nothing.
 
-### MEDIUM-3 — Existing projects render a blank book name after backfill until the update-issue is resolved
+### MEDIUM-3 — Existing projects render a blank book name after backfill until the update-issue is resolved — ✅ MOOT for current corpus, retained as defensive-path caveat
+
+> **Resolution.** For the current corpus, no new "Luke" book-name string is
+> introduced by re-normalization — it already exists as a separate master
+> string today (Decision 1 evidence), so an existing language already has
+> whatever "Luke" translation state it had before this feature (translated or
+> not) with no transition. The scenario below (blank book name pending an
+> update-issue) applies only to the defensive single-run path, should it ever
+> fire on a future paragraph — noted in research.md Decision 4's revision but
+> not otherwise actioned, since it cannot be observed against real content.
 
 For an existing language that had translated the combined reference, the book span
 (`Luke`) is **not** auto-populated (FR-007) and the language has no standalone `Luke`
@@ -247,7 +352,15 @@ nothing about **rendered output** in the interim. `/sp:03-plan` should define th
 fallback for an untranslated book span (English fallback vs. blank) so re-normalized
 in-progress projects don't temporarily render half a reference.
 
-### LOW — `parseVerseReferences` grammar has nested quantifiers (catastrophic-backtracking risk)
+### LOW — `parseVerseReferences` grammar has nested quantifiers (catastrophic-backtracking risk) — ⚠ OPEN, low priority
+
+> **Status.** Not moot — the grammar is now confirmed to be exercised only on
+> the defensive single-run path, but that path is still upload-reachable
+> (English master uploads always run through `normalizeReferences`). Bounding
+> input length before running the regex (e.g. skip paragraphs over a length
+> threshold) remains a cheap hardening step to pick up in `/sp:05-tasks`; not
+> resolved in this pass as it requires no design decision, only an
+> implementation-time guard.
 
 The grammar `book = (?:\d\s+)?\p{L}[\p{L}.]*(?:\s+\p{L}[\p{L}.]*)*` inside a repeated
 `(book\s+numeric)*` whole-string anchor has nested quantifiers over whitespace. Input is

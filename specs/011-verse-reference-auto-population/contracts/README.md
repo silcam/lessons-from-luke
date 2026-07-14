@@ -11,86 +11,122 @@ here are therefore (a) the unchanged HTTP surfaces whose behaviour shifts and
 
 ## Unchanged HTTP endpoints (behaviour extended, signature identical)
 
-| Method & path                                         | Change                                                                                                             |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `POST /api/admin/documents` (English upload)          | Master odt is normalized (isolated-reference paragraphs split into book + numeric spans) **before** parse/persist. |
-| `POST /api/admin/languages` (create language)         | Numeric reference strings now auto-populate verbatim from English (via extended `canAutoTranslate`).               |
-| `GET /api/admin/lessons/:lessonId/lessonUpdateIssues` | After re-normalization, surfaces the one-string→multi-string split with the old combined reference as the "from".  |
+| Method & path                                         | Change                                                                                                                                                                                                                         |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `POST /api/admin/documents` (English upload)          | Master odt passes through `normalizeReferences` before parse/persist. For the current corpus this is a no-op (paragraphs already `<text:s/>`-fragmented); it is a defensive guard for a future single-run reference paragraph. |
+| `POST /api/admin/languages` (create language)         | Numeric reference strings now auto-populate verbatim from English (via extended `canAutoTranslate`). This is the mechanism that actually delivers the feature for the current corpus.                                          |
+| `GET /api/admin/lessons/:lessonId/lessonUpdateIssues` | Unchanged behaviour; only surfaces a one-string→multi-string split if `normalizeReferences` ever reports a real change (not expected for the current corpus — see `renormalizeEnglish` below).                                 |
 
 Request/response JSON shapes are unchanged for all three.
 
 ## Internal function contracts (new / modified)
 
-> **⚠ BLOCKED pending `/sp:03-plan` revision (Red Team Pass 1).** Running the actual
-> parser on the actual corpus shows that reference paragraphs in **both** SC-003 target
-> styles are `<text:s/>`-fragmented (`Luke <text:s/>1:5–25`), so the existing parser
-> **already** emits `Luke` and `1:5–25` as separate strings, and `normalizeReferences`'s
-> "single unstyled text run" precondition **skips all 95** of them. `parseVerseReferences`
-> never receives a combined `book chapter:verse` string in the live pipeline. The two
-> internal function contracts below therefore do **not** match the real data flow and must
-> be corrected before `/sp:05-tasks`. See plan.md "Adversarial Review Findings (Red Team —
-> Pass 1)" for evidence.
+> **Resolved in deepen-plan Pass 2.** Red Team Pass 1 found (2-file sample)
+> that reference paragraphs in both SC-003 target styles are already
+> `<text:s/>`-fragmented, so `normalizeReferences`'s "single unstyled text run"
+> precondition skips them and `parseVerseReferences` never receives a combined
+> string in the live pipeline. **This pass re-verified the finding against the
+> full committed corpus** (all 67 masters, Luke Q1–Q4): 96/96 reference-shaped
+> paragraphs are already fragmented; 0 are single-run. The contracts below are
+> corrected: `parseVerseReferences`/`normalizeReferences` are retained as a
+> **defensive path for a future single-run paragraph**, not the mechanism that
+> produces the 96 known references (which already exist as separate master
+> strings today). See plan.md "Adversarial Review Findings (Red Team — Pass 1)"
+> and research.md Decisions 1–6 for the full correction and evidence.
 
-### `parseVerseReferences(text: string): VerseReferenceSegment[] | null` (new, core)
+### `parseVerseReferences(text: string): VerseReferenceSegment[] | null` (new, core — defensive path)
 
 - **Returns** ordered non-empty segments iff the entire trimmed `text` is one or
   more `book chapter:verse` references; otherwise `null`.
 - **Guarantees**: book-agnostic (no book list); preserves original dash
   character; leading digit of a numbered book stays in `book`; never returns
   non-null for prose containing an embedded reference.
+- **Corpus status**: not exercised by any real corpus master (all 96 known
+  references are already `<text:s/>`-fragmented before this function would run
+  on them). Covered by synthetic unit fixtures only; kept in the design to
+  satisfy FR-001/FR-002/FR-008 for a hypothetical future single-run paragraph.
 
-### `normalizeReferences(odtFilepath: string): void` (new, server)
+### `normalizeReferences(odtFilepath: string): { changed: boolean }` (new, server — defensive path)
 
-- **Effect**: rewrites `content.xml` inside the odt in place, wrapping each
-  qualifying isolated-reference paragraph's single unstyled text run into
-  `<text:span>` book/numeric runs separated by the original literal whitespace.
+- **Effect**: writes to a **temporary odt** and atomically renames it over the
+  original **only on success** (Red Team MEDIUM-1 — never rewrite the just-saved
+  master's `content.xml` in place, to avoid a corrupt master on a crash between
+  unzip and rezip). Wraps each qualifying isolated-reference paragraph's single
+  unstyled text run into `<text:span>` book/numeric runs separated by the
+  original literal whitespace.
 - **Precondition for splitting a paragraph**: inline content is a single unstyled
-  text run (no existing styled spans / soft breaks). Otherwise the paragraph is
-  left untouched (round-trip red-line).
+  text run (no existing `<text:s/>`, styled spans, or soft breaks). Otherwise the
+  paragraph is left untouched (round-trip red-line). **This precondition means
+  the function is a no-op against every known corpus master** — all 96
+  reference-shaped paragraphs already contain `<text:s/>` and are correctly
+  skipped. This is by design, not a defect: the split those paragraphs need
+  already happened at authoring time.
+- **Return value** (revised from `void`): reports whether any paragraph was
+  actually changed, so callers (`renormalizeEnglish`) can skip the
+  version-bump/parse/save path entirely when nothing changed (Red Team
+  MEDIUM-2).
 - **Guarantee**: rendered output is visually identical to the original
   (FR-003, SC-004).
-- **⚠ Red Team (CRITICAL):** the "single unstyled text run" precondition skips every
-  `<text:s/>`-fragmented reference paragraph — which is **all 95** in the sampled corpus —
-  so this function rewrites nothing there. Its role and SC-003 recall basis must be
-  re-derived in `/sp:03-plan`.
-- **⚠ Red Team (MEDIUM-1):** "in place" rewrite of the just-saved master risks a corrupt
-  master on crash between unzip and rezip. Write a temp odt and atomically rename on
-  success instead.
 
-### `canAutoTranslate(text: string): boolean` (modified, unified)
+### `canAutoTranslate(text: string): boolean` (modified, unified — primary mechanism for the current corpus)
 
-- Pattern `/^[\d–\-:[\]()\s]*$/`. Single exported definition imported by
-  `defaultTranslations`, `findTSubs`, and `defaultTranslateAll` (removes the
-  duplicated `shouldAutoTranslate`).
-- **⚠ Red Team (HIGH-2):** this char class admits **any** `d:d` string (times `3:00`,
-  ratios `10:1`), not just verse numerics — those auto-populate without review and are
-  filtered out of the update-issues flow. The one-time scan (research Decision 3) covers
-  today's masters but not future ones. Consider a true verse-numeric shape
-  (`\d+:\d+(?:[–-]\d+(?::\d+)?)?`) instead of the permissive class. Also note (HIGH-1):
-  `1:5–25` in an isolated reference and in `Bible Story: …1:5–25` share **one master id**
-  (dedup is by text; `motherTongue` does not gate `defaultTranslations`), so
-  auto-population is master-granular — SC-003 paragraph-level precision is not
-  structurally enforceable.
+- Pattern: union of the existing picture-number/bracket class and a strict
+  verse-numeric shape —
+  `/^[\d–\-[\]()\s]*$/.test(text) || /^\d+:\d+(?:[–-]\d+(?::\d+)?)?$/.test(text)`.
+  Single exported definition imported by `defaultTranslations`, `findTSubs`, and
+  `defaultTranslateAll` (removes the duplicated `shouldAutoTranslate`).
+- **This is the mechanism that satisfies FR-005/SC-003 for the current corpus**:
+  the 96 numeric strings (`1:5–25`, `18:35–19:10`, …) already exist as separate
+  master strings; this predicate change is what makes them auto-populate.
+- **Red Team HIGH-2, accepted residual risk**: the verse-numeric branch also
+  matches a time (`3:00`) or ratio (`10:1`) shape — this is not solvable by
+  regex alone, since a time and a verse reference are lexically identical.
+  Mitigated by (a) a one-time scan of the current corpus (this pass — all 96
+  matches are genuine verse numerics, none are times/ratios) and (b) a standing
+  **non-blocking** log emitted on English upload for any newly introduced
+  colon-numeric master string whose paragraph style is not one of the two known
+  reference styles, so a future `3:00` is surfaced for operator review rather
+  than silently vanishing from the update-issues flow. Picture numbers (`12`,
+  `[3]`) are unaffected — they still match only the unchanged first branch.
+- **Red Team HIGH-1, ratified provisionally (flagged for `/sp:02-specify`
+  confirmation)**: `1:5–25` in an isolated reference and in
+  `Bible Story: …1:5–25` share **one master id** (dedup is by text;
+  `motherTongue` does not gate `defaultTranslations`), so auto-population is
+  master-granular. SC-003's "0 prose strings affected" is redefined as _no
+  prose paragraph's text or rendering changes_ — which holds structurally,
+  since the numeric text is language-neutral — rather than "the shared master
+  id is exempt," which is not achievable at this layer.
 
 ## CLI task contracts (operator-run, server)
 
 Run in the documented order (FR-012): **re-normalize first, then backfill.**
+For the current corpus, the re-normalize step is expected to report zero
+lessons changed (see below) — the backfill step is what actually delivers the
+feature for existing projects.
 
-### 1. `renormalizeEnglish` — `src/server/tasks/renormalizeEnglish.ts`
+### 1. `renormalizeEnglish` — `src/server/tasks/renormalizeEnglish.ts` (revised — no-op on unchanged, Red Team MEDIUM-2)
 
 - **Invocation**: `node dist/server/server/tasks/renormalizeEnglish.js` (via the
   built server tree, same convention as `reparseEnglish` / `defaultTranslateAll`).
-- **Effect**: for every stored lesson, copy the master odt to the next version,
-  run `normalizeReferences`, then `parseDocStrings` + `saveDocStrings` (bumps
-  version → routes through the update-issues flow).
-- **Idempotent** (FR-014): a second run splits nothing (paragraphs already
-  spans) and creates no duplicate strings.
+- **Effect**: for every stored lesson, run `normalizeReferences` against a
+  scratch copy of the master odt first. **Only if it reports `changed: true`**
+  does the task copy the odt to the next version and run `parseDocStrings` +
+  `saveDocStrings` (bumps version → routes through the update-issues flow).
+  Lessons with no change are skipped entirely — no odt copy, no version bump,
+  no phantom update-issue.
+- **Expected result on the current corpus**: 0 of the stored lessons report a
+  change (all reference paragraphs are already `<text:s/>`-fragmented). This is
+  the correct, evidence-backed outcome, not a bug — FR-005/SC-003 for the
+  current corpus is delivered by the predicate change + backfill below.
+- **Idempotent** (FR-014): a second run reports the same "0 changed" result (or,
+  for a future genuinely-split lesson, splits nothing further) and creates no
+  duplicate strings or version churn.
 
 ### 2. `defaultTranslateAll` (backfill) — `src/server/tasks/defaultTranslateAll.ts`
 
 - **Invocation**: `node dist/server/server/tasks/defaultTranslateAll.js`.
 - **Effect**: for every language, insert every English master string matching the
   unified `canAutoTranslate` predicate that the language is missing — including
-  the newly split numeric reference strings.
+  the 96 already-existing numeric reference strings.
 - **Guarantee**: skips any master already present in a language → never
   overwrites translator work (FR-010); idempotent (FR-014).
