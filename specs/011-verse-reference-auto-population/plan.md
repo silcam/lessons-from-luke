@@ -105,10 +105,10 @@ extends existing files. Domain persistence remains behind `Persistence`.
 
 | User Story                                             | Acceptance Spec File                                         | Scenarios |
 | ------------------------------------------------------ | ------------------------------------------------------------ | --------- |
-| US1: Verse references pre-fill on new project          | `specs/acceptance-specs/US01-verse-references-prefill.txt`   | 4         |
-| US2: Prose and non-references are never auto-filled    | `specs/acceptance-specs/US02-prose-never-autofilled.txt`     | 3         |
-| US3: Splitting residual unsplit references round-trips | `specs/acceptance-specs/US03-splitter-round-trip.txt`        | 4         |
-| US4: Existing projects backfill without overwriting    | `specs/acceptance-specs/US04-backfill-existing-projects.txt` | 4         |
+| US1: Verse references pre-fill on new project          | `specs/acceptance-specs/US16-verse-references-prefill.txt`   | 4         |
+| US2: Prose and non-references are never auto-filled    | `specs/acceptance-specs/US17-prose-never-autofilled.txt`     | 3         |
+| US3: Splitting residual unsplit references round-trips | `specs/acceptance-specs/US18-splitter-round-trip.txt`        | 4         |
+| US4: Existing projects backfill without overwriting    | `specs/acceptance-specs/US19-backfill-existing-projects.txt` | 5         |
 
 **Pipeline**: `specs/acceptance-specs/*.txt` → `acceptance/parse-specs.ts` →
 `acceptance/generate-tests.ts` → `generated-acceptance-tests/*.spec.ts`

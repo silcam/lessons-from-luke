@@ -71,4 +71,9 @@ duplicate strings.
   (FR-014); only run structure of unsplit references changes.
 - Re-running re-processing or backfill is safe: no duplicate strings, no
   overwritten work (FR-009, FR-015).
+- Re-processing and backfill are operator-run maintenance scripts assumed to run
+  during a maintenance window with server quiescence — no concurrent admin
+  uploads or project creation against the same masters/lessons (red-team Pass 1
+  LOW: concurrency between operator scripts and live server writes is
+  undocumented/uncoordinated otherwise).
   </content>

@@ -67,7 +67,9 @@
 
 ## R
 
-**Reference normalization** (noun): The upload-time rewrite that splits an Isolated verse reference paragraph into separate translatable strings — a Book-name string plus one or more Numeric reference strings — while preserving identical rendering on round-trip. Book-agnostic (shape-based, no hardcoded book list) and conservative (never splits a reference embedded in prose). [Docs: specs/011-verse-reference-auto-population/spec.md] [See: Isolated verse reference, Book-name string, Numeric reference string]
+**Reference normalization** (noun): The two-mechanism process that yields separate Book-name string and Numeric reference string masters for every Isolated verse reference. Most references already arrive from the parser as two runs (no mutation needed — recognition alone makes the numeric part auto-translatable); a narrow **Reference splitter** handles only the residual references still stored as a single unsplit run, splitting them at upload/re-processing time while preserving identical rendering on round-trip. Book-agnostic (shape-based, no hardcoded book list) and conservative (never splits a reference embedded in prose). [Docs: specs/011-verse-reference-auto-population/spec.md] [See: Isolated verse reference, Book-name string, Numeric reference string, Reference splitter]
+
+**Reference splitter** (noun): The narrow, idempotent, atomic pre-parse content.xml rewrite (Mechanism 2 of Reference normalization) that converts a residual single-run Isolated verse reference into a separate book-name run and numeric run, so the numeric part becomes its own auto-populatable master. Targets only the minority of references not already split by the parser. [Docs: specs/011-verse-reference-auto-population/spec.md, plan.md] [See: Reference normalization, Numeric reference string]
 
 **Recipient** (noun): The person who receives an Invitation link and redeems it to create their Account. Supplies a password and display name; their email is pre-bound by the Invitation. [See: Invitation, Account]
 
