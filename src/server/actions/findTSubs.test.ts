@@ -311,4 +311,87 @@ describe("findTSubs integration", () => {
     const result = await findTSubs(storage, 1);
     expect(Array.isArray(result)).toBe(true);
   });
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Regression: FR-010 blast-radius check (research.md Decision 1).
+  //
+  // The `canAutoTranslate` predicate extension recognizes numeric
+  // verse-reference ranges (e.g. "1:5-25") as auto-translatable. This test
+  // proves that extension does NOT suppress an update-issue when a combined
+  // English "from" reference containing a book name (letters) is split into
+  // separate "Luke" + "1:26-38" masters on the "to" side: the combined
+  // string is never auto-translatable regardless of the predicate
+  // extension, because it contains letters, so `usefulEngSub` must still
+  // treat it as useful and the sub must still surface as an update-issue
+  // for a language that has translated the old combined master but not yet
+  // the new split masters.
+  // ───────────────────────────────────────────────────────────────────────
+  test("still surfaces an update-issue when a combined verse reference with letters (e.g. 'Luke 1:26-38') is split into separate masters", async () => {
+    const combinedMasterId = 100;
+    const bookMasterId = 101;
+    const verseRangeMasterId = 102;
+
+    const oldStrings = [makeLessonString(1, combinedMasterId, 1)];
+    const newStrings = [
+      makeLessonString(1, bookMasterId, 2),
+      makeLessonString(1, verseRangeMasterId, 3),
+    ];
+
+    const engStrings = [
+      makeTString(combinedMasterId, "Luke 1:26–38"),
+      makeTString(bookMasterId, "Luke"),
+      makeTString(verseRangeMasterId, "1:26–38"),
+    ];
+
+    const languages: Language[] = [
+      {
+        languageId: ENGLISH_ID,
+        name: "English",
+        code: "ENG",
+        motherTongue: false,
+        progress: [],
+        defaultSrcLang: ENGLISH_ID,
+      },
+      {
+        languageId: 2,
+        name: "French",
+        code: "FRE",
+        motherTongue: true,
+        progress: [],
+        defaultSrcLang: ENGLISH_ID,
+      },
+    ];
+
+    const storage = makeStorage({
+      lessonStrings: newStrings,
+      oldLessonStrings: oldStrings,
+      englishStrings: engStrings,
+      languages,
+    });
+    // Override tStrings so the French language has translated the OLD
+    // combined master but not either of the NEW split masters — the
+    // classic "update issue" shape this predicate extension must not hide.
+    storage.tStrings = async (params: { languageId: number }) => {
+      if (params.languageId === ENGLISH_ID) return engStrings;
+      if (params.languageId === 2) {
+        return [
+          {
+            masterId: combinedMasterId,
+            languageId: 2,
+            text: "Luc 1.26-38",
+            history: [],
+          },
+        ];
+      }
+      return [];
+    };
+
+    const result = await findTSubs(storage, 1);
+    expect(result).toHaveLength(1);
+    expect(result[0].engFrom.map((sp) => sp && sp.masterId)).toEqual([combinedMasterId]);
+    expect(result[0].engTo.map((sp) => sp && sp.masterId)).toEqual([
+      bookMasterId,
+      verseRangeMasterId,
+    ]);
+  });
 });
