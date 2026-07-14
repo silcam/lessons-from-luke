@@ -28,6 +28,11 @@ Spec: specs/005-transactional-email-reset/spec.md
 Keywords: quarter styles template, styles template, template application, load styles, print-ready, print styles, M.T. highlight, mother tongue highlight, yellow highlight, remove highlight, background color, paragraph styles, page styles, style source, swappable asset, stand-in template, Q2 reference master, assembled quarter styling, assembly job failure, LibreOffice styles, publishing automation, WS-2c, SOP 16
 Spec: specs/009-quarter-styles-template/spec.md
 
+## Auto-Populate Verse-Reference Strings
+
+Keywords: verse reference, scripture reference, book name split, numeric reference, chapter verse, auto-populate references, pre-fill references, isolated verse reference, reference normalization, split book name, translate once, master string dedup, upload normalization, backfill references, re-normalize masters, lesson-update issues, prose reference, en-dash range, numbered books, Table of Contents story column, lesson title scripture reference, M.T. Table of Contents, auto-translate, defaultTranslations, WS-4, SOP 30.3, publishing automation
+Spec: specs/011-verse-reference-auto-population/spec.md
+
 ## How to Update This File
 
 - Add one entry per feature spec, before this section.

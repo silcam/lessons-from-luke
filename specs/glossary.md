@@ -19,6 +19,10 @@
 
 **Accepted** (noun): Terminal status of an Invitation that has been successfully redeemed; an Account exists for the bound email. [See: Invitation, Pending, Retracted, Expired]
 
+## B
+
+**Book-name string** (noun): The translatable book-name portion of a normalized isolated verse reference (e.g. `Luke`). An ordinary translatable string, not auto-populated; because identical English text shares one master string, translating it once completes it across every reference using that book name in the language. [Docs: specs/011-verse-reference-auto-population/spec.md] [See: Isolated verse reference, Numeric reference string, Reference normalization]
+
 ## E
 
 **Expired** (noun): Terminal status of a Pending Invitation whose 14-day window has elapsed without redemption. The link no longer works; the record is retained for audit. [See: Invitation, Pending]
@@ -28,6 +32,8 @@
 **Invitation** (noun): An administrator-issued, single-use authorization to create one Account. Bound to a specific recipient email address and a granted role (administrator or standard). Key attributes: email, role, status, creation date, expiry date, acceptance date (when Accepted), creating administrator, and a secret redemption token. [Docs: specs/002-invitation-system/spec.md#key-entities] [See: Pending, Accepted, Retracted, Expired]
 
 **Invitation link** (noun): The URL shared with a Recipient that encodes the redemption token. Format: `${BETTER_AUTH_URL}/invitation/${token}`. Single-use; valid only while the Invitation is Pending and non-expired. [See: Invitation, Token]
+
+**Isolated verse reference** (noun): A paragraph whose entire visible text is one or more scripture references and nothing else (e.g. `Luke 1:5–25`, `Luke 9:1–6 Luke 9:10–17`). Qualifies for Reference normalization and numeric auto-population. Contrasted with a reference embedded in translatable prose (e.g. `Bible Story: Luke 10:25–37`), which does not qualify and is never split or auto-filled. [Docs: specs/011-verse-reference-auto-population/spec.md] [See: Book-name string, Numeric reference string, Reference normalization]
 
 ## L
 
@@ -40,6 +46,10 @@
 ## M
 
 **M.T. styles** (noun): The mother-tongue paragraph-style family (`M.T.*`) in lesson masters, carrying a yellow background highlight as a working aid during translation so mother-tongue text is easy to spot. The highlight is not a print style; the Quarter styles template removes it. [Docs: specs/009-quarter-styles-template/spec.md] [See: Quarter styles template]
+
+## N
+
+**Numeric reference string** (noun): The language-neutral chapter:verse portion of a normalized isolated verse reference (e.g. `1:5–25`, `18:35–19:10`). Auto-populated verbatim from English at project creation and via backfill, as an ordinary editable translation with normal provenance — never locked and not a special string type. [Docs: specs/011-verse-reference-auto-population/spec.md] [See: Isolated verse reference, Book-name string, Reference normalization]
 
 ## Q
 
@@ -56,6 +66,8 @@
 **PGStorage** (noun): PostgreSQL implementation of the `Persistence` interface for production. Uses the porsager `postgres@1` driver on the domain `pg.Pool`. [See: Persistence]
 
 ## R
+
+**Reference normalization** (noun): The upload-time rewrite that splits an Isolated verse reference paragraph into separate translatable strings — a Book-name string plus one or more Numeric reference strings — while preserving identical rendering on round-trip. Book-agnostic (shape-based, no hardcoded book list) and conservative (never splits a reference embedded in prose). [Docs: specs/011-verse-reference-auto-population/spec.md] [See: Isolated verse reference, Book-name string, Numeric reference string]
 
 **Recipient** (noun): The person who receives an Invitation link and redeems it to create their Account. Supplies a password and display name; their email is pre-bound by the Invitation. [See: Invitation, Account]
 
