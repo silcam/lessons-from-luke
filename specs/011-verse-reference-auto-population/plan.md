@@ -442,6 +442,81 @@ for `/sp:05-tasks`: the SC-003 benchmark fixture must be derived by extraction,
 **not** hardcode `95` (or `96`), so the count is asserted from the corpus rather
 than a literal.
 
+## Adversarial Review Findings (Red Team — Pass 3, second-order on Pass 2 mitigations)
+
+> Pass 3 reviews the Pass 2 mitigations (`canAutoTranslate` union predicate and
+> the relocated MEDIUM-4 style-aware log) against the **actual code**
+> (`findTSubs.usefulEngSub`, `defaultTranslateAll`). Two second-order gaps
+> surfaced, **both Medium**; no new Critical/High. The plan is adequately
+> hardened — this pass converges.
+
+### MEDIUM-6 — Reclassifying numerics as auto-translatable inherits the class-wide "corrections don't propagate to existing projects" limitation — ✅ RESOLVED (documented accepted tradeoff)
+
+**Evidence.** The predicate change makes `1:5–25` a member of the
+auto-translatable class. That class already has two coupled behaviours in the
+existing code, both verified:
+
+- `defaultTranslateAll.ts:22–23` inserts only master strings a language is
+  **missing** (`!existingTStrings.find(masterId ==)`); it never updates an
+  existing string. So backfill has **no update path** for a master already
+  present.
+- `findTSubs.usefulEngSub` (findTSubs.ts:64–72) marks an `EngSub` useful only if
+  `engFrom.some(tStr => !canAutoTranslate(tStr.text))` — so any all-auto-translatable
+  change is **suppressed from the update-issues flow**.
+
+**Consequence.** If a future English master **corrects** an existing numeric
+reference (e.g. `1:5–25` → `1:5–26`, a typo fix that is not a split), that change
+neither re-propagates to an existing project (backfill skips present masters) nor
+surfaces to the translator (predicate suppresses it from update-issues). The
+project keeps the stale-but-valid numeric until manually corrected.
+
+**Disposition — accepted limitation, not a design change.** This is **not a
+regression introduced by this feature** — it is the pre-existing behaviour of the
+entire auto-translatable class. Picture numbers (`12`, already auto-translatable
+today) have the identical property: a picture-number correction likewise does not
+re-propagate to existing projects and is likewise suppressed from update-issues.
+Numerics simply join that established class and inherit its accepted tradeoff.
+Impact is bounded (a stale-but-valid, language-neutral numeric; no history loss,
+no destruction of translator work; rare trigger). It sits in the same
+accepted-limitation category as HIGH-2's `3:00` residual and HIGH-1's dedup note.
+Documented as an explicit accepted tradeoff in `contracts/README.md`'s
+`canAutoTranslate` section and here; no code mitigation required. (If numeric
+corrections ever need to propagate to in-progress projects, that is a separate
+follow-on for the shared auto-translatable class as a whole, not specific to this
+feature.)
+
+### MEDIUM-7 — The MEDIUM-4 style-aware `3:00` log is specified at paragraph-text granularity but the auto-fillable numeric lives at `<text:s/>`-fragment granularity — ✅ RESOLVED (log at text-node/fragment granularity)
+
+**Evidence.** MEDIUM-4 relocated HIGH-2's non-blocking `3:00` guard to the XML
+layer and specified it as firing "for any **paragraph** whose text matches
+`VERSE_NUMERIC` whose style is not a known reference style." But a stray numeric
+only becomes an **auto-fillable master string** when it is a separate
+`<text:s/>`-fragmented text node (a bare `3:00` master string). A whole
+paragraph's text is never a bare `1:5–25` / `3:00`: the corpus reference
+paragraphs read `Luke <text:s/>1:5–25` (paragraph text includes the book name),
+and a `3:00` embedded in prose reads `Meet at 3:00 …` (single run → not
+auto-fillable, its containing master string does not match `VERSE_NUMERIC`).
+
+**Consequence.** As written the paragraph-granular guard can **never fire on the
+exact case it is meant to catch** — a `<text:s/>`-fragmented stray numeric that
+becomes its own bare master string and auto-fills. It would either match nothing
+(fragmented reference paragraphs never have bare-numeric paragraph text) or, if
+loosened to "any paragraph containing a `VERSE_NUMERIC` fragment," fire on every
+legitimate reference paragraph too (all in the known reference styles → filtered
+out anyway). The guard's granularity is mismatched with where the risk actually
+lives.
+
+**Resolution.** The style-aware log must run at **text-node / fragment
+granularity** — the same granularity at which `parse` emits `DocString`s and at
+which `canAutoTranslate` auto-fill operates — not at whole-paragraph text. As the
+XML layer walks `content.xml`, for each non-whitespace text node whose text
+matches `VERSE_NUMERIC`, resolve its ancestor `text:p`'s `text:style-name`; emit
+the non-blocking log iff that style is **not** one of the two known reference
+styles. This is the level at which a `<text:s/>`-fragmented stray `3:00` becomes
+visible. Applied to `contracts/README.md`'s `canAutoTranslate` /
+MEDIUM-4-location bullet. (The `3:00` residual itself stays accepted; this only
+corrects the guard's granularity so it can actually fire.)
+
 ## Brainstorm Context
 
 **Source**: [specs/brainstorms/2026-07-13-verse-reference-auto-population-requirements.md](../brainstorms/2026-07-13-verse-reference-auto-population-requirements.md)

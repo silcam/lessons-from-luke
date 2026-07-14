@@ -99,8 +99,33 @@ Request/response JSON shapes are unchanged for all three.
   `{ type, xpath, motherTongue, text }` — no `text:style-name` — so
   `uploadEnglishDoc` cannot tell a reference-style `1:5–25` from a stray `3:00`.
   The XML layer already walks `content.xml` paragraphs and their `text:style-name`,
-  so the style-aware check must run there. Picture numbers (`12`, `[3]`) are
+  so the style-aware check must run there. **Granularity (Red Team MEDIUM-7
+  correction)**: the check must run per **text node / fragment**, not per
+  paragraph text. A stray numeric only becomes an auto-fillable master string when
+  it is a separate `<text:s/>`-fragmented text node (a bare `3:00` master string);
+  a whole paragraph's text is never a bare numeric (`Luke <text:s/>1:5–25`
+  includes the book; `Meet at 3:00 …` is a single non-matching run). So for each
+  non-whitespace text node whose text matches `VERSE_NUMERIC`, resolve its
+  ancestor `text:p`'s `text:style-name` and log iff that style is not a known
+  reference style — a paragraph-text-granular check would never fire on the
+  fragmented stray numeric it is meant to catch. Picture numbers (`12`, `[3]`) are
   unaffected — they still match only the unchanged first branch.
+- **Red Team MEDIUM-6, accepted class-wide tradeoff**: reclassifying `1:5–25`
+  into the auto-translatable class means numeric references inherit that class's
+  existing "corrections don't propagate to existing projects" behaviour —
+  `defaultTranslateAll` inserts only masters a language is **missing** (never
+  updates a present master), and `usefulEngSub` **suppresses** every
+  auto-translatable string from the update-issues flow. So a future English
+  numeric **correction** (e.g. `1:5–25` → `1:5–26`, not a split) neither
+  re-propagates to an in-progress project nor surfaces to its translator; the
+  project keeps the stale-but-valid numeric until manually fixed. This is **not a
+  feature-introduced regression** — picture numbers (`12`, already
+  auto-translatable) have the identical property today. Numerics join the
+  established class and inherit its accepted tradeoff; impact is bounded (a valid,
+  language-neutral numeric; no history loss, no destroyed translator work; rare
+  trigger). Accepted as-is, in the same category as the HIGH-2 `3:00` and HIGH-1
+  dedup residuals; propagating corrections across the whole auto-translatable
+  class would be a separate follow-on, not part of this feature.
 - **Red Team HIGH-1, ratified provisionally (flagged for `/sp:02-specify`
   confirmation)**: `1:5–25` in an isolated reference and in
   `Bible Story: …1:5–25` share **one master id** (dedup is by text;
