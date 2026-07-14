@@ -1,0 +1,22 @@
+;=============================================
+; Prose embedding a reference is never auto-filled.
+;=============================================
+GIVEN a paragraph where a scripture reference is embedded in surrounding prose.
+WHEN a project is created.
+THEN the prose string is not auto-populated.
+THEN the prose string remains a single translatable string.
+
+;=============================================
+; Every standalone numeric reference in the corpus is matched with zero prose affected.
+;=============================================
+GIVEN the Q1-Q4 English Teacher's Guide corpus with the benchmark reference set derived by extraction at test time.
+WHEN recognition runs over the corpus.
+THEN every extracted standalone numeric-reference master is auto-populated.
+THEN zero prose paragraphs are affected.
+
+;=============================================
+; Recognition produces zero false positives against the corpus.
+;=============================================
+GIVEN the corpus contains no standalone numeric string that is not a real scripture reference.
+WHEN recognition runs over the corpus.
+THEN it produces zero false positives.

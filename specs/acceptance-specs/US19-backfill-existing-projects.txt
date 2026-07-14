@@ -1,0 +1,39 @@
+;=============================================
+; One-time re-processing splits residual references in every stored master.
+;=============================================
+GIVEN all stored English masters.
+WHEN the operator runs the one-time re-processing task.
+THEN each master is run through the splitter and the lesson-update flow.
+THEN any residual unsplit references are split without requiring manual re-uploads.
+
+;=============================================
+; Backfill fills only missing numeric references without overwriting existing work.
+;=============================================
+GIVEN an existing project with a mix of translated and untranslated references.
+WHEN the operator runs the backfill after re-processing.
+THEN every missing numeric reference string is filled from English.
+THEN every string that already has a translation is left unchanged.
+
+;=============================================
+; Re-processing surfaces a changed reference through the lesson-update-issues flow.
+;=============================================
+GIVEN a language whose master was re-processed.
+WHEN the translator opens the project.
+THEN the changed strings appear through the existing lesson-update-issues flow.
+THEN the prior combined-reference translation is still visible as the "from" side.
+
+;=============================================
+; The operational sequence runs re-processing first and backfill second.
+;=============================================
+GIVEN the post-deploy operational sequence.
+WHEN the operator runs it.
+THEN re-processing is run first.
+THEN backfill is run second.
+
+;=============================================
+; A numeric reference corrected in an existing master does not go silently blank.
+;=============================================
+GIVEN an existing project that already has an English master's numeric reference translated.
+WHEN the English master is revised so that numeric reference's text changes.
+THEN the existing project ends up with the corrected numeric reference populated.
+THEN no translator's existing work in that project is destroyed or silently left blank.
