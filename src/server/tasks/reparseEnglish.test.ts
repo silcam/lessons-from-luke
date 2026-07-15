@@ -179,6 +179,11 @@ describe("reparseEnglish/reparseLesson — US19 scenarios", () => {
         (lesson: BaseLesson) => `/fake/docs/${lesson.lessonId}-v${lesson.version}.odt`
       );
     jest.spyOn(fs, "copyFileSync").mockImplementation(() => undefined);
+    // Default no-op: individual tests below re-spy with their own
+    // mockImplementation to assert call order/failure behavior.
+    jest
+      .spyOn(referenceSplitterModule, "splitReferencesInDocument")
+      .mockImplementation(() => undefined);
   });
 
   afterEach(() => {
