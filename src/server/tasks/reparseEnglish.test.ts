@@ -52,7 +52,7 @@ import fs from "fs";
 import docStorage from "../storage/docStorage";
 import * as updateLessonModule from "../actions/updateLesson";
 import * as referenceSplitterModule from "../xml/referenceSplitter";
-import { reparseLesson } from "./reparseEnglish";
+import { reparseLesson, reparseEnglish } from "./reparseEnglish";
 import { defaultTranslateAll } from "./defaultTranslateAll";
 import { Persistence } from "../../core/interfaces/Persistence";
 import { Lesson, BaseLesson } from "../../core/models/Lesson";
@@ -314,6 +314,134 @@ describe("reparseEnglish/reparseLesson — US19 scenarios", () => {
     // surfaces an update-issue when a combined verse reference with letters
     // (e.g. 'Luke 1:26-38') is split into separate masters") — this test
     // will assemble that behavior end-to-end starting from reparseLesson.
+  });
+
+  // RED (task .2): reparseLesson MUST invoke the Mechanism-2 splitter
+  // (src/server/xml/referenceSplitter.ts) on the copied master file BEFORE
+  // calling parseDocStrings (spec.md FR-012). Confirmed failing against the
+  // current reparseEnglish.ts, which goes straight from fs.copyFileSync to
+  // parseDocStrings with no splitter call — the call-order spy below never
+  // observes the splitter call, so this fails with "Number of calls: 0" (an
+  // assertion error, not a compile error). Activated by task .3 (GREEN).
+  it("invokes the Mechanism-2 splitter on the copied master before parseDocStrings [RED, pending task .3]", async () => {
+    const lesson: Lesson = {
+      ...baseLesson(),
+      lessonStrings: [
+        {
+          lessonStringId: 1,
+          masterId: 900,
+          lessonId: LESSON_ID,
+          lessonVersion: 1,
+          type: "content",
+          xpath: "/p[1]",
+          motherTongue: false,
+        },
+      ],
+    };
+    const englishStrings: TString[] = [
+      { masterId: 900, languageId: ENGLISH_ID, text: "Luke 1:26–38", history: [] },
+    ];
+    const storage = makeStorage(lesson, englishStrings);
+
+    const callOrder: string[] = [];
+    const splitSpy = jest
+      .spyOn(referenceSplitterModule, "splitReferencesInDocument")
+      .mockImplementation(() => {
+        callOrder.push("split");
+      });
+    (updateLessonModule.parseDocStrings as jest.Mock).mockImplementation(() => {
+      callOrder.push("parse");
+      return [
+        { type: "content", xpath: "/p[1]", motherTongue: false, text: "Luke" },
+        { type: "content", xpath: "/p[2]", motherTongue: false, text: "1:26–38" },
+      ];
+    });
+
+    await reparseLesson(lesson, storage);
+
+    expect(splitSpy).toHaveBeenCalled();
+    expect(callOrder).toEqual(["split", "parse"]);
+  });
+
+  // RED (task .2): a splitter/saveDocStrings failure for one master in the
+  // FR-012 batch MUST NOT abort the remaining lessons (plan.md "Batch
+  // re-processing partial-failure handling & resumability" MEDIUM finding) —
+  // reparseEnglish MUST continue-on-error, logging a per-lesson
+  // success/skip/failure result plus a final summary count. Confirmed
+  // failing against the current reparseEnglish.ts: its bare `for` loop has
+  // no try/catch, so the injected failure on lesson A rejects the whole
+  // reparseEnglish() call and lesson B is never processed — this fails with
+  // the thrown error surfacing instead of being caught (an assertion error
+  // on `resolves`, not a compile error). Activated by task .3 (GREEN).
+  it("continues processing remaining lessons and logs a summary when one lesson fails [RED, pending task .3]", async () => {
+    const FAILING_LESSON_ID = 21;
+    const SUCCEEDING_LESSON_ID = 22;
+
+    const failingLesson: BaseLesson = baseLesson({ lessonId: FAILING_LESSON_ID, lesson: 1 });
+    const succeedingLesson: BaseLesson = baseLesson({ lessonId: SUCCEEDING_LESSON_ID, lesson: 2 });
+
+    const updateLessonCalls: number[] = [];
+    const storage: Persistence = {
+      languages: async () => [],
+      language: async () => null,
+      createLanguage: async () => {
+        throw new Error("not implemented in fixture");
+      },
+      updateLanguage: async () => {
+        throw new Error("not implemented in fixture");
+      },
+      invalidCode: async () => false,
+      lessons: async () => [failingLesson, succeedingLesson],
+      lesson: async () => null,
+      oldLessonStrings: async () => [],
+      createLesson: async () => {
+        throw new Error("not implemented in fixture");
+      },
+      updateLesson: async (id: number, lessonVersion: number) => {
+        updateLessonCalls.push(id);
+        return {
+          ...baseLesson({ lessonId: id, version: lessonVersion }),
+          lessonStrings: [],
+        };
+      },
+      tStrings: async () => [],
+      englishScriptureTStrings: async () => [],
+      addOrFindMasterStrings: async (texts: string[]) =>
+        texts.map((text, i) => ({ masterId: i, languageId: ENGLISH_ID, text, history: [] })),
+      saveTStrings: async (tStrings) => tStrings,
+      sync: async () => {
+        throw new Error("not implemented in fixture");
+      },
+    } as Persistence;
+
+    jest
+      .spyOn(referenceSplitterModule, "splitReferencesInDocument")
+      .mockImplementation((inDocPath: string) => {
+        if (inDocPath.includes(`${FAILING_LESSON_ID}-`)) {
+          throw new Error("simulated splitter failure for the failing lesson");
+        }
+      });
+    (updateLessonModule.parseDocStrings as jest.Mock).mockReturnValue([
+      { type: "content", xpath: "/p[1]", motherTongue: false, text: "Some text" },
+    ]);
+
+    const logSpy = jest.spyOn(console, "log").mockImplementation(() => undefined);
+
+    await expect(reparseEnglish(storage)).resolves.not.toThrow();
+
+    // The succeeding lesson must still have been processed despite the
+    // failing lesson erroring mid-batch.
+    expect(updateLessonCalls).toContain(SUCCEEDING_LESSON_ID);
+    expect(updateLessonCalls).not.toContain(FAILING_LESSON_ID);
+
+    // A per-lesson failure result and a final summary count must be logged.
+    const loggedMessages = logSpy.mock.calls.map((args) => args.join(" "));
+    expect(
+      loggedMessages.some(
+        (msg) => msg.includes(String(FAILING_LESSON_ID)) && /fail|error|skip/i.test(msg)
+      )
+    ).toBe(true);
+    expect(loggedMessages.some((msg) => /summary/i.test(msg))).toBe(true);
   });
 
   // GWT scenario 5 (red-team Pass 1 HIGH closure, Option A): a numeric
