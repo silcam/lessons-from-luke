@@ -21,6 +21,37 @@ export default async function defaultTranslations(
 }
 
 /**
+ * Shared skip-if-exists auto-translation fill, used by both
+ * `defaultTranslateAll` (the manual whole-corpus backfill task) and
+ * `uploadDocument`'s re-carry path (filling newly-created masters after an
+ * English re-upload). Given a candidate set of English master strings
+ * (already filtered to `canAutoTranslate` and, for the re-carry case, to the
+ * relevant new masters), fills in a translation for `languageId` for every
+ * candidate that does not already have a tString there — never overwriting
+ * an existing translation, manual or auto. Returns the tStrings actually
+ * written (empty if none were missing) so callers can log/report counts.
+ */
+export async function fillMissingAutoTranslations(
+  storage: Persistence,
+  candidateEnglishStrings: TString[],
+  languageId: number
+): Promise<TString[]> {
+  const existingTStrings = await storage.tStrings({ languageId });
+  const fillTStrings: TString[] = candidateEnglishStrings
+    .filter((engStr) => !existingTStrings.find((tStr) => tStr.masterId === engStr.masterId))
+    .map((englishString) => ({
+      masterId: englishString.masterId,
+      text: englishString.text,
+      languageId,
+      history: [],
+      source: englishString.text,
+      sourceLanguageId: ENGLISH_ID,
+    }));
+  if (fillTStrings.length > 0) await storage.saveTStrings(fillTStrings);
+  return fillTStrings;
+}
+
+/**
  * Determines whether an English master string should be auto-translated
  * (copied verbatim as its own translation) rather than left for a human
  * translator.

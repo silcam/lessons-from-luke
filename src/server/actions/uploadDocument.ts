@@ -7,9 +7,8 @@ import docStorage from "../storage/docStorage";
 import { DocString } from "../../core/models/DocString";
 import { saveDocStrings, parseDocStrings } from "./updateLesson";
 import { splitReferencesInDocument } from "../xml/referenceSplitter";
-import { canAutoTranslate } from "./defaultTranslations";
+import { canAutoTranslate, fillMissingAutoTranslations } from "./defaultTranslations";
 import { ENGLISH_ID } from "../../core/models/Language";
-import { TString } from "../../core/models/TString";
 
 export async function uploadEnglishDoc(
   file: UploadedFile,
@@ -47,13 +46,18 @@ export async function uploadEnglishDoc(
  * Option A re-carry (spec.md FR-010, FR-011; red-team Pass 1 HIGH closure):
  * after an English re-upload creates new masters for changed auto-translatable
  * numeric references (e.g. "1:5–25" -> "1:5–24"), every existing non-English
- * language is filled in for those new masters ONLY if it does not already
- * have a tString for them (mirrors `defaultTranslateAll`'s skip-if-exists
- * logic exactly — never overwrites an existing translation, manual or auto).
+ * language is filled in for those new masters via the shared
+ * `fillMissingAutoTranslations` helper — the same skip-if-exists logic used
+ * by `defaultTranslateAll`, so a language is never overwritten (manual or
+ * auto translation left untouched).
+ *
  * Each language's fill write is isolated in a try/catch so one language's
  * failure is logged and does not abort processing the rest, or the upload
- * response itself (continue-on-error, matching `reparseEnglish`'s batch
- * discipline).
+ * response itself. This continue-on-error batch discipline mirrors
+ * `reparseEnglish`'s per-lesson loop: both scripts touch many independent
+ * records where a single failure is not fatal to the batch, so each
+ * iteration's error is caught, logged with enough context to retry
+ * manually, and the loop moves on rather than aborting the whole run.
  */
 async function reCarryChangedNumericReferences(
   finalLesson: Lesson,
@@ -77,19 +81,12 @@ async function reCarryChangedNumericReferences(
   for (const language of languages) {
     if (language.languageId === ENGLISH_ID) continue;
     try {
-      const existingTStrings = await storage.tStrings({ languageId: language.languageId });
-      const fillTStrings: TString[] = autoTranslatableNewStrings
-        .filter((engStr) => !existingTStrings.find((tStr) => tStr.masterId === engStr.masterId))
-        .map((englishString) => ({
-          masterId: englishString.masterId,
-          text: englishString.text,
-          languageId: language.languageId,
-          history: [],
-          source: englishString.text,
-          sourceLanguageId: ENGLISH_ID,
-        }));
+      const fillTStrings = await fillMissingAutoTranslations(
+        storage,
+        autoTranslatableNewStrings,
+        language.languageId
+      );
       if (fillTStrings.length > 0) {
-        await storage.saveTStrings(fillTStrings);
         console.log(
           `Re-carry: languageId=${language.languageId} filled ${fillTStrings.length} master(s) for lessonId=${finalLesson.lessonId}`
         );
