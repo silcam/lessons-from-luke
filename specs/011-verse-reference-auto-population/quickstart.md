@@ -62,6 +62,13 @@ duplicate strings.
 2. Run the **backfill** (extends `defaultTranslateAll.ts`) — fills only missing
    numeric references in existing projects; leaves every already-translated
    string unchanged (SC-005).
+3. Re-uploading a revised English master (`POST /api/admin/documents`) does not
+   wait for the next backfill: `uploadEnglishDoc`'s Option A re-carry
+   immediately fills the new numeric master in every existing project that had
+   already translated the old value, so a corrected reference never sits
+   silently blank between the upload and the next backfill run. Re-carry is
+   continue-on-error per project and only fills — it never overwrites a
+   translator's own edit to the new master (red-team Pass 1 HIGH closure).
 
 ## Guardrails
 
