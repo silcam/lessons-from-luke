@@ -1,6 +1,9 @@
+import fs from "fs";
+import path from "path";
+import os from "os";
 import libxmljs2, { Element } from "libxmljs2";
 import { extractNamespaces } from "./mergeXml";
-import { splitUnsplitReferences } from "./referenceSplitter";
+import { splitUnsplitReferences, splitReferencesInDocument } from "./referenceSplitter";
 
 /**
  * RED (US3): unit tests for the pre-parse content.xml splitter (Mechanism 2,
@@ -142,5 +145,44 @@ describe("splitUnsplitReferences (US3, FR-006..FR-009)", () => {
     const canonicalAfter = getFirstParagraph(result).toString();
 
     expect(canonicalAfter).toBe(canonicalBefore);
+  });
+});
+
+describe("splitReferencesInDocument atomicity (US3, FR-009)", () => {
+  // Real, small master .odt fixture already used by mergeXml.test.ts.
+  const fixturePath = path.join(process.cwd(), "cypress/fixtures/English_Luke-Q1-L06.odt");
+  let workDocPath: string;
+
+  beforeEach(() => {
+    workDocPath = path.join(os.tmpdir(), `referenceSplitter-atomicity-${Date.now()}.odt`);
+    fs.copyFileSync(fixturePath, workDocPath);
+  });
+
+  afterEach(() => {
+    if (fs.existsSync(workDocPath)) fs.unlinkSync(workDocPath);
+  });
+
+  it("leaves the original master file byte-identical if the atomic rename step throws (no partial write observable)", () => {
+    const originalBytes = fs.readFileSync(workDocPath);
+
+    // Simulate an interruption during the final atomic rename (the
+    // temp-file + rename convention already used by fsUtils' `zip()`, which
+    // mergeXml relies on for its own master-document writes).
+    const renameSpy = jest.spyOn(fs, "renameSync").mockImplementation(() => {
+      throw new Error("simulated rename failure");
+    });
+
+    try {
+      // The real implementation must fail specifically at the rename step
+      // (not before), and must never leave a partially-written master in
+      // place of the original at workDocPath.
+      expect(() => splitReferencesInDocument(workDocPath, workDocPath)).toThrow(
+        "simulated rename failure"
+      );
+
+      expect(fs.readFileSync(workDocPath)).toEqual(originalBytes);
+    } finally {
+      renameSpy.mockRestore();
+    }
   });
 });
