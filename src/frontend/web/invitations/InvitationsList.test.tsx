@@ -23,17 +23,19 @@ jest.mock("./invitationsListThunks", () => ({
   listInvitations: jest.fn(),
   retractInvitation: jest.fn(),
   getInvitationLink: jest.fn(),
+  resendInvitationEmail: jest.fn(),
 }));
 
 import React from "react";
 import { act, fireEvent, waitFor } from "@testing-library/react";
 import { renderWithProviders, defaultSyncState } from "../../common/testHelpers";
 import InvitationsList from "./InvitationsList";
-const { listInvitations, retractInvitation, getInvitationLink } =
+const { listInvitations, retractInvitation, getInvitationLink, resendInvitationEmail } =
   require("./invitationsListThunks") as {
     listInvitations: jest.Mock;
     retractInvitation: jest.Mock;
     getInvitationLink: jest.Mock;
+    resendInvitationEmail: jest.Mock;
   };
 
 const defaultInitialState = {
@@ -70,6 +72,17 @@ const retractedSummary = {
   status: "retracted",
   createdAt: "2026-06-03T00:00:00.000Z",
   expiresAt: "2026-07-03T00:00:00.000Z",
+  acceptedAt: null,
+  invitedByEmail: "admin@example.com",
+};
+
+const expiredSummary = {
+  id: "inv-4",
+  email: "expired@example.com",
+  role: "standard",
+  status: "expired",
+  createdAt: "2026-05-01T00:00:00.000Z",
+  expiresAt: "2026-05-31T00:00:00.000Z",
   acceptedAt: null,
   invitedByEmail: "admin@example.com",
 };
@@ -448,6 +461,130 @@ describe("InvitationsList", () => {
         const buttons = Array.from(container.querySelectorAll("button"));
         const retractBtn = buttons.find((b) => /^retract$/i.test(b.textContent?.trim() || ""));
         expect(retractBtn).toBeFalsy();
+      });
+    });
+  });
+
+  describe("Resend email action (US2, FR-016)", () => {
+    it("shows a 'Resend email' button for pending invitations", async () => {
+      listInvitations.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [pendingSummary], error: undefined })
+      );
+
+      const { container } = renderWithProviders(<InvitationsList />, defaultInitialState);
+      await waitFor(() => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const resendBtn = buttons.find((b) => /resend email/i.test(b.textContent || ""));
+        expect(resendBtn).toBeTruthy();
+      });
+    });
+
+    it("does NOT show the Resend email button for non-pending invitations (accepted, expired, retracted)", async () => {
+      listInvitations.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: [acceptedSummary, expiredSummary, retractedSummary],
+          error: undefined,
+        })
+      );
+
+      const { container } = renderWithProviders(<InvitationsList />, defaultInitialState);
+      await waitFor(() => {
+        expect(container.textContent).toMatch(/accepted/i);
+      });
+
+      const buttons = Array.from(container.querySelectorAll("button"));
+      const resendBtn = buttons.find((b) => /resend email/i.test(b.textContent || ""));
+      expect(resendBtn).toBeFalsy();
+    });
+
+    it("clicking Resend email calls resendInvitationEmail with the invitation id", async () => {
+      listInvitations.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [pendingSummary], error: undefined })
+      );
+      resendInvitationEmail.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: { id: "inv-1", emailSent: true },
+          error: undefined,
+        })
+      );
+
+      const { container } = renderWithProviders(<InvitationsList />, defaultInitialState);
+
+      await waitFor(() => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        expect(buttons.find((b) => /resend email/i.test(b.textContent || ""))).toBeTruthy();
+      });
+
+      await act(async () => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const resendBtn = buttons.find((b) => /resend email/i.test(b.textContent || ""));
+        fireEvent.click(resendBtn!);
+      });
+
+      await waitFor(() => {
+        expect(resendInvitationEmail).toHaveBeenCalledWith("inv-1");
+      });
+    });
+
+    it("announces resend success via aria-live when emailSent: true", async () => {
+      listInvitations.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [pendingSummary], error: undefined })
+      );
+      resendInvitationEmail.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: { id: "inv-1", emailSent: true },
+          error: undefined,
+        })
+      );
+
+      const { container } = renderWithProviders(<InvitationsList />, defaultInitialState);
+
+      await waitFor(() => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        expect(buttons.find((b) => /resend email/i.test(b.textContent || ""))).toBeTruthy();
+      });
+
+      await act(async () => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const resendBtn = buttons.find((b) => /resend email/i.test(b.textContent || ""));
+        fireEvent.click(resendBtn!);
+      });
+
+      await waitFor(() => {
+        const liveRegion = container.querySelector("[aria-live]");
+        expect(liveRegion).toBeTruthy();
+        expect(liveRegion!.textContent).toMatch(/invitation email resent/i);
+      });
+    });
+
+    it("announces a failure when resend completes with emailSent: false", async () => {
+      listInvitations.mockReturnValue(
+        jest.fn().mockResolvedValue({ payload: [pendingSummary], error: undefined })
+      );
+      resendInvitationEmail.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: { id: "inv-1", emailSent: false },
+          error: undefined,
+        })
+      );
+
+      const { container } = renderWithProviders(<InvitationsList />, defaultInitialState);
+
+      await waitFor(() => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        expect(buttons.find((b) => /resend email/i.test(b.textContent || ""))).toBeTruthy();
+      });
+
+      await act(async () => {
+        const buttons = Array.from(container.querySelectorAll("button"));
+        const resendBtn = buttons.find((b) => /resend email/i.test(b.textContent || ""));
+        fireEvent.click(resendBtn!);
+      });
+
+      await waitFor(() => {
+        const liveRegion = container.querySelector("[aria-live], [role='alert']");
+        expect(liveRegion).toBeTruthy();
+        expect(liveRegion!.textContent).toMatch(/email could not be sent/i);
       });
     });
   });

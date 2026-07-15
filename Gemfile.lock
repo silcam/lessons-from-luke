@@ -12,7 +12,7 @@ GEM
       sshkit (>= 1.9.0)
     capistrano-nvm (0.0.7)
       capistrano (~> 3.1)
-    concurrent-ruby (1.3.6)
+    concurrent-ruby (1.3.7)
     ed25519 (1.2.4)
     i18n (1.14.8)
       concurrent-ruby (~> 1.0)
@@ -50,7 +50,7 @@ CHECKSUMS
   bcrypt_pbkdf (1.1.2) sha256=c2414c23ce66869b3eb9f643d6a3374d8322dfb5078125c82792304c10b94cf6
   capistrano (3.20.0) sha256=0113e58dda99add0342e56a244f664734c59f442c5ed734f5303b0b559b479c9
   capistrano-nvm (0.0.7) sha256=08840032d33705052a7d101781302c2938b56f28ea4d640ab3cba34f1ee8210f
-  concurrent-ruby (1.3.6) sha256=6b56837e1e7e5292f9864f34b69c5a2cbc75c0cf5338f1ce9903d10fa762d5ab
+  concurrent-ruby (1.3.7) sha256=4412caec3a5ea2e5fdc52076724c071a81f2c0593d83b2ac8cbb8ca63b3151b0
   ed25519 (1.2.4) sha256=dc62c3491e9484d566519ab2bfca1406c7527694c902e6d05074c3a33ecab3b8
   i18n (1.14.8) sha256=285778639134865c5e0f6269e0b818256017e8cde89993fdfcbfb64d088824a5
   logger (1.7.0) sha256=196edec7cc44b66cfb40f9755ce11b392f21f7967696af15d274dde7edff0203

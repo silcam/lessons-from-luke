@@ -20,6 +20,8 @@ import InvitationsList from "./invitations/InvitationsList";
 import RedeemInvitation from "./auth/RedeemInvitation";
 import AuthGate from "./auth/AuthGate";
 import { safeReturnTo } from "./auth/safeReturnTo";
+import ForgotPassword from "./auth/ForgotPassword";
+import ResetPassword from "./auth/ResetPassword";
 
 function TranslateRouteWrapper() {
   const { code } = useParams<{ code: string }>();
@@ -111,6 +113,10 @@ export default function MainRouter() {
         {/* Public route — anyone with the token URL can redeem (FR-007, FR-011).
             MUST be outside AuthGate to prevent redirect loops. */}
         <Route path="/invitation/:token" element={<RedeemInvitationWrapper />} />
+        {/* Public routes — self-service password reset (US1). Outside AuthGate:
+            locked-out users must reach them without a session. */}
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         {/* Catch-all: outside AuthGate so the home/sign-in page is always reachable.
             renderHome routes logged-in non-admins to SignedInHome (FR fix from
             002-invitation-system), admins to AdminHome, anonymous to PublicHome. */}

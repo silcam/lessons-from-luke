@@ -18,6 +18,11 @@ Spec: specs/002-invitation-system/spec.md
 Keywords: web authentication gate, require login, require sign-in, authentication required, protected routes, route guard, gated routes, default-deny routing, public allowlist, redirect to login, login redirect, post-login return, return-to URL, deep link sign-in, /translate auth, translation page login, lesson page login, non-admin routes require auth, desktop no auth, desktop unaffected, offline desktop, client-side auth gate, web-only enforcement, session required, sign-in wall, invitation route stays public, 401, 403, stacked on invitation system
 Spec: specs/003-web-auth-gate/spec.md
 
+## Transactional Email & Self-Service Password Reset
+
+Keywords: transactional email, Mailgun, email service, send email, SMTP, password reset, forgot password, reset link, self-service recovery, account recovery, locked out, change password, set new password, email-and-password auth, better-auth sendResetPassword, account enumeration, invalidate sessions, sign out other sessions, auto-email invitation, invitation email, resend invitation, resend email, invitation delivery, email-bound invite, environment-gated email, fail-fast secrets, log transport, dev/test email logging, secrets.json, sending domain, from-address, rate limiting, email flooding, server-only email, web-only
+Spec: specs/005-transactional-email-reset/spec.md
+
 ## How to Update This File
 
 - Add one entry per feature spec, before this section.

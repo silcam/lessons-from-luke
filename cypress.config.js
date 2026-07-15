@@ -11,7 +11,7 @@ try {
 module.exports = defineConfig({
   e2e: {
     baseUrl: "http://localhost:8080",
-    specPattern: "cypress/integration/**/*.spec.js",
+    specPattern: "cypress/integration/**/*.spec.{js,ts}",
     defaultCommandTimeout: 10000,
     responseTimeout: 30000,
     pageLoadTimeout: 60000,

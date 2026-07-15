@@ -25,7 +25,9 @@ import {
   listInvitations,
   retractInvitation,
   getInvitationLink,
+  resendInvitationEmail,
   InvitationSummaryRow,
+  InvitationsListError,
 } from "./invitationsListThunks";
 import { StdHeaderBarPage } from "../../common/base-components/HeaderBar";
 import { FlexRow, FlexCol } from "../../common/base-components/Flex";
@@ -66,8 +68,15 @@ export default function InvitationsList() {
   const [invitations, setInvitations] = useState<InvitationSummaryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [copySuccess, setCopySuccess] = useState(false);
   const [confirmRetractId, setConfirmRetractId] = useState<string | null>(null);
+  // Single shared announcement: re-copy / resend share one live region so
+  // assistive tech only ever has one source of truth for the latest action
+  // outcome. "error" announces assertively (role=alert); anything else is a
+  // polite status announcement.
+  const [statusMessage, setStatusMessage] = useState<{
+    kind: "success" | "error";
+    text: string;
+  } | null>(null);
 
   // No synchronous setState here — `loading` already initializes to true, so the
   // mount effect can call this directly without triggering cascading renders.
@@ -107,20 +116,43 @@ export default function InvitationsList() {
 
   const handleRecopy = async (id: string) => {
     // Reset before the async operation so React sees a state change on every
-    // successful copy, even if copySuccess was already true.  Without this the
+    // successful copy, even if a message was already showing.  Without this the
     // aria-live region receives the same text on re-copy and screen-readers
     // silently skip the re-announcement.
-    setCopySuccess(false);
+    setStatusMessage(null);
     const action = await dispatch(getInvitationLink(id));
     if (!(action as { error?: unknown }).error) {
       const { link } = (action as { payload: { id: string; link: string } }).payload;
       try {
         await navigator.clipboard.writeText(link);
-        setCopySuccess(true);
+        setStatusMessage({ kind: "success", text: t("Invitation_copy_success") });
       } catch {
         // Clipboard write failed — silently ignore
       }
     }
+  };
+
+  const handleResend = async (id: string) => {
+    // Reset first — see handleRecopy for why (forces re-announcement).
+    setStatusMessage(null);
+    const action = await dispatch(resendInvitationEmail(id));
+
+    if ((action as { error?: unknown }).error) {
+      const payload = (action as { payload?: InvitationsListError }).payload;
+      const text =
+        payload?.code === "throttled"
+          ? t("Invitations_resend_throttled")
+          : t("Invitations_resend_failure");
+      setStatusMessage({ kind: "error", text });
+      return;
+    }
+
+    const { emailSent } = (action as { payload: { id: string; emailSent: boolean } }).payload;
+    setStatusMessage(
+      emailSent
+        ? { kind: "success", text: t("Invitations_resend_success") }
+        : { kind: "error", text: t("Invitations_resend_failure") }
+    );
   };
 
   const formatRole = (role: string): string => {
@@ -170,6 +202,7 @@ export default function InvitationsList() {
     return (
       <ActionGroup>
         <Button text={t("Invitations_action_recopy")} onClick={() => void handleRecopy(inv.id)} />
+        <Button text={t("Invitations_action_resend")} onClick={() => void handleResend(inv.id)} />
         <Button
           red
           text={t("Invitations_action_retract")}
@@ -241,10 +274,22 @@ export default function InvitationsList() {
       renderRight={() => <Button text={t("Log_out")} onClick={logOut} />}
     >
       <Div pad>
-        {/* Accessible + visible copy-success announcement */}
-        <div role="status" aria-live="polite">
-          {copySuccess ? <Alert success>{t("Invitation_copy_success")}</Alert> : ""}
-        </div>
+        {/* Accessible + visible re-copy / resend outcome announcement. Mounted only
+            when there is something to say, so the politeness level (polite success
+            vs. assertive failure) is unambiguous to assistive tech. */}
+        {statusMessage && (
+          <div
+            role={statusMessage.kind === "error" ? "alert" : "status"}
+            aria-live={statusMessage.kind === "error" ? "assertive" : "polite"}
+          >
+            <Alert
+              success={statusMessage.kind === "success"}
+              danger={statusMessage.kind === "error"}
+            >
+              {statusMessage.text}
+            </Alert>
+          </div>
+        )}
 
         {/*
           Primary action lives in the page body (not the header chrome). The empty

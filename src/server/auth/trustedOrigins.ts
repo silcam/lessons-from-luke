@@ -38,6 +38,22 @@ export function getInvitationBaseUrl(): string {
 }
 
 /**
+ * Base URL for user-facing web app links (password reset, etc.): the configured
+ * public origin in production (BETTER_AUTH_URL = the shared web/API origin), or
+ * the dev webpack-dev-server web origin (:8080) when unset.
+ *
+ * Alias for getInvitationBaseUrl — both resolve user-facing links via the same
+ * public origin. Delegates to getInvitationBaseUrl() so the resolution logic
+ * has exactly one implementation (the file's single-source-of-truth
+ * guarantee). Password-reset links MUST use this function (not the
+ * better-auth `url` arg) to prevent open-redirect / phishing via a crafted
+ * request URL (red-team Pass 2 trust-boundary requirement).
+ */
+export function getWebAppBaseUrl(): string {
+  return getInvitationBaseUrl();
+}
+
+/**
  * The three localhost origins trusted during local development (in the absence
  * of BETTER_AUTH_URL):
  *   :8080 — webpack-dev-server (web frontend, `yarn dev-web`)
