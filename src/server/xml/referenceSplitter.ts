@@ -48,7 +48,7 @@ export function splitUnsplitReferences(contentXml: string): string {
   return xmlDoc.toString(false);
 }
 
-function splitParagraphIfUnsplit(paragraph: Element) {
+function splitParagraphIfUnsplit(paragraph: Element): void {
   const children = paragraph.childNodes();
   // Only a single text run (no existing <text:s/> or other sibling runs) is
   // in scope; already-split and multi-run paragraphs are left untouched.
