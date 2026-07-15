@@ -67,11 +67,11 @@ function splitParagraphIfUnsplit(paragraph: Element): void {
 
   onlyChild.remove();
 
-  // Keep the literal separator space attached to the book-name run (matching
-  // the structure the parser already emits for the majority of references,
-  // e.g. `<text:p ...>Luke <text:s/>1:5–25</text:p>`), then add the
-  // `<text:s/>` marker run so the numeric portion is its own text node.
-  paragraph.addChild(new libxmljs2.Text(doc, `${bookName} `));
+  // Emit the book-name text run with no trailing space, then a single
+  // `<text:s/>` marker run to represent the one separator space, so the
+  // rendered gap matches the original unsplit run's single literal space
+  // exactly (spec.md FR-008, SC-004) rather than doubling it.
+  paragraph.addChild(new libxmljs2.Text(doc, bookName));
   const spaceRun = new libxmljs2.Element(doc, "s");
   if (namespace) spaceRun.namespace(namespace);
   paragraph.addChild(spaceRun);

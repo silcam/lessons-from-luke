@@ -42,8 +42,21 @@ jest.setTimeout(120_000);
 
 const FIXTURE_PATH = path.join(process.cwd(), "test", "docs", "serverDocs", "Luke-1-02v03.odt");
 
-function convertToPdf(odtPath: string, workDir: string, profileDir: string): string {
-  const outDir = path.join(workDir, `pdf-out-${path.basename(odtPath, ".odt")}`);
+// Convert both `.odt` files to PDF in a single `soffice` invocation, sharing
+// one profile dir. Two separate `soffice --convert-to` process launches
+// against the same fresh profile were observed to occasionally render the
+// *entire* document shifted by one column-width uniformly (not localized to
+// the split reference), i.e. process-level render nondeterminism unrelated
+// to the splitter's own output. Converting both inputs in one soffice
+// process/session removes that source of variance so the comparison below
+// stays sensitive only to genuine differences the splitter introduces.
+function convertBothToPdf(
+  originalOdtPath: string,
+  splitOdtPath: string,
+  workDir: string,
+  profileDir: string
+): { originalPdfPath: string; splitPdfPath: string } {
+  const outDir = path.join(workDir, "pdf-out");
   fs.mkdirSync(outDir, { recursive: true });
   execFileSync(
     "soffice",
@@ -56,15 +69,20 @@ function convertToPdf(odtPath: string, workDir: string, profileDir: string): str
       "pdf",
       "--outdir",
       outDir,
-      odtPath,
+      originalOdtPath,
+      splitOdtPath,
     ],
     { timeout: 60_000 }
   );
-  const pdfPath = path.join(outDir, `${path.basename(odtPath, ".odt")}.pdf`);
-  if (!fs.existsSync(pdfPath)) {
-    throw new Error(`soffice --convert-to pdf did not produce ${pdfPath}`);
+  const originalPdfPath = path.join(outDir, `${path.basename(originalOdtPath, ".odt")}.pdf`);
+  const splitPdfPath = path.join(outDir, `${path.basename(splitOdtPath, ".odt")}.pdf`);
+  if (!fs.existsSync(originalPdfPath)) {
+    throw new Error(`soffice --convert-to pdf did not produce ${originalPdfPath}`);
   }
-  return pdfPath;
+  if (!fs.existsSync(splitPdfPath)) {
+    throw new Error(`soffice --convert-to pdf did not produce ${splitPdfPath}`);
+  }
+  return { originalPdfPath, splitPdfPath };
 }
 
 function pdfToText(pdfPath: string): string {
@@ -110,14 +128,16 @@ describe("referenceSplitter (real soffice round-trip, US3 FR-008/FR-009/SC-004)"
   });
 
   it("renders visually/textually identical to the original after splitting the residual unsplit reference (FR-008, SC-004)", () => {
-    const originalProfileDir = path.join(workDir, "profile-original");
-    const splitProfileDir = path.join(workDir, "profile-split");
+    const sharedProfileDir = path.join(workDir, "profile-shared");
+    const { originalPdfPath, splitPdfPath } = convertBothToPdf(
+      originalCopyPath,
+      splitOnceOutputPath,
+      workDir,
+      sharedProfileDir
+    );
 
-    const originalPdf = convertToPdf(originalCopyPath, workDir, originalProfileDir);
-    const splitPdf = convertToPdf(splitOnceOutputPath, workDir, splitProfileDir);
-
-    const originalText = pdfToText(originalPdf);
-    const splitText = pdfToText(splitPdf);
+    const originalText = pdfToText(originalPdfPath);
+    const splitText = pdfToText(splitPdfPath);
 
     expect(splitText).toBe(originalText);
   });

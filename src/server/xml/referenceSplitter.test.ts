@@ -57,6 +57,18 @@ function getFirstParagraph(xml: string): Element {
   return xmlDoc.get<Element>(P_XPATH, ns)!;
 }
 
+// Raw libxmljs2 `.text()` only concatenates text-node content, so it never
+// sees a `<text:s/>` run — but the ODF renderer (and every other reference
+// in the real corpus, e.g. `Luke <text:s/>1:5–25`) treats `<text:s/>` as a
+// literal single space. Render each child accordingly so the assertion
+// reflects the same visible text a reader (and `soffice`) actually sees,
+// not a raw-API artifact.
+function renderedText(paragraph: Element): string {
+  return (paragraph.childNodes() as Element[])
+    .map((node) => (node.type() === "text" ? node.text() : node.name() === "s" ? " " : ""))
+    .join("");
+}
+
 describe("splitUnsplitReferences (US3, FR-006..FR-009)", () => {
   describe.each(REFERENCE_BEARING_STYLES)(
     "a single unsplit reference under style %s",
@@ -76,7 +88,7 @@ describe("splitUnsplitReferences (US3, FR-006..FR-009)", () => {
         // Text content is unchanged when whitespace-normalized (rendering
         // preserved, FR-008): the same visible characters, just split into
         // runs around a single space now expressed as <text:s/>.
-        expect(resultP.text().replace(/\s+/g, " ").trim()).toBe("Luke 1:26–38");
+        expect(renderedText(resultP).replace(/\s+/g, " ").trim()).toBe("Luke 1:26–38");
 
         // The book-name run is "Luke" and the numeric run is the
         // chapter:verse range.
