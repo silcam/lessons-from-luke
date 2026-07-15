@@ -182,6 +182,30 @@ describe("MainRouter post-login return-to navigation", () => {
     });
   });
 
+  describe("/link route returnTo round-trip (US1.8)", () => {
+    it("navigates to /link?user_code=WDJB-MJHT after login when returnTo encodes the full path+search", async () => {
+      // Simulates the sign-in round-trip:
+      //   1. Unauthenticated visitor opens /link?user_code=WDJB-MJHT
+      //   2. AuthGate redirects to /?returnTo=%2Flink%3Fuser_code%3DWDJB-MJHT
+      //   3. User signs in — currentUser.setUser fires
+      //   4. MainRouter's post-login useEffect calls navigate('/link?user_code=WDJB-MJHT')
+      // The user_code MUST survive the round-trip so DeviceLinkPage can auto-claim.
+      const store = renderMainRouter("/?returnTo=%2Flink%3Fuser_code%3DWDJB-MJHT", {
+        user: null,
+        loaded: true,
+      });
+
+      await act(async () => {
+        store.dispatch(currentUserSlice.actions.setUser({ id: "u1", admin: false }));
+      });
+
+      // safeReturnTo('/link?user_code=WDJB-MJHT') must pass validation and
+      // return the full path+search — the user_code query param is NOT in a
+      // path segment, so the authority-confusion guard leaves it intact.
+      expect(mockNavigate).toHaveBeenCalledWith("/link?user_code=WDJB-MJHT", { replace: true });
+    });
+  });
+
   describe("no spurious re-navigation", () => {
     it("does not navigate again when a re-render occurs after successful login", async () => {
       const store = renderMainRouter("/?returnTo=%2Ftranslate%2FABC123", {

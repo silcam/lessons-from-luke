@@ -1,0 +1,38 @@
+;=============================================
+; Unconnected desktop shows code and opens browser on connect.
+;=============================================
+GIVEN an unconnected desktop app.
+WHEN the user clicks "Connect to account".
+THEN the desktop displays a short readable copyable XXXX-XXXX pairing code.
+THEN the desktop opens the browser to the device link page with the code pre-filled.
+
+;=============================================
+; Desktop becomes connected after browser approval.
+;=============================================
+GIVEN the device link page with the user already signed in.
+WHEN they enter the displayed code and click Approve.
+THEN the desktop transitions to "Connected as <that user>" without further steps.
+
+;=============================================
+; Unauthenticated user must sign in before approving.
+;=============================================
+GIVEN a user who is not yet signed in on the device link page.
+WHEN they open the link page.
+THEN they are required to sign in with their existing account before they can approve.
+THEN after signing in they are returned to the link page with the code intact.
+
+;=============================================
+; Decline or expiry leaves desktop unconnected with clear outcome.
+;=============================================
+GIVEN a pairing in progress.
+WHEN the user declines approval or the code expires before approval.
+THEN the desktop remains unconnected.
+THEN the desktop clearly states the reason (declined or expired).
+
+;=============================================
+; Wrong party entering code cannot bind desktop to unintended account.
+;=============================================
+GIVEN a pairing in progress.
+WHEN anyone other than the intended user submits the code.
+THEN the desktop is not bound to that other account.
+THEN at worst the code is consumed and the intended user must retry.

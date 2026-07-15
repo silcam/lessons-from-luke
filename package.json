@@ -32,7 +32,7 @@
     "wpDevServerWeb": "webpack-dev-server --config webpack/web.development.config.js --host 0.0.0.0",
     "wpDevServerDesktop": "webpack-dev-server --config webpack/desktop.development.config.js",
     "serve": "NODE_ENV=test nodemon -w dist/server/ --exec \"node dist/server/server.js\"",
-    "serve-dev": "NODE_ENV=development nodemon -w dist/server/ --exec \"node dist/server/server.js\"",
+    "serve-dev": "BETTER_AUTH_URL=http://localhost:8080 NODE_ENV=development nodemon -w dist/server/ --exec \"node dist/server/server.js\"",
     "serve-prod": "BETTER_AUTH_URL=https://localhost:8081 NODE_ENV=production node dist/server/server/server.js",
     "run-test-desktop": "nodemon -w dist/desktop/ --exec yarn electron dist/desktop/main-test.js",
     "migrate": "node scripts/migrate.js",
@@ -165,6 +165,9 @@
     "electron-window-state": "^5.0.3",
     "immer": "^9.0.6",
     "immutability-helper": "^3.0.1"
+  },
+  "resolutions": {
+    "zod": "4.3.6"
   },
   "packageManager": "yarn@4.14.1+sha512.64df448055b2d37ba269d7db535a469b8da93f8ef1140c25fd7a83c00a8fbaacb214ca0e02553b92a2c54cef78bb67d0b4817fab02001df0e24fac0faccc3b42"
 }

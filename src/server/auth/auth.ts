@@ -1,5 +1,7 @@
 import { createHash, createHmac } from "crypto";
 import { betterAuth } from "better-auth";
+import { deviceAuthorization } from "better-auth/plugins/device-authorization";
+import { bearer } from "better-auth/plugins/bearer";
 import { Pool } from "pg";
 import secrets from "../util/secrets";
 import * as passwordHasher from "./passwordHasher";
@@ -50,6 +52,7 @@ export function getAuthPool(): Pool {
  *
  * FR-001, FR-002, FR-006, FR-010, FR-012
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getAuth(): ReturnType<typeof betterAuth<any>> {
   if (authInstance) {
     return authInstance;
@@ -61,6 +64,29 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> {
     database: pool,
     secret: secrets.cookieSecret,
     baseURL: process.env.BETTER_AUTH_URL ?? DEFAULT_BASE_URL,
+    plugins: [
+      // RFC 8628 device-authorization flow for desktop pairing.
+      // Provides /device/code, /device/approve, /device/deny, /device/token.
+      // verificationUri is the path the browser opens to approve the device
+      // (served as the /link React route in the frontend).
+      deviceAuthorization({
+        expiresIn: "10m",
+        interval: "5s",
+        verificationUri: "/link",
+      }),
+      // Converts Authorization: Bearer <session-token> into a session cookie
+      // so getSession() accepts both web cookies and desktop bearer tokens
+      // through the existing loadSession / requireUser middleware.
+      bearer(),
+    ],
+    // Generous session lifetime so desktop clients that sync regularly
+    // auto-renew and stay connected indefinitely (R3). 60 days covers
+    // field translators who are offline for weeks; normal daily syncs
+    // slide the expiry via updateAge.
+    session: {
+      expiresIn: 60 * 60 * 24 * 60, // 60 days in seconds
+      updateAge: 60 * 60 * 24, // 1 day in seconds
+    },
     // Pin trusted origins to the explicit public URL so better-auth's
     // origin/CSRF checks are never silently widened by a misconfigured proxy.
     // In production the SPA is served from the same origin as BETTER_AUTH_URL,
@@ -271,6 +297,14 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> {
       storage: "database",
       customRules: {
         "/sign-in/email": { window: 60, max: 10 },
+        // Desktop polls /device/token frequently while waiting for approval;
+        // exempt it from rate-limiting so slow_down backoff works correctly.
+        "/device/token": false,
+        // Rate-limit device pairing initiation and approval/denial to
+        // prevent enumeration attacks on user codes (red-team Pass 2).
+        "/device/code": { window: 60, max: 5 },
+        "/device/approve": { window: 60, max: 5 },
+        "/device/deny": { window: 60, max: 5 },
         // Per-IP rate limits for password reset endpoints (research §D8).
         "/request-password-reset": { window: 60, max: 3 },
         "/reset-password": { window: 60, max: 5 },

@@ -249,3 +249,152 @@ describe("serverApp production branch", () => {
     });
   });
 });
+
+// ─── ENFORCE_API_AUTH enforcement gate (US2.3) ───────────────────────────────
+//
+// These tests confirm the three gating behaviours described in
+// specs/004-desktop-auth-pairing/contracts/shared-api-enforcement.md:
+//
+//   - Flag OFF  → all routes respond as today (no auth required, FR-012)
+//   - Flag ON   → domain routes require auth; /api/auth/* stays public (FR-011)
+//   - /webified → gated by the same flag (red-team Security)
+
+describe("ENFORCE_API_AUTH enforcement gate", () => {
+  const savedEnforce = process.env.ENFORCE_API_AUTH;
+
+  afterEach(() => {
+    if (savedEnforce === undefined) {
+      delete process.env.ENFORCE_API_AUTH;
+    } else {
+      process.env.ENFORCE_API_AUTH = savedEnforce;
+    }
+  });
+
+  test("flag OFF: anonymous GET /api/languages → 200 (no regression, FR-012)", async () => {
+    delete process.env.ENFORCE_API_AUTH;
+    const app = serverApp({ silent: true });
+    const response = await request(app).get("/api/languages");
+    expect(response.status).toBe(200);
+  });
+
+  test("flag ON: anonymous GET /api/languages → 401 Unauthorized", async () => {
+    process.env.ENFORCE_API_AUTH = "1";
+    const app = serverApp({ silent: true });
+    const response = await request(app).get("/api/languages");
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ error: "Unauthorized" });
+  });
+
+  test("flag ON: anonymous GET /api/lessons → 401", async () => {
+    process.env.ENFORCE_API_AUTH = "1";
+    const app = serverApp({ silent: true });
+    const response = await request(app).get("/api/lessons");
+    expect(response.status).toBe(401);
+  });
+
+  test("flag ON: anonymous GET /api/sync/<timestamp>/languages → 401", async () => {
+    process.env.ENFORCE_API_AUTH = "1";
+    const app = serverApp({ silent: true });
+    const response = await request(app).get("/api/sync/1000/languages");
+    expect(response.status).toBe(401);
+  });
+
+  test("flag ON: anonymous GET /webified/<asset> → 401 (static mount gated)", async () => {
+    process.env.ENFORCE_API_AUTH = "1";
+    const app = serverApp({ silent: true });
+    const response = await request(app).get("/webified/nonexistent.png");
+    expect(response.status).toBe(401);
+  });
+
+  test("flag ON: GET /api/auth/get-session is reachable anonymously (always public, FR-011)", async () => {
+    process.env.ENFORCE_API_AUTH = "1";
+    const app = serverApp({ silent: true });
+    const response = await request(app).get("/api/auth/get-session");
+    // better-auth returns 200 with null session when no session is present
+    expect(response.status).toBe(200);
+  });
+
+  test("flag ON: authenticated GET /api/languages → 200", async () => {
+    process.env.ENFORCE_API_AUTH = "1";
+    const app = serverApp({ silent: true });
+    // Sign in via the mock auth to obtain a session cookie
+    const signIn = await request(app)
+      .post("/api/auth/sign-in/email")
+      .send({ email: "admin@example.com", password: "irrelevant-for-mock" });
+    expect(signIn.status).toBe(200);
+    const cookie = signIn.header["set-cookie"] as string | string[] | undefined;
+    expect(cookie).toBeDefined();
+
+    const response = await request(app)
+      .get("/api/languages")
+      .set("Cookie", Array.isArray(cookie) ? cookie.join("; ") : (cookie as string));
+    expect(response.status).toBe(200);
+  });
+});
+
+// ─── POST /api/tStrings CSRF guard (US2.3) ───────────────────────────────────
+//
+// The CSRF guard is enforcement-conditional (only active when ENFORCE_API_AUTH
+// is set) and bypassed for bearer-token requests (bearers are inherently
+// CSRF-safe — browsers cannot auto-send Authorization headers cross-origin).
+//
+// requireSameOrigin itself skips in NODE_ENV=test unless
+// BETTER_AUTH_ENFORCE_ORIGIN=1 is set, so the CSRF-active tests set that flag.
+
+describe("POST /api/tStrings CSRF guard", () => {
+  const savedEnforce = process.env.ENFORCE_API_AUTH;
+  const savedEnforceOrigin = process.env.BETTER_AUTH_ENFORCE_ORIGIN;
+
+  afterEach(() => {
+    if (savedEnforce === undefined) delete process.env.ENFORCE_API_AUTH;
+    else process.env.ENFORCE_API_AUTH = savedEnforce;
+    if (savedEnforceOrigin === undefined) delete process.env.BETTER_AUTH_ENFORCE_ORIGIN;
+    else process.env.BETTER_AUTH_ENFORCE_ORIGIN = savedEnforceOrigin;
+  });
+
+  test("flag OFF: POST /api/tStrings without Origin → not 403 (CSRF guard inactive)", async () => {
+    delete process.env.ENFORCE_API_AUTH;
+    process.env.BETTER_AUTH_ENFORCE_ORIGIN = "1";
+    const app = serverApp({ silent: true });
+    const response = await request(app)
+      .post("/api/tStrings")
+      .set("Content-Type", "application/json")
+      .send({ code: "x", tStrings: [{ masterId: 1, languageId: 1, text: "hi", history: [] }] });
+    // 401 (from storage.invalidCode) or 422 (validation) — but NOT 403 (CSRF)
+    expect(response.status).not.toBe(403);
+  });
+
+  test("flag ON: POST /api/tStrings without Origin and no bearer → 403 (CSRF)", async () => {
+    process.env.ENFORCE_API_AUTH = "1";
+    process.env.BETTER_AUTH_ENFORCE_ORIGIN = "1";
+    // Sign in to obtain a session cookie (CSRF check only fires for authenticated requests)
+    const app = serverApp({ silent: true });
+    const signIn = await request(app)
+      .post("/api/auth/sign-in/email")
+      .send({ email: "admin@example.com", password: "irrelevant-for-mock" });
+    const cookie = signIn.header["set-cookie"] as string | string[] | undefined;
+
+    const response = await request(app)
+      .post("/api/tStrings")
+      .set("Cookie", Array.isArray(cookie) ? cookie.join("; ") : (cookie as string))
+      .set("Content-Type", "application/json")
+      .send({ code: "x", tStrings: [{ masterId: 1, languageId: 1, text: "hi", history: [] }] });
+    expect(response.status).toBe(403);
+  });
+
+  test("flag ON: POST /api/tStrings with Authorization: Bearer bypasses CSRF → 401 from auth (not 403)", async () => {
+    // Proves the bearer bypass: with an invalid bearer token and no Origin,
+    // the request gets past the CSRF check (which would 403 a cookie request)
+    // and reaches the auth gate, which correctly returns 401.
+    process.env.ENFORCE_API_AUTH = "1";
+    process.env.BETTER_AUTH_ENFORCE_ORIGIN = "1";
+    const app = serverApp({ silent: true });
+    const response = await request(app)
+      .post("/api/tStrings")
+      .set("Authorization", "Bearer this-token-is-invalid")
+      .set("Content-Type", "application/json")
+      .send({ code: "x", tStrings: [{ masterId: 1, languageId: 1, text: "hi", history: [] }] });
+    // 401 from auth (not 403 from CSRF) — proves CSRF was bypassed for bearer
+    expect(response.status).toBe(401);
+  });
+});

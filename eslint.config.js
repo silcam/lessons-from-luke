@@ -72,6 +72,17 @@ export default [
     rules: {
       "@typescript-eslint/no-require-imports": "off",
       "@typescript-eslint/no-var-requires": "off",
+      // Same `_`-prefix = intentionally-unused convention as the TS block above.
+      // CJS shims (e.g. no-op better-auth plugin mocks) name unused factory args
+      // `_opts` for interface conformance; without this the base rule flags them.
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
     },
   },
   // Jest test files

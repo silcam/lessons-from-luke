@@ -98,6 +98,48 @@ describe("webGet", () => {
     await webGet("/api/languages", {});
     expect(mockedAxios.get).toHaveBeenCalledWith("/api/languages");
   });
+
+  test("forwards custom headers to Axios when provided", async () => {
+    mockedAxios.get.mockResolvedValueOnce({
+      data: [],
+      headers: { "content-length": "2" },
+    } as any);
+
+    await webGet("/api/languages", {}, "", undefined, {
+      Authorization: "Bearer token123",
+    });
+    expect(mockedAxios.get).toHaveBeenCalledWith("/api/languages", {
+      headers: { Authorization: "Bearer token123" },
+    });
+  });
+
+  test("succeeds without headers parameter (callers see identical behavior)", async () => {
+    mockedAxios.get.mockResolvedValueOnce({
+      data: [{ languageId: 2, name: "Spanish" }],
+      headers: { "content-length": "30" },
+    } as any);
+
+    const result = await webGet("/api/languages", {});
+    expect(result).toEqual([{ languageId: 2, name: "Spanish" }]);
+    expect(mockedAxios.get).toHaveBeenCalledWith("/api/languages");
+  });
+
+  test("does not leak headers between consecutive calls", async () => {
+    mockedAxios.get.mockClear();
+    mockedAxios.get
+      .mockResolvedValueOnce({ data: [], headers: { "content-length": "2" } } as any)
+      .mockResolvedValueOnce({ data: [], headers: { "content-length": "2" } } as any);
+
+    await webGet("/api/languages", {}, "", undefined, {
+      Authorization: "Bearer secret",
+    });
+    await webGet("/api/languages", {});
+
+    expect(mockedAxios.get).toHaveBeenNthCalledWith(1, "/api/languages", {
+      headers: { Authorization: "Bearer secret" },
+    });
+    expect(mockedAxios.get).toHaveBeenNthCalledWith(2, "/api/languages");
+  });
 });
 
 describe("webPost", () => {
@@ -175,6 +217,56 @@ describe("webPost", () => {
     const mockLog = jest.fn();
     await webPost("/api/tStrings", {}, { code: "ABC", tStrings: [] }, "", mockLog);
     expect(mockLog).toHaveBeenCalledWith(expect.stringContaining("POST /api/tStrings"));
+  });
+
+  test("forwards custom headers to Axios when provided", async () => {
+    mockedAxios.post.mockResolvedValueOnce({
+      data: null,
+      headers: { "content-length": "4" },
+    } as any);
+
+    await webPost("/api/tStrings", {}, { code: "ABC", tStrings: [] }, "", undefined, {
+      Authorization: "Bearer token456",
+    });
+    expect(mockedAxios.post).toHaveBeenCalledWith(
+      "/api/tStrings",
+      { code: "ABC", tStrings: [] },
+      { headers: { Authorization: "Bearer token456" } }
+    );
+  });
+
+  test("succeeds without headers parameter (callers see identical behavior)", async () => {
+    mockedAxios.post.mockResolvedValueOnce({
+      data: [{ masterId: 1, languageId: 2, text: "Hola", history: [] }],
+      headers: { "content-length": "50" },
+    } as any);
+
+    const result = await webPost("/api/tStrings", {}, { code: "ABC", tStrings: [] });
+    expect(result).toHaveLength(1);
+    expect(mockedAxios.post).toHaveBeenCalledWith("/api/tStrings", { code: "ABC", tStrings: [] });
+  });
+
+  test("does not leak headers between consecutive calls", async () => {
+    mockedAxios.post.mockClear();
+    mockedAxios.post
+      .mockResolvedValueOnce({ data: null, headers: { "content-length": "4" } } as any)
+      .mockResolvedValueOnce({ data: null, headers: { "content-length": "4" } } as any);
+
+    await webPost("/api/tStrings", {}, { code: "ABC", tStrings: [] }, "", undefined, {
+      Authorization: "Bearer secret",
+    });
+    await webPost("/api/tStrings", {}, { code: "XYZ", tStrings: [] });
+
+    expect(mockedAxios.post).toHaveBeenNthCalledWith(
+      1,
+      "/api/tStrings",
+      { code: "ABC", tStrings: [] },
+      { headers: { Authorization: "Bearer secret" } }
+    );
+    expect(mockedAxios.post).toHaveBeenNthCalledWith(2, "/api/tStrings", {
+      code: "XYZ",
+      tStrings: [],
+    });
   });
 });
 

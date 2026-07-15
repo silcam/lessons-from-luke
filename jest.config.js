@@ -23,6 +23,13 @@ module.exports = {
       moduleNameMapper: {
         "^better-auth$": "<rootDir>/src/server/__mocks__/better-auth.cjs",
         "^better-auth/node$": "<rootDir>/src/server/__mocks__/better-auth-node.cjs",
+        // ESM-only plugin subpaths — redirect to no-op CJS shims so ts-jest can
+        // load auth.ts in unit-test mode. The real plugins are exercised by
+        // integration tests via the compiled child-process server.
+        "^better-auth/plugins/device-authorization$":
+          "<rootDir>/src/server/__mocks__/better-auth-plugin-device-authorization.cjs",
+        "^better-auth/plugins/bearer$":
+          "<rootDir>/src/server/__mocks__/better-auth-plugin-bearer.cjs",
       },
       testEnvironment: "node",
       globalSetup: "<rootDir>/src/server/jestGlobalSetup.ts",
