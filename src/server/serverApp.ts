@@ -15,8 +15,9 @@ import invitationController, {
   registerAnonymousInvitationRoutes,
 } from "./controllers/invitationController";
 import adminUsersController from "./controllers/adminUsersController";
-import PGStorage, { PGTestStorage, PGDevStorage } from "./storage/PGStorage";
+import { PGTestStorage } from "./storage/PGStorage";
 import { Persistence } from "../core/interfaces/Persistence";
+import makeStorage from "./storage/makeStorage";
 import docStorage from "./storage/docStorage";
 import syncController from "./controllers/syncController";
 import { getAuth, getAuthPool } from "./auth/auth";
@@ -28,13 +29,7 @@ const PRODUCTION = process.env.NODE_ENV == "production";
 
 function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   const app = express();
-  const storage =
-    opts.storage ??
-    (PRODUCTION
-      ? new PGStorage()
-      : process.env.NODE_ENV === "test"
-        ? new PGTestStorage()
-        : new PGDevStorage());
+  const storage = opts.storage ?? makeStorage();
 
   if (!opts.storage && !PRODUCTION && !opts.silent) {
     const cls = process.env.NODE_ENV === "test" ? "PGTestStorage" : "PGDevStorage";

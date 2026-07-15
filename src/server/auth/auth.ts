@@ -1,3 +1,4 @@
+import { createHash, createHmac } from "crypto";
 import { betterAuth } from "better-auth";
 import { deviceAuthorization } from "better-auth/plugins/device-authorization";
 import { bearer } from "better-auth/plugins/bearer";
@@ -6,6 +7,10 @@ import secrets from "../util/secrets";
 import * as passwordHasher from "./passwordHasher";
 import { DEFAULT_BASE_URL, getTrustedOrigins } from "./trustedOrigins";
 import { CF_CONNECTING_IP } from "../util/clientIp";
+import { getEmailTransport } from "../email/getEmailTransport";
+import { buildPasswordResetEmail } from "../email/messages/passwordResetEmail";
+import { buildPasswordChangedEmail } from "../email/messages/passwordChangedEmail";
+import { checkAndIncrementThrottle } from "../util/rateLimitCounter";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let authInstance: ReturnType<typeof betterAuth<any>> | null = null;
@@ -131,6 +136,155 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> {
         verify: ({ hash, password }: { hash: string; password: string }) =>
           passwordHasher.verify(hash, password),
       },
+      // Revoke all active sessions when the password is reset (FR-009/SC-005).
+      revokeSessionsOnPasswordReset: true,
+      // Explicit TTL — default is 3600 s; stated here for reviewability (spec §D4).
+      resetPasswordTokenExpiresIn: 3600,
+      // -----------------------------------------------------------------------
+      // sendResetPassword — fire-and-forget email dispatch (Pass 2/6)
+      //
+      // The synchronous body dispatches the entire background chain as a void
+      // promise and returns immediately (account-existence-independent timing,
+      // Pass 6). All DB work (throttle check, supersession, cleanup) runs only
+      // inside the background task, never on the awaited request path.
+      //
+      // Background chain (ordered):
+      //   1. Compute HMAC per-address throttle key (Pass 8/9)
+      //   2. TTL-prune stale reset-req: counters (Pass 10)
+      //   3. Upsert throttle counter and check limit (Pass 3/5)
+      //   4a. Over-limit: delete just-written verification row; skip supersession (Pass 5)
+      //   4b. Under-limit: supersede prior verification rows; send reset email (Pass 2)
+      //
+      // The better-auth `url` arg is intentionally ignored — the email builder
+      // constructs the reset link from getWebAppBaseUrl() to prevent open-redirect
+      // / phishing via a crafted request URL (Pass 1).
+      // -----------------------------------------------------------------------
+      sendResetPassword: async ({
+        user,
+        url: _url,
+        token,
+      }: {
+        user: { id: string; email: string; name: string };
+        url: string;
+        token: string;
+      }): Promise<void> => {
+        // Fire-and-forget: all background work runs without blocking the caller.
+        void (async () => {
+          try {
+            const pool = getAuthPool();
+            // 60-second window: mirrors the per-IP customRules for /request-password-reset.
+            const windowMs = 60 * 1_000;
+            // 3 sends per window: matches the per-IP customRules max (Pass 3).
+            const maxPerWindow = 3;
+
+            // 1. Compute HMAC per-address throttle key (Pass 8/9).
+            //    Key = reset-req:<HMAC-SHA256(HMAC(cookieSecret,"reset-req-throttle"), email.toLowerCase())>
+            //    Derives from cookieSecret (≥32 chars, always present) via a
+            //    domain-separated sub-key. No cleartext email is persisted.
+            const subKey = createHmac("sha256", secrets.cookieSecret)
+              .update("reset-req-throttle")
+              .digest();
+            const emailHash = createHmac("sha256", subKey)
+              .update(user.email.toLowerCase())
+              .digest("hex");
+            const throttleKey = `reset-req:${emailHash}`;
+
+            // 2-3. TTL-prune stale reset-req: counters (Pass 10, scoped to
+            //    'reset-req:%' so sign-in/email rows are never touched) and
+            //    read-then-write the throttle counter (shared helper — task
+            //    lessons-from-luke-5qjl.14 — since rateLimit.key has no unique
+            //    constraint, ON CONFLICT (key) is unavailable).
+            const throttled = await checkAndIncrementThrottle(
+              pool,
+              "reset-req:",
+              throttleKey,
+              windowMs,
+              maxPerWindow
+            );
+
+            // Compute the hashed identifier for the just-written row once — used in
+            // both the throttled (4a, delete just-written) and non-throttled (4b,
+            // exclude just-written from supersession delete) paths.
+            //
+            // MUST match better-auth's storeIdentifier: "hashed" encoding exactly
+            // (verification-token-storage.mjs: base64url(SHA-256(identifier)) without
+            // padding). Node's Buffer.toString("base64url") produces the same encoding:
+            // no `+`/`/` chars, no `=` padding — identical to @better-auth/utils/base64
+            // base64Url.encode(new Uint8Array(hash), { padding: false }).
+            const justWrittenIdentifier = createHash("sha256")
+              .update(`reset-password:${token}`)
+              .digest()
+              .toString("base64url");
+
+            if (throttled) {
+              // 4a. Over-limit: delete the just-written verification row to prevent
+              //     it lingering to expiry (Pass 5 — coupled supersession). Do NOT
+              //     delete prior rows (no supersession on a suppressed request).
+              await pool.query(`DELETE FROM "verification" WHERE identifier = $1`, [
+                justWrittenIdentifier,
+              ]);
+              return;
+            }
+
+            // 4b. Under-limit: supersede all prior verification rows for this user
+            //     (Pass 2). DELETE all rows WHERE value = userId EXCEPT the one just
+            //     written (identifier = justWrittenIdentifier), so the just-sent link
+            //     is the only surviving one. The just-written row must be excluded so
+            //     the token in the outgoing email remains valid when better-auth
+            //     validates it at /reset-password.
+            await pool.query(`DELETE FROM "verification" WHERE value = $1 AND identifier != $2`, [
+              user.id,
+              justWrittenIdentifier,
+            ]);
+
+            // Build and send the password reset email.
+            // Errors are logged (to + subject + error only — no text/html, Pass 1)
+            // and swallowed so they don't propagate to the caller.
+            const msg = buildPasswordResetEmail(user.email, token, "en");
+            try {
+              await getEmailTransport().send(msg);
+            } catch (sendErr) {
+              console.error("passwordResetEmail send failed", {
+                to: msg.to,
+                subject: msg.subject,
+                error: sendErr,
+              });
+            }
+          } catch (bgErr) {
+            // Swallow: background errors must never propagate to the caller.
+            console.error("sendResetPassword background chain error", bgErr);
+          }
+        })();
+      },
+      // -----------------------------------------------------------------------
+      // onPasswordReset — fire-and-forget confirmation email (Pass 4)
+      //
+      // Dispatches a "your password was changed" notice to the account owner
+      // as a best-effort security signal. The send is backgrounded and any
+      // throw is self-caught so it never delays or errors the /reset-password
+      // response (Pass 4).
+      // -----------------------------------------------------------------------
+      onPasswordReset: async ({
+        user,
+      }: {
+        user: { id: string; email: string; name: string };
+      }): Promise<void> => {
+        // Fire-and-forget: dispatch confirmation email without blocking.
+        void (async () => {
+          try {
+            const msg = buildPasswordChangedEmail(user.email, "en");
+            await getEmailTransport().send(msg);
+          } catch {
+            // Self-catch: never propagate (Pass 4).
+          }
+        })();
+      },
+    },
+    // Verification tokens stored as SHA-256 hashes (Pass 8 at-rest token confidentiality).
+    // A DB leak yields SHA-256("reset-password:<token>"), not the raw token, so the
+    // attacker still cannot forge a reset without bruteforcing the hash.
+    verification: {
+      storeIdentifier: "hashed" as const,
     },
     rateLimit: {
       // On in production and dev (a sign-in brute-force safeguard, red-team Pass 1).
@@ -151,6 +305,9 @@ export function getAuth(): ReturnType<typeof betterAuth<any>> {
         "/device/code": { window: 60, max: 5 },
         "/device/approve": { window: 60, max: 5 },
         "/device/deny": { window: 60, max: 5 },
+        // Per-IP rate limits for password reset endpoints (research §D8).
+        "/request-password-reset": { window: 60, max: 3 },
+        "/reset-password": { window: 60, max: 5 },
       },
     },
     user: {

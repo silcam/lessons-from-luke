@@ -19,6 +19,14 @@ export interface InvitationResult {
   status: string;
   link: string;
   expiresAt: string;
+  /** true if the invitation email was accepted for delivery; false on send failure. */
+  emailSent: boolean;
+}
+
+/** Response from POST /api/admin/invitations/:id/resend. */
+export interface ResendInvitationResult {
+  /** true if the invitation email was accepted for delivery; false on send failure. */
+  emailSent: boolean;
 }
 
 /** Row returned by GET /api/admin/invitations and POST /api/admin/invitations/:id/retract. */
@@ -157,6 +165,11 @@ interface WebOnlyAPIPost {
     { id: string },
     Record<string, never>,
     InvitationSummaryRow,
+  ];
+  "/api/admin/invitations/:id/resend": [
+    { id: string },
+    Record<string, never>,
+    ResendInvitationResult,
   ];
   "/api/auth/invitation/accept": [
     Record<string, never>,

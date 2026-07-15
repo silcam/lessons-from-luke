@@ -23,6 +23,11 @@ Spec: specs/003-web-auth-gate/spec.md
 Keywords: desktop authentication, desktop login, connect desktop to account, device pairing, code-based pairing, pairing code, device grant, OAuth device flow, RFC 8628, polling pairing, no loopback, no localhost server, no custom URL scheme, device credential, bearer token, paired device, disconnect device, revoke device, admin revoke by user, lost laptop, shared API enforcement, require auth on /api, lock down API, 401 anonymous, enforcement flag default off, feature flag rollout, offline-first desktop, Electron auth, stay connected across restarts, sign in then approve, electron main process header, stacked on web-auth-gate
 Spec: specs/004-desktop-auth-pairing/spec.md
 
+## Transactional Email & Self-Service Password Reset
+
+Keywords: transactional email, Mailgun, email service, send email, SMTP, password reset, forgot password, reset link, self-service recovery, account recovery, locked out, change password, set new password, email-and-password auth, better-auth sendResetPassword, account enumeration, invalidate sessions, sign out other sessions, auto-email invitation, invitation email, resend invitation, resend email, invitation delivery, email-bound invite, environment-gated email, fail-fast secrets, log transport, dev/test email logging, secrets.json, sending domain, from-address, rate limiting, email flooding, server-only email, web-only
+Spec: specs/005-transactional-email-reset/spec.md
+
 ## How to Update This File
 
 - Add one entry per feature spec, before this section.

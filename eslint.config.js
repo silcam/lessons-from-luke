@@ -105,7 +105,7 @@ export default [
   },
   // Cypress specs and support (Mocha-style globals + cypress)
   {
-    files: ["cypress/**/*.js"],
+    files: ["cypress/**/*.{js,ts}"],
     languageOptions: {
       globals: {
         ...globals.node,

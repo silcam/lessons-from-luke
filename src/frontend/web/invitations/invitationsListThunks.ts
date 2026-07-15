@@ -15,8 +15,56 @@ import { InvitationSummaryRow } from "../../../core/api/ApiContracts";
 export type { InvitationSummaryRow };
 
 export interface InvitationsListError {
-  code: "not_found" | "not_pending" | "link_unavailable" | "network_error" | "unknown_error";
+  code:
+    | "not_found"
+    | "not_pending"
+    | "link_unavailable"
+    | "throttled"
+    | "network_error"
+    | "unknown_error";
   message: string;
+}
+
+// ---------------------------------------------------------------------------
+// fetchInvitationAction — shared fetch + error-mapping helper
+//
+// Performs the fetch, catches network errors, and — on a non-ok response —
+// best-effort parses the JSON error body and maps the HTTP status code to an
+// InvitationsListError via `statusCodeMap` (falling back to `fallback` for
+// unmapped statuses). On success, the caller receives the raw Response to
+// parse into whatever payload shape it needs.
+// ---------------------------------------------------------------------------
+
+type StatusCodeMap = Partial<
+  Record<number, { code: InvitationsListError["code"]; defaultMessage: string }>
+>;
+
+async function fetchInvitationAction(
+  url: string,
+  init: RequestInit,
+  statusCodeMap: StatusCodeMap,
+  fallback: { code: InvitationsListError["code"]; defaultMessage: string }
+): Promise<{ response: Response } | { error: InvitationsListError }> {
+  let response: Response;
+  try {
+    response = await fetch(url, init);
+  } catch {
+    return { error: { code: "network_error", message: "Network error" } };
+  }
+
+  if (response.ok) {
+    return { response };
+  }
+
+  let body: { error?: string } = {};
+  try {
+    body = await response.json();
+  } catch {
+    /* ignore */
+  }
+
+  const mapped = statusCodeMap[response.status] ?? fallback;
+  return { error: { code: mapped.code, message: body.error ?? mapped.defaultMessage } };
 }
 
 // ---------------------------------------------------------------------------
@@ -28,18 +76,18 @@ export const listInvitations = createAsyncThunk<
   void,
   { rejectValue: InvitationsListError }
 >("invitationsList/listInvitations", async (_, { rejectWithValue }) => {
-  let response: Response;
-  try {
-    response = await fetch("/api/admin/invitations", { method: "GET" });
-  } catch {
-    return rejectWithValue({ code: "network_error", message: "Network error" });
+  const result = await fetchInvitationAction(
+    "/api/admin/invitations",
+    { method: "GET" },
+    {},
+    { code: "unknown_error", defaultMessage: "Failed to load invitations" }
+  );
+
+  if ("error" in result) {
+    return rejectWithValue(result.error);
   }
 
-  if (response.ok) {
-    return (await response.json()) as InvitationSummaryRow[];
-  }
-
-  return rejectWithValue({ code: "unknown_error", message: "Failed to load invitations" });
+  return (await result.response.json()) as InvitationSummaryRow[];
 });
 
 // ---------------------------------------------------------------------------
@@ -51,36 +99,21 @@ export const retractInvitation = createAsyncThunk<
   string,
   { rejectValue: InvitationsListError }
 >("invitationsList/retractInvitation", async (id, { rejectWithValue }) => {
-  let response: Response;
-  try {
-    response = await fetch(`/api/admin/invitations/${id}/retract`, { method: "POST" });
-  } catch {
-    return rejectWithValue({ code: "network_error", message: "Network error" });
+  const result = await fetchInvitationAction(
+    `/api/admin/invitations/${id}/retract`,
+    { method: "POST" },
+    {
+      404: { code: "not_found", defaultMessage: "Invitation not found" },
+      409: { code: "not_pending", defaultMessage: "Invitation is not pending" },
+    },
+    { code: "unknown_error", defaultMessage: "Unknown error" }
+  );
+
+  if ("error" in result) {
+    return rejectWithValue(result.error);
   }
 
-  if (response.ok) {
-    return (await response.json()) as InvitationSummaryRow;
-  }
-
-  let body: { error?: string } = {};
-  try {
-    body = await response.json();
-  } catch {
-    /* ignore */
-  }
-
-  if (response.status === 404) {
-    return rejectWithValue({ code: "not_found", message: body.error ?? "Invitation not found" });
-  }
-
-  if (response.status === 409) {
-    return rejectWithValue({
-      code: "not_pending",
-      message: body.error ?? "Invitation is not pending",
-    });
-  }
-
-  return rejectWithValue({ code: "unknown_error", message: body.error ?? "Unknown error" });
+  return (await result.response.json()) as InvitationSummaryRow;
 });
 
 // ---------------------------------------------------------------------------
@@ -92,38 +125,56 @@ export const getInvitationLink = createAsyncThunk<
   string,
   { rejectValue: InvitationsListError }
 >("invitationsList/getInvitationLink", async (id, { rejectWithValue }) => {
-  let response: Response;
-  try {
-    response = await fetch(`/api/admin/invitations/${id}/link`, { method: "GET" });
-  } catch {
-    return rejectWithValue({ code: "network_error", message: "Network error" });
+  const result = await fetchInvitationAction(
+    `/api/admin/invitations/${id}/link`,
+    { method: "GET" },
+    {
+      404: { code: "not_found", defaultMessage: "Invitation not found" },
+      409: { code: "not_pending", defaultMessage: "Invitation is not pending" },
+    },
+    { code: "link_unavailable", defaultMessage: "Link unavailable" }
+  );
+
+  if ("error" in result) {
+    return rejectWithValue(result.error);
   }
 
-  if (response.ok) {
-    const body = (await response.json()) as { link: string };
-    return { id, link: body.link };
+  const body = (await result.response.json()) as { link: string };
+  return { id, link: body.link };
+});
+
+// ---------------------------------------------------------------------------
+// resendInvitationEmail — POST /api/admin/invitations/:id/resend
+// ---------------------------------------------------------------------------
+
+export interface ResendInvitationEmailResult {
+  id: string;
+  emailSent: boolean;
+}
+
+export const resendInvitationEmail = createAsyncThunk<
+  ResendInvitationEmailResult,
+  string,
+  { rejectValue: InvitationsListError }
+>("invitationsList/resendInvitationEmail", async (id, { rejectWithValue }) => {
+  const result = await fetchInvitationAction(
+    `/api/admin/invitations/${id}/resend`,
+    { method: "POST" },
+    {
+      404: { code: "not_found", defaultMessage: "Invitation not found" },
+      409: { code: "not_pending", defaultMessage: "Invitation is not pending" },
+      429: {
+        code: "throttled",
+        defaultMessage: "Too many resend requests. Please try again later.",
+      },
+    },
+    { code: "unknown_error", defaultMessage: "Unknown error" }
+  );
+
+  if ("error" in result) {
+    return rejectWithValue(result.error);
   }
 
-  let body: { error?: string } = {};
-  try {
-    body = await response.json();
-  } catch {
-    /* ignore */
-  }
-
-  if (response.status === 404) {
-    return rejectWithValue({ code: "not_found", message: body.error ?? "Invitation not found" });
-  }
-
-  if (response.status === 409) {
-    return rejectWithValue({
-      code: "not_pending",
-      message: body.error ?? "Invitation is not pending",
-    });
-  }
-
-  return rejectWithValue({
-    code: "link_unavailable",
-    message: body.error ?? "Link unavailable",
-  });
+  const body = (await result.response.json()) as { emailSent: boolean };
+  return { id, emailSent: body.emailSent };
 });

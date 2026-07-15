@@ -26,6 +26,9 @@ import crypto from "crypto";
 import { plainAgent, loggedInAgent } from "../testHelper";
 import secrets from "../util/secrets";
 import { createInvitation } from "../auth/invitationStore";
+import { setEmailTransport } from "../email/getEmailTransport";
+import { sentEmails } from "../email/MemoryEmailTransport";
+import type { EmailTransport } from "../email/EmailTransport";
 
 // ---------------------------------------------------------------------------
 // Auth pool for inserting test users directly (sign-up is disabled globally).
@@ -311,6 +314,73 @@ describe("POST /api/admin/invitations", () => {
     } finally {
       process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT = savedEnv;
     }
+  });
+
+  // -------------------------------------------------------------------------
+  // 11. 201 — emailSent: true when the email transport send() succeeds
+  //     (FR-014/FR-015). Existing fields (id, email, role, status, link,
+  //     expiresAt) remain unchanged alongside the new flag.
+  // -------------------------------------------------------------------------
+  it("201: includes emailSent: true when the email transport send() succeeds", async () => {
+    const agent = await loggedInAgent();
+    const email = `invited-emailsent-true-${crypto.randomUUID()}@example.com`;
+
+    const res = await agent.post("/api/admin/invitations").send({ email, role: "standard" });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      id: expect.any(String),
+      email: email.toLowerCase(),
+      role: "standard",
+      status: "pending",
+      link: expect.any(String),
+      expiresAt: expect.any(String),
+      emailSent: true,
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 12. 201 — emailSent: false when the email transport send() throws
+  //     (FR-017). A send failure does NOT fail creation: the invitation is
+  //     still created and all existing fields are still returned.
+  // -------------------------------------------------------------------------
+  it("201: includes emailSent: false when the email transport send() throws (FR-017)", async () => {
+    const failingTransport: EmailTransport = {
+      send: jest.fn().mockRejectedValue(new Error("Mailgun unreachable")),
+    };
+    setEmailTransport(failingTransport);
+
+    const agent = await loggedInAgent();
+    const email = `invited-emailsent-false-${crypto.randomUUID()}@example.com`;
+
+    const res = await agent.post("/api/admin/invitations").send({ email, role: "standard" });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      email: email.toLowerCase(),
+      role: "standard",
+      status: "pending",
+      emailSent: false,
+    });
+    expect(typeof res.body.id).toBe("string");
+    expect(typeof res.body.link).toBe("string");
+    expect(typeof res.body.expiresAt).toBe("string");
+  });
+
+  // -------------------------------------------------------------------------
+  // 13. The invitation email is sent to the correct invitee address with the
+  //     invitation link (D6).
+  // -------------------------------------------------------------------------
+  it("sends the invitation email to the invitee address with the invitation link", async () => {
+    const agent = await loggedInAgent();
+    const email = `invited-emailcontent-${crypto.randomUUID()}@example.com`;
+
+    const res = await agent.post("/api/admin/invitations").send({ email, role: "standard" });
+
+    expect(res.status).toBe(201);
+    const sent = sentEmails.find((m) => m.to === email.toLowerCase());
+    expect(sent).toBeDefined();
+    expect(sent!.text).toContain(res.body.link as string);
   });
 });
 
@@ -960,5 +1030,212 @@ describe("GET /api/admin/invitations/:id/link", () => {
     // Should return 409 (link unavailable due to decrypt error), NOT 500
     expect(res.status).toBe(409);
     expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/admin/invitations/:id/resend — resend the invitation email for a
+// PENDING invitation (US2, FR-016)
+//
+// RED: this route does not exist yet — every test below should fail (404 from
+// Express's default handler) until invitationController wires the resend
+// endpoint, the per-invitation rateLimit-table throttle, and its scoped TTL
+// cleanup (contracts/invitation-email-api.yaml, data-model.md §rateLimit,
+// research.md §D6, plan.md §"Invitation resend as an email-bomb amplifier").
+// ---------------------------------------------------------------------------
+
+describe("POST /api/admin/invitations/:id/resend", () => {
+  // -------------------------------------------------------------------------
+  // 1. 200 — pending invitation → emailSent: true when send() succeeds
+  // -------------------------------------------------------------------------
+  it("200: resending a pending invitation returns emailSent: true", async () => {
+    const agent = await loggedInAgent();
+    const email = `resend-happy-${crypto.randomUUID()}@example.com`;
+
+    const createRes = await agent.post("/api/admin/invitations").send({ email, role: "standard" });
+    expect(createRes.status).toBe(201);
+    const invitationId = createRes.body.id as string;
+
+    const res = await agent.post(`/api/admin/invitations/${invitationId}/resend`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ emailSent: true });
+  });
+
+  // -------------------------------------------------------------------------
+  // 2. 200 — transport throws → emailSent: false (resend itself still succeeds)
+  // -------------------------------------------------------------------------
+  it("200: resend returns emailSent: false when the email transport send() throws", async () => {
+    const agent = await loggedInAgent();
+    const email = `resend-sendfail-${crypto.randomUUID()}@example.com`;
+
+    const createRes = await agent.post("/api/admin/invitations").send({ email, role: "standard" });
+    expect(createRes.status).toBe(201);
+    const invitationId = createRes.body.id as string;
+
+    const failingTransport: EmailTransport = {
+      send: jest.fn().mockRejectedValue(new Error("Mailgun unreachable")),
+    };
+    setEmailTransport(failingTransport);
+
+    const res = await agent.post(`/api/admin/invitations/${invitationId}/resend`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ emailSent: false });
+  });
+
+  // -------------------------------------------------------------------------
+  // 3. 409 — non-pending invitation (accepted/expired/retracted) is not
+  //    eligible for resend (FR-016)
+  // -------------------------------------------------------------------------
+  it("409: resending a retracted invitation is rejected", async () => {
+    const agent = await loggedInAgent();
+    const email = `resend-retracted-${crypto.randomUUID()}@example.com`;
+
+    const createRes = await agent.post("/api/admin/invitations").send({ email, role: "standard" });
+    expect(createRes.status).toBe(201);
+    const invitationId = createRes.body.id as string;
+
+    const retractRes = await agent.post(`/api/admin/invitations/${invitationId}/retract`);
+    expect(retractRes.status).toBe(200);
+
+    const res = await agent.post(`/api/admin/invitations/${invitationId}/resend`);
+
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  // -------------------------------------------------------------------------
+  // 4. 404 — unknown invitation id
+  // -------------------------------------------------------------------------
+  it("404: unknown invitation id returns 404", async () => {
+    const agent = await loggedInAgent();
+    const nonExistentId = crypto.randomUUID();
+
+    const res = await agent.post(`/api/admin/invitations/${nonExistentId}/resend`);
+
+    expect(res.status).toBe(404);
+  });
+
+  // -------------------------------------------------------------------------
+  // 5. 429 — per-invitation resend throttle (red-team Pass 1/2 email-bomb
+  //    amplifier mitigation): repeated resends of the SAME invitation are
+  //    bounded by a small max-per-window, independent of the per-IP limit.
+  // -------------------------------------------------------------------------
+  it("429: repeated resends of the same invitation exceed the per-invitation throttle", async () => {
+    const agent = await loggedInAgent();
+    const email = `resend-throttle-${crypto.randomUUID()}@example.com`;
+
+    const createRes = await agent.post("/api/admin/invitations").send({ email, role: "standard" });
+    expect(createRes.status).toBe(201);
+    const invitationId = createRes.body.id as string;
+
+    let lastStatus = 0;
+    // The per-invitation max is small (implementation-chosen, expected ≤5) — 10
+    // attempts at the same invitation id is comfortably enough to cross it.
+    for (let i = 0; i < 10; i++) {
+      const res = await agent.post(`/api/admin/invitations/${invitationId}/resend`);
+      lastStatus = res.status;
+      if (lastStatus === 429) break;
+    }
+
+    expect(lastStatus).toBe(429);
+  });
+
+  // -------------------------------------------------------------------------
+  // 6. Resend does NOT change the invitation's expiresAt (edge case "Repeated
+  //    resend" — resend re-derives the existing token, it issues no new one)
+  // -------------------------------------------------------------------------
+  it("does not change the invitation's expiresAt on resend", async () => {
+    const agent = await loggedInAgent();
+    const email = `resend-expiry-${crypto.randomUUID()}@example.com`;
+
+    const createRes = await agent.post("/api/admin/invitations").send({ email, role: "standard" });
+    expect(createRes.status).toBe(201);
+    const invitationId = createRes.body.id as string;
+    const originalExpiresAt = createRes.body.expiresAt as string;
+
+    const res = await agent.post(`/api/admin/invitations/${invitationId}/resend`);
+    expect(res.status).toBe(200);
+
+    const row = await authPool.query<{ expiresAt: Date }>(
+      `SELECT "expiresAt" FROM "invitation" WHERE id = $1`,
+      [invitationId]
+    );
+    expect(row.rows).toHaveLength(1);
+    expect(row.rows[0].expiresAt.toISOString()).toBe(originalExpiresAt);
+  });
+
+  // -------------------------------------------------------------------------
+  // 7. The per-invitation throttle key is 'resend:<invitationId>' in the
+  //    rateLimit table — not a cleartext-email-derived key (data-model.md
+  //    §rateLimit, contrasted with the per-address reset-req HMAC key).
+  // -------------------------------------------------------------------------
+  it("per-invitation throttle key is 'resend:<invitationId>' in the rateLimit table (not cleartext email)", async () => {
+    const agent = await loggedInAgent();
+    const email = `resend-throttlekey-${crypto.randomUUID()}@example.com`;
+
+    const createRes = await agent.post("/api/admin/invitations").send({ email, role: "standard" });
+    expect(createRes.status).toBe(201);
+    const invitationId = createRes.body.id as string;
+
+    const res = await agent.post(`/api/admin/invitations/${invitationId}/resend`);
+    expect(res.status).toBe(200);
+
+    const expectedKey = `resend:${invitationId}`;
+    const rows = await authPool.query<{ key: string }>(
+      `SELECT key FROM "rateLimit" WHERE key = $1`,
+      [expectedKey]
+    );
+    expect(rows.rows.length).toBeGreaterThanOrEqual(1);
+    expect(rows.rows[0].key).not.toContain(email.toLowerCase());
+    expect(rows.rows[0].key).not.toContain("@");
+  });
+
+  // -------------------------------------------------------------------------
+  // 8. rateLimit TTL cleanup for the 'resend:' prefix does NOT delete
+  //    '<ip>:/sign-in/email' rows — scoped cleanup (plan.md Pass 10, mirroring
+  //    the reset-req cleanup scoping already enforced in auth.test.ts).
+  // -------------------------------------------------------------------------
+  it("rateLimit TTL cleanup for 'resend:' prefix does NOT delete '<ip>:/sign-in/email' rows (Pass 10 scoped cleanup)", async () => {
+    const agent = await loggedInAgent();
+    const email = `resend-ttl-${crypto.randomUUID()}@example.com`;
+
+    const createRes = await agent.post("/api/admin/invitations").send({ email, role: "standard" });
+    expect(createRes.status).toBe(201);
+    const invitationId = createRes.body.id as string;
+
+    // Seed a stale resend: counter row from a previous window — the cleanup
+    // triggered by the resend below must prune it.
+    const staleResendKey = `resend:${crypto.randomUUID()}`;
+    const staleTs = Date.now() - 10 * 60 * 1000; // 10 minutes ago — outside any small window
+    await authPool.query(
+      `INSERT INTO "rateLimit" (id, key, count, "lastRequest") VALUES ($1, $2, 1, $3)`,
+      [crypto.randomUUID(), staleResendKey, staleTs]
+    );
+
+    // Seed an unrelated better-auth sign-in counter with an old timestamp that
+    // a naive UNSCOPED cleanup would also delete.
+    const signInKey = "127.0.0.1:/sign-in/email";
+    const signInTs = Date.now() - 10 * 60 * 1000;
+    await authPool.query(
+      `INSERT INTO "rateLimit" (id, key, count, "lastRequest") VALUES ($1, $2, 1, $3)`,
+      [crypto.randomUUID(), signInKey, signInTs]
+    );
+
+    const res = await agent.post(`/api/admin/invitations/${invitationId}/resend`);
+    expect(res.status).toBe(200);
+
+    // The stale resend: row must have been pruned by the scoped TTL cleanup.
+    const staleRows = await authPool.query(`SELECT id FROM "rateLimit" WHERE key = $1`, [
+      staleResendKey,
+    ]);
+    expect(staleRows.rows).toHaveLength(0);
+
+    // The unrelated sign-in row must survive (scoped cleanup, Pass 10).
+    const signInRows = await authPool.query(`SELECT id FROM "rateLimit" WHERE key = $1`, [
+      signInKey,
+    ]);
+    expect(signInRows.rows).toHaveLength(1);
   });
 });

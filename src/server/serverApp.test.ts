@@ -137,6 +137,12 @@ describe("serverApp production branch", () => {
     },
   };
 
+  // Captured once, before NODE_ENV ever flips to "production" below — getEmailTransport.ts
+  // needs the real defaultSecrets.email placeholder shape, but requireActual would re-run
+  // secrets.ts's own FR-011 fail-fast guards against the ambient secrets.json if called
+  // while NODE_ENV=production, defeating the point of stubbing PRODUCTION_SECRETS.
+  const REAL_DEFAULT_SECRETS = jest.requireActual("./util/secrets").defaultSecrets;
+
   // Re-require serverApp with NODE_ENV=production and a mocked secrets module,
   // run the assertion against the fresh app, then restore env + module registry.
   async function withProductionServerApp(
@@ -147,7 +153,11 @@ describe("serverApp production branch", () => {
     process.env.NODE_ENV = "production";
     process.env.BETTER_AUTH_URL = "https://test.example.com";
     jest.resetModules();
-    jest.doMock("./util/secrets", () => ({ __esModule: true, default: PRODUCTION_SECRETS }));
+    jest.doMock("./util/secrets", () => ({
+      __esModule: true,
+      default: PRODUCTION_SECRETS,
+      defaultSecrets: REAL_DEFAULT_SECRETS,
+    }));
     try {
       const freshServerApp = require("./serverApp").default;
       await fn(freshServerApp({ silent: true }));

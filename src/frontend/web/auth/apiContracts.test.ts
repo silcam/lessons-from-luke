@@ -31,6 +31,7 @@ test("InvitationResult has expected shape", () => {
     status: "pending",
     link: "https://example.com/invite/abc",
     expiresAt: "2099-01-01T00:00:00.000Z",
+    emailSent: true,
   };
   expect(result.id).toBe("abc");
   expect(result.email).toBe("user@example.com");
@@ -52,7 +53,6 @@ test("InvitationSummaryRow has expected shape", () => {
 });
 
 test("src/core/interfaces/Api does NOT export HTTP route maps or invitation DTOs", () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const coreApi = require("../../../core/interfaces/Api");
   expect(coreApi).not.toHaveProperty("APIGet");
   expect(coreApi).not.toHaveProperty("APIPost");

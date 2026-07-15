@@ -588,7 +588,9 @@ export async function retractInvitation(pool: Pool, id: string): Promise<Invitat
 
 /**
  * Re-copies the original invitation link by decrypting tokenEnc.
- * Returns { link } where link is the re-derived invitation URL.
+ * Returns { link, email } where link is the re-derived invitation URL and
+ * email is the invitee address bound to it (needed by the resend endpoint to
+ * re-send the invitation email without a second query).
  *
  * Throws NotFoundError if the id does not exist.
  * Throws NotPendingError if the invitation is not in pending state.
@@ -602,15 +604,16 @@ export async function getInvitationLink(
   id: string,
   baseUrl: string,
   cookieSecret: string
-): Promise<{ link: string }> {
+): Promise<{ link: string; email: string }> {
   const client = await pool.connect();
   try {
     const result = await client.query<{
       id: string;
+      email: string;
       status: InvitationStatus;
       tokenEnc: string;
     }>(
-      `SELECT id, ${STATUS_CASE_SQL} AS status, "tokenEnc" FROM "invitation" WHERE id=$1 LIMIT 1`,
+      `SELECT id, email, ${STATUS_CASE_SQL} AS status, "tokenEnc" FROM "invitation" WHERE id=$1 LIMIT 1`,
       [id]
     );
 
@@ -631,7 +634,7 @@ export async function getInvitationLink(
       throw new DecryptError();
     }
 
-    return { link: buildInvitationLink(token, baseUrl) };
+    return { link: buildInvitationLink(token, baseUrl), email: row.email };
   } finally {
     client.release();
   }

@@ -39,6 +39,9 @@ import secrets from "../util/secrets";
 import { getInvitationBaseUrl } from "../auth/trustedOrigins";
 import { requireSameOrigin } from "../middle/requireSameOrigin";
 import { invitationRateLimit } from "../middle/invitationRateLimit";
+import { checkAndIncrementThrottle } from "../util/rateLimitCounter";
+import { getEmailTransport } from "../email/getEmailTransport";
+import { buildInvitationEmail } from "../email/messages/invitationEmail";
 
 // ---------------------------------------------------------------------------
 // Body parser middleware for /api/auth/invitation/accept (plan.md Pass 8)
@@ -191,6 +194,51 @@ export function registerAnonymousInvitationRoutes(app: Express, pool: Pool): voi
 }
 
 // ---------------------------------------------------------------------------
+// Per-invitation resend throttle (red-team Pass 1/2 — email-bomb amplifier
+// mitigation, data-model.md §rateLimit)
+//
+// customRules on the better-auth rate-limit plugin are keyed by IP + path,
+// which cannot express "no more than N resends of THIS invitation" — an admin
+// session (or a compromised one) could otherwise hammer a single invitee's
+// inbox via repeated resends while staying under the per-IP invitationRateLimit.
+// This performs a manual, atomic GET+SET throttle check against the shared
+// `rateLimit` table (the same table better-auth itself uses for
+// /sign-in/email and the password-reset request throttle).
+//
+// `rateLimit.key` carries no unique constraint (verified in auth.ts's
+// reset-req throttle), so — exactly like that throttle — this uses a
+// read-then-write pattern rather than an atomic `ON CONFLICT` UPSERT. The
+// TTL-prune + read-then-write mechanics themselves live in the shared
+// checkAndIncrementThrottle() helper (src/server/util/rateLimitCounter.ts,
+// task lessons-from-luke-5qjl.14) so this file and auth.ts no longer
+// hand-implement the same pattern twice.
+// ---------------------------------------------------------------------------
+
+const RESEND_THROTTLE_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+const RESEND_THROTTLE_MAX = 5;
+
+/**
+ * Checks and increments the per-invitation resend counter. Returns true when
+ * this request pushes the count over RESEND_THROTTLE_MAX (i.e. the caller
+ * should respond 429).
+ *
+ * The 'resend:' key prefix scopes the shared helper's TTL-prune to this app's
+ * synthetic resend counters ONLY (Pass 10) — a blanket
+ * `DELETE ... WHERE "lastRequest" < $cutoff` would also prune better-auth's
+ * own `<ip>:/sign-in/email` rows and neuter its brute-force protection.
+ */
+async function isResendThrottled(pool: Pool, invitationId: string): Promise<boolean> {
+  const key = `resend:${invitationId}`;
+  return checkAndIncrementThrottle(
+    pool,
+    "resend:",
+    key,
+    RESEND_THROTTLE_WINDOW_MS,
+    RESEND_THROTTLE_MAX
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Invitation controller — admin routes
 // ---------------------------------------------------------------------------
 
@@ -249,6 +297,20 @@ export default function invitationController(app: Express, pool: Pool): void {
         throw err;
       }
 
+      // Auto-send the invitation email (FR-014/FR-015). A send failure does NOT
+      // fail creation — the invitation is still created and returned, just with
+      // emailSent: false so the admin knows to use the copyable link or resend
+      // (FR-017).
+      let emailSent = true;
+      try {
+        await getEmailTransport().send(
+          buildInvitationEmail({ email: result.email, link: result.link })
+        );
+      } catch (sendErr) {
+        console.error("invitationEmail send failed", { to: result.email, error: sendErr });
+        emailSent = false;
+      }
+
       res.setHeader("Cache-Control", "no-store");
       res.setHeader("Pragma", "no-cache");
       res.status(201).json({
@@ -258,6 +320,7 @@ export default function invitationController(app: Express, pool: Pool): void {
         status: result.status,
         link: result.link,
         expiresAt: result.expiresAt.toISOString(),
+        emailSent,
       });
     }
   );
@@ -366,4 +429,64 @@ export default function invitationController(app: Express, pool: Pool): void {
     res.setHeader("Pragma", "no-cache");
     res.json({ link });
   });
+
+  // POST /api/admin/invitations/:id/resend — resend the invitation email for a
+  // pending invitation (FR-016). Re-derives the existing link (decrypts the
+  // stored tokenEnc; issues no new token and does NOT change expiresAt — edge
+  // case "Repeated resend") and re-sends to the bound address. State-changing
+  // POST -> requireSameOrigin (Pass 4) + the per-IP invitationRateLimit, PLUS
+  // a per-invitation throttle (isResendThrottled) bounding reuse of a single
+  // invitation as an inbox-flooding amplifier against the bound invitee
+  // (red-team Pass 1/2).
+  app.post(
+    "/api/admin/invitations/:id/resend",
+    adminCreateRateLimiter,
+    requireSameOrigin,
+    async (req: Request, res: Response): Promise<void> => {
+      const { id } = req.params;
+      const baseUrl = getInvitationBaseUrl();
+
+      let link: string;
+      let email: string;
+      try {
+        ({ link, email } = await getInvitationLink(pool, id, baseUrl, secrets.cookieSecret));
+      } catch (err) {
+        if (err instanceof NotFoundError) {
+          res.status(404).json({ error: "Invitation not found" });
+          return;
+        }
+        if (err instanceof NotPendingError) {
+          res.status(409).json({ error: "Invitation is not pending" });
+          return;
+        }
+        if (err instanceof DecryptError) {
+          res.status(409).json({ error: "Link unavailable" });
+          return;
+        }
+        throw err;
+      }
+
+      if (await isResendThrottled(pool, id)) {
+        res
+          .status(429)
+          .json({ error: "Too many resend requests for this invitation. Please try again later." });
+        return;
+      }
+
+      // A send failure does NOT fail the resend request — emailSent: false
+      // tells the admin to retry or fall back to the copyable link, mirroring
+      // the create route's FR-017 behaviour.
+      let emailSent = true;
+      try {
+        await getEmailTransport().send(buildInvitationEmail({ email, link }));
+      } catch (sendErr) {
+        console.error("invitationEmail resend failed", { to: email, error: sendErr });
+        emailSent = false;
+      }
+
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("Pragma", "no-cache");
+      res.json({ emailSent });
+    }
+  );
 }
