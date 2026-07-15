@@ -10,10 +10,11 @@ import fs from "fs";
     algorithm requires reparsing all the existing doc files.
 */
 
-reparseEnglish();
+if (require.main === module) {
+  reparseEnglish();
+}
 
-async function reparseEnglish() {
-  const storage = new PGStorage();
+export async function reparseEnglish(storage: Persistence = new PGStorage()) {
   const lessons = await storage.lessons();
   for (let i = 0; i < lessons.length; ++i) {
     const lesson = lessons[i];
@@ -23,7 +24,7 @@ async function reparseEnglish() {
   console.log("Done");
 }
 
-async function reparseLesson(lesson: BaseLesson, storage: Persistence) {
+export async function reparseLesson(lesson: BaseLesson, storage: Persistence) {
   const newVersion = lesson.version + 1;
   const oldDocFilepath = docStorage.docFilepath(lesson);
   const newDocFilepath = docStorage.docFilepath({

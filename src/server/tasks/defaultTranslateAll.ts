@@ -1,16 +1,18 @@
 import { ENGLISH_ID } from "../../core/models/Language";
 import PGStorage from "../storage/PGStorage";
 import { canAutoTranslate } from "../actions/defaultTranslations";
+import { Persistence } from "../../core/interfaces/Persistence";
 
 /*
-    This script is designed to be run manually on the server 
+    This script is designed to be run manually on the server
     to insert default translations for existing languages
 */
 
-defaultTranslateAll();
+if (require.main === module) {
+  defaultTranslateAll().then(() => process.exit());
+}
 
-async function defaultTranslateAll() {
-  const storage = new PGStorage();
+export async function defaultTranslateAll(storage: Persistence = new PGStorage()) {
   const englishStrings = await storage.tStrings({ languageId: ENGLISH_ID });
   const autoTranslatableStrings = englishStrings.filter((tStr) => canAutoTranslate(tStr.text));
 
@@ -33,5 +35,4 @@ async function defaultTranslateAll() {
     if (newTStrings.length > 0) await storage.saveTStrings(newTStrings);
   }
   console.log("Done");
-  process.exit();
 }
