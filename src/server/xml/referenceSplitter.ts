@@ -1,17 +1,81 @@
+import fs from "fs";
+import os from "os";
+import path from "path";
+import libxmljs2, { Element, Text } from "libxmljs2";
+import { extractNamespaces } from "./mergeXml";
+import { xPathForPWithStyle, xPathForHWithStyle } from "./parse";
+import { mkdirSafe, unzip, zip, unlinkRecursive } from "../../core/util/fsUtils";
+
+// The four reference-bearing paragraph styles named in spec.md's
+// "Reference-bearing style" key entity (011-verse-reference-auto-population):
+// `M.T. Text - Lesson Title Scrip Reference`, `Sub-Head 1`,
+// `M.T. Table of Contents`, and the source-language `Lesson Title Scrip
+// Reference`. ODT XML encodes spaces in style names as the literal `_20_`
+// token.
+const REFERENCE_BEARING_STYLES = [
+  "M.T._20_Text_20_-_20_Lesson_20_Title_20_Scrip_20_Reference",
+  "Sub-Head_20_1",
+  "M.T._20_Table_20_of_20_Contents",
+  "Lesson_20_Title_20_Scrip_20_Reference",
+];
+
+// Matches an unsplit `<book words><space><chapter:verse range>` run, e.g.
+// "Luke 1:26–38", "1 Corinthians 2:1–5", "Luke 1:26 – 38" (spaced-dash
+// variant), or a chapter-spanning range like "18:35–19:10". Captures the
+// book-name portion and the numeric portion separately, splitting at the
+// whitespace immediately preceding the numeric token.
+const UNSPLIT_REFERENCE_PATTERN = /^(.*\S)\s+(\d+:\d+(?:\s*[-–]\s*\d+(?::\d+)?)?)$/;
+
 /**
  * Splits a single unsplit `<book words> <chapter:verse range>` text run
  * (under a reference-bearing style) into a book-name run + `<text:s/>` + a
  * numeric run, matching the structure the parser already emits for the
  * majority of references (spec.md FR-006..FR-009; research.md Decision 3).
  * Leaves already-split and out-of-scope (>2-run) paragraphs unchanged.
- *
- * NOT YET IMPLEMENTED — this is the RED-stage stub for US3
- * (lessons-from-luke-2v47.5.5.1). It throws so the module compiles (and the
- * pre-commit type-check passes) while `referenceSplitter.test.ts` fails at
- * runtime, not a compile error. The Green task implements the real split.
  */
-export function splitUnsplitReferences(_contentXml: string): string {
-  throw new Error("not implemented");
+export function splitUnsplitReferences(contentXml: string): string {
+  const xmlDoc = libxmljs2.parseXml(contentXml);
+  const namespaces = extractNamespaces(xmlDoc);
+
+  const xPath = REFERENCE_BEARING_STYLES.map(
+    (styleName) => `${xPathForPWithStyle(styleName)} | ${xPathForHWithStyle(styleName)}`
+  ).join(" | ");
+
+  const nodes = xmlDoc.root()!.find<Element>(xPath, namespaces);
+
+  nodes.forEach((paragraph) => splitParagraphIfUnsplit(paragraph));
+
+  return xmlDoc.toString(false);
+}
+
+function splitParagraphIfUnsplit(paragraph: Element) {
+  const children = paragraph.childNodes();
+  // Only a single text run (no existing <text:s/> or other sibling runs) is
+  // in scope; already-split and multi-run paragraphs are left untouched.
+  if (children.length !== 1) return;
+
+  const onlyChild = children[0];
+  if (onlyChild.type() !== "text") return;
+
+  const rawText = (onlyChild as Text).text();
+  const match = rawText.trim().match(UNSPLIT_REFERENCE_PATTERN);
+  if (!match) return;
+
+  const [, bookName, numericRef] = match;
+  const namespace = paragraph.namespace();
+  const doc = paragraph.doc();
+
+  onlyChild.remove();
+
+  // Keep the literal separator space attached to the book-name run (matching
+  // the structure the parser already emits for the majority of references,
+  // e.g. `<text:p ...>Luke <text:s/>1:5–25</text:p>`), then add the
+  // `<text:s/>` marker run so the numeric portion is its own text node.
+  paragraph.addChild(new libxmljs2.Text(doc, `${bookName} `));
+  const spaceRun = new libxmljs2.Element(doc, "s");
+  if (namespace) spaceRun.namespace(namespace);
+  paragraph.addChild(spaceRun);
+  paragraph.addChild(new libxmljs2.Text(doc, numericRef));
 }
 
 /**
@@ -21,14 +85,26 @@ export function splitUnsplitReferences(_contentXml: string): string {
  * convention in `fsUtils` (see `mergeXml`'s use of the same helper) — so no
  * partially-written master is ever observable at `outDocPath`, even if the
  * rename step is interrupted (spec.md FR-009; plan.md Decision 3).
- *
- * NOT YET IMPLEMENTED — this is the RED-stage stub for US3
- * (lessons-from-luke-2v47.5.5.2). It throws so the module compiles while
- * `referenceSplitter.test.ts`'s atomicity test fails at runtime, not a
- * compile error. The Green task (5.5.3) implements the real
- * extract -> split -> atomic re-zip pipeline and wires it into the upload
- * path.
  */
-export function splitReferencesInDocument(_inDocPath: string, _outDocPath: string): void {
-  throw new Error("not implemented");
+export function splitReferencesInDocument(inDocPath: string, outDocPath: string): void {
+  if (!fs.existsSync(inDocPath)) throw { status: 404 };
+
+  const extractDirPath = path.join(
+    os.tmpdir(),
+    `${path.basename(inDocPath)}_${new Date().valueOf()}_referenceSplitter`
+  );
+
+  try {
+    mkdirSafe(extractDirPath);
+    unzip(inDocPath, extractDirPath);
+
+    const contentXmlPath = path.join(extractDirPath, "content.xml");
+    const contentXml = fs.readFileSync(contentXmlPath).toString();
+    const splitContentXml = splitUnsplitReferences(contentXml);
+    fs.writeFileSync(contentXmlPath, splitContentXml);
+
+    zip(extractDirPath, outDocPath);
+  } finally {
+    unlinkRecursive(extractDirPath);
+  }
 }

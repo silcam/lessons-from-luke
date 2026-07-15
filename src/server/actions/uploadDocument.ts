@@ -6,6 +6,7 @@ import { unset } from "../../core/util/objectUtils";
 import docStorage from "../storage/docStorage";
 import { DocString } from "../../core/models/DocString";
 import { saveDocStrings, parseDocStrings } from "./updateLesson";
+import { splitReferencesInDocument } from "../xml/referenceSplitter";
 
 export async function uploadEnglishDoc(
   file: UploadedFile,
@@ -23,6 +24,7 @@ export async function uploadEnglishDoc(
     ...lesson,
     version: newVersion,
   });
+  splitReferencesInDocument(docFilepath, docFilepath);
   const docStrings = parseDocStrings(docFilepath);
 
   return saveDocStrings(lesson.lessonId, newVersion, docStrings, storage);
