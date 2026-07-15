@@ -1,5 +1,4 @@
 import fs from "fs";
-import os from "os";
 import path from "path";
 import libxmljs2, { Element, Text } from "libxmljs2";
 import { extractNamespaces } from "./mergeXml";
@@ -89,10 +88,12 @@ function splitParagraphIfUnsplit(paragraph: Element): void {
 export function splitReferencesInDocument(inDocPath: string, outDocPath: string): void {
   if (!fs.existsSync(inDocPath)) throw { status: 404 };
 
-  const extractDirPath = path.join(
-    os.tmpdir(),
-    `${path.basename(inDocPath)}_${new Date().valueOf()}_referenceSplitter`
-  );
+  // Extract beside the input document (mergeXml's `_odt` sibling-dir
+  // convention) rather than under os.tmpdir(): zip() finishes with
+  // fs.renameSync into outDocPath, and a tmpdir on a different filesystem
+  // (e.g. the CI container's /tmp vs the workspace mount) makes that rename
+  // fail with EXDEV.
+  const extractDirPath = `${inDocPath}_${new Date().valueOf()}_referenceSplitter`;
 
   try {
     mkdirSafe(extractDirPath);
