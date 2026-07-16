@@ -200,7 +200,7 @@ clarifications (own isolated driver; no Drizzle). Each supersession is recorded 
   - `src/server/controllers/usersController.ts` (+ `.test.ts`) — **deleted** (legacy admin).
   - `src/server/middle/requireUser.ts` (+ `.test.ts`) — rewritten.
   - **`src/desktop/**`— zero references** to`User.id`, `currentUser`, `/api/users`, `cookie-session`,
-`better-auth`, or `authClient` (verified by grep — empty result). US5 / SC-005 hold by
+    `better-auth`, or `authClient` (verified by grep — empty result). US5 / SC-005 hold by
     construction; no desktop file changes.
   - `src/core/interfaces/Api.ts` — defines `/api/admin/*` routes (unaffected by the id type; admin
     gating is enforced by middleware, not the route map). The legacy `/api/users/*` map entries (if
