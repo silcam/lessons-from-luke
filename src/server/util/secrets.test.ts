@@ -7,9 +7,9 @@
  *   1. `fs.existsSync(secretsJson)` returns true  → parse secrets.json
  *   2. `fs.existsSync(secretsJson)` returns false → use defaultSecrets
  *
- * Branch 2 is always hit in the Docker test environment (no secrets.json in
- * the working directory), so it is already covered by every test that imports
- * a module depending on `secrets`.
+ * Branch 2 is always hit when no secrets.json exists in the working
+ * directory, so it is already covered by every test that imports a module
+ * depending on `secrets`.
  *
  * Branch 1 (line 21, the ternary's true path) is NOT covered because there is
  * no `secrets.json` in the working directory during CI.  We cover it here by:
@@ -58,9 +58,9 @@ describe("secrets — file-based branch (line 21 true path)", () => {
 
   beforeAll(() => {
     // Snapshot the original file (if present) so we can restore it after each
-    // test.  In Docker/CI the entrypoint generates secrets.json; the first test
-    // overwrites it, and without a restore the next test suite would load our
-    // fake credentials and fail to connect to the database.
+    // test.  In CI (and on some workstations) a secrets.json exists; the first
+    // test overwrites it, and without a restore the next test suite would load
+    // our fake credentials and fail to connect to the database.
     if (fs.existsSync(secretsJsonPath)) {
       originalContent = fs.readFileSync(secretsJsonPath, "utf8");
     }

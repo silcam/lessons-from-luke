@@ -47,7 +47,7 @@ function cleanTmpDir() {
 function docXml(docPath: string) {
   // Extract into an OS temp dir (outside the project tree) rather than next to
   // the source ODT. When this transient tree lived under docs/, jest-haste-map's
-  // NodeWatcher — the fallback watcher used in Docker/Linux where watchman and
+  // NodeWatcher — the fallback watcher used on Linux where watchman and
   // fsevents are absent — would crash with ENOENT trying to fs.watch() a
   // subdirectory that unlinkRecursive had already deleted mid-scan.
   const extractDirPath = path.join(
