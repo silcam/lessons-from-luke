@@ -47,6 +47,15 @@ describe("auth thunks (web/auth/authThunks)", () => {
       expect(authClient.getSession).toHaveBeenCalled();
       expect(dispatch).toHaveBeenCalledWith(currentUserSlice.actions.setUser(null));
     });
+
+    it("on getSession() rejection, dispatches setUser(null) so loaded becomes true", async () => {
+      (authClient.getSession as jest.Mock).mockRejectedValue(new Error("Network failure"));
+      const dispatch = jest.fn();
+
+      await loadCurrentUser()(dispatch);
+
+      expect(dispatch).toHaveBeenCalledWith(currentUserSlice.actions.setUser(null));
+    });
   });
 
   describe("pushLogin", () => {
@@ -189,6 +198,38 @@ describe("auth thunks (web/auth/authThunks)", () => {
 
       expect(dispatch).toHaveBeenCalledWith(currentUserSlice.actions.setError(expect.any(String)));
     });
+
+    it("when signIn resolves with { error: null, data: {} }, dispatches setError and does NOT dispatch setUser", async () => {
+      const login = { email: "user@example.com", password: "pass" };
+      (authClient.signIn.email as jest.Mock).mockResolvedValue({ error: null, data: {} });
+      const dispatch = jest.fn();
+
+      await pushLogin(login)(dispatch);
+
+      expect(dispatch).toHaveBeenCalledWith(
+        currentUserSlice.actions.setError("An error occurred. Please try again.")
+      );
+      const setUserCalls = dispatch.mock.calls.filter(
+        ([action]) => action.type === "currentUser/setUser"
+      );
+      expect(setUserCalls).toHaveLength(0);
+    });
+
+    it("when signIn resolves with { error: null, data: null }, dispatches setError and does NOT dispatch setUser", async () => {
+      const login = { email: "user@example.com", password: "pass" };
+      (authClient.signIn.email as jest.Mock).mockResolvedValue({ error: null, data: null });
+      const dispatch = jest.fn();
+
+      await pushLogin(login)(dispatch);
+
+      expect(dispatch).toHaveBeenCalledWith(
+        currentUserSlice.actions.setError("An error occurred. Please try again.")
+      );
+      const setUserCalls = dispatch.mock.calls.filter(
+        ([action]) => action.type === "currentUser/setUser"
+      );
+      expect(setUserCalls).toHaveLength(0);
+    });
   });
 
   describe("pushLogout", () => {
@@ -213,6 +254,15 @@ describe("auth thunks (web/auth/authThunks)", () => {
           (action.type === "currentUser/setUser" && action.payload === null)
       );
       expect(logoutCalls.length).toBeGreaterThan(0);
+    });
+
+    it("when signOut throws, still dispatches logout action", async () => {
+      (authClient.signOut as jest.Mock).mockRejectedValue(new Error("Network failure"));
+      const dispatch = jest.fn();
+
+      await pushLogout()(dispatch);
+
+      expect(dispatch).toHaveBeenCalledWith(currentUserSlice.actions.logout());
     });
   });
 });

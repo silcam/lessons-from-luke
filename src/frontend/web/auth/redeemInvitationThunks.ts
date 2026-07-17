@@ -13,7 +13,7 @@
  */
 
 import { createAsyncThunk } from "@reduxjs/toolkit";
-import type { APIGet, APIPost } from "../../../core/interfaces/Api";
+import type { APIGet, APIPost } from "../../../core/api/ApiContracts";
 
 export type RedemptionLookupResult = APIGet["/api/auth/invitation/:token"][1];
 export type RedemptionAcceptResult = APIPost["/api/auth/invitation/accept"][2];

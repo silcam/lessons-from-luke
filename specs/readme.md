@@ -13,6 +13,11 @@ Spec: specs/001-better-auth-migration/spec.md
 Keywords: invitation, invite, invitation link, sign-up link, single-use invite, email-bound invitation, admin-issued invite, onboarding, account creation, redeem invitation, accept invite, retract invitation, revoke invite, expire invitation, 14-day expiry, pending accepted expired retracted, invitation management screen, admin onboarding, role grant, copy link, no email sending, recipient sign-up, server-only auth, stacked on better-auth, 401, 403
 Spec: specs/002-invitation-system/spec.md
 
+## Require Web Authentication
+
+Keywords: web authentication gate, require login, require sign-in, authentication required, protected routes, route guard, gated routes, default-deny routing, public allowlist, redirect to login, login redirect, post-login return, return-to URL, deep link sign-in, /translate auth, translation page login, lesson page login, non-admin routes require auth, desktop no auth, desktop unaffected, offline desktop, client-side auth gate, web-only enforcement, session required, sign-in wall, invitation route stays public, 401, 403, stacked on invitation system
+Spec: specs/003-web-auth-gate/spec.md
+
 ## Transactional Email & Self-Service Password Reset
 
 Keywords: transactional email, Mailgun, email service, send email, SMTP, password reset, forgot password, reset link, self-service recovery, account recovery, locked out, change password, set new password, email-and-password auth, better-auth sendResetPassword, account enumeration, invalidate sessions, sign out other sessions, auto-email invitation, invitation email, resend invitation, resend email, invitation delivery, email-bound invite, environment-gated email, fail-fast secrets, log transport, dev/test email logging, secrets.json, sending domain, from-address, rate limiting, email flooding, server-only email, web-only

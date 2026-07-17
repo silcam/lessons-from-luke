@@ -2,7 +2,7 @@ import React from "react";
 import styled from "styled-components";
 import Colors from "../util/Colors";
 
-interface IProps {
+interface IProps extends React.HTMLAttributes<HTMLDivElement> {
   danger?: boolean;
   success?: boolean;
   children?: React.ReactNode;
