@@ -552,3 +552,63 @@ describe("assembleQuarter (real soffice merge, template asset swap — 009 US3/F
     expect(fs.existsSync(realAssetPath)).toBe(true);
   }, 200_000);
 });
+
+describe("assembleQuarter (real soffice merge, monolingual template asset is a clean loadable style source — 009 FR-005)", () => {
+  // Proves the committed monolingual asset
+  // (`assets/quarter-styles-template-monolingual.odt`, the asset
+  // `resolveTemplatePath(true)` selects for single-language assemblies) is a
+  // valid, loadable style source whose `M.T. Text` paragraph style carries NO
+  // legacy working-highlight — the exact regression 009 exists to prevent, now
+  // re-checked against the real monolingual master rather than the bilingual
+  // stopgap. NOTE: this drives the asset through soffice via the
+  // English+English short-circuit (a real single-language `majorityLangId === 0`
+  // assembly needs storage/fixtures); the `majorityLangId === 0 → monolingual`
+  // SELECTION mapping is covered by the unit tests, not this test.
+  let workDir: string;
+
+  beforeAll(() => {
+    execFileSync("soffice", ["--version"]);
+    workDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembleQuarter-monolingual-"));
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  afterAll(() => {
+    if (workDir) fs.rmSync(workDir, { recursive: true, force: true });
+  });
+
+  test("the committed monolingual asset loads as a template and yields an M.T. Text style with no legacy #ffffcc highlight", async () => {
+    // The real path the single-language branch resolves. Spied so this single
+    // real lesson (English mother + English majority, which short-circuits
+    // makeLessonFile to the raw source) is styled by the actual monolingual
+    // asset — exercising the monolingual branch end-to-end through soffice.
+    const monolingualAssetPath = quarterStylesTemplate.resolveTemplatePath(true);
+    expect(monolingualAssetPath).toBe(
+      path.join(process.cwd(), "assets", "quarter-styles-template-monolingual.odt")
+    );
+    expect(fs.existsSync(monolingualAssetPath)).toBe(true);
+
+    jest.spyOn(quarterStylesTemplate, "resolveTemplatePath").mockReturnValue(monolingualAssetPath);
+
+    const jobId = "monolingual-template";
+    const jobWorkRoot = path.join(workDir, "assembly-work");
+    fs.mkdirSync(path.join(jobWorkRoot, jobId), { recursive: true });
+
+    const outputPath = await assembleQuarter({
+      storage,
+      lessons: [lesson(LESSON_NUMBERS[0])],
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId,
+      workRoot: jobWorkRoot,
+    });
+    expect(fs.existsSync(outputPath)).toBe(true);
+
+    const stylesXml = extractStylesXml(outputPath, workDir, "styles-extract-monolingual");
+    // No legacy working-highlight: the M.T. Text background must not be the
+    // #ffffcc highlight color (transparent or absent are both acceptable).
+    expect(mtTextBackgroundColor(stylesXml)).not.toBe("#ffffcc");
+  }, 200_000);
+});

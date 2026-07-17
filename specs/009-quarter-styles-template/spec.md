@@ -49,8 +49,9 @@ valid, editable assembled quarter book.
    per-lesson first-page number suppression; full editability (no protected or
    linked sections); and the book metadata written by finalization.
 3. **Given** any (language, book, quarter, assembly mode), **When** a book is
-   assembled, **Then** the template is always applied — there is no unstyled
-   variant and no user-facing toggle.
+   assembled, **Then** the mode-appropriate template (bilingual or monolingual)
+   is always applied — there is no unstyled variant and no user-facing toggle;
+   mode selection is automatic, keyed off the assembly's majority-language id.
 
 ---
 
@@ -82,11 +83,13 @@ offered for download.
 
 ### User Story 3 - Swapping in the real template is a file replacement (Priority: P3)
 
-Chris's actual quarter styles template file has not yet been received. The
-feature ships with a stand-in style source derived from his hand-assembled
-reference (`English_Luke-Q2-Master-bilingual.odt`). When the real file arrives,
-a maintainer replaces the shipped asset file and the next assembled book uses
-the new styles — no code change required.
+Chris's actual monolingual master files have since been received and ship
+directly as the single-language asset; his real bilingual template has not yet
+arrived, so bilingual mode still ships a stand-in style source derived from his
+hand-assembled reference (`English_Luke-Q2-Master-bilingual.odt`). Whenever a
+real file (or an updated master) arrives, a maintainer replaces the shipped
+asset file and the next assembled book uses the new styles — no code change
+required.
 
 **Why this priority**: Keeps the feature shippable now and makes the real
 template a drop-in later. Valuable, but the mechanism (US1) and its failure
@@ -101,9 +104,10 @@ without any code modification.
 1. **Given** a replacement template file dropped in place of the shipped
    asset, **When** the next assembly job runs, **Then** the output carries the
    replacement's styles, with no code change.
-2. **Given** the shipped stand-in, **When** any quarter is assembled, **Then**
-   one and the same global template applies to all languages, books, quarters,
-   and assembly modes.
+2. **Given** the shipped assets, **When** any quarter is assembled, **Then**
+   one and the same global template applies to all languages, books, and
+   quarters within an assembly mode — the bilingual asset for bilingual
+   assemblies, the monolingual asset for single-language assemblies.
 
 ---
 
@@ -130,9 +134,10 @@ without any code modification.
   for download. Application is always-on: there is no user-facing toggle, and
   the template-styled book is the one canonical output per (language, book,
   quarter, assembly mode).
-- **FR-002**: With the shipped stand-in template, the delivered book's `M.T.*`
-  paragraph-style family MUST carry no background highlight (the
-  print-readiness effect the template exists to deliver, per SOP §16).
+- **FR-002**: With either shipped template (bilingual stand-in or monolingual
+  master), the delivered book's `M.T.*` paragraph-style family MUST carry no
+  background highlight (the print-readiness effect the template exists to
+  deliver, per SOP §16).
 - **FR-003**: Template application MUST NOT regress any existing
   assembled-quarter guarantee: single clean un-suffixed page-style set,
   per-lesson footers, continuous pagination with per-lesson first-page number
@@ -144,18 +149,30 @@ without any code modification.
   is never presented as print-ready.
 - **FR-005**: The quarter styles template MUST be a swappable application
   asset: replacing the asset file changes the applied styles with no code
-  change. Exactly one global template applies to all languages, books,
-  quarters, and assembly modes.
-- **FR-006**: Until the operator's real template file is received, the system
-  MUST ship with a stand-in style source derived from the hand-assembled
-  reference (`test/docs/references/English_Luke-Q2-Master-bilingual.odt`); the
-  real file MUST be usable as a drop-in replacement (per FR-005).
+  change. The template is selected by assembly mode — one asset for bilingual
+  assemblies and one for single-language (monolingual) assemblies — each a
+  single global asset applying to all languages, books, and quarters within
+  its mode. Mode selection keys off the majority-translation language id
+  (`0` == single-language), which is already available at the assembly call
+  site; no per-quarter or per-book variants exist.
+- **FR-006**: The system MUST ship a committed style source per assembly mode.
+  For single-language mode the operator's real monolingual master has arrived
+  and is shipped directly (`assets/quarter-styles-template-monolingual.odt`,
+  from `English_Luke-Q4-Master-monolingual.odt`). For bilingual mode, until the
+  operator's real bilingual template is received, the system ships a stand-in
+  style source derived from the hand-assembled reference
+  (`test/docs/references/English_Luke-Q2-Master-bilingual.odt`). Any real file
+  MUST remain usable as a drop-in replacement (per FR-005).
 
 ### Key Entities
 
-- **Quarter styles template**: A single, global, swappable application asset —
-  a style source document whose named styles are applied onto every assembled
-  quarter book during assembly. Not user-managed; ships with the application.
+- **Quarter styles template**: A global, swappable application asset — a style
+  source document whose named styles are applied onto every assembled quarter
+  book during assembly. Ships as two mode-keyed assets: a bilingual template
+  (`quarter-styles-template.odt`) for bilingual assemblies and a monolingual
+  template (`quarter-styles-template-monolingual.odt`) for single-language
+  assemblies. The assembly picks one by the majority-language id; neither is
+  user-managed.
 - **Assembled quarter book** (existing): The deliverable of feature 007; this
   feature changes its styling (template applied) but none of its structural
   guarantees.
@@ -186,9 +203,10 @@ without any code modification.
 - The operator's real template maps styles by name onto the same style
   families the source masters use (confirmed by his report of applying it by
   hand via Load Styles).
-- The stand-in derived from the Q2 reference master is acceptable to ship;
-  requesting the real template from Chris is a non-blocking, long-lead item
-  tracked outside this feature.
+- The bilingual stand-in derived from the Q2 reference master is acceptable to
+  ship; the real monolingual masters have since arrived and ship directly for
+  single-language mode. Requesting the real bilingual template from Chris
+  remains a non-blocking, long-lead item tracked outside this feature.
 - The template asset is a build/deploy-time artifact, so its absence is a
   deployment bug — justifying fail-the-job (FR-004) rather than graceful
   degradation.

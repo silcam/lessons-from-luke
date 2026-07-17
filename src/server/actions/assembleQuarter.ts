@@ -149,7 +149,9 @@ export default async function assembleQuarter(options: AssembleQuarterOptions): 
     files.push(copyPath);
   }
 
-  const templatePath = resolveTemplatePath();
+  // Single-language mode (majorityLangId 0) styles from the monolingual
+  // master; bilingual mode keeps the bilingual template. See 009 FR-005.
+  const templatePath = resolveTemplatePath(majorityLangId === 0);
   try {
     validateTemplateAsset(templatePath);
   } catch {

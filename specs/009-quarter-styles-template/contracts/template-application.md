@@ -11,11 +11,15 @@ contract** for the new step.
 ## 1. Asset resolution + validation — `quarterStylesTemplate`
 
 ```
-resolveTemplatePath(): string
+resolveTemplatePath(singleLanguage: boolean = false): string
 ```
 
-- Returns the absolute path to the shipped asset:
-  `path.join(process.cwd(), "assets", "quarter-styles-template.odt")`.
+- Returns the absolute path to the mode-keyed shipped asset:
+  `path.join(process.cwd(), "assets", "quarter-styles-template-monolingual.odt")`
+  when `singleLanguage` is `true` (majority-translation language id `0`), else
+  `path.join(process.cwd(), "assets", "quarter-styles-template.odt")` (bilingual,
+  the default).
+- The default preserves bilingual behavior for every existing caller/test.
 - Pure/deterministic; performs no I/O.
 
 ```
@@ -117,10 +121,13 @@ End Sub
 
 ## 4. Orchestration — `assembleQuarter`
 
-- Before calling `sofficeAssemble`: call `resolveTemplatePath()` +
+- Before calling `sofficeAssemble`: call
+  `resolveTemplatePath(majorityLangId === 0)` — single-language mode selects the
+  monolingual asset, bilingual mode the bilingual asset — then
   `validateTemplateAsset(...)`; on throw, end the job `failed` with the curated
-  reason (reusing the existing curated-catch pattern). Pass `templatePath`
-  through to `sofficeAssemble`.
+  reason (reusing the existing curated-catch pattern). The validation guard
+  protects whichever mode-selected asset is used. Pass `templatePath` through to
+  `sofficeAssemble`.
 - After the merge: `finalizeAssembledQuarter` runs unchanged (its outline +
   metadata patches remain valid because numbering/page styles were not imported).
 - The existing "assembly produced no result" guard remains the backstop for a

@@ -16,10 +16,26 @@ afterEach(() => {
   statSyncMock.mockReset();
 });
 
-test("resolveTemplatePath returns the process.cwd()-relative asset path with no I/O", () => {
+test("resolveTemplatePath returns the bilingual asset path by default, with no I/O", () => {
   const result = resolveTemplatePath();
 
   expect(result).toBe(`${process.cwd()}/assets/quarter-styles-template.odt`);
+  expect(existsSyncMock).not.toHaveBeenCalled();
+  expect(statSyncMock).not.toHaveBeenCalled();
+});
+
+test("resolveTemplatePath(false) returns the bilingual asset path, with no I/O", () => {
+  const result = resolveTemplatePath(false);
+
+  expect(result).toBe(`${process.cwd()}/assets/quarter-styles-template.odt`);
+  expect(existsSyncMock).not.toHaveBeenCalled();
+  expect(statSyncMock).not.toHaveBeenCalled();
+});
+
+test("resolveTemplatePath(true) returns the monolingual asset path, with no I/O", () => {
+  const result = resolveTemplatePath(true);
+
+  expect(result).toBe(`${process.cwd()}/assets/quarter-styles-template-monolingual.odt`);
   expect(existsSyncMock).not.toHaveBeenCalled();
   expect(statSyncMock).not.toHaveBeenCalled();
 });
