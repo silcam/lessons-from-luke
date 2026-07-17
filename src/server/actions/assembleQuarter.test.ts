@@ -120,6 +120,8 @@ describe("assembleQuarter", () => {
     });
 
     expect(resolveTemplatePathMock).toHaveBeenCalledTimes(1);
+    // Bilingual mode (majorityLangId !== 0) resolves the bilingual template.
+    expect(resolveTemplatePathMock).toHaveBeenCalledWith(false);
     expect(validateTemplateAssetMock).toHaveBeenCalledWith("/fixture/quarter-styles-template.odt");
     expect(sofficeAssembleMock).toHaveBeenCalledTimes(1);
     const [sofficeOptions] = sofficeAssembleMock.mock.calls[0] as [{ templatePath: string }];
@@ -129,6 +131,20 @@ describe("assembleQuarter", () => {
     const validateOrder = validateTemplateAssetMock.mock.invocationCallOrder[0];
     const sofficeOrder = sofficeAssembleMock.mock.invocationCallOrder[0];
     expect(validateOrder).toBeLessThan(sofficeOrder);
+  });
+
+  test("single-language mode (majorityLangId 0) resolves the monolingual template", async () => {
+    await assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: 0,
+      jobId: "job-template-monolingual-1",
+      workRoot: fixtureDir,
+    });
+
+    expect(resolveTemplatePathMock).toHaveBeenCalledTimes(1);
+    expect(resolveTemplatePathMock).toHaveBeenCalledWith(true);
   });
 
   test("fails the job loudly with a curated reason when the template asset is missing or unreadable, without invoking sofficeAssemble", async () => {

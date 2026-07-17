@@ -95,6 +95,9 @@ code change.
 surface: the macro, `sofficeAssemble` (env var + asset path plumbing),
 `assembleQuarter` (per-job asset validation), a new asset-path helper, and the
 committed asset file.
+_(Superseded: template is now selected per assembly mode — a bilingual asset and
+a monolingual asset (`assets/quarter-styles-template-monolingual.odt`), keyed off
+`majorityLangId === 0`. See spec.md FR-005/FR-006 and data-model.md.)_
 
 ## Constitution Check
 
@@ -131,7 +134,8 @@ specs/009-quarter-styles-template/
 
 ```text
 assets/
-└── quarter-styles-template.odt        # NEW — committed stand-in style asset (research R4)
+├── quarter-styles-template.odt              # committed bilingual stand-in style asset (research R4)
+└── quarter-styles-template-monolingual.odt  # committed monolingual master (single-language mode)
 
 src/server/
 ├── assembly/

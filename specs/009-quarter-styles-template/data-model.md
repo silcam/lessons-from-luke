@@ -9,18 +9,20 @@ contract.
 
 ## Quarter styles template (application asset)
 
-A single, global, swappable style-source document whose named styles are applied
-onto every assembled quarter book during assembly.
+A global, swappable style-source document whose named styles are applied onto
+every assembled quarter book during assembly. Two mode-keyed assets exist: one
+for bilingual assemblies and one for single-language (monolingual) assemblies.
 
-| Attribute       | Value                                                                                                                         |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Kind            | Static, version-controlled binary asset (`.odt`).                                                                             |
-| Location        | `assets/quarter-styles-template.odt` (repo root), resolved at runtime from `process.cwd()`.                                   |
-| Cardinality     | Exactly one, global — same file for all languages, books, quarters, modes.                                                    |
-| Lifecycle       | Build/deploy-time artifact; shipped with the app (Capistrano checkout). Never user-managed, never runtime-generated.          |
-| Mutability      | Read-only at runtime. Replaced only by a maintainer file swap (FR-005).                                                       |
-| Stand-in source | Derived from `test/docs/references/English_Luke-Q2-Master-bilingual.odt`, style definitions preserved verbatim (research R3). |
-| Validation      | Per-job, before the `soffice` run: MUST exist and be non-empty. Failure ⇒ job `failed` with a curated reason (FR-004).        |
+| Attribute      | Value                                                                                                                                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Kind           | Static, version-controlled binary asset (`.odt`).                                                                                                                                                            |
+| Location       | `assets/quarter-styles-template.odt` (bilingual) and `assets/quarter-styles-template-monolingual.odt` (single-language), repo root, resolved at runtime from `process.cwd()`.                                |
+| Cardinality    | Two global assets, keyed by assembly mode — same bilingual file for all bilingual assemblies, same monolingual file for all single-language assemblies; no per-language/book/quarter variants.               |
+| Mode selection | `resolveTemplatePath(singleLanguage)` returns the monolingual asset when the majority-translation language id is `0` (single-language), else the bilingual asset.                                            |
+| Lifecycle      | Build/deploy-time artifact; shipped with the app (Capistrano checkout). Never user-managed, never runtime-generated.                                                                                         |
+| Mutability     | Read-only at runtime. Replaced only by a maintainer file swap (FR-005).                                                                                                                                      |
+| Source         | Bilingual: derived from `test/docs/references/English_Luke-Q2-Master-bilingual.odt`. Monolingual: the client's `English_Luke-Q4-Master-monolingual.odt` (a superset of the per-quarter monolingual masters). |
+| Validation     | Per-job, before the `soffice` run: whichever mode-selected asset is used MUST exist and be non-empty. Failure ⇒ job `failed` with a curated reason (FR-004).                                                 |
 
 **Style-family scope actually applied** (research R2): only paragraph +
 character styles are imported and overwritten
