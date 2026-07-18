@@ -29,7 +29,7 @@ afterEach(() => {
  * Quarter property. Packed WITHOUT mimetype-first ordering so the repack
  * assertion is meaningful.
  */
-function buildMergedFixtureOdt(odtPath: string): void {
+function buildMergedFixtureOdt(odtPath: string, officeTextInner = ""): void {
   const srcDir = `${workDir}/src-${path.basename(odtPath, ".odt")}`;
   mkdirSafe(workDir);
   mkdirSafe(srcDir);
@@ -49,8 +49,8 @@ function buildMergedFixtureOdt(odtPath: string): void {
   fs.writeFileSync(
     `${srcDir}/content.xml`,
     `<?xml version="1.0" encoding="UTF-8"?>
-<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" office:version="1.2">
-  <office:body><office:text/></office:body>
+<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" office:version="1.2">
+  <office:body><office:text>${officeTextInner}</office:text></office:body>
 </office:document-content>`
   );
   fs.writeFileSync(
@@ -78,7 +78,10 @@ function buildMergedFixtureOdt(odtPath: string): void {
   execFileSync("zip", ["-r", "-X", absOut, "."], { cwd: srcDir });
 }
 
-function extractXml(odtPath: string, entry: "styles.xml" | "meta.xml"): XmlDocument {
+function extractXml(
+  odtPath: string,
+  entry: "styles.xml" | "meta.xml" | "content.xml"
+): XmlDocument {
   const extractDir = `${workDir}/extracted-${entry.replace(".xml", "")}`;
   unlinkRecursive(extractDir);
   unzip(odtPath, extractDir);
@@ -172,6 +175,57 @@ test("throws when the merged document has no level-1 outline style to patch (cha
   execFileSync("zip", ["-r", "-X", path.resolve(odtPath), "."], { cwd: extractDir });
 
   expect(() => finalizeAssembledQuarter(defaultOptions(odtPath))).toThrow(/outline/i);
+});
+
+test("strips the empty leading paragraph that forces a blank recto page 1 (Q1 Inside_20_cover verso master)", () => {
+  const odtPath = `${workDir}/assembled.odt`;
+  // The Q1 TOC opens with an empty paragraph on the verso master, then the cover.
+  buildMergedFixtureOdt(
+    odtPath,
+    `<text:sequence-decls/>` +
+      `<text:p text:style-name="P1"><text:soft-page-break/></text:p>` +
+      `<text:p text:style-name="Body">Somo kutoka kitabu cha Luka.</text:p>`
+  );
+
+  finalizeAssembledQuarter(defaultOptions(odtPath));
+
+  const contentDoc = extractXml(odtPath, "content.xml");
+  const paragraphs = contentDoc.find<Element>("//office:text/text:p", NAMESPACES);
+  expect(paragraphs).toHaveLength(1);
+  expect(paragraphs[0].text().trim()).toBe("Somo kutoka kitabu cha Luka.");
+});
+
+test("removes multiple consecutive empty leading paragraphs, stopping at the first with content", () => {
+  const odtPath = `${workDir}/assembled.odt`;
+  buildMergedFixtureOdt(
+    odtPath,
+    `<text:p text:style-name="P1"><text:soft-page-break/></text:p>` +
+      `<text:p text:style-name="P2"/>` +
+      `<text:p text:style-name="Body">cover</text:p>` +
+      `<text:p text:style-name="Body"/>`
+  );
+
+  finalizeAssembledQuarter(defaultOptions(odtPath));
+
+  const contentDoc = extractXml(odtPath, "content.xml");
+  const paragraphs = contentDoc.find<Element>("//office:text/text:p", NAMESPACES);
+  // Both leading empties removed; the trailing empty (after content) is kept.
+  expect(paragraphs.map((p) => p.text().trim())).toEqual(["cover", ""]);
+});
+
+test("leaves a non-empty first paragraph untouched (other quarters open directly on the cover)", () => {
+  const odtPath = `${workDir}/assembled.odt`;
+  buildMergedFixtureOdt(
+    odtPath,
+    `<text:p text:style-name="P1">Somo kutoka kitabu cha Luka.</text:p>`
+  );
+
+  finalizeAssembledQuarter(defaultOptions(odtPath));
+
+  const contentDoc = extractXml(odtPath, "content.xml");
+  const paragraphs = contentDoc.find<Element>("//office:text/text:p", NAMESPACES);
+  expect(paragraphs).toHaveLength(1);
+  expect(paragraphs[0].text().trim()).toBe("Somo kutoka kitabu cha Luka.");
 });
 
 test("re-packs with the mimetype entry stored FIRST and UNCOMPRESSED (ODF requirement)", () => {
