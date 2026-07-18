@@ -26,6 +26,11 @@ import { rezipWithMimetypeFirst } from "../xml/rezipWithMimetypeFirst";
  *   `text:user-defined[Quarter]`/`text:title`/`text:subject` fields — one
  *   shared value per book — resolve on open/render, and the client's
  *   quarter styles template drops in cleanly.
+ * - **Leading blank page (content.xml)**: strip empty leading paragraph(s)
+ *   from the start of `office:text` — the Luke book-1 (Q1) TOC constituent
+ *   opens with an EMPTY paragraph pinned to a `page-usage="left"` (verso)
+ *   master, which as the document's first element makes LibreOffice insert
+ *   a blank recto filler page (see `removeLeadingBlankParagraphs`).
  *
  * Re-zips with the `mimetype` entry stored FIRST and UNCOMPRESSED (ODF
  * requirement). Mutates `odtPath` (the merge output inside the per-job
@@ -57,6 +62,11 @@ export function finalizeAssembledQuarter(options: FinalizeAssembledQuarterOption
     mkdirSafe(extractDirPath);
     unzip(odtPath, extractDirPath);
 
+    const contentXmlPath = `${extractDirPath}/content.xml`;
+    const contentDoc = libxmljs2.parseXml(fs.readFileSync(contentXmlPath, "utf8"));
+    removeLeadingBlankParagraphs(contentDoc, extractNamespaces(contentDoc));
+    fs.writeFileSync(contentXmlPath, contentDoc.toString(false));
+
     const stylesXmlPath = `${extractDirPath}/styles.xml`;
     const stylesDoc = libxmljs2.parseXml(fs.readFileSync(stylesXmlPath, "utf8"));
     patchOutlineNumbering(stylesDoc, extractNamespaces(stylesDoc), firstLessonNumber);
@@ -70,6 +80,60 @@ export function finalizeAssembledQuarter(options: FinalizeAssembledQuarterOption
     rezipWithMimetypeFirst(extractDirPath, odtPath);
   } finally {
     unlinkRecursive(extractDirPath);
+  }
+}
+
+/**
+ * Local names of ODF elements that may legitimately precede body content
+ * inside `office:text` (declarations, change-tracking, forms). These are
+ * skipped — never removed — while scanning for the document's first real
+ * paragraph.
+ */
+const OFFICE_TEXT_DECLARATIONS = new Set([
+  "tracked-changes",
+  "variable-decls",
+  "sequence-decls",
+  "user-field-decls",
+  "dde-connection-decls",
+  "alphabetical-index-auto-mark-file",
+  "forms",
+]);
+
+/**
+ * Removes empty leading paragraph(s) from the start of `office:text`.
+ *
+ * The Luke book-1 (Q1) TOC constituent begins with an EMPTY `<text:p>`
+ * pinned — via its `Inside_20_cover` master page — to a
+ * `style:page-usage="left"` (verso) page layout. As the assembled
+ * document's very first element, that empty paragraph makes LibreOffice
+ * insert a blank recto filler page so the verso content lands on a left
+ * page: an unwanted blank page 1. Other quarters' TOC masters open
+ * directly on a content paragraph and are unaffected. Deleting the leading
+ * empty paragraph makes the cover page 1 with no filler (verified via a
+ * soffice round-trip on the real Q1 output: 100 → 99 pages, cover on page 1).
+ *
+ * Only *empty* leading `<text:p>` are removed, and only up to the first
+ * body-content element (a non-empty paragraph, heading, table, list, …);
+ * a non-empty first paragraph — e.g. every other quarter's cover — stops
+ * the scan and is left untouched.
+ */
+function removeLeadingBlankParagraphs(contentDoc: XmlDocument, namespaces: Namespaces): void {
+  const officeText = contentDoc.get<Element>("//office:body/office:text", namespaces);
+  if (!officeText) return;
+
+  for (const child of officeText.childNodes()) {
+    if (child.type() !== "element") continue;
+    const element = child as Element;
+    const name = element.name();
+    if (OFFICE_TEXT_DECLARATIONS.has(name)) continue;
+    // First body-content element: strip it only when it's an empty
+    // paragraph, then re-examine the next; stop at the first non-empty or
+    // non-paragraph block so real content is never touched.
+    if (name === "p" && element.text().trim() === "") {
+      element.remove();
+      continue;
+    }
+    break;
   }
 }
 
