@@ -264,63 +264,6 @@ describe("reparseEnglish/reparseLesson — US19 scenarios", () => {
     expect(untouched).toMatchObject({ text: "Dieu entend nos prières." });
   });
 
-  // GWT scenario 1: one-time re-processing splits residual references in
-  // every stored master. Depends on task .3 wiring `splitReferencesInDocument`
-  // into `reparseLesson` before `parseDocStrings` — not yet implemented.
-  //
-  // Confirmed failing (2026-07-14, before task .3): the spy below is never
-  // called — `reparseLesson` today goes straight from `fs.copyFileSync` to
-  // `parseDocStrings` with no splitter step, so this fails with "Number of
-  // calls: 0" (an assertion failure, not a compile/type error). Skipped so
-  // the pre-commit hook's `jest --bail` doesn't reject this WRITE_ACCEPTANCE_TEST
-  // commit; activated by lessons-from-luke-2v47.5.6.3 (GREEN). See also the
-  // RED test at lessons-from-luke-2v47.5.6.2 asserting the splitter call
-  // directly against reparseEnglish.ts.
-  it.skip("splits a residual unsplit reference (e.g. 'Luke 1:26–38') when re-processing a master [pending task .3]", async () => {
-    const lesson: Lesson = {
-      ...baseLesson(),
-      lessonStrings: [
-        {
-          lessonStringId: 1,
-          masterId: 900,
-          lessonId: LESSON_ID,
-          lessonVersion: 1,
-          type: "content",
-          xpath: "/p[1]",
-          motherTongue: false,
-        },
-      ],
-    };
-    const englishStrings: TString[] = [
-      { masterId: 900, languageId: ENGLISH_ID, text: "Luke 1:26–38", history: [] },
-    ];
-    const storage = makeStorage(lesson, englishStrings);
-    (updateLessonModule.parseDocStrings as jest.Mock).mockReturnValue([
-      { type: "content", xpath: "/p[1]", motherTongue: false, text: "Luke" },
-      { type: "content", xpath: "/p[2]", motherTongue: false, text: "1:26–38" },
-    ]);
-    const splitSpy = jest.spyOn(referenceSplitterModule, "splitReferencesInDocument");
-
-    await reparseLesson(lesson, storage);
-
-    const expectedNewDocFilepath = docStorage.docFilepath({
-      ...lesson,
-      version: lesson.version + 1,
-    });
-    expect(splitSpy).toHaveBeenCalledWith(expectedNewDocFilepath, expectedNewDocFilepath);
-  });
-
-  // GWT scenario 3: re-processing surfaces a changed reference through the
-  // existing lesson-update-issues flow (findTSubs), with the prior combined
-  // reference still visible as the "from" side. Depends on task .3.
-  it.skip("surfaces a residual-reference split through findTSubs with the old combined reference as the 'from' side [pending task .3]", () => {
-    // Activated by lessons-from-luke-2v47.5.6.3. The findTSubs mechanics for
-    // this exact shape are already unit-tested in findTSubs.test.ts ("still
-    // surfaces an update-issue when a combined verse reference with letters
-    // (e.g. 'Luke 1:26-38') is split into separate masters") — this test
-    // will assemble that behavior end-to-end starting from reparseLesson.
-  });
-
   // RED (task .2): reparseLesson MUST invoke the Mechanism-2 splitter
   // (src/server/xml/referenceSplitter.ts) on the copied master file BEFORE
   // calling parseDocStrings (spec.md FR-012). Confirmed failing against the
@@ -328,7 +271,7 @@ describe("reparseEnglish/reparseLesson — US19 scenarios", () => {
   // parseDocStrings with no splitter call — the call-order spy below never
   // observes the splitter call, so this fails with "Number of calls: 0" (an
   // assertion error, not a compile error). Activated by task .3 (GREEN).
-  it("invokes the Mechanism-2 splitter on the copied master before parseDocStrings [RED, pending task .3]", async () => {
+  it("invokes the Mechanism-2 splitter on the copied master before parseDocStrings", async () => {
     const lesson: Lesson = {
       ...baseLesson(),
       lessonStrings: [
@@ -378,7 +321,7 @@ describe("reparseEnglish/reparseLesson — US19 scenarios", () => {
   // reparseEnglish() call and lesson B is never processed — this fails with
   // the thrown error surfacing instead of being caught (an assertion error
   // on `resolves`, not a compile error). Activated by task .3 (GREEN).
-  it("continues processing remaining lessons and logs a summary when one lesson fails [RED, pending task .3]", async () => {
+  it("continues processing remaining lessons and logs a summary when one lesson fails", async () => {
     const FAILING_LESSON_ID = 21;
     const SUCCEEDING_LESSON_ID = 22;
 
@@ -447,15 +390,5 @@ describe("reparseEnglish/reparseLesson — US19 scenarios", () => {
       )
     ).toBe(true);
     expect(loggedMessages.some((msg) => /summary/i.test(msg))).toBe(true);
-  });
-
-  // GWT scenario 5 (red-team Pass 1 HIGH closure, Option A): a numeric
-  // reference corrected in an existing English master must not go silently
-  // blank in projects that already translated the old value. Depends on
-  // task .5 (GREEN: Option A re-carry in uploadEnglishDoc).
-  it.skip("re-carries a corrected numeric reference into an existing project instead of leaving it blank [pending task .5]", () => {
-    // Activated by lessons-from-luke-2v47.5.6.5. The focused failing test
-    // for this exact gap lives in uploadDocument.test.ts, authored by
-    // lessons-from-luke-2v47.5.6.4 (RED).
   });
 });
