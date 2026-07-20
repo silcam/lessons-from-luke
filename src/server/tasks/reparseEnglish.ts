@@ -1,4 +1,4 @@
-import PGStorage from "../storage/PGStorage";
+import makeStorage from "../storage/makeStorage";
 import { lessonName, BaseLesson } from "../../core/models/Lesson";
 import { parseDocStrings, saveDocStrings } from "../actions/updateLesson";
 import docStorage from "../storage/docStorage";
@@ -15,7 +15,7 @@ if (require.main === module) {
   reparseEnglish();
 }
 
-export async function reparseEnglish(storage: Persistence = new PGStorage()) {
+export async function reparseEnglish(storage: Persistence = makeStorage()) {
   const lessons = await storage.lessons();
   let succeeded = 0;
   let failed = 0;

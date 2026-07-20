@@ -1,5 +1,5 @@
 import { ENGLISH_ID } from "../../core/models/Language";
-import PGStorage from "../storage/PGStorage";
+import makeStorage from "../storage/makeStorage";
 import { canAutoTranslate, fillMissingAutoTranslations } from "../actions/defaultTranslations";
 import { Persistence } from "../../core/interfaces/Persistence";
 
@@ -12,7 +12,7 @@ if (require.main === module) {
   defaultTranslateAll().then(() => process.exit());
 }
 
-export async function defaultTranslateAll(storage: Persistence = new PGStorage()) {
+export async function defaultTranslateAll(storage: Persistence = makeStorage()) {
   const englishStrings = await storage.tStrings({ languageId: ENGLISH_ID });
   const autoTranslatableStrings = englishStrings.filter((tStr) => canAutoTranslate(tStr.text));
 
