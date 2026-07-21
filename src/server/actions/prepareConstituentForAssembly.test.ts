@@ -417,6 +417,36 @@ describe("outline-participant validation (chapter-field correctness gate)", () =
     );
   });
 
+  test("does NOT count a level-2 subheading as an outline participant (the real-world Acts pattern: 'Homework'/'Prayer' text:h outline-level 2 alongside the level-1 lesson heading)", () => {
+    const odtPath = `${workDir}/lesson.odt`;
+    buildFixtureOdt(odtPath, {
+      quarterValue: "2",
+      lessonValue: "14",
+      bodyXml:
+        LESSON_HEADING_XML +
+        `<text:h text:style-name="P27" text:outline-level="2">Homework</text:h>`,
+    });
+
+    expect(() => prepareConstituentForAssembly(defaultOptions(odtPath))).not.toThrow();
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    const subheading = contentDoc.get<Element>("//text:h[@text:outline-level='2']", NAMESPACES);
+    expect(subheading?.text()).toBe("Homework");
+  });
+
+  test("throws for a second BARE text:h (no outline-level attribute, no outline style) — the ODF default makes it level 1", () => {
+    const odtPath = `${workDir}/lesson.odt`;
+    buildFixtureOdt(odtPath, {
+      quarterValue: "2",
+      lessonValue: "14",
+      bodyXml: LESSON_HEADING_XML + `<text:h text:style-name="Body">bare heading</text:h>`,
+    });
+
+    expect(() => prepareConstituentForAssembly(defaultOptions(odtPath))).toThrow(
+      /outline participant/i
+    );
+  });
+
   test("throws when the TOC carries any outline participant (it would consume the first lesson's chapter number)", () => {
     const odtPath = `${workDir}/toc.odt`;
     buildFixtureOdt(odtPath, { quarterValue: "2", bodyXml: LESSON_HEADING_XML });
