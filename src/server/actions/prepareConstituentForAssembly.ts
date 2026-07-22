@@ -55,11 +55,17 @@ import { rezipWithMimetypeFirst } from "../xml/rezipWithMimetypeFirst";
  *   domain lesson name). Required for the correctness of SUBSEQUENT lessons
  *   too — a missing heading would shift every later lesson's footer number.
  * - Validate exactly one EFFECTIVE outline participant per lesson (zero for
- *   the TOC) after the pass. "Effective" counts `text:h` elements AND
- *   `text:p` elements whose paragraph-style chain inherits
+ *   the TOC) after the pass. "Effective" counts only LEVEL-1 participants:
+ *   `text:h` elements whose effective outline level is 1 (their
+ *   `text:outline-level` attribute, else their style chain's
+ *   `style:default-outline-level`, else 1 — the ODF default for a bare
+ *   heading) AND `text:p` elements whose paragraph-style chain inherits
  *   `style:default-outline-level="1"` — LibreOffice counts both toward
  *   chapter numbering (verified empirically: a stray outline-level-1
- *   paragraph shifted every later lesson's footer off by one).
+ *   paragraph shifted every later lesson's footer off by one). Level-2+
+ *   subheadings (e.g. Acts lessons' "Homework"/"Prayer" `text:h
+ *   text:outline-level="2"` elements) never affect a level-1 chapter field
+ *   and are benign — they must NOT count.
  *
  * Re-zips with the `mimetype` entry stored FIRST and UNCOMPRESSED (ODF
  * requirement). Mutates `odtPath` IN PLACE — the CALLER must pass a
@@ -205,18 +211,19 @@ function normalizeQuarterFieldCache(
 
 /**
  * Counts the document's EFFECTIVE level-1 outline participants: `text:h`
- * elements plus `text:p` elements whose paragraph-style chain (content.xml
- * automatic styles -> styles.xml common styles) inherits
- * `style:default-outline-level="1"`. LibreOffice counts both toward chapter
- * numbering.
+ * elements whose effective outline level is 1 (`text:outline-level`
+ * attribute, else the style chain's `style:default-outline-level`, else 1 —
+ * the ODF default for a bare heading) plus `text:p` elements whose
+ * paragraph-style chain (content.xml automatic styles -> styles.xml common
+ * styles) inherits `style:default-outline-level="1"`. LibreOffice counts
+ * both toward chapter numbering; level-2+ headings never affect a level-1
+ * chapter field and are excluded.
  */
 function countOutlineParticipants(
   contentDoc: XmlDocument,
   stylesDoc: XmlDocument,
   namespaces: Namespaces
 ): number {
-  const headings = contentDoc.find<Element>("//office:body//text:h", namespaces).length;
-
   const styleGraph = new Map<string, { parent?: string; outlineLevel?: string }>();
   [stylesDoc, contentDoc].forEach((doc) => {
     doc.find<Element>("//style:style", namespaces).forEach((style) => {
@@ -242,6 +249,14 @@ function countOutlineParticipants(
     }
     return undefined;
   };
+
+  const headings = contentDoc.find<Element>("//office:body//text:h", namespaces).filter((h) => {
+    const attrLevel = h.attr("outline-level")?.value();
+    if (attrLevel !== undefined) return attrLevel === "1";
+    const styleName = h.attr("style-name")?.value();
+    const styleLevel = styleName ? effectiveOutlineLevel(styleName) : undefined;
+    return styleLevel === undefined ? true : styleLevel === "1";
+  }).length;
 
   const outlineParagraphs = contentDoc
     .find<Element>("//office:body//text:p[@text:style-name]", namespaces)
