@@ -222,9 +222,16 @@ only `name`/`code`/`languageId` of the six fields — Language.ts:25-32). If any
 caller validates data persisted or synced **before** this migration (e.g.
 desktop-stored rows), tightening the guard would reject previously valid data on
 a surface this feature declares untouched (D9). Default: leave the guard as-is;
-tighten only if a caller audit shows it is safe. Likewise, `sqlizeLang` appears
-to have no callers in `src/` — do not count on it as a touch-point; verify
-before editing it.
+tighten only if a caller audit shows it is safe. `sqlizeLang` (`Language.ts:80`) has exactly one
+caller, `src/server/storage/pgLoadFixtures.ts:12`
+(`fixtures.languages.map(sqlizeLang)` spread into the fixture-load INSERT).
+Verified this is **not** a touch point: `test/fixtures-0.json` language rows
+already omit `defaultSrcLang` (a required `Language` field) today, relying on
+that column's `DEFAULT 1` (`migrations/1583306702630-addDefaultSrcLangColumnToLanguages.js`)
+because porsager's `sql(...)` builds each row's column list from that row's own
+object keys. The new `archived boolean NOT NULL DEFAULT false` migration
+follows the same pattern, so omitted fixture rows get `archived = false` for
+free — `sqlizeLang` and `fixtures-0.json` need no edits (see data-model.md).
 
 **Rationale**: Principle II (strict type safety, no truthy/falsy) — the value is
 always concretely present from storage, so an optional `boolean | undefined`

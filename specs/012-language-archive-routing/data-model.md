@@ -20,12 +20,22 @@ field.
 **Type touch-points** (all in `src/core/models/Language.ts`):
 
 - `Language` interface: add `archived: boolean` (required).
-- `isLanguage` guard: leave as-is by default — it is deliberately partial (3 of
-  6 fields) and tightening it could reject pre-migration desktop-stored data;
-  only add `["archived", "boolean"]` after a caller audit shows it safe
-  (research D8).
-- `sqlizeLang`: appears to have no callers in `src/`; verify before treating it
-  as a touch-point (research D8).
+- `isLanguage` guard: leave as-is — it validates only 3 of 6 `Language` fields
+  today (`name`/`code`/`languageId`, `Language.ts:25-32`) and no caller passes
+  pre-migration desktop-stored data through it that this feature would newly
+  reject; tightening it is out of scope (research D8).
+- `sqlizeLang` (`Language.ts:80`): **has one caller** —
+  `src/server/storage/pgLoadFixtures.ts:12`, which spreads
+  `fixtures.languages.map(sqlizeLang)` into `sql\`INSERT INTO languages
+  ${sql(...)}\``. Verified: `test/fixtures-0.json`language entries omit`defaultSrcLang`today (that column carries`DEFAULT 1`from`migrations/1583306702630-addDefaultSrcLangColumnToLanguages.js`,
+confirmed by inspecting that migration) even though `Language.defaultSrcLang`is a required TS field — porsager's`sql(...)`column-list is built from each
+object's own keys, so a key a fixture omits is simply left out of that row's
+INSERT and the DB column default fills it in. The new`archived` migration
+follows the identical pattern (`ADD archived boolean NOT NULL DEFAULT false`,
+per Storage schema change below), so **no `sqlizeLang`or fixtures-0.json
+edit is required** — omitted fixture rows get`archived = false`from the
+column default, exactly like`defaultSrcLang`does today.`sqlizeLang`itself
+needs no change (it does not enumerate fields; it only JSON-stringifies`progress`).
 - `PublicLanguage = Omit<Language, "code">` now includes `archived`; always
   `false` in practice (archived rows are filtered server-side). No shape change.
 
