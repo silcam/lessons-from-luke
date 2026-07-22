@@ -143,16 +143,16 @@ src/
 │   │   ├── Language.ts            # + archived: boolean (required); guard/sqlizeLang only after caller audit (D8)
 │   │   └── Language.test.ts       # type tests
 │   └── interfaces/
-│       ├── Persistence.ts         # + archiveLanguage(languageId) => ArchiveLanguageResult (D3); + repointDefaultSrcLang(languageId, srcLangId) transactional method (RT-B — updateLanguage cannot host the atomic re-point per D3)
+│       ├── Persistence.ts         # + archiveLanguage(languageId) => ArchiveLanguageResult (D3); + updateLanguageChecked(languageId, {motherTongue?, defaultSrcLang?}) => Language transactional method (RT-B/RT-F — updateLanguage cannot host the atomic validated update per D3; persists BOTH fields and returns the re-read Language)
 │       └── Api.ts                 # + POST /api/admin/languages/:languageId/archive typing (response = ArchiveLanguageResult union, delivered as a 200 body — RT-A)
 ├── server/
 │   ├── controllers/
-│   │   ├── languagesController.ts       # + archive endpoint (calls storage.archiveLanguage, returns the 200 union — RT-A); re-point path calls storage.repointDefaultSrcLang so validation+update are atomic (D4 / RT-B), NOT storage.updateLanguage
+│   │   ├── languagesController.ts       # + archive endpoint (calls storage.archiveLanguage, returns the 200 union — RT-A); generic update routes the whole filtered {motherTongue?, defaultSrcLang?} through storage.updateLanguageChecked so validation+update are atomic (D4 / RT-B / RT-F), NOT storage.updateLanguage
 │   │   ├── languagesController.test.ts  # archive: ok / blocked-with-dependents / 404 / non-admin; re-point to archived/bogus rejected
 │   │   └── tStringsController.test.ts   # tString save with archived language's code rejected (mid-session edge case, D2)
 │   └── storage/
-│       ├── PGStorage.ts           # languages()/language() add "AND NOT archived" + archived in projection; archiveLanguage: this.sql.begin — lock row FOR UPDATE, check deps, set flag; repointDefaultSrcLang: this.sql.begin — lock target src row FOR UPDATE, reject if missing/archived, else UPDATE (RT-B)
-│       ├── testStorage.ts         # filter archived; archiveLanguage; repointDefaultSrcLang (reject inactive/nonexistent target); createLanguage sets archived:false
+│       ├── PGStorage.ts           # languages()/language() add "AND NOT archived" + archived in projection; archiveLanguage: this.sql.begin — lock row FOR UPDATE, check deps, set flag; updateLanguageChecked: this.sql.begin — lock target row FOR UPDATE, validate defaultSrcLang active ONLY when it changes, UPDATE both fields, re-read + return Language (RT-B/RT-F)
+│       ├── testStorage.ts         # filter archived; archiveLanguage; updateLanguageChecked (persist both fields; reject inactive/nonexistent NEW defaultSrcLang target; return Language); createLanguage sets archived:false
 │       └── storage.test.ts        # archive/filter behavior incl. blocked-with-dependents + already-archived
 ├── frontend/
 │   ├── common/
@@ -202,11 +202,13 @@ Desktop is deliberately untouched (D9).
 **Pipeline**: `specs/acceptance-specs/*.txt` → `acceptance/parse-specs.ts` →
 `acceptance/generate-tests.ts` → `generated-acceptance-tests/*.spec.ts`
 
-## Adversarial Hardening (Red Team — Pass 1)
+## Adversarial Hardening (Red Team)
 
 Findings from the `/sp:04-red-team` review, with the mitigation folded into the
 design. Cross-artifact findings are propagated into `contracts/*` and
 `data-model.md` (noted per finding) so `/sp:05-tasks` generates congruent tasks.
+Pass 1 = RT-A…RT-E; Pass 2 = RT-F…RT-G (second-order effects of Pass 1's
+mitigations).
 
 ### RT-A (High, Congruence) — Blocked-dependents result must be a 200 body, not a 409
 
@@ -254,15 +256,16 @@ atomically implementable through `updateLanguage`**: it degrades to a
 check-then-update TOCTOU that reopens the very archive/re-point race D4 exists to
 close.
 
-**Mitigation**: Add a dedicated transactional `Persistence` method,
-`repointDefaultSrcLang(languageId: number, srcLangId: number)`, mirroring
-`archiveLanguage`: one `this.sql.begin(...)` that locks the target
-source-language row (`SELECT ... WHERE languageId = :srcLangId AND NOT archived
-FOR UPDATE`), rejects when the target is missing/archived, else
-`UPDATE languages SET defaultSrcLang = :srcLangId WHERE languageId = :languageId`;
-commit. The generic update endpoint routes a `defaultSrcLang` change through this
-method instead of `updateLanguage` (the `motherTongue`-only update path still
-uses `updateLanguage`). `testStorage` mirrors the semantics synchronously.
+**Mitigation**: Add a dedicated transactional `Persistence` method (signature
+finalized by RT-F below), mirroring `archiveLanguage`: one `this.sql.begin(...)`
+that locks the target row, validates a new `defaultSrcLang` is active, applies the
+update, and commits. The generic update endpoint routes through this method
+instead of `updateLanguage`. `testStorage` mirrors the semantics synchronously.
+
+> **Superseded by RT-F (Pass 2)**: the original name/signature here
+> (`repointDefaultSrcLang(languageId, srcLangId)`, `defaultSrcLang`-only) was
+> revised — see RT-F for the authoritative
+> `updateLanguageChecked(languageId, {motherTongue?, defaultSrcLang?}) => Language`.
 
 **Propagation**: `Persistence.ts` + `languagesController.ts` + `PGStorage.ts` +
 `testStorage.ts` touchpoints updated above; `contracts/archive-language.md`
@@ -311,6 +314,76 @@ worth a defined behavior.
 **Mitigation**: Acceptable to leave as a 500 for this admin-only, rare path;
 optionally map serialization/deadlock failures (`err.code === "40P01" ||
 "40001"`) to a 409/503 "please retry." Plan-only note; no design-artifact change.
+
+### RT-F (High, Completeness/Congruence — Pass 2) — The re-point method must persist `motherTongue` too and return the `Language`
+
+**Concern** (second-order effect of RT-B): RT-B split the generic update endpoint
+so a `defaultSrcLang` change goes through the new transactional method while
+"the `motherTongue`-only update path still uses `updateLanguage`." But the actual
+client never sends a single-field update. `pushLanguageUpdate`
+(`languageSlice.ts:116-125`) **always** posts
+`{ motherTongue: language.motherTongue, defaultSrcLang: language.defaultSrcLang }`
+— both fields, every time — and both `LanguageView` handlers spread the full
+`activeLang` before posting (`LanguageView.tsx:39-47`,
+`handleSrcLangChange`/`handleMTChange`). So there is **no `motherTongue`-only
+request** to route to `updateLanguage`; RT-B's dichotomy is unimplementable as
+written. A server branch of the form "if body has `defaultSrcLang` →
+`repointDefaultSrcLang` (which only writes `defaultSrcLang`)" would **silently
+drop every mother-tongue toggle**. Two further gaps in the RT-B method as
+specified: (a) its return shape was never defined, yet the endpoint is typed
+`Language` (`Api.ts:86-90`) and the client dispatches `addLanguage(updated)` with
+it (`languageSlice.ts:123`) — returning less breaks the type and staled Redux
+state; (b) re-validating `defaultSrcLang` on **every** call would make an
+MT-only toggle 422 whenever a pre-feature row already carried a
+dangling/legacy `defaultSrcLang` (INV-4 was never enforced on historical data).
+
+**Mitigation**: Replace RT-B's `repointDefaultSrcLang(languageId, srcLangId)` with
+a single transactional method that persists the **whole** filtered update and
+returns the row:
+
+```
+updateLanguageChecked(languageId: number, update: { motherTongue?: boolean; defaultSrcLang?: number }) => Promise<Language>
+```
+
+One `this.sql.begin(...)`: lock the target language row `FOR UPDATE`; **only when
+`update.defaultSrcLang` is present AND differs from the row's current value**,
+validate the new target is active (`SELECT ... WHERE languageId = :defaultSrcLang
+AND NOT archived FOR UPDATE`) and reject (422) if missing/archived — skipping the
+check on an unchanged value avoids 422-ing MT toggles over legacy dangling
+pointers; `UPDATE languages SET ...` both provided fields; re-read and **return
+the `Language`**. Re-reading here is safe (and required) — unlike
+`archiveLanguage`, the updated row stays **active**, so `language({languageId})`
+returns it and does not hit the D2 archived filter (RT-A's "must not re-read" rule
+applies only to the archive path). The endpoint response type stays `Language`
+(`Api.ts:86-90` unchanged). The name `updateLanguageChecked` (not
+`repointDefaultSrcLang`) reflects that it writes both fields — keeps Principle III
+/ `/glossary` honest.
+
+**Propagation**: reconciled the now-false "`motherTongue`-only path uses
+`updateLanguage`" prose in `plan.md` (RT-B mitigation), `contracts/archive-language.md`
+(Companion change), and `data-model.md` (Write path re-point); source-structure
+touchpoints above updated to `updateLanguageChecked`; `Api.ts` response stays
+`Language` (no change — stated for congruence).
+
+### RT-G (Medium, ErrorHandling — Pass 2) — Rejected re-point (bodiless 422) leaves optimistic UI diverged with no feedback
+
+**Concern** (second-order effect of RT-B/RT-F): when `updateLanguageChecked`
+rejects a re-point onto a just-archived/nonexistent source, it throws **422**,
+which — by the same `handleErrors` mechanism RT-A identified
+(`WebAPI.ts:33-43`, `res.status(status).send()`) — reaches the client as an
+**empty body**: the client cannot render a server-provided reason. Meanwhile
+`handleSrcLangChange` (`LanguageView.tsx:39-41`) sets `activeLang.defaultSrcLang`
+to the new value **optimistically before** the awaited push and never reverts on
+failure. Result: the `SelectInput` keeps showing the rejected source while the
+server stored the old one — silent divergence, no user feedback.
+
+**Mitigation** (plan.md only — UI-internal, no interface/data-shape change): on
+push failure, (a) **revert** the optimistic `setActiveLang` to the prior
+`defaultSrcLang`, and (b) surface a **generic** client-side message (e.g. "That
+source language is no longer available — it may have been archived; pick another")
+via the same `aria-live`/`role="alert"` region added for RT-C. The message must
+be client-authored: the 422 is bodiless, so no server reason can arrive — do not
+spec a server-provided string. `/design-clarify` covers the copy.
 
 ## Complexity Tracking
 

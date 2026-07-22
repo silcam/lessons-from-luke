@@ -38,22 +38,33 @@ whichever commits second observes the other's effect (spec line 116).
 
 ## Companion change: `defaultSrcLang` re-point validation (RT-B)
 
-`POST /api/admin/languages/:languageId` (the generic update), when `req.body`
-carries `defaultSrcLang`, MUST route the change through a **dedicated
-transactional `Persistence` method** `repointDefaultSrcLang(languageId,
-srcLangId)` — NOT `storage.updateLanguage`. `updateLanguage` runs on `this.sql`
-with no transaction parameter (research D3), so it **cannot** host the atomic
-lock-and-validate; using it degrades to a check-then-update TOCTOU that reopens
-the archive/re-point race D4 exists to close (red-team RT-B).
+`POST /api/admin/languages/:languageId` (the generic update) MUST route the whole
+filtered update through a **dedicated transactional `Persistence` method**
+`updateLanguageChecked(languageId, { motherTongue?, defaultSrcLang? }) =>
+Promise<Language>` — NOT `storage.updateLanguage`. `updateLanguage` runs on
+`this.sql` with no transaction parameter (research D3), so it **cannot** host the
+atomic lock-and-validate; using it degrades to a check-then-update TOCTOU that
+reopens the archive/re-point race D4 exists to close (red-team RT-B).
 
-`repointDefaultSrcLang` runs one `this.sql.begin(...)` that locks the target
-source-language row (`SELECT ... WHERE languageId = :srcLangId AND NOT archived
-FOR UPDATE`), rejects (422) with no state change when the target is
-missing/archived, else `UPDATE languages SET defaultSrcLang = :srcLangId WHERE
-languageId = :languageId`; commit. A `motherTongue`-only update keeps using
-`updateLanguage`. This is both the other half of the race fix and a standalone
-integrity guard (today the endpoint accepts any number, including an archived or
-nonexistent id).
+> **RT-F (Pass 2)**: the client always posts **both** `motherTongue` and
+> `defaultSrcLang` (`languageSlice.ts:116-125`; `LanguageView.tsx:39-47`) — there
+> is no `motherTongue`-only request. So the method persists **both** fields, not
+> just `defaultSrcLang`; a `defaultSrcLang`-only method would silently drop every
+> mother-tongue toggle. Hence the broadened signature and the name
+> `updateLanguageChecked`.
+
+`updateLanguageChecked` runs one `this.sql.begin(...)` that locks the target
+language row `FOR UPDATE`; **only when `defaultSrcLang` is present and differs
+from the row's current value**, it validates the new source is active
+(`SELECT ... WHERE languageId = :defaultSrcLang AND NOT archived FOR UPDATE`) and
+rejects (422, no state change) when missing/archived; otherwise it applies the
+provided fields (`UPDATE languages SET ...`), then **re-reads and returns the
+updated `Language`** (safe: the row stays active, so it is not hidden by the D2
+archived filter — the RT-A "must not re-read" rule applies only to `archiveLanguage`).
+Skipping the check on an unchanged `defaultSrcLang` avoids 422-ing mother-tongue
+toggles over legacy/pre-feature dangling pointers. This is both the other half of
+the race fix and a standalone integrity guard (today the endpoint accepts any
+number, including an archived or nonexistent id).
 
 ## Responses
 
