@@ -239,6 +239,11 @@ Use subagents liberally and aggressively to conserve the main context window. Av
 
 ## Active Technologies
 
+- TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + Express (server), libxmljs2 (ODT XML parse/rewrite/merge), the existing `parse` / `mergeXml` / `saveDocStrings` pipeline, LibreOffice `soffice --headless` (round-trip verification). React 16 + Redux Toolkit UI (existing translation & update-issues screens, unchanged). (011-verse-reference-auto-population)
+
+- TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + Express (server), libxmljs2 (ODT XML rewrite/parse/merge), existing `parse`/`mergeXml`/`saveDocStrings` pipeline, LibreOffice `soffice --headless` (round-trip verification), React 16 + Redux Toolkit (existing translation & update-issues UI, unchanged) (011-verse-reference-auto-population)
+- No new tables/columns/migrations. Domain data via the `Persistence` interface (`storage.tStrings`, `addOrFindMasterStrings`, `saveDocStrings`, `updateLesson`). Master odt files in the existing `docStorage`. (011-verse-reference-auto-population)
+
 - TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + existing 007 assembly pipeline (009-quarter-styles-template)
 - No new persistent storage. Template is a \*\*static committed (009-quarter-styles-template)
 
