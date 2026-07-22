@@ -140,14 +140,14 @@ describe("LanguageView — cover rows in the download table (US15)", () => {
     });
   }
 
-  it("renders a 'Cover (A4)' row for lesson 97 with a single Cover download button", () => {
+  it("renders a 'Luke 1-Cover (A4)' row for lesson 97 with a single Cover download button", () => {
     const { getAllByText } = renderWithCover();
 
     // The cover row is labelled via lessonName, same as ordinary lesson rows.
     // There are two occurrences: the row label cell and the download button.
-    expect(getAllByText("Cover (A4)")).toHaveLength(2);
+    expect(getAllByText("Luke 1-Cover (A4)")).toHaveLength(2);
 
-    const coverRow = getAllByText("Cover (A4)")[0].closest("tr");
+    const coverRow = getAllByText("Luke 1-Cover (A4)")[0].closest("tr");
     expect(coverRow).not.toBeNull();
 
     // Ordinary lesson rows (3) still each get a Bilingual/Single-Language
@@ -159,7 +159,7 @@ describe("LanguageView — cover rows in the download table (US15)", () => {
 
     // The cover row itself must carry the single Cover download button, not
     // separate Bilingual/Single-Language links.
-    expect(coverRow?.textContent).toContain("Cover (A4)");
+    expect(coverRow?.textContent).toContain("Luke 1-Cover (A4)");
     expect(coverRow?.textContent).not.toContain("Bilingual");
     expect(coverRow?.textContent).not.toContain("Single-Language");
   });
@@ -187,15 +187,15 @@ describe("LanguageView — cover rows in the download table (US15)", () => {
 
     // Even at 0% progress, the cover row (and its download button) must
     // still render — progress-based hiding should not apply to covers.
-    expect(getAllByText("Cover (A4)")).toHaveLength(2);
+    expect(getAllByText("Luke 1-Cover (A4)")).toHaveLength(2);
   });
 
-  it("exposes the cover download as a single button labeled 'Cover (A4)' that downloads with the majorityLanguageId used by ordinary Bilingual links", async () => {
+  it("exposes the cover download as a single button labeled 'Luke 1-Cover (A4)' that downloads with the majorityLanguageId used by ordinary Bilingual links", async () => {
     mockedAxios.get.mockResolvedValue({ data: new Blob() });
 
     const { getByRole } = renderWithCover();
 
-    const coverButton = getByRole("button", { name: "Cover (A4)" });
+    const coverButton = getByRole("button", { name: "Luke 1-Cover (A4)" });
     expect(coverButton).toBeTruthy();
 
     fireEvent.click(coverButton);
