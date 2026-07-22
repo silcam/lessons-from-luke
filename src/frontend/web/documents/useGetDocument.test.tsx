@@ -38,7 +38,7 @@ import { BaseLesson, COVER_A4_LESSON, COVER_A3_LESSON } from "../../../core/mode
 import { buildStore } from "../../common/testHelpers";
 
 const mockedAxios = Axios as jest.Mocked<typeof Axios>;
-const mockedSaveAs = saveAs as jest.Mock;
+const mockedSaveAs = saveAs as unknown as jest.Mock;
 
 function wrapper({ children }: { children: React.ReactNode }) {
   const store = buildStore();
