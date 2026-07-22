@@ -26,7 +26,7 @@ import AssembleQuarterButton from "./AssembleQuarterButton";
 import { PublicLanguage } from "../../../core/models/Language";
 
 const mockedAxios = Axios as jest.Mocked<typeof Axios>;
-const mockedSaveAs = saveAs as jest.Mock;
+const mockedSaveAs = saveAs as unknown as jest.Mock;
 
 const language: PublicLanguage = {
   languageId: 1,
