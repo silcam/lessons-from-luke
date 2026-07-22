@@ -90,11 +90,19 @@ its trailing re-read would violate its return type post-filter (research D3/D4).
 
 ## Write path (defaultSrcLang re-point)
 
-The generic update path gains validation: a new `defaultSrcLang` must resolve to
-an **active** language, checked in a transaction that locks the target
-source-language row (research D4). This closes both the archive/re-point race
-(common lock on the language row) and the sequential dangling-reference hole
-(pointing at an already-archived or nonexistent language).
+A new dedicated transactional method `repointDefaultSrcLang(languageId,
+srcLangId)` (red-team RT-B) — **not** `updateLanguage` — performs the re-point: a
+new `defaultSrcLang` must resolve to an **active** language, checked in a
+`this.sql.begin(...)` transaction that locks the target source-language row
+(`SELECT ... WHERE languageId = :srcLangId AND NOT archived FOR UPDATE`);
+missing/archived → reject (422), else `UPDATE ... SET defaultSrcLang`. This
+closes both the archive/re-point race (common lock on the language row) and the
+sequential dangling-reference hole (pointing at an already-archived or
+nonexistent language). `updateLanguage` cannot host this — it runs on `this.sql`
+with no transaction parameter (research D3), the same reason `archiveLanguage`
+was split out; the generic update endpoint routes a `defaultSrcLang` change
+through `repointDefaultSrcLang` and keeps `updateLanguage` only for the
+`motherTongue`-only path.
 
 ## State transition
 
@@ -118,6 +126,8 @@ active (archived=false) ──archive (admin, no active dependents, confirmed)�
   it is never accepted by the generic update endpoint (FR-006).
 - INV-4: An active language's `defaultSrcLang` always references an active
   language — enforced on both sides: archive blocks while active dependents
-  exist, and re-point rejects inactive/nonexistent targets, both under a common
-  row lock (research D4).
+  exist (`archiveLanguage`), and re-point rejects inactive/nonexistent targets
+  (`repointDefaultSrcLang` — red-team RT-B), both under a common row lock
+  (research D4). Neither side may go through `updateLanguage`, which cannot
+  participate in the transaction (research D3).
   </content>

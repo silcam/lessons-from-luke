@@ -87,11 +87,11 @@ load-completion flag. A reusable confirmation dialog is added to
 
 ### UI Decisions
 
-| Screen / Component                   | User Story | Approach                                                                                                                                 | Design Skills                                                                               |
-| ------------------------------------ | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Confirmation dialog (base-component) | US1        | New reusable `ConfirmDialog` in `base-components`, flat modal per DESIGN.md; states the action cannot be undone from within the product  | `/design-language-to-daisyui` n/a → `/design-clarify` (microcopy: warning + undone message) |
-| Archive action + blocked message     | US2        | `Archive` button in `LanguageView`; blocked path renders an inline message listing dependent language names (from the 409 response)      | `/design-clarify` (blocked-reason copy), `/design-onboard` n/a                              |
-| Language detail view (routed)        | US3        | `LanguagesBox` selection driven by `/languages/:languageId`; renders existing `LanguageView`; loading snake before redirect on cold load | `/design-adapt` (works on refresh/direct load)                                              |
+| Screen / Component                   | User Story | Approach                                                                                                                                                                                                                                                                       | Design Skills                                                                               |
+| ------------------------------------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| Confirmation dialog (base-component) | US1        | New reusable `ConfirmDialog` in `base-components`, flat modal per DESIGN.md; states the action cannot be undone from within the product                                                                                                                                        | `/design-language-to-daisyui` n/a → `/design-clarify` (microcopy: warning + undone message) |
+| Archive action + blocked message     | US2        | `Archive` button in `LanguageView`; blocked path renders an inline message listing dependent language names (from the blocked branch of the `ArchiveLanguageResult` **200** union — see Adversarial Hardening RT-A), announced via an `aria-live`/`role="alert"` region (RT-C) | `/design-clarify` (blocked-reason copy), `/design-onboard` n/a                              |
+| Language detail view (routed)        | US3        | `LanguagesBox` selection driven by `/languages/:languageId`; renders existing `LanguageView`; loading snake before redirect on cold load                                                                                                                                       | `/design-adapt` (works on refresh/direct load)                                              |
 
 ### Quality Pass
 
@@ -143,16 +143,16 @@ src/
 │   │   ├── Language.ts            # + archived: boolean (required); guard/sqlizeLang only after caller audit (D8)
 │   │   └── Language.test.ts       # type tests
 │   └── interfaces/
-│       ├── Persistence.ts         # + archiveLanguage(languageId) => ArchiveLanguageResult (D3)
-│       └── Api.ts                 # + POST /api/admin/languages/:languageId/archive typing
+│       ├── Persistence.ts         # + archiveLanguage(languageId) => ArchiveLanguageResult (D3); + repointDefaultSrcLang(languageId, srcLangId) transactional method (RT-B — updateLanguage cannot host the atomic re-point per D3)
+│       └── Api.ts                 # + POST /api/admin/languages/:languageId/archive typing (response = ArchiveLanguageResult union, delivered as a 200 body — RT-A)
 ├── server/
 │   ├── controllers/
-│   │   ├── languagesController.ts       # + archive endpoint (calls storage.archiveLanguage); re-point path validates defaultSrcLang is active (D4)
+│   │   ├── languagesController.ts       # + archive endpoint (calls storage.archiveLanguage, returns the 200 union — RT-A); re-point path calls storage.repointDefaultSrcLang so validation+update are atomic (D4 / RT-B), NOT storage.updateLanguage
 │   │   ├── languagesController.test.ts  # archive: ok / blocked-with-dependents / 404 / non-admin; re-point to archived/bogus rejected
 │   │   └── tStringsController.test.ts   # tString save with archived language's code rejected (mid-session edge case, D2)
 │   └── storage/
-│       ├── PGStorage.ts           # languages()/language() add "AND NOT archived" + archived in projection; archiveLanguage: this.sql.begin — lock row FOR UPDATE, check deps, set flag
-│       ├── testStorage.ts         # filter archived; archiveLanguage; createLanguage sets archived:false
+│       ├── PGStorage.ts           # languages()/language() add "AND NOT archived" + archived in projection; archiveLanguage: this.sql.begin — lock row FOR UPDATE, check deps, set flag; repointDefaultSrcLang: this.sql.begin — lock target src row FOR UPDATE, reject if missing/archived, else UPDATE (RT-B)
+│       ├── testStorage.ts         # filter archived; archiveLanguage; repointDefaultSrcLang (reject inactive/nonexistent target); createLanguage sets archived:false
 │       └── storage.test.ts        # archive/filter behavior incl. blocked-with-dependents + already-archived
 ├── frontend/
 │   ├── common/
@@ -201,6 +201,116 @@ Desktop is deliberately untouched (D9).
 
 **Pipeline**: `specs/acceptance-specs/*.txt` → `acceptance/parse-specs.ts` →
 `acceptance/generate-tests.ts` → `generated-acceptance-tests/*.spec.ts`
+
+## Adversarial Hardening (Red Team — Pass 1)
+
+Findings from the `/sp:04-red-team` review, with the mitigation folded into the
+design. Cross-artifact findings are propagated into `contracts/*` and
+`data-model.md` (noted per finding) so `/sp:05-tasks` generates congruent tasks.
+
+### RT-A (High, Congruence) — Blocked-dependents result must be a 200 body, not a 409
+
+**Concern**: The contract specified the blocked case as an HTTP **409 with a JSON
+body** `{ error: "HAS_DEPENDENTS", dependents: [...] }`, but the repo's request
+convention cannot deliver it. `addPostHandler` → `handleErrors`
+(`src/server/api/WebAPI.ts:33-43`) sends `res.status(status).send()` — an **empty
+body** — for _any_ thrown status. So a thrown 409 arrives at the client with **no
+dependents list**, and FR-008 / US2 (name the dependents so the admin can
+re-point) becomes unsatisfiable. The contract was also internally inconsistent:
+its `Api.ts` typing already declares the response as `ArchiveLanguageResult` (the
+ok ∪ blocked union — a 200 body), contradicting its own "409-with-body" prose.
+
+**Mitigation**: Deliver both outcomes as a **200 discriminated union**
+`ArchiveLanguageResult`:
+
+- ok: `{ archived: true; languageId: number }`
+- blocked: `{ error: "HAS_DEPENDENTS"; dependents: { languageId: number; name: string }[] }`
+
+The endpoint returns this via the normal `res.json(result)` path (no throw). Only
+the bodiless statuses stay as thrown errors: **404** (target not an active
+language) and **401/403** (non-admin). Rationale for 200-union over a bespoke
+409-with-body handler, both codebase-specific:
+
+- `PostRoutes` types only the **success** body, so a 409 body would be **untyped**
+  — a Principle II (type-safety) regression.
+- A 409-with-body requires a bespoke handler bypassing `addPostHandler` — a
+  Principle VII (simplicity) regression.
+
+**Propagation**: `contracts/archive-language.md` Responses section (collapse the
+409-body into the 200 union; keep 404/401/403 as bodiless throws); the frontend
+`languageSlice` thunk/pusher **discriminates the union** (`"error" in result`)
+rather than catching a 409; UI Decisions table updated above.
+
+### RT-B (High, Completeness) — Atomic `defaultSrcLang` re-point needs a dedicated storage method
+
+**Concern**: D4 mandates the re-point path validate the new `defaultSrcLang` is
+active **inside a transaction that locks the target source-language row**. The
+plan routed this through the generic update endpoint calling
+`storage.updateLanguage`. But research D3 already establishes that
+`updateLanguage` (`PGStorage.ts:64-69`) always runs on `this.sql` with **no
+transaction parameter** — the exact reason `archiveLanguage` was split out as its
+own method. So the re-point validation is, by the plan's own reasoning, **not
+atomically implementable through `updateLanguage`**: it degrades to a
+check-then-update TOCTOU that reopens the very archive/re-point race D4 exists to
+close.
+
+**Mitigation**: Add a dedicated transactional `Persistence` method,
+`repointDefaultSrcLang(languageId: number, srcLangId: number)`, mirroring
+`archiveLanguage`: one `this.sql.begin(...)` that locks the target
+source-language row (`SELECT ... WHERE languageId = :srcLangId AND NOT archived
+FOR UPDATE`), rejects when the target is missing/archived, else
+`UPDATE languages SET defaultSrcLang = :srcLangId WHERE languageId = :languageId`;
+commit. The generic update endpoint routes a `defaultSrcLang` change through this
+method instead of `updateLanguage` (the `motherTongue`-only update path still
+uses `updateLanguage`). `testStorage` mirrors the semantics synchronously.
+
+**Propagation**: `Persistence.ts` + `languagesController.ts` + `PGStorage.ts` +
+`testStorage.ts` touchpoints updated above; `contracts/archive-language.md`
+"Companion change" section; `data-model.md` "Write path (re-point)" + INV-4.
+
+### RT-C (Medium, Accessibility) — ConfirmDialog + blocked message need full modal a11y
+
+**Concern**: The plan targets WCAG 2.2 AA and introduces a **from-scratch** modal
+(`ConfirmDialog`), but specifies only "focusable confirm/cancel, Esc to cancel."
+That omits the load-bearing modal semantics: (a) **focus trap** — Tab/Shift+Tab
+must cycle within the dialog while open; (b) **initial focus** moved into the
+dialog on open; (c) **focus return** to the triggering Archive button on close
+(both confirm and cancel); (d) ARIA dialog semantics — `role="dialog"`,
+`aria-modal="true"`, `aria-labelledby` pointing at the dialog heading. Separately,
+the **blocked-dependents message** renders asynchronously after a failed archive;
+without an `aria-live="assertive"` / `role="alert"` region, screen-reader users
+never perceive it (WCAG 4.1.3 Status Messages).
+
+**Mitigation**: Add the above to `ConfirmDialog` and the blocked-message region.
+These are UI-internal (no interface/data-shape impact) → **plan.md only**;
+`/design-audit` in the Quality Pass verifies focus/keyboard/contrast.
+
+### RT-D (Medium, EdgeCase/Congruence) — Archived-language document fetch now 404s
+
+**Concern**: Making `language()` filter archived rows changes
+`GET /api/languages/:languageId/lessons/:lessonId/document`
+(`documentsController.ts:16-31`): `storage.language()` returns `null` for an
+archived language, so its existing `if (!lesson || !language) throw { status:404 }`
+now 404s for a language's retained documents. This is **safe** (no crash — it
+already null-checks) but is an unenumerated behavior change for data FR-002 says
+is "retained." The plan enumerated the translate and tString consumer paths (D2)
+but not this document-fetch path.
+
+**Mitigation**: This is the intended consequence (archived ⇒ hidden from active
+use, consistent with INV-1) — document it and add a regression test asserting the
+archived-language document fetch 404s. Plan-only; no interface/data change.
+
+### RT-E (Low, ErrorHandling) — Transaction abort / deadlock surfaces as a bare 500
+
+**Concern**: Two concurrent re-points forming a lock cycle (admin A re-points L1
+onto X while admin B re-points X onto L1) can trip a Postgres deadlock (40P01);
+Postgres aborts one transaction. Under `handleErrors` this surfaces as an
+unhandled `err` → bare **500** with the DB error logged. Rare and admin-only, but
+worth a defined behavior.
+
+**Mitigation**: Acceptable to leave as a 500 for this admin-only, rare path;
+optionally map serialization/deadlock failures (`err.code === "40P01" ||
+"40001"`) to a 409/503 "please retry." Plan-only note; no design-artifact change.
 
 ## Complexity Tracking
 
