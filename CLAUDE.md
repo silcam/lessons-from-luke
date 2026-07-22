@@ -243,6 +243,9 @@ Use subagents liberally and aggressively to conserve the main context window. Av
 
 ## Active Technologies
 
+- TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + React 16 + Redux Toolkit, `react-router-dom` v6, Express, `postgres@1` (domain driver via `Persistence`) (012-language-archive-routing)
+- PostgreSQL `languages` table (domain data → through `Persistence`, Principle VI); new `archived boolean` column via a `migrations/` file (012-language-archive-routing)
+
 - TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + better-auth `^1.6.14` (built-in password reset via `getAuth()`), (005-transactional-email-reset)
 - No new tables / no migration. Reuses better-auth auth-owned `pg.Pool` tables: (005-transactional-email-reset)
 
