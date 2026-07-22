@@ -24,18 +24,21 @@ field.
   today (`name`/`code`/`languageId`, `Language.ts:25-32`) and no caller passes
   pre-migration desktop-stored data through it that this feature would newly
   reject; tightening it is out of scope (research D8).
-- `sqlizeLang` (`Language.ts:80`): **has one caller** —
+- `sqlizeLang` (`Language.ts:80`): has one caller,
   `src/server/storage/pgLoadFixtures.ts:12`, which spreads
-  `fixtures.languages.map(sqlizeLang)` into `sql\`INSERT INTO languages
-  ${sql(...)}\``. Verified: `test/fixtures-0.json`language entries omit`defaultSrcLang`today (that column carries`DEFAULT 1`from`migrations/1583306702630-addDefaultSrcLangColumnToLanguages.js`,
-confirmed by inspecting that migration) even though `Language.defaultSrcLang`is a required TS field — porsager's`sql(...)`column-list is built from each
-object's own keys, so a key a fixture omits is simply left out of that row's
-INSERT and the DB column default fills it in. The new`archived` migration
-follows the identical pattern (`ADD archived boolean NOT NULL DEFAULT false`,
-per Storage schema change below), so **no `sqlizeLang`or fixtures-0.json
-edit is required** — omitted fixture rows get`archived = false`from the
-column default, exactly like`defaultSrcLang`does today.`sqlizeLang`itself
-needs no change (it does not enumerate fields; it only JSON-stringifies`progress`).
+  `fixtures.languages.map(sqlizeLang)` into the fixture-load
+  `INSERT INTO languages` statement. Verified: `test/fixtures-0.json` language
+  entries already omit `defaultSrcLang` today, even though it's a required TS
+  field on `Language` — that column carries `DEFAULT 1` from
+  `migrations/1583306702630-addDefaultSrcLangColumnToLanguages.js`, and
+  porsager's `sql(...)` builds each row's column list from that row's own
+  object keys, so an omitted key is simply left out of that row's INSERT and
+  the DB column default fills it in. The new `archived` migration follows the
+  identical pattern (`ADD archived boolean NOT NULL DEFAULT false`, per
+  Storage schema change below), so no `sqlizeLang` or `fixtures-0.json` edit
+  is required: omitted fixture rows get `archived = false` from the column
+  default, exactly like `defaultSrcLang` does today. `sqlizeLang` itself needs
+  no change — it only JSON-stringifies `progress`.
 - `PublicLanguage = Omit<Language, "code">` now includes `archived`; always
   `false` in practice (archived rows are filtered server-side). No shape change.
 
