@@ -10,7 +10,8 @@ planning does not re-open them).
 **Decision**: Add a single boolean column `archived` (default `false`, NOT NULL)
 to the existing `languages` table via a new node-pg-migrate-style migration file
 in `migrations/`, mirroring `1583306702630-addDefaultSrcLangColumnToLanguages.js`
-(`ALTER TABLE languages ADD archived boolean DEFAULT false`).
+(`ALTER TABLE languages ADD archived boolean NOT NULL DEFAULT false` — `NOT NULL`
+because a NULL `archived` would silently vanish under `WHERE NOT archived`).
 
 **Rationale**: The language row already carries per-language flags
 (`motherTongue`, `defaultSrcLang`); a status boolean is the smallest change that
