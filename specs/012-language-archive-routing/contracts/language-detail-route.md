@@ -4,10 +4,10 @@
 
 `/languages/:languageId` — admin-only client route in
 `src/frontend/web/MainRouter.tsx`, gated the same way as the existing
-`/admin/invitations*` routes (`{user?.admin && <Route ... />}`), and placed
-BEFORE the existing `/languages/:languageId/lessons/:lessonId/docStrings` route so
-the more specific docStrings path still matches first (React Router v6 ranks
-routes, but list the detail route so it does not shadow docStrings).
+`/admin/invitations*` routes (`{user?.admin && <Route ... />}`). React Router v6
+ranks routes by specificity, so the existing
+`/languages/:languageId/lessons/:lessonId/docStrings` route keeps matching its
+deeper path regardless of declaration order — no ordering constraint.
 
 Route shape matches the existing flat `/lessons/:id` pattern (spec Clarification;
 brainstorm R8).
@@ -32,14 +32,14 @@ detail (FR-011). Selection is driven by the route param, not local state.
 `LanguagesBox` reads `useParams<{ languageId?: string }>()` and
 `useNavigate()`:
 
-| Condition                                                    | Render / action                                                      |
-| ------------------------------------------------------------ | -------------------------------------------------------------------- |
-| No `languageId` param                                        | List view (unchanged); box may be folded.                            |
-| `languageId` present, still loading (`useLoad` loading flag) | `<LoadingSnake />` — do NOT redirect yet (research D6).              |
-| `languageId` present, loaded, matches an active language     | Auto-unfold; render `<LanguageView language={match} />`.             |
-| `languageId` present, loaded, NOT found (archived/bogus)     | `navigate("/")` (or `/languages`) — Languages list (FR-013).         |
-| Click a language in the list                                 | `navigate("/languages/" + lang.languageId)` (FR-010).                |
-| `LanguageView` "< Languages" back button                     | `navigate` to the list route instead of `setSelectedLanguage(null)`. |
+| Condition                                                    | Render / action                                                                                                                                                                                                |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No `languageId` param                                        | List view (unchanged); box may be folded.                                                                                                                                                                      |
+| `languageId` present, still loading (`useLoad` loading flag) | `<LoadingSnake />` — do NOT redirect yet (research D6).                                                                                                                                                        |
+| `languageId` present, loaded, matches an active language     | Auto-unfold; render `<LanguageView language={match} />`.                                                                                                                                                       |
+| `languageId` present, loaded, NOT found (archived/bogus)     | `navigate("/", { replace: true })` — Languages list (FR-013). `replace` is REQUIRED: without it the dead URL stays in history and Back re-triggers the redirect (breaking FR-012's back/forward expectations). |
+| Click a language in the list                                 | `navigate("/languages/" + lang.languageId)` (FR-010).                                                                                                                                                          |
+| `LanguageView` "< Languages" back button                     | `navigate` to the list route instead of `setSelectedLanguage(null)`.                                                                                                                                           |
 
 Because `adminLanguages` comes from `languages()` which excludes archived rows,
 an archived `languageId` is simply "not found" → redirect (FR-013), with no

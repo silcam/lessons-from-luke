@@ -110,6 +110,7 @@ An administrator opens a language project from the Languages list to view its de
 ## Assumptions
 
 - The dependency check (FR-007/FR-008) only considers currently-active languages; an archived language pointing at another archived language is not treated as a live dependency.
+- FR-003's "any other language picker in the system" covers all **web** pickers (admin list, public/translator list, source-language pickers). The **desktop** app's offline picker is out of scope: its sync gate keys on language creation time, so an already-synced desktop client may keep offering an archived language until a resync — a documented known limitation, not a defect of this feature.
 - English (`ENGLISH_ID`) receives no special-casing beyond the general dependency check in FR-007 — since most other languages depend on it as their source, it will typically be blocked from archiving naturally.
 - The exact confirmation UI (e.g. a simple yes/no prompt vs. a typed-name confirmation) is left to planning; FR-005 only requires that some explicit, clear confirmation step exists.
 - Storage-level representation of "archived" (e.g. a status flag, timestamp, or separate table) is a planning/implementation decision, not a product decision, and is deferred to `/sp:03-plan`.

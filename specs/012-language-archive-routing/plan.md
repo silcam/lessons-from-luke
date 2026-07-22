@@ -12,15 +12,20 @@ re-point them first. Independently, give the admin language **detail view** a re
 routable URL (`/languages/:languageId`) so refresh, back/forward, and shared links
 work.
 
-Technical approach: add a single `archived boolean` column to `languages` (default
-`false`); filter archived rows uniformly in both `Persistence.languages()` and
-`Persistence.language()` so archived languages vanish from every web picker and
-translating into them is rejected for free; reuse `updateLanguage(id, {archived:
-true})` behind a new admin-only, transaction-guarded endpoint
-`POST /api/admin/languages/:languageId/archive` that runs the dependency check and
-the flag-set atomically; and drive `LanguagesBox`'s selection from a new
-`/languages/:languageId` route (rendering `AdminHome`), gating the archived/bogus
-redirect on the load-completion flag. A reusable confirmation dialog is added to
+Technical approach: add a single `archived boolean NOT NULL` column to
+`languages` (default `false`); filter archived rows uniformly in both
+`Persistence.languages()` and `Persistence.language()` so archived languages
+vanish from every web picker, translating into them is rejected for free
+(`TranslateHome` → `CodeError`), and mid-session tString saves are rejected for
+free (`invalidCode` → 401); add a new `Persistence.archiveLanguage(languageId)`
+method that locks the language row and runs the dependency check + flag-set in
+one transaction, exposed via a new admin-only endpoint
+`POST /api/admin/languages/:languageId/archive`; symmetrically validate
+`defaultSrcLang` re-points against active languages (closes the archive/re-point
+race and the dangling-reference hole — research D4); and drive `LanguagesBox`'s
+selection from a new `/languages/:languageId` route (rendering `AdminHome`),
+gating the archived/bogus redirect (a `replace` navigation) on the
+load-completion flag. A reusable confirmation dialog is added to
 `base-components`.
 
 ## Brainstorm Context
@@ -53,9 +58,10 @@ redirect on the load-completion flag. A reusable confirmation dialog is added to
 
 ### Deferred Questions (resolved during planning)
 
-- Storage representation of "archived" → boolean column, default false (D1).
-- Where the dependency check lives → server-side, inside a transaction; client
-  pre-flight is UX-only (D4/D5).
+- Storage representation of "archived" → boolean column, NOT NULL default false (D1).
+- Where the dependency check lives → server-side, inside a transaction holding a
+  lock on the target language row, mirrored by active-target validation on the
+  `defaultSrcLang` re-point path; client pre-flight is UX-only (D4/D5).
 - Confirmation UX → reusable yes/no confirm dialog in base-components, per
   DESIGN.md; typed-name confirmation not required (D10).
 - List folded/selected state sync with the route → `LanguagesBox` reads the route
@@ -70,7 +76,7 @@ redirect on the load-completion flag. A reusable confirmation dialog is added to
 **Target Platform**: Web (Express + React); admin-only surface. Desktop/Electron unaffected (non-goal D9)
 **Project Type**: Web application — isomorphic four-layer (`core`/`server`/`frontend`/`desktop`)
 **Performance Goals**: Interactive admin action; archive completes < 30s start-to-finish without engineering help (SC-001)
-**Constraints**: Server is source of truth for the dependency check — check + archive MUST be atomic to prevent races (spec line 116, D4). Archived rows invisible to every web picker (INV-1). Strict type safety, zero ESLint warnings, 95% jest coverage gate
+**Constraints**: Server is source of truth for the dependency check — check + archive MUST be atomic via a transaction locking the target language row, with the `defaultSrcLang` re-point path validating against active languages under the same lock discipline (spec line 116, D4). Archived rows invisible to every web picker (INV-1). Strict type safety, zero ESLint warnings, 95% jest coverage gate
 **Scale/Scope**: Small admin dataset (tens of languages). Changes span `core` model, `server` controller/storage + migration, `frontend` router/box/base-component
 
 ## Presentation Design
@@ -96,15 +102,15 @@ redirect on the load-completion flag. A reusable confirmation dialog is added to
 
 _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
-| Principle                                  | Assessment                                                                                                                                                                                                                                                     | Status |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| I. Test-First (TDD; E2E for user flows)    | All new logic (model guard, storage filter, dependency check, archive endpoint, route/box selection, confirm dialog) is unit-testable and will be written test-first; the three user flows get Cypress E2E + acceptance specs. Meets the mandate.              | PASS   |
-| II. Type Safety & Static Analysis          | `archived: boolean` is a required, concrete field (D8); new `ArchiveLanguageResult`/blocked-response types are explicit; no `any`. Strict-boolean-safe (`WHERE NOT archived`, `!l.archived`). Ripple across `Language` literals resolved to keep types honest. | PASS   |
-| III. Code Quality (JSDoc, naming, imports) | New public functions/components (archive helper, `ConfirmDialog`) carry JSDoc; PascalCase types; import order preserved.                                                                                                                                       | PASS   |
-| IV. Pre-commit Quality Gates               | `yarn typecheck` + lint-staged + related jest must pass; conventional commit via `/commit`. No `--no-verify`.                                                                                                                                                  | PASS   |
-| V. Warning/Deprecation Policy              | The `archived`-field ripple will surface typecheck errors across fixtures/tests; these are fixed in-phase, not deferred (D8).                                                                                                                                  | PASS   |
-| VI. Layered Architecture & Persistence     | `archived` is **domain** data → all access routes through `Persistence` (`languages()`, `language()`, `updateLanguage`). No new server-only exemption invoked. `core` stays isomorphic (model-only change). Desktop path untouched (D9).                       | PASS   |
-| VII. Simplicity & Maintainability          | One boolean column; reuse `updateLanguage` instead of a new `Persistence` method (D3); reuse `AdminHome` for the routed detail view (D7); uniform filter gives FR-004 for free (D2). No speculative machinery.                                                 | PASS   |
+| Principle                                  | Assessment                                                                                                                                                                                                                                                                                                                                                  | Status |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| I. Test-First (TDD; E2E for user flows)    | All new logic (model guard, storage filter, dependency check, archive endpoint, route/box selection, confirm dialog) is unit-testable and will be written test-first; the three user flows get Cypress E2E + acceptance specs. Meets the mandate.                                                                                                           | PASS   |
+| II. Type Safety & Static Analysis          | `archived: boolean` is a required, concrete field (D8); new `ArchiveLanguageResult`/blocked-response types are explicit; no `any`. Strict-boolean-safe (`WHERE NOT archived`, `!l.archived`). Ripple across `Language` literals resolved to keep types honest.                                                                                              | PASS   |
+| III. Code Quality (JSDoc, naming, imports) | New public functions/components (archive helper, `ConfirmDialog`) carry JSDoc; PascalCase types; import order preserved.                                                                                                                                                                                                                                    | PASS   |
+| IV. Pre-commit Quality Gates               | `yarn typecheck` + lint-staged + related jest must pass; conventional commit via `/commit`. No `--no-verify`.                                                                                                                                                                                                                                               | PASS   |
+| V. Warning/Deprecation Policy              | The `archived`-field ripple will surface typecheck errors across fixtures/tests; these are fixed in-phase, not deferred (D8).                                                                                                                                                                                                                               | PASS   |
+| VI. Layered Architecture & Persistence     | `archived` is **domain** data → all access routes through `Persistence` (`languages()`, `language()`, new `archiveLanguage()`). Transactions are a storage concern, so the atomic check-and-set lives behind the interface (D3/D4). No new server-only exemption invoked. `core` stays isomorphic (model-only change). Desktop path untouched (D9).         | PASS   |
+| VII. Simplicity & Maintainability          | One boolean column; one new `Persistence` method (`archiveLanguage`) — required because `updateLanguage` can neither join a transaction nor return an archived row under the D2 filter (D3); reuse `AdminHome` for the routed detail view (D7); uniform filter gives FR-004 **and** the mid-session-save rejection for free (D2). No speculative machinery. | PASS   |
 
 **Result**: PASS — no violations; Complexity Tracking left empty.
 
@@ -134,18 +140,20 @@ specs/012-language-archive-routing/
 src/
 ├── core/
 │   ├── models/
-│   │   ├── Language.ts            # + archived field; isLanguage guard; sqlizeLang passthrough
-│   │   └── Language.test.ts       # guard + type tests
+│   │   ├── Language.ts            # + archived: boolean (required); guard/sqlizeLang only after caller audit (D8)
+│   │   └── Language.test.ts       # type tests
 │   └── interfaces/
+│       ├── Persistence.ts         # + archiveLanguage(languageId) => ArchiveLanguageResult (D3)
 │       └── Api.ts                 # + POST /api/admin/languages/:languageId/archive typing
 ├── server/
 │   ├── controllers/
-│   │   ├── languagesController.ts       # + archive endpoint (dependency check → updateLanguage)
-│   │   └── languagesController.test.ts  # archive: ok / blocked-with-dependents / 404 / non-admin
+│   │   ├── languagesController.ts       # + archive endpoint (calls storage.archiveLanguage); re-point path validates defaultSrcLang is active (D4)
+│   │   ├── languagesController.test.ts  # archive: ok / blocked-with-dependents / 404 / non-admin; re-point to archived/bogus rejected
+│   │   └── tStringsController.test.ts   # tString save with archived language's code rejected (mid-session edge case, D2)
 │   └── storage/
-│       ├── PGStorage.ts           # languages()/language() add "AND NOT archived" + archived in projection; transactional archive check+set
-│       ├── testStorage.ts         # filter archived; createLanguage sets archived:false
-│       └── storage.test.ts        # archive/filter behavior
+│       ├── PGStorage.ts           # languages()/language() add "AND NOT archived" + archived in projection; archiveLanguage: this.sql.begin — lock row FOR UPDATE, check deps, set flag
+│       ├── testStorage.ts         # filter archived; archiveLanguage; createLanguage sets archived:false
+│       └── storage.test.ts        # archive/filter behavior incl. blocked-with-dependents + already-archived
 ├── frontend/
 │   ├── common/
 │   │   ├── base-components/
@@ -163,7 +171,7 @@ src/
 └── (desktop/ — UNCHANGED; propagation is a non-goal, D9)
 
 migrations/
-└── <timestamp>-addArchivedColumnToLanguages.js   # ALTER TABLE languages ADD archived boolean DEFAULT false
+└── <timestamp>-addArchivedColumnToLanguages.js   # ALTER TABLE languages ADD archived boolean NOT NULL DEFAULT false
 
 cypress/integration/
 └── language-archive-routing.*           # US1/US2/US3 E2E

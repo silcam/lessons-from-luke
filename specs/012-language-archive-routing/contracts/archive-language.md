@@ -15,29 +15,47 @@ other `/api/admin/languages*` routes in `languagesController.ts`). Registered in
 - Body: empty (`Record<string, never>`). The dependency check and the flag are
   server-derived; no client-supplied fields are trusted.
 
-## Behavior (server, atomic — research D4)
+## Behavior (server, atomic — research D3/D4)
 
-Within a single DB transaction:
+The endpoint calls the new `Persistence.archiveLanguage(languageId)`. In
+`PGStorage`, within a single DB transaction (`this.sql.begin`):
 
-1. Compute active dependents: languages `L` where `L.archived === false`,
+1. **Lock the target row**: `SELECT ... FROM languages WHERE languageId =
+:languageId AND NOT archived FOR UPDATE`. No row → 404 (nonexistent or
+   already archived).
+2. Compute active dependents: languages `L` where `L.archived === false`,
    `L.defaultSrcLang === languageId`, and `L.languageId !== languageId`.
-2. If dependents exist → **abort** the transaction; respond blocked (see below).
+3. If dependents exist → **abort** the transaction; respond blocked (see below).
    No state change.
-3. Else → `UPDATE languages SET archived = true WHERE languageId = :languageId`;
+4. Else → `UPDATE languages SET archived = true WHERE languageId = :languageId`;
    commit.
 
-The transaction guarantees the check and the set cannot be interleaved with a
-concurrent `defaultSrcLang` re-point (spec line 116).
+A transaction alone does NOT close the race with a concurrent `defaultSrcLang`
+re-point (at READ COMMITTED the dependency check locks nothing when it finds no
+rows). Atomicity comes from the **common row lock**: this flow locks language
+row X, and the re-point path (below) locks the row it is about to point at —
+whichever commits second observes the other's effect (spec line 116).
+
+## Companion change: `defaultSrcLang` re-point validation
+
+`POST /api/admin/languages/:languageId` (the generic update), when `req.body`
+carries `defaultSrcLang`, MUST validate — inside a transaction locking the
+target source-language row — that the target is an existing, **active**
+language; otherwise reject (422) with no state change. This is both the other
+half of the race fix and a standalone integrity guard (today the endpoint
+accepts any number, including an archived or nonexistent id).
 
 ## Responses
 
 ### 200 OK — archived
 
-Returns the updated (now-archived) `Language`, or a minimal
-`{ archived: true; languageId: number }` acknowledgement. (Note: a follow-up read
-via `storage.language({languageId})` would return `null` because reads filter
-archived rows — the handler returns the value it already holds, it does NOT
-re-read.)
+Returns a minimal `{ archived: true; languageId: number }` acknowledgement — NOT
+the `Language`. Reads filter archived rows, so neither the handler nor
+`archiveLanguage` may re-read the row (`storage.language({languageId})` returns
+`null` post-archive; this is also why `updateLanguage`, whose trailing re-read
+would return null, is not used — research D3). The frontend needs no body
+beyond the acknowledgement: it removes the language from `adminLanguages` by id
+and navigates to the list.
 
 ### 409 Conflict — blocked by dependents (FR-008)
 
@@ -72,7 +90,7 @@ Add to the `PostRoutes` map (params, body, response):
 "/api/admin/languages/:languageId/archive": [
   { languageId: number },      // path params
   Record<string, never>,       // body
-  ArchiveLanguageResult        // response (union of ok + blocked shapes, or Language)
+  ArchiveLanguageResult        // response (union of ok-acknowledgement + blocked shapes)
 ];
 ```
 

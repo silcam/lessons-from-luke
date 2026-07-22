@@ -58,6 +58,12 @@ Sign in as the admin (see `secrets.json` `adminEmail` / better-auth).
 3. Navigate directly to `/translate/<archivedCode>` → the Code error screen shows;
    translation is rejected (FR-004). (The code is no longer discoverable in any
    list.)
+4. Mid-session guard: with a translate session already open when its language is
+   archived, saving a string is rejected (the tString save endpoint's
+   `invalidCode` check fails once reads filter archived rows — research D2).
+5. Re-point guard: `POST /api/admin/languages/<otherId>` with
+   `{"defaultSrcLang": <archivedId>}` is rejected (422) — no active language may
+   point at an archived source (research D4, INV-4).
 
 ## Non-admin check (FR-014)
 

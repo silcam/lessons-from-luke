@@ -19,10 +19,13 @@ field.
 
 **Type touch-points** (all in `src/core/models/Language.ts`):
 
-- `Language` interface: add `archived: boolean`.
-- `isLanguage` guard: add `["archived", "boolean"]` to the validated fields.
-- `sqlizeLang`: unchanged shape but now carries `archived` through
-  (`{ ...lang, progress: JSON.stringify(lang.progress) }` already spreads it).
+- `Language` interface: add `archived: boolean` (required).
+- `isLanguage` guard: leave as-is by default — it is deliberately partial (3 of
+  6 fields) and tightening it could reject pre-migration desktop-stored data;
+  only add `["archived", "boolean"]` after a caller audit shows it safe
+  (research D8).
+- `sqlizeLang`: appears to have no callers in `src/`; verify before treating it
+  as a touch-point (research D8).
 - `PublicLanguage = Omit<Language, "code">` now includes `archived`; always
   `false` in practice (archived rows are filtered server-side). No shape change.
 
@@ -39,8 +42,12 @@ Derived, not stored: language B **depends on** language A when
 patterned on `1583306702630-addDefaultSrcLangColumnToLanguages.js`:
 
 ```sql
-ALTER TABLE languages ADD archived boolean DEFAULT false;
+ALTER TABLE languages ADD archived boolean NOT NULL DEFAULT false;
 ```
+
+`NOT NULL` is required: a NULL `archived` would silently vanish under
+`WHERE NOT archived` (NULL is neither true nor false). `DEFAULT false`
+backfills existing rows at ALTER time.
 
 `down` is a no-op (consistent with the existing add-column migration in this repo).
 
@@ -59,9 +66,22 @@ Both reads exclude archived rows uniformly:
 
 ## Write path (archive)
 
-`updateLanguage(id, { archived: true })`, invoked only by the archive endpoint,
-inside a single transaction that also re-runs the dependency check (research D4).
-No new `Persistence` method (research D3).
+New `Persistence.archiveLanguage(languageId)` (research D3), invoked only by the
+archive endpoint. In `PGStorage`, one `this.sql.begin(...)` transaction: lock the
+target row (`SELECT ... WHERE languageId = :id AND NOT archived FOR UPDATE` — no
+row → 404), compute active dependents (→ blocked result if any), else
+`UPDATE ... SET archived = true`; commit. Returns success or the dependent list;
+never re-reads the archived row via `language()` (which would return null).
+`updateLanguage` is NOT used for archiving — it cannot join a transaction and
+its trailing re-read would violate its return type post-filter (research D3/D4).
+
+## Write path (defaultSrcLang re-point)
+
+The generic update path gains validation: a new `defaultSrcLang` must resolve to
+an **active** language, checked in a transaction that locks the target
+source-language row (research D4). This closes both the archive/re-point race
+(common lock on the language row) and the sequential dangling-reference hole
+(pointing at an already-archived or nonexistent language).
 
 ## State transition
 
@@ -83,4 +103,8 @@ active (archived=false) ──archive (admin, no active dependents, confirmed)�
   enforced atomically server-side (research D4).
 - INV-3: `archived` can only be set `true`, and only via the archive endpoint;
   it is never accepted by the generic update endpoint (FR-006).
+- INV-4: An active language's `defaultSrcLang` always references an active
+  language — enforced on both sides: archive blocks while active dependents
+  exist, and re-point rejects inactive/nonexistent targets, both under a common
+  row lock (research D4).
   </content>
