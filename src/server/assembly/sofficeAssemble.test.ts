@@ -40,6 +40,7 @@ test("constructs the run-step soffice invocation with the macro URI and per-job 
     files: ["/docs/assembly-work/job-abc/00.odt", "/docs/assembly-work/job-abc/01.odt"],
     outputPath: "/docs/assembly-work/job-abc/out.odt",
     workRoot: "/docs/assembly-work",
+    templatePath: "/docs/templates/quarter-styles.ott",
   });
 
   // Let the warm step "succeed" so the flow proceeds to the run step.
@@ -70,6 +71,28 @@ test("constructs the run-step soffice invocation with the macro URI and per-job 
   expect(runOpts.env.SPIKE_OUT_URL).toContain("/docs/assembly-work/job-abc/out.odt");
 });
 
+test("sets SPIKE_TEMPLATE_URL on the run child's env from the templatePath option", async () => {
+  const warmChild = new FakeChildProcess(111);
+  const runChild = new FakeChildProcess(222);
+  spawnMock.mockImplementationOnce(() => warmChild).mockImplementationOnce(() => runChild);
+
+  const promise = sofficeAssemble({
+    jobId: "job-template",
+    files: ["/docs/assembly-work/job-template/00.odt"],
+    outputPath: "/docs/assembly-work/job-template/out.odt",
+    workRoot: "/docs/assembly-work",
+    templatePath: "/docs/templates/quarter-styles.ott",
+  });
+
+  queueMicrotask(() => warmChild.emit("close", 0));
+  queueMicrotask(() => runChild.emit("close", 0));
+
+  await promise;
+
+  const runOpts = spawnMock.mock.calls[1][2];
+  expect(runOpts.env.SPIKE_TEMPLATE_URL).toBe("file:///docs/templates/quarter-styles.ott");
+});
+
 test("spawns every soffice process detached in its own process group", async () => {
   const warmChild = new FakeChildProcess(111);
   const runChild = new FakeChildProcess(222);
@@ -80,6 +103,7 @@ test("spawns every soffice process detached in its own process group", async () 
     files: ["/docs/assembly-work/job-detach/00.odt"],
     outputPath: "/docs/assembly-work/job-detach/out.odt",
     workRoot: "/docs/assembly-work",
+    templatePath: "/docs/templates/quarter-styles.ott",
   });
 
   queueMicrotask(() => warmChild.emit("close", 0));
@@ -107,6 +131,7 @@ test("kills the whole process group (not a lone PID) when the hard timeout fires
     files: ["/docs/assembly-work/job-timeout/00.odt"],
     outputPath: "/docs/assembly-work/job-timeout/out.odt",
     workRoot: "/docs/assembly-work",
+    templatePath: "/docs/templates/quarter-styles.ott",
     timeoutMs: 5_000,
   });
   promise.catch(() => {
@@ -145,6 +170,7 @@ test("derives a distinct per-job profile path under the dedicated assembly-work 
     files: ["/docs/assembly-work/job-A/00.odt"],
     outputPath: "/docs/assembly-work/job-A/out.odt",
     workRoot: "/docs/assembly-work",
+    templatePath: "/docs/templates/quarter-styles.ott",
   });
   queueMicrotask(() => warmChildA.emit("close", 0));
   queueMicrotask(() => runChildA.emit("close", 0));
@@ -155,6 +181,7 @@ test("derives a distinct per-job profile path under the dedicated assembly-work 
     files: ["/docs/assembly-work/job-B/00.odt"],
     outputPath: "/docs/assembly-work/job-B/out.odt",
     workRoot: "/docs/assembly-work",
+    templatePath: "/docs/templates/quarter-styles.ott",
   });
   queueMicrotask(() => warmChildB.emit("close", 0));
   queueMicrotask(() => runChildB.emit("close", 0));

@@ -26,6 +26,7 @@ import { Persistence } from "../../core/interfaces/Persistence";
 import { Language, ENGLISH_ID } from "../../core/models/Language";
 import { Lesson, TOC_LESSON } from "../../core/models/Lesson";
 import assembleQuarter from "./assembleQuarter";
+import * as quarterStylesTemplate from "../assembly/quarterStylesTemplate";
 
 // The real merge (~14 `soffice` inserts + a `--convert-to pdf` verification
 // pass) comfortably exceeds Jest's 5s default. `sofficeAssemble`'s own hard
@@ -143,6 +144,63 @@ function pdfToText(pdfPath: string): string {
 /** Per-page text, split on the `\f` form-feed `pdftotext` emits between pages. */
 function pagesOf(fullText: string): string[] {
   return fullText.split("\f");
+}
+
+/** Extracts and reads `styles.xml` from the assembled book into a fresh subdir of `workDir` — shared by the styles/outline assertions below, each of which needs its own extraction target to avoid clobbering a concurrently-running unzip. */
+function extractStylesXml(outputPath: string, workDir: string, subdir: string): string {
+  const extractDir = path.join(workDir, subdir);
+  fs.mkdirSync(extractDir, { recursive: true });
+  execFileSync("unzip", ["-o", "-q", outputPath, "styles.xml", "-d", extractDir]);
+  return fs.readFileSync(path.join(extractDir, "styles.xml"), "utf8");
+}
+
+/**
+ * Extracts the `M.T. Text` paragraph style's `fo:background-color` value from
+ * a `styles.xml` string. Returns `undefined` if the style or the attribute is
+ * absent (a template that never sets it, vs. one that sets it to
+ * `"transparent"`, which returns the literal string `"transparent"`).
+ */
+function mtTextBackgroundColor(stylesXml: string): string | undefined {
+  const mtTextStyle = /<style:style style:name="M\.T\._20_Text"[^>]*>[\s\S]*?<\/style:style>/.exec(
+    stylesXml
+  )?.[0];
+  if (!mtTextStyle) return undefined;
+  return /fo:background-color="([^"]*)"/.exec(mtTextStyle)?.[1];
+}
+
+/**
+ * Builds a test-only style-source fixture `.odt`: a byte-for-byte copy of the
+ * real shipped `assets/quarter-styles-template.odt` (never mutated itself)
+ * with its `M.T. Text` paragraph style's `fo:background-color` patched to a
+ * distinguishing marker color. Used to prove per-job re-read (US3/FR-005):
+ * two jobs pointed at two fixtures built this way must carry visibly
+ * different resolved `M.T.*` style properties in their own assembled output.
+ */
+function buildStyleSourceFixture(workDir: string, name: string, backgroundColor: string): string {
+  const fixturePath = path.join(workDir, `${name}.odt`);
+  fs.copyFileSync(path.join(process.cwd(), "assets", "quarter-styles-template.odt"), fixturePath);
+
+  const extractDir = path.join(workDir, `${name}-extract`);
+  fs.mkdirSync(extractDir, { recursive: true });
+  execFileSync("unzip", ["-o", "-q", fixturePath, "styles.xml", "-d", extractDir]);
+  const stylesPath = path.join(extractDir, "styles.xml");
+  const original = fs.readFileSync(stylesPath, "utf8");
+  const patched = original.replace(
+    /(<style:style style:name="M\.T\._20_Text"[^>]*>[\s\S]*?<style:paragraph-properties[^>]*fo:background-color=")[^"]*(")/,
+    `$1${backgroundColor}$2`
+  );
+  if (patched === original) {
+    throw new Error(
+      "buildStyleSourceFixture: failed to patch the M.T. Text style's fo:background-color — fixture builder is out of sync with the real asset's styles.xml shape"
+    );
+  }
+  fs.writeFileSync(stylesPath, patched, "utf8");
+  // Update the existing styles.xml entry in place (not a full rebuild) —
+  // preserves every other entry (incl. the required-uncompressed `mimetype`
+  // entry) byte-for-byte.
+  execFileSync("zip", ["-q", fixturePath, "styles.xml"], { cwd: extractDir });
+
+  return fixturePath;
 }
 
 /** The printed page-number footer token on a page, e.g. `"14"` from `"...  Page 14"`, or `undefined` if the page carries no page-number footer (front matter's own first page, and every lesson's own first page — FR-003 suppression). */
@@ -284,10 +342,7 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
   });
 
   test("single clean master-page set: every display name appears ONCE and none carries a numeric constituent suffix (the duplicated-page-styles defect this fix removes)", () => {
-    const extractDir = path.join(workDir, "styles-extract");
-    fs.mkdirSync(extractDir, { recursive: true });
-    execFileSync("unzip", ["-o", "-q", outputPath, "styles.xml", "-d", extractDir]);
-    const stylesXml = fs.readFileSync(path.join(extractDir, "styles.xml"), "utf8");
+    const stylesXml = extractStylesXml(outputPath, workDir, "styles-extract");
 
     const masterPageTags = stylesXml.match(/<style:master-page [^>]*>/g) ?? [];
     expect(masterPageTags.length).toBeGreaterThan(0);
@@ -305,11 +360,37 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
     });
   });
 
+  test("footer chapter-number VALUES resolve correctly per lesson after template application (009 overwrite-scope discriminating guard, contracts/template-application.md §5): the actual per-lesson footer text must contain the lesson's own absolute number, not a stale/uniform value", () => {
+    // Distinct from the outline start-value assertion below: that row only
+    // asserts the level-1 outline STYLE's start-value survives, which would
+    // still pass even if a heading's own chapter-number FIELD failed to
+    // resolve (e.g. because template application dropped/renamed the
+    // outline-derived numbering a heading's `text:chapter` field depends on).
+    // This assertion walks each lesson's own first footer occurrence and
+    // confirms the rendered VALUE is that lesson's own absolute number.
+    LESSON_NUMBERS.forEach((n) => {
+      const marker = footerMarkerFor(n);
+      const index = fullText.indexOf(marker);
+      expect(index).toBeGreaterThan(-1);
+      // The rendered footer text must be exactly "Quarter <SERIES> Lesson <n>"
+      // with no stray digits immediately trailing (which would indicate a
+      // collided/misresolved chapter-number field, e.g. "Lesson 1499").
+      const tail = fullText.slice(index + marker.length, index + marker.length + 1);
+      expect(/\d/.test(tail)).toBe(false);
+    });
+  });
+
+  test('M.T. Text paragraph style carries no legacy highlight after template application (009 FR-002/FR-003): `styles.xml`\'s `M.T. Text` style has no fo:background-color="#ffffcc"', () => {
+    const stylesXml = extractStylesXml(outputPath, workDir, "styles-extract-mt");
+
+    const mtTextStyle =
+      /<style:style style:name="M\.T\._20_Text"[^>]*>[\s\S]*?<\/style:style>/.exec(stylesXml)?.[0];
+    expect(mtTextStyle).toBeDefined();
+    expect(mtTextStyle).not.toContain('fo:background-color="#ffffcc"');
+  });
+
   test("outline numbering: the merged book's level-1 outline style starts at the quarter's first absolute lesson number (14), so chapter-number footer fields render", () => {
-    const extractDir = path.join(workDir, "styles-extract-outline");
-    fs.mkdirSync(extractDir, { recursive: true });
-    execFileSync("unzip", ["-o", "-q", outputPath, "styles.xml", "-d", extractDir]);
-    const stylesXml = fs.readFileSync(path.join(extractDir, "styles.xml"), "utf8");
+    const stylesXml = extractStylesXml(outputPath, workDir, "styles-extract-outline");
 
     const level1 = /<text:outline-level-style text:level="1"[^>]*>/.exec(stylesXml)?.[0];
     expect(level1).toBeDefined();
@@ -329,4 +410,205 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
 
     expect(finalPrintedPageNumber).toBe(physicalPageCount + 1);
   });
+});
+
+describe("assembleQuarter (real soffice merge, corrupt-template fail-loud — 009 US2/FR-004, contracts/template-application.md §5)", () => {
+  // A PRESENT, non-empty, but unreadable template — distinct from a MISSING
+  // one (which `validateTemplateAsset`'s existence/size gate already
+  // catches, unit-tested elsewhere without soffice). This deliberately
+  // corrupt fixture is separate from the real shipped
+  // `assets/quarter-styles-template.odt` baseline — it is never touched.
+  let workDir: string;
+  let corruptTemplatePath: string;
+
+  beforeAll(() => {
+    execFileSync("soffice", ["--version"]);
+
+    workDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembleQuarter-corrupt-template-"));
+    corruptTemplatePath = path.join(workDir, "corrupt-template.odt");
+    // A non-empty, non-ODT (non-zip) payload: passes the pre-run
+    // existence/size gate (`validateTemplateAsset`) but is not a loadable
+    // style source, so the failure must surface at `loadStylesFromURL`
+    // inside the macro, not at the pre-run gate.
+    fs.writeFileSync(corruptTemplatePath, "this is not a valid ODT/zip file\n".repeat(50));
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  afterAll(() => {
+    if (workDir) fs.rmSync(workDir, { recursive: true, force: true });
+  });
+
+  test("a corrupt (present, non-empty, unreadable) template fails the job loudly — not a delivered book, and well before the ~100s hard timeout", async () => {
+    const resolveTemplatePathSpy = jest
+      .spyOn(quarterStylesTemplate, "resolveTemplatePath")
+      .mockReturnValue(corruptTemplatePath);
+
+    const jobId = "corrupt-template";
+    const jobWorkRoot = path.join(workDir, "assembly-work");
+    fs.mkdirSync(path.join(jobWorkRoot, jobId), { recursive: true });
+
+    const startedAt = Date.now();
+    let outcome: { rejected: boolean; value?: unknown };
+    try {
+      const value = await assembleQuarter({
+        storage,
+        // A single lesson is enough to exercise the failure — this test is
+        // not re-asserting the golden-reference content/ordering axes above.
+        lessons: [lesson(LESSON_NUMBERS[0])],
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId,
+        workRoot: jobWorkRoot,
+      });
+      outcome = { rejected: false, value };
+    } catch {
+      outcome = { rejected: true };
+    }
+    const elapsedMs = Date.now() - startedAt;
+
+    // Confirm the spy actually fired — i.e. `assembleQuarter` really used
+    // the corrupt fixture, not the real shipped (valid) asset (5.1
+    // guarantees it exists), which would make this whole test a phantom
+    // regardless of which way `outcome` comes out.
+    expect(resolveTemplatePathSpy).toHaveBeenCalled();
+
+    // The actual behavioral guarantee (US2/FR-004): a corrupt template
+    // MUST fail the job, not deliver a book.
+    expect(outcome.rejected).toBe(true);
+
+    // Confirms the error trap fails FAST (via `On Error Goto TemplateFail` +
+    // `StarDesktop.terminate()`), not via `sofficeAssemble`'s own ~100s hard
+    // timeout kill.
+    expect(elapsedMs).toBeLessThan(90_000);
+
+    // No delivered book: the macro's TemplateFail path writes no output file.
+    const outputPath = path.join(jobWorkRoot, jobId, "assembled.odt");
+    expect(fs.existsSync(outputPath)).toBe(false);
+  }, 100_000);
+});
+
+describe("assembleQuarter (real soffice merge, template asset swap — 009 US3/FR-005, contracts/template-application.md §1/§4)", () => {
+  // Proves the template asset is re-read PER JOB, with no caching, so
+  // replacing the asset at the resolved path changes the very next job's
+  // output styles with zero code change. Exercised via two test-only
+  // alternate style-source fixtures substituted at the resolved path (via
+  // the same `resolveTemplatePath` seam the corrupt-template test above
+  // uses) — never mutating the real committed
+  // `assets/quarter-styles-template.odt`, which stays untouched throughout.
+  let workDir: string;
+  let fixtureA: string;
+  let fixtureB: string;
+
+  beforeAll(() => {
+    execFileSync("soffice", ["--version"]);
+
+    workDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembleQuarter-template-swap-"));
+    fixtureA = buildStyleSourceFixture(workDir, "fixture-a", "#123456");
+    fixtureB = buildStyleSourceFixture(workDir, "fixture-b", "#abcdef");
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  afterAll(() => {
+    if (workDir) fs.rmSync(workDir, { recursive: true, force: true });
+  });
+
+  async function assembleWithFixture(fixturePath: string, jobId: string): Promise<string> {
+    jest.spyOn(quarterStylesTemplate, "resolveTemplatePath").mockReturnValue(fixturePath);
+
+    const jobWorkRoot = path.join(workDir, "assembly-work");
+    fs.mkdirSync(path.join(jobWorkRoot, jobId), { recursive: true });
+
+    const outputPath = await assembleQuarter({
+      storage,
+      // A single lesson suffices — this test only checks the resolved M.T.
+      // style property, not the full golden-reference content/ordering axes.
+      lessons: [lesson(LESSON_NUMBERS[0])],
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId,
+      workRoot: jobWorkRoot,
+    });
+    expect(fs.existsSync(outputPath)).toBe(true);
+    return outputPath;
+  }
+
+  test("two jobs run back-to-back with two different style-source fixtures at the resolved path produce two books carrying each fixture's own M.T. Text background-color, with no caching from the first job into the second", async () => {
+    const outputA = await assembleWithFixture(fixtureA, "template-swap-a");
+    const stylesXmlA = extractStylesXml(outputA, workDir, "styles-extract-a");
+    expect(mtTextBackgroundColor(stylesXmlA)).toBe("#123456");
+
+    const outputB = await assembleWithFixture(fixtureB, "template-swap-b");
+    const stylesXmlB = extractStylesXml(outputB, workDir, "styles-extract-b");
+    expect(mtTextBackgroundColor(stylesXmlB)).toBe("#abcdef");
+
+    // The real committed asset was never touched by either job.
+    const realAssetPath = path.join(process.cwd(), "assets", "quarter-styles-template.odt");
+    expect(fs.existsSync(realAssetPath)).toBe(true);
+  }, 200_000);
+});
+
+describe("assembleQuarter (real soffice merge, monolingual template asset is a clean loadable style source — 009 FR-005)", () => {
+  // Proves the committed monolingual asset
+  // (`assets/quarter-styles-template-monolingual.odt`, the asset
+  // `resolveTemplatePath(true)` selects for single-language assemblies) is a
+  // valid, loadable style source whose `M.T. Text` paragraph style carries NO
+  // legacy working-highlight — the exact regression 009 exists to prevent, now
+  // re-checked against the real monolingual master rather than the bilingual
+  // stopgap. NOTE: this drives the asset through soffice via the
+  // English+English short-circuit (a real single-language `majorityLangId === 0`
+  // assembly needs storage/fixtures); the `majorityLangId === 0 → monolingual`
+  // SELECTION mapping is covered by the unit tests, not this test.
+  let workDir: string;
+
+  beforeAll(() => {
+    execFileSync("soffice", ["--version"]);
+    workDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembleQuarter-monolingual-"));
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  afterAll(() => {
+    if (workDir) fs.rmSync(workDir, { recursive: true, force: true });
+  });
+
+  test("the committed monolingual asset loads as a template and yields an M.T. Text style with no legacy #ffffcc highlight", async () => {
+    // The real path the single-language branch resolves. Spied so this single
+    // real lesson (English mother + English majority, which short-circuits
+    // makeLessonFile to the raw source) is styled by the actual monolingual
+    // asset — exercising the monolingual branch end-to-end through soffice.
+    const monolingualAssetPath = quarterStylesTemplate.resolveTemplatePath(true);
+    expect(monolingualAssetPath).toBe(
+      path.join(process.cwd(), "assets", "quarter-styles-template-monolingual.odt")
+    );
+    expect(fs.existsSync(monolingualAssetPath)).toBe(true);
+
+    jest.spyOn(quarterStylesTemplate, "resolveTemplatePath").mockReturnValue(monolingualAssetPath);
+
+    const jobId = "monolingual-template";
+    const jobWorkRoot = path.join(workDir, "assembly-work");
+    fs.mkdirSync(path.join(jobWorkRoot, jobId), { recursive: true });
+
+    const outputPath = await assembleQuarter({
+      storage,
+      lessons: [lesson(LESSON_NUMBERS[0])],
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId,
+      workRoot: jobWorkRoot,
+    });
+    expect(fs.existsSync(outputPath)).toBe(true);
+
+    const stylesXml = extractStylesXml(outputPath, workDir, "styles-extract-monolingual");
+    // No legacy working-highlight: the M.T. Text background must not be the
+    // #ffffcc highlight color (transparent or absent are both acceptable).
+    expect(mtTextBackgroundColor(stylesXml)).not.toBe("#ffffcc");
+  }, 200_000);
 });

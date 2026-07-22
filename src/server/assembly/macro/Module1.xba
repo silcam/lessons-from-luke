@@ -115,6 +115,58 @@ Sub Assemble
         End If
     End If
 
+    &apos; Load the quarter styles template&apos;s text/paragraph styles into the
+    &apos; assembled doc (SPIKE_TEMPLATE_URL). OverwriteStyles+LoadTextStyles apply
+    &apos; the template&apos;s named styles over whatever the constituents brought in;
+    &apos; page/numbering/frame styles are left alone so per-lesson footers and
+    &apos; pagination (see above) are unaffected.
+    Dim sTemplate As String
+    sTemplate = Environ(&quot;SPIKE_TEMPLATE_URL&quot;)
+
+    Dim oProps(4) As New com.sun.star.beans.PropertyValue
+    oProps(0).Name = &quot;OverwriteStyles&quot;
+    oProps(0).Value = True
+    oProps(1).Name = &quot;LoadTextStyles&quot;
+    oProps(1).Value = True
+    oProps(2).Name = &quot;LoadPageStyles&quot;
+    oProps(2).Value = False
+    oProps(3).Name = &quot;LoadNumberingStyles&quot;
+    oProps(3).Value = False
+    oProps(4).Name = &quot;LoadFrameStyles&quot;
+    oProps(4).Value = False
+
+    &apos; Fail loudly: a load error &#8658; abort before storeToURL (no output written)
+    On Error Goto TemplateFail
+
+    &apos; loadStylesFromURL alone does NOT raise a StarBasic error for a present,
+    &apos; non-empty, but unreadable/non-ODT template &#8212; it silently no-ops and
+    &apos; leaves the assembled doc&apos;s styles untouched, so the job would otherwise
+    &apos; complete and deliver a book with no template applied (US2/FR-004
+    &apos; regression). Opening the template as a real hidden document FIRST
+    &apos; forces LibreOffice to actually parse it as an ODF package, which DOES
+    &apos; raise a trappable error for a corrupt/non-zip source &#8212; giving this
+    &apos; trap something to catch before falling through to the style load.
+    &apos; FilterName is REQUIRED here: without it, LibreOffice&apos;s type-detection
+    &apos; leniently guesses a plain-text import for a non-ODF/non-zip payload and
+    &apos; loads it &quot;successfully&quot; as garbage text instead of raising an error &#8212;
+    &apos; forcing the ODF filter makes an invalid package fail to open, as intended.
+    Dim oTplArgs(1) As New com.sun.star.beans.PropertyValue
+    oTplArgs(0).Name = &quot;Hidden&quot;
+    oTplArgs(0).Value = True
+    oTplArgs(1).Name = &quot;FilterName&quot;
+    oTplArgs(1).Value = &quot;writer8&quot;
+    Dim oTemplateDoc As Object
+    oTemplateDoc = StarDesktop.loadComponentFromURL(sTemplate, &quot;_blank&quot;, 0, oTplArgs())
+    oTemplateDoc.close(False)
+
+    oDoc.StyleFamilies.loadStylesFromURL(sTemplate, oProps())
+
+    &apos; CRITICAL: reset the handler so the trap covers ONLY the load &#8212; a later
+    &apos; storeToURL failure MUST still hard-fail (crash &#8594; non-zero exit) as today,
+    &apos; not be swallowed into TemplateFail (which could leave a partial, non-zero
+    &apos; output file that passes the wrapper&apos;s existsSync+size guard).
+    On Error Goto 0
+
     LogLine(sLog, &quot;saving -> &quot; &amp; sOutPath, False)
     Dim oSave(0) As New com.sun.star.beans.PropertyValue
     oSave(0).Name = &quot;FilterName&quot;
@@ -129,6 +181,13 @@ Sub Assemble
     LogLine(sLog, &quot;done inserted=&quot; &amp; nInserted, False)
 
     oDoc.close(False)
+    StarDesktop.terminate()
+
+    Exit Sub
+
+TemplateFail:
+    &apos; No storeToURL, no &quot;.done&quot; &#8594; wrapper surfaces a failed job.
+    &apos; MUST terminate, or the process lingers until the ~100 s hard timeout.
     StarDesktop.terminate()
 End Sub
 

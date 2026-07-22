@@ -53,6 +53,12 @@ export interface SofficeAssembleOptions {
   /** Absolute path to write the assembled `.odt` to. */
   outputPath: string;
   /**
+   * Absolute path to the print-styles template `.odt` to apply during
+   * assembly. Must be `.odt` — the macro's `loadComponentFromURL` hardcodes
+   * `FilterName="writer8"` (ODF text), so `.ott` is not supported.
+   */
+  templatePath: string;
+  /**
    * The dedicated, single known root all per-job working dirs live under
    * (`<docStorage>/assembly-work`, NOT a bare `mktemp -d` — see the class doc
    * comment). The per-job profile is `<workRoot>/<jobId>/`.
@@ -136,6 +142,7 @@ export function sofficeAssemble(options: SofficeAssembleOptions): Promise<Soffic
     jobId,
     files,
     outputPath,
+    templatePath,
     workRoot,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     sofficeBin = "soffice",
@@ -185,6 +192,7 @@ export function sofficeAssemble(options: SofficeAssembleOptions): Promise<Soffic
         ...env,
         SPIKE_FILES: files.join("\n"),
         SPIKE_OUT_URL: `file://${outputPath}`,
+        SPIKE_TEMPLATE_URL: `file://${templatePath}`,
       };
       const runChild = spawn(sofficeBin, runArgs, { detached: true, env: runEnv });
       currentChild = runChild;

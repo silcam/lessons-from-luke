@@ -239,6 +239,9 @@ Use subagents liberally and aggressively to conserve the main context window. Av
 
 ## Active Technologies
 
+- TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + existing 007 assembly pipeline (009-quarter-styles-template)
+- No new persistent storage. Template is a \*\*static committed (009-quarter-styles-template)
+
 - TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + Express (server), existing `makeLessonFile` / `mergeXml` per-lesson pipeline, LibreOffice `soffice` headless (already a production dependency via `webifyLesson`), `child_process.exec`/`spawn`, React 16 + Redux Toolkit + styled-components (frontend), Axios + file-saver (download) (007-assembled-quarter-download)
 - No new persistent storage. Domain reads go through the existing `Persistence` interface (`storage.lessons()`, `storage.lesson(id)`). Assembly job state is an **in-memory process-scoped registry** (FR-011 — explicitly non-durable). Output ODTs and constituents live in the existing `docStorage` tmp dir (24 h cleanup reused for result retention). (007-assembled-quarter-download)
 - TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + better-auth `^1.6.14` (built-in password reset via `getAuth()`), (005-transactional-email-reset)

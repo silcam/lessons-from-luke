@@ -4,6 +4,7 @@ jest.mock("./makeLessonFile");
 jest.mock("./prepareConstituentForAssembly");
 jest.mock("./finalizeAssembledQuarter");
 jest.mock("../assembly/sofficeAssemble");
+jest.mock("../assembly/quarterStylesTemplate");
 
 import fs from "fs";
 import os from "os";
@@ -15,12 +16,15 @@ import makeLessonFile from "./makeLessonFile";
 import { prepareConstituentForAssembly } from "./prepareConstituentForAssembly";
 import { finalizeAssembledQuarter } from "./finalizeAssembledQuarter";
 import { sofficeAssemble } from "../assembly/sofficeAssemble";
+import { resolveTemplatePath, validateTemplateAsset } from "../assembly/quarterStylesTemplate";
 import assembleQuarter from "./assembleQuarter";
 
 const makeLessonFileMock = makeLessonFile as unknown as jest.Mock;
 const prepareConstituentForAssemblyMock = prepareConstituentForAssembly as unknown as jest.Mock;
 const finalizeAssembledQuarterMock = finalizeAssembledQuarter as unknown as jest.Mock;
 const sofficeAssembleMock = sofficeAssemble as unknown as jest.Mock;
+const resolveTemplatePathMock = resolveTemplatePath as unknown as jest.Mock;
+const validateTemplateAssetMock = validateTemplateAsset as unknown as jest.Mock;
 
 const SERIES = 1;
 
@@ -94,10 +98,74 @@ describe("assembleQuarter", () => {
         return { outputPath: options.outputPath };
       }
     );
+
+    resolveTemplatePathMock.mockReset();
+    resolveTemplatePathMock.mockReturnValue("/fixture/quarter-styles-template.odt");
+    validateTemplateAssetMock.mockReset();
+    validateTemplateAssetMock.mockImplementation(() => undefined);
   });
 
   afterEach(() => {
     fs.rmSync(fixtureDir, { recursive: true, force: true });
+  });
+
+  test("resolves and validates the quarter styles template, then threads it through to sofficeAssemble", async () => {
+    await assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId: "job-template-1",
+      workRoot: fixtureDir,
+    });
+
+    expect(resolveTemplatePathMock).toHaveBeenCalledTimes(1);
+    // Bilingual mode (majorityLangId !== 0) resolves the bilingual template.
+    expect(resolveTemplatePathMock).toHaveBeenCalledWith(false);
+    expect(validateTemplateAssetMock).toHaveBeenCalledWith("/fixture/quarter-styles-template.odt");
+    expect(sofficeAssembleMock).toHaveBeenCalledTimes(1);
+    const [sofficeOptions] = sofficeAssembleMock.mock.calls[0] as [{ templatePath: string }];
+    expect(sofficeOptions.templatePath).toBe("/fixture/quarter-styles-template.odt");
+
+    // validateTemplateAsset must run BEFORE sofficeAssemble is invoked.
+    const validateOrder = validateTemplateAssetMock.mock.invocationCallOrder[0];
+    const sofficeOrder = sofficeAssembleMock.mock.invocationCallOrder[0];
+    expect(validateOrder).toBeLessThan(sofficeOrder);
+  });
+
+  test("single-language mode (majorityLangId 0) resolves the monolingual template", async () => {
+    await assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: 0,
+      jobId: "job-template-monolingual-1",
+      workRoot: fixtureDir,
+    });
+
+    expect(resolveTemplatePathMock).toHaveBeenCalledTimes(1);
+    expect(resolveTemplatePathMock).toHaveBeenCalledWith(true);
+  });
+
+  test("fails the job loudly with a curated reason when the template asset is missing or unreadable, without invoking sofficeAssemble", async () => {
+    validateTemplateAssetMock.mockImplementation(() => {
+      throw new Error(
+        "ENOENT: no such file or directory, open '/Users/eykd/code/js/lessons-from-luke/docs/quarter-styles-template.odt'"
+      );
+    });
+
+    await expect(
+      assembleQuarter({
+        storage,
+        lessons: unorderedQuarterLessons(),
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId: "job-template-missing-1",
+        workRoot: fixtureDir,
+      })
+    ).rejects.toThrow("quarter styles template asset is missing or unreadable");
+
+    expect(sofficeAssembleMock).not.toHaveBeenCalled();
   });
 
   test("orders constituents TOC first, then lessons ascending by absolute number", async () => {
