@@ -66,6 +66,21 @@ toggles over legacy/pre-feature dangling pointers. This is both the other half o
 the race fix and a standalone integrity guard (today the endpoint accepts any
 number, including an archived or nonexistent id).
 
+### Create-endpoint validation (RT-H)
+
+`POST /api/admin/languages` (create) has the **same** dangling-`defaultSrcLang`
+hole and MUST get the same guard (red-team RT-H): `isNewLanguage` validates only
+that `defaultSrcLang` is a number, and `PGStorage.createLanguage` inserts it
+verbatim, so an admin can create an **active** language pointing at an **archived
+or nonexistent** source — the exact dangling reference INV-4 forbids, sequentially
+or racing an archive of the source. `PGStorage.createLanguage` wraps its insert in
+one `this.sql.begin(...)`: lock the source row (`SELECT ... WHERE languageId =
+:defaultSrcLang AND NOT archived FOR UPDATE`), reject (**422**) when
+missing/archived, then `INSERT`. Same common-lock serialization as archive/re-point
+(research D4). `isNewLanguage` is unchanged (shape guard only); the
+active-source check lives in storage, mirroring `updateLanguageChecked`. The
+create response type stays `Language` (`Api.ts` unchanged); it may now 422.
+
 ## Responses
 
 The archive outcome (ok **or** blocked-by-dependents) is delivered as a **200

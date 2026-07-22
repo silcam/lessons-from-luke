@@ -148,12 +148,12 @@ src/
 ├── server/
 │   ├── controllers/
 │   │   ├── languagesController.ts       # + archive endpoint (calls storage.archiveLanguage, returns the 200 union — RT-A); generic update routes the whole filtered {motherTongue?, defaultSrcLang?} through storage.updateLanguageChecked so validation+update are atomic (D4 / RT-B / RT-F), NOT storage.updateLanguage
-│   │   ├── languagesController.test.ts  # archive: ok / blocked-with-dependents / 404 / non-admin; re-point to archived/bogus rejected
+│   │   ├── languagesController.test.ts  # archive: ok / blocked-with-dependents / 404 / non-admin; re-point to archived/bogus rejected; create with archived/nonexistent defaultSrcLang rejected (RT-H)
 │   │   └── tStringsController.test.ts   # tString save with archived language's code rejected (mid-session edge case, D2)
 │   └── storage/
-│       ├── PGStorage.ts           # languages()/language() add "AND NOT archived" + archived in projection; archiveLanguage: this.sql.begin — lock row FOR UPDATE, check deps, set flag; updateLanguageChecked: this.sql.begin — lock target row FOR UPDATE, validate defaultSrcLang active ONLY when it changes, UPDATE both fields, re-read + return Language (RT-B/RT-F)
-│       ├── testStorage.ts         # filter archived; archiveLanguage; updateLanguageChecked (persist both fields; reject inactive/nonexistent NEW defaultSrcLang target; return Language); createLanguage sets archived:false
-│       └── storage.test.ts        # archive/filter behavior incl. blocked-with-dependents + already-archived
+│       ├── PGStorage.ts           # languages()/language() add "AND NOT archived" + archived in projection; archiveLanguage: this.sql.begin — lock row FOR UPDATE, check deps, set flag; updateLanguageChecked: this.sql.begin — lock target row FOR UPDATE, validate defaultSrcLang active ONLY when it changes, UPDATE both fields, re-read + return Language (RT-B/RT-F); createLanguage: this.sql.begin — lock source row FOR UPDATE, validate defaultSrcLang active (reject 422 if missing/archived), then INSERT (RT-H)
+│       ├── testStorage.ts         # filter archived; archiveLanguage; updateLanguageChecked (persist both fields; reject inactive/nonexistent NEW defaultSrcLang target; return Language); createLanguage sets archived:false AND rejects inactive/nonexistent defaultSrcLang (RT-H)
+│       └── storage.test.ts        # archive/filter behavior incl. blocked-with-dependents + already-archived; create rejects inactive/nonexistent defaultSrcLang (RT-H)
 ├── frontend/
 │   ├── common/
 │   │   ├── base-components/
@@ -208,7 +208,8 @@ Findings from the `/sp:04-red-team` review, with the mitigation folded into the
 design. Cross-artifact findings are propagated into `contracts/*` and
 `data-model.md` (noted per finding) so `/sp:05-tasks` generates congruent tasks.
 Pass 1 = RT-A…RT-E; Pass 2 = RT-F…RT-G (second-order effects of Pass 1's
-mitigations).
+mitigations); Pass 3 = RT-H (the `defaultSrcLang` integrity guard RT-B/RT-F built
+for the **update** path, applied to the **create** path INV-4 was still silent on).
 
 ### RT-A (High, Congruence) — Blocked-dependents result must be a 200 body, not a 409
 
@@ -384,6 +385,61 @@ source language is no longer available — it may have been archived; pick anoth
 via the same `aria-live`/`role="alert"` region added for RT-C. The message must
 be client-authored: the 422 is bodiless, so no server reason can arrive — do not
 spec a server-provided string. `/design-clarify` covers the copy.
+
+### RT-H (High, Completeness/Congruence — Pass 3) — The create path must validate `defaultSrcLang` active too, or INV-4 stays half-closed
+
+**Concern** (same family as RT-B/RT-F, unexamined surface): RT-B/RT-F spent two
+passes hardening `defaultSrcLang` validation on the **update** endpoint, with the
+explicit rationale "today the endpoint accepts any number, including an archived or
+nonexistent id." That rationale applies verbatim to the **create** endpoint, which
+no prior pass examined. `POST /api/admin/languages`
+(`languagesController.ts:22-35`) takes `req.body`, guards it with `isNewLanguage`,
+and calls `storage.createLanguage(newLanguage)`. But `isNewLanguage`
+(`Language.ts:34-40`) validates only that `defaultSrcLang` is a **number** — not
+that it resolves to an active language — and `PGStorage.createLanguage`
+(`PGStorage.ts:47-62`) inserts the client-supplied `defaultSrcLang` **verbatim**
+(`INSERT INTO languages ${this.sql(newLang)}`) with no check. So an admin can
+create an **active** language whose `defaultSrcLang` points at an **archived or
+nonexistent** id — the exact dangling `defaultSrcLang` this feature exists to
+prevent — either sequentially (create pointing at an already-archived X) or racing
+an archive of X. INV-4 asserts "an active language's `defaultSrcLang` always
+references an active language," yet the plan enforces it only on **archive** and
+**re-point**; leaving **create** open makes INV-4 a half-closed invariant. In
+scope, not scope-creep: RT-B/RT-F already broadened this feature to harden the
+generic-update integrity guard for precisely this invariant — the create path is
+the last stone in that family.
+
+**Mitigation**: Validate the new language's `defaultSrcLang` resolves to an
+**active** language, atomically, mirroring `updateLanguageChecked`.
+`PGStorage.createLanguage` wraps its work in one `this.sql.begin(...)` that locks
+the source-language row (`SELECT ... WHERE languageId = :defaultSrcLang AND NOT
+archived FOR UPDATE`), rejects (**422**) when missing/archived, then performs the
+`INSERT`. The row lock gives create/archive-of-X the same common-lock serialization
+D4 established (create locks X; archive of X locks X; whichever commits second sees
+the other — create is rejected, or archive sees the new dependent and blocks). The
+**sequential** dangling case (create pointing at an already-archived id) is the
+primary driver and is closed by the plain `AND NOT archived` predicate alone; the
+lock closes the concurrent second-order case for parity. `testStorage.createLanguage`
+mirrors the semantics synchronously: reject an inactive/nonexistent `defaultSrcLang`
+before adding the row (in addition to the `archived: false` default it already
+sets). `isNewLanguage` needs **no change** — the active-language check is a
+storage-integrity concern (needs the DB + a lock), not a shape guard; keeping it in
+`createLanguage` matches where `updateLanguageChecked` puts the identical check.
+
+**Ripple**: existing tests/fixtures that call `createLanguage` must seed an active
+source first. Fixtures load via `pgLoadFixtures` (raw INSERT, bypasses
+`createLanguage`) so they are unaffected; but any test that creates a language
+pointing at a not-yet-created id will now 422 — `sp:05-tasks` enumerates these
+(English/id 1 is created first in the common path, so the typical ordering already
+holds). The bootstrap first-ever language is seeded via fixtures/migration, not
+this endpoint, so requiring an active source here is always satisfiable.
+
+**Propagation**: `data-model.md` new "Write path (create)" section + INV-4 extended
+to the create side; `contracts/archive-language.md` "Companion change" section
+extended with the create-endpoint validation; source-structure touchpoints
+(`PGStorage.ts`, `testStorage.ts`, `languagesController.test.ts`, `storage.test.ts`)
+updated above. `createLanguage`'s `Persistence` signature is unchanged
+(`NewLanguage => Promise<Language>`); it may now reject with 422.
 
 ## Complexity Tracking
 
