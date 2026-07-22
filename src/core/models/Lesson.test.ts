@@ -7,6 +7,10 @@ import {
   lessonCompare,
   isTOCLesson,
   TOC_LESSON,
+  isCoverLesson,
+  coverFormat,
+  COVER_A4_LESSON,
+  COVER_A3_LESSON,
   BaseLesson,
   Lesson,
 } from "./Lesson";
@@ -18,6 +22,30 @@ const makeLesson = (overrides = {}): BaseLesson => ({
   lesson: 1,
   version: 1,
   ...overrides,
+});
+
+describe("isCoverLesson", () => {
+  test.each([
+    [COVER_A4_LESSON, true],
+    [COVER_A3_LESSON, true],
+    [1, false],
+    [13, false],
+    [TOC_LESSON, false],
+  ])("isCoverLesson(%i) === %s", (lesson, expected) => {
+    expect(isCoverLesson(lesson)).toBe(expected);
+  });
+});
+
+describe("coverFormat", () => {
+  test.each([
+    [COVER_A4_LESSON, "A4"],
+    [COVER_A3_LESSON, "A3"],
+    [1, null],
+    [13, null],
+    [TOC_LESSON, null],
+  ])("coverFormat(%i) === %s", (lesson, expected) => {
+    expect(coverFormat(lesson)).toBe(expected);
+  });
 });
 
 describe("isTOCLesson", () => {
@@ -60,6 +88,26 @@ describe("lessonName", () => {
     const t = (s: string) => (s === "Luke" ? "Luc" : s);
     expect(lessonName(lesson, t)).toBe("Luc 3-TOC");
   });
+
+  test("returns 'Cover (A4)' for the A4 cover lesson, never the raw number", () => {
+    const lesson = makeLesson({ book: "Luke", series: 1, lesson: COVER_A4_LESSON });
+    const name = lessonName(lesson);
+    expect(name).toBe("Luke 1-Cover (A4)");
+    expect(name).not.toContain(String(COVER_A4_LESSON));
+  });
+
+  test("returns 'Cover (A3)' for the A3 cover lesson, never the raw number", () => {
+    const lesson = makeLesson({ book: "Luke", series: 1, lesson: COVER_A3_LESSON });
+    const name = lessonName(lesson);
+    expect(name).toBe("Luke 1-Cover (A3)");
+    expect(name).not.toContain(String(COVER_A3_LESSON));
+  });
+
+  test("applies translation function to the cover label", () => {
+    const lesson = makeLesson({ book: "Luke", series: 1, lesson: COVER_A4_LESSON });
+    const t = (s: string) => (s === "Cover (A4)" ? "Couverture (A4)" : s);
+    expect(lessonName(lesson, t)).toBe("Luke 1-Couverture (A4)");
+  });
 });
 
 describe("documentName", () => {
@@ -76,6 +124,21 @@ describe("documentName", () => {
   test("returns Acts document name", () => {
     const lesson = makeLesson({ book: "Acts", series: 1, lesson: 12 });
     expect(documentName("Swahili", lesson)).toBe("Swahili_Acts-Q1-L12.odt");
+  });
+
+  test("returns A4 cover document name", () => {
+    const lesson = makeLesson({ book: "Luke", series: 1, lesson: COVER_A4_LESSON });
+    expect(documentName("Espanol", lesson)).toBe("Espanol_Luke-Q1-Cover-A4.odt");
+  });
+
+  test("returns A3 cover document name", () => {
+    const lesson = makeLesson({ book: "Luke", series: 1, lesson: COVER_A3_LESSON });
+    expect(documentName("Espanol", lesson)).toBe("Espanol_Luke-Q1-Cover-A3.odt");
+  });
+
+  test("returns cover document name across a different series and language", () => {
+    const lesson = makeLesson({ book: "Acts", series: 3, lesson: COVER_A4_LESSON });
+    expect(documentName("Swahili", lesson)).toBe("Swahili_Acts-Q3-Cover-A4.odt");
   });
 });
 

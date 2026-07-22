@@ -258,6 +258,28 @@ describe("assembleQuarter", () => {
     const rawPaths = new Set(rawPathsByLessonNumber.values());
     files.forEach((f) => expect(rawPaths.has(f)).toBe(false));
   });
+
+  test("US16 defense-in-depth: drops a synthetic non-TOC lesson-97 outside expectedLessonNumbers(series) even if passed in", async () => {
+    await assembleQuarter({
+      storage,
+      lessons: [...unorderedQuarterLessons(), lesson(97)],
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId: "job-7",
+      workRoot: fixtureDir,
+    });
+
+    // Only the TOC + the 13 expected lesson numbers were generated/merged —
+    // the synthetic lesson-97 constituent never reaches makeLessonFile or
+    // the soffice merge.
+    expect(makeLessonFileMock).toHaveBeenCalledTimes(14);
+    expect(
+      makeLessonFileMock.mock.calls.some(([, lsn]: [Persistence, Lesson]) => lsn.lesson === 97)
+    ).toBe(false);
+
+    const { files } = sofficeAssembleMock.mock.calls[0][0] as { files: string[] };
+    expect(files).toHaveLength(14);
+  });
 });
 
 /**

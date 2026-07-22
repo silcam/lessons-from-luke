@@ -47,7 +47,11 @@ test("Downsync", async () => {
   await window.click("input[type='text']");
   await window.keyboard.type("GHI");
   await window.click("button:text('OK')");
-  await window.locator('h1:text("Syncing Batanga project...")').waitFor();
+  // The syncing screen is transient — on a fast sync it can disappear before
+  // this locator attaches, so accept either it or the completed state.
+  await window
+    .locator('h1:text("Syncing Batanga project..."), button:text("Start Translating")')
+    .waitFor();
 
   await window.locator('button:text("Start Translating")').waitFor();
   await window.click('button:text("Start Translating")');

@@ -4,6 +4,8 @@ import { Language } from "../../../core/models/Language";
 import { Link } from "react-router-dom";
 import Heading from "../base-components/Heading";
 import HeaderBar from "../base-components/HeaderBar";
+import { lessonName } from "../../../core/models/Lesson";
+import useTranslation from "../util/useTranslation";
 
 interface IProps {
   language: Language;
@@ -11,6 +13,7 @@ interface IProps {
 
 export default function TranslateIndex(props: IProps) {
   const lessons = useAppSelector((state) => state.lessons);
+  const t = useTranslation();
 
   return (
     <div>
@@ -21,7 +24,7 @@ export default function TranslateIndex(props: IProps) {
         {lessons.map((lesson) => (
           <li key={lesson.lessonId}>
             <Link to={`/translate/${props.language.code}/lesson/${lesson.lessonId}`}>
-              {`${lesson.book} ${lesson.series}-${lesson.lesson}`}
+              {lessonName(lesson, t)}
             </Link>
           </li>
         ))}

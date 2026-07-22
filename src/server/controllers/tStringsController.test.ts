@@ -2,6 +2,12 @@
 
 import { plainAgent } from "../testHelper";
 import { TString } from "../../core/models/TString";
+import { TestPersistence } from "../../core/interfaces/Persistence";
+import { COVER_A4_LESSON } from "../../core/models/Lesson";
+import { DocString } from "../../core/models/DocString";
+import { saveDocStrings } from "../actions/updateLesson";
+
+const storage: TestPersistence = (global as any).testStorage;
 
 test("Get TStrings", async () => {
   expect.assertions(3);
@@ -186,3 +192,100 @@ async function batangaTStringCount(agent: ReturnType<typeof plainAgent>): Promis
   const response = await agent.get("/api/languages/3/lessons/11/tStrings");
   return response.body.length;
 }
+
+/**
+ * FR-007 guard test — "cover-only strings translatable once and remain
+ * editable thereafter" (US14, spec.md §FR-007).
+ *
+ * A cover-only string (e.g. a copyright line) is novel text with no
+ * existing master-string match anywhere else, so it gets its own new
+ * masterId when the cover is "uploaded" (simulated via `saveDocStrings`,
+ * exactly as `updateLesson` does for a real ODT upload of a reserved cover
+ * lesson number). This test asserts that such a string can be translated
+ * for the first time — and edited again afterward (e.g. a publication-year
+ * change) — through the SAME `/api/tStrings` HTTP endpoint used for any
+ * ordinary lesson string. `tStringsController` has no cover-specific
+ * branch (it only ever deals in masterId/languageId), and none is needed.
+ */
+test("FR-007: a cover-only string is translatable once via /api/tStrings and remains editable afterward", async () => {
+  const COVER_COPYRIGHT_TEXT = "© 2026 Lessons from Luke. All rights reserved.";
+  const LANGUAGE_ID = 3; // Batanga, code GHI
+  const CODE = "GHI";
+
+  // A cover ("uploaded" via the same saveDocStrings pipeline updateLesson
+  // uses for a real ODT) contains novel text with no existing master match.
+  const coverLesson = await storage.createLesson({
+    book: "Luke",
+    series: 1,
+    lesson: COVER_A4_LESSON,
+  });
+  const coverDocStrings: DocString[] = [
+    {
+      type: "content",
+      xpath: "cover:/copyright",
+      motherTongue: false,
+      text: COVER_COPYRIGHT_TEXT,
+    },
+  ];
+  const finalLesson = await saveDocStrings(
+    coverLesson.lessonId,
+    coverLesson.version + 1,
+    coverDocStrings,
+    storage
+  );
+  const masterId = finalLesson.lessonStrings[0].masterId;
+
+  const agent = plainAgent();
+
+  // First translation, via the ordinary generic translation endpoint.
+  const firstTranslation = "© 2026 Njambea abowandi mahaleya mahu. All rights reserved.";
+  const createResponse = await agent.post("/api/tStrings").send({
+    code: CODE,
+    tStrings: [
+      {
+        masterId,
+        languageId: LANGUAGE_ID,
+        text: firstTranslation,
+        history: [],
+      },
+    ],
+  });
+  expect(createResponse.status).toBe(200);
+  expect(createResponse.body[0]).toEqual({
+    masterId,
+    languageId: LANGUAGE_ID,
+    text: firstTranslation,
+    history: [],
+  });
+
+  // Edited again afterward (e.g. simulating a publication-year change),
+  // through the exact same endpoint — no cover-specific workflow.
+  const updatedTranslation = "© 2027 Njambea abowandi mahaleya mahu. All rights reserved.";
+  const updateResponse = await agent.post("/api/tStrings").send({
+    code: CODE,
+    tStrings: [
+      {
+        masterId,
+        languageId: LANGUAGE_ID,
+        text: updatedTranslation,
+        history: [],
+      },
+    ],
+  });
+  expect(updateResponse.status).toBe(200);
+  expect(updateResponse.body[0]).toEqual({
+    masterId,
+    languageId: LANGUAGE_ID,
+    text: updatedTranslation,
+    history: [firstTranslation],
+  });
+
+  // Confirm the edit is durably reflected via the ordinary GET path too.
+  const getResponse = await agent.get(`/api/languages/${LANGUAGE_ID}/tStrings/${masterId}`);
+  expect(getResponse.status).toBe(200);
+  expect(getResponse.body[0]).toMatchObject({
+    masterId,
+    text: updatedTranslation,
+    history: [firstTranslation],
+  });
+});
