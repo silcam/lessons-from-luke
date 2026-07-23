@@ -114,6 +114,11 @@ export interface APIPost {
     { usfm: string },
     { language: Language; tStrings: TString[]; errors: string[] },
   ];
+  "/api/admin/languages/:languageId/archive": [
+    { languageId: number },
+    Record<string, never>,
+    ArchiveLanguageResult,
+  ];
   "/api/admin/lessons/:lessonId/strings": [
     { lessonId: number },
     DocString[],
