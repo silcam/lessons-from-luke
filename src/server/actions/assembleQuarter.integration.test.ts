@@ -202,8 +202,12 @@ function extractStylesXml(outputPath: string, workDir: string, subdir: string): 
  * `undefined` if no master page with that display name exists.
  */
 function masterPageBlock(stylesXml: string, displayName: string): string | undefined {
+  // A master-page with no children (e.g. a footer-less "First Page") is
+  // self-closing (`.../>`); one with children is a container closed by a
+  // real `</style:master-page>` tag. Match either form so the block ends at
+  // ITS OWN close, not the next master-page's.
   return new RegExp(
-    `<style:master-page[^>]*style:display-name="${displayName}"[^>]*>[\\s\\S]*?<\\/style:master-page>`
+    `<style:master-page[^>]*style:display-name="${displayName}"[^>]*?(?:\\/>|>[\\s\\S]*?<\\/style:master-page>)`
   ).exec(stylesXml)?.[0];
 }
 
