@@ -17,7 +17,7 @@ import { uniq, discriminate, findBy } from "../../core/util/arrayUtils";
 import { VerseStringPattern } from "../usfm/translateFromUsfm";
 import pgLoadFixtures from "./pgLoadFixtures";
 import secrets from "../util/secrets";
-import { LanguageTimestamp } from "../../core/interfaces/Api";
+import { LanguageTimestamp, ArchiveLanguageResult } from "../../core/interfaces/Api";
 
 export default class PGStorage implements Persistence {
   sql: SqlFunc;
@@ -67,6 +67,38 @@ export default class PGStorage implements Persistence {
     await this.sql`UPDATE languages SET ${this.sql(finalUpdate)} WHERE languageId=${id}`;
     await this.updateProgress();
     return (await this.language({ languageId: id }))!;
+  }
+
+  // Archives a language iff no other active language depends on it as a
+  // defaultSrcLang. Runs on the INSTANCE `this.sql` (not a module-level
+  // connection) so `TransactionalTestStorage` nests it correctly: at the top
+  // level `this.sql` is a root connection (has `.begin`), but
+  // `TransactionalTestStorage` swaps `this.sql` to the per-test transaction's
+  // scoped sql for the duration of a test — postgres@1's scoped tx sql only
+  // exposes `.savepoint` (not `.begin`), so we pick whichever is present.
+  // Either way this nests on the SAME connection as the caller's `this.sql`.
+  async archiveLanguage(languageId: number): Promise<ArchiveLanguageResult> {
+    const sql: any = this.sql;
+    const runInTransaction = (sql.begin ? sql.begin : sql.savepoint).bind(sql);
+    return runInTransaction(async (tx: SqlFunc) => {
+      const [row] = await tx`
+        SELECT languageid FROM languages WHERE languageId=${languageId} AND NOT archived FOR UPDATE
+      `;
+      // No active row: nonexistent or already archived. Surfaced as a 404 at
+      // the controller layer (contract: archive-language.md).
+      if (!row) throw { status: 404 };
+
+      const dependents: { languageId: number; name: string }[] = await tx`
+        SELECT languageid, name FROM languages
+        WHERE NOT archived AND defaultSrcLang=${languageId} AND languageId != ${languageId}
+      `;
+      if (dependents.length > 0) {
+        return { error: "HAS_DEPENDENTS", dependents };
+      }
+
+      await tx`UPDATE languages SET archived=true, modified=${Date.now()} WHERE languageId=${languageId}`;
+      return { archived: true, languageId };
+    });
   }
 
   async invalidCode(code: string, languageIds: number[]): Promise<boolean> {

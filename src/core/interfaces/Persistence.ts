@@ -3,13 +3,14 @@ import { Lesson, BaseLesson, DraftLesson } from "../models/Lesson";
 import { TString } from "../models/TString";
 import { DraftLessonString, LessonString } from "../models/LessonString";
 import { ContinuousSyncPackage } from "../models/SyncState";
-import { LanguageTimestamp } from "./Api";
+import { LanguageTimestamp, ArchiveLanguageResult } from "./Api";
 
 export interface Persistence {
   languages: () => Promise<Language[]>;
   language: (params: { code: string } | { languageId: number }) => Promise<Language | null>;
   createLanguage: (lang: NewLanguage) => Promise<Language>;
   updateLanguage: (id: number, update: Partial<Language>) => Promise<Language>;
+  archiveLanguage: (languageId: number) => Promise<ArchiveLanguageResult>;
   invalidCode: (code: string, languageIds: number[]) => Promise<boolean>;
   lessons: () => Promise<BaseLesson[]>;
   lesson: (id: number) => Promise<Lesson | null>;

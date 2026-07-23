@@ -178,6 +178,7 @@ function makeStorage(opts: {
       defaultSrcLang: 1,
       archived: false,
     }),
+    archiveLanguage: async (languageId: number) => ({ archived: true, languageId }),
     invalidCode: async () => false,
     lessons: async () => [],
     lesson: async (id: number) => (id === 1 ? lesson : null),

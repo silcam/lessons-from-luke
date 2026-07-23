@@ -9,7 +9,7 @@ import { percent } from "../../core/util/numberUtils";
 import fs from "fs";
 import { LessonProgress } from "../../core/models/Language";
 import { VerseStringPattern } from "../usfm/translateFromUsfm";
-import { LanguageTimestamp } from "../../core/interfaces/Api";
+import { LanguageTimestamp, ArchiveLanguageResult } from "../../core/interfaces/Api";
 
 let testDb = fixtures();
 updateProgress(); // We could await this if it seemed necessary
@@ -48,6 +48,28 @@ const testStorage: TestPersistence = {
     Object.assign(language, update);
     await updateProgress();
     return findByStrict(testDb.languages, "languageId", languageId);
+  },
+
+  // Mirrors PGStorage.archiveLanguage's semantics synchronously (no real
+  // transaction needed in-memory): lock-free equivalent of the dependency
+  // check + atomic flag-set. Never re-reads via `language()` afterward — see
+  // PGStorage.archiveLanguage for why.
+  archiveLanguage: async (languageId): Promise<ArchiveLanguageResult> => {
+    const language = findBy(testDb.languages, "languageId", languageId);
+    if (!language || language.archived) throw { status: 404 };
+
+    const dependents = testDb.languages
+      .filter(
+        (lang) =>
+          !lang.archived && lang.defaultSrcLang == languageId && lang.languageId != languageId
+      )
+      .map((lang) => ({ languageId: lang.languageId, name: lang.name }));
+    if (dependents.length > 0) {
+      return { error: "HAS_DEPENDENTS", dependents };
+    }
+
+    language.archived = true;
+    return { archived: true, languageId };
   },
 
   invalidCode: async (code, languageIds) => {
