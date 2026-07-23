@@ -70,14 +70,11 @@ test("language() returns null for an archived code", async () => {
   expect(await storage.language({ code: "GHI" })).toBeNull();
 });
 
-// archiveLanguage — RED (lessons-from-luke-e044.5.4.2): archiveLanguage does not
-// yet exist on Persistence/PGStorage/testStorage. These calls fail at runtime
-// ("... is not a function") until the Green task (e044.5.4.3) implements it.
 test("archiveLanguage archives a language with zero active dependents", async () => {
   // Fixture language 2 (Français) has no other active language pointing at it
   // as defaultSrcLang (everything defaults to source language 1), so it has
   // zero active dependents and should archive cleanly.
-  const result = await (storage as any).archiveLanguage(2);
+  const result = await storage.archiveLanguage(2);
 
   expect(result).toEqual({ archived: true, languageId: 2 });
 
@@ -89,7 +86,7 @@ test("archiveLanguage archives a language with zero active dependents", async ()
 test("archiveLanguage is blocked by active dependents and makes no state change", async () => {
   // Fixture languages 2 (Français) and 3 (Batanga) both default to source
   // language 1 (English), so language 1 has two active dependents.
-  const result = await (storage as any).archiveLanguage(1);
+  const result = await storage.archiveLanguage(1);
 
   expect(result).toEqual({
     error: "HAS_DEPENDENTS",
@@ -106,15 +103,10 @@ test("archiveLanguage is blocked by active dependents and makes no state change"
   expect(english!.archived).toBe(false);
 });
 
-// updateLanguageChecked — RED (lessons-from-luke-e044.5.5.2, RT-B/RT-F).
-// updateLanguageChecked does not yet exist on Persistence/PGStorage/testStorage
-// — these calls fail at runtime ("... is not a function") until the Green task
-// (e044.5.5.3) implements it. Cast to `any` since the method is not yet on the
-// Persistence/TestPersistence interface.
 test("updateLanguageChecked persists both motherTongue and defaultSrcLang when both are provided (RT-F)", async () => {
   // Fixture language 3 (Batanga) defaults defaultSrcLang to 1 (English); 2
   // (Français) is active, so this re-point is a legitimate change.
-  const batanga = await (storage as any).updateLanguageChecked(3, {
+  const batanga = await storage.updateLanguageChecked(3, {
     motherTongue: false,
     defaultSrcLang: 2,
   });
@@ -131,7 +123,7 @@ test("updateLanguageChecked rejects a defaultSrcLang re-point to an archived lan
 
   await expect(
     (async () =>
-      (storage as any).updateLanguageChecked(3, {
+      storage.updateLanguageChecked(3, {
         motherTongue: true,
         defaultSrcLang: 2,
       }))()
@@ -145,7 +137,7 @@ test("updateLanguageChecked rejects a defaultSrcLang re-point to an archived lan
 test("updateLanguageChecked rejects a defaultSrcLang re-point to a nonexistent language (RT-B/RT-F)", async () => {
   await expect(
     (async () =>
-      (storage as any).updateLanguageChecked(3, {
+      storage.updateLanguageChecked(3, {
         motherTongue: true,
         defaultSrcLang: 99999,
       }))()
@@ -162,7 +154,7 @@ test("updateLanguageChecked skips the active-check when defaultSrcLang is unchan
   // Re-sending the SAME (now-dangling) defaultSrcLang alongside a
   // mother-tongue-only toggle must succeed — no active-check on an unchanged
   // value.
-  const batanga = await (storage as any).updateLanguageChecked(3, {
+  const batanga = await storage.updateLanguageChecked(3, {
     motherTongue: false,
     defaultSrcLang: 2,
   });
@@ -174,7 +166,7 @@ test("updateLanguageChecked skips the active-check when defaultSrcLang is unchan
 });
 
 test("updateLanguageChecked returns the full updated Language on success", async () => {
-  const batanga = await (storage as any).updateLanguageChecked(3, {
+  const batanga = await storage.updateLanguageChecked(3, {
     motherTongue: false,
     defaultSrcLang: 2,
   });
