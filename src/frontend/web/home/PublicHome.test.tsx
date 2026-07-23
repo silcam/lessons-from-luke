@@ -17,7 +17,7 @@ import { renderWithProviders, defaultSyncState } from "../../common/testHelpers"
 import PublicHome from "./PublicHome";
 
 // authClient is mapped to src/frontend/__mocks__/authClient.ts via jest moduleNameMapper
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+
 const { authClient } = require("../../web/auth/authClient") as {
   authClient: { getSession: jest.Mock; signIn: { email: jest.Mock }; signOut: jest.Mock };
 };

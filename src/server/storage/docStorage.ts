@@ -135,4 +135,5 @@ export default {
   webifyPath,
   mvWebifiedHtml,
   webifiedHtml,
+  docsDirPath,
 };

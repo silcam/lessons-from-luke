@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE script:module PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "module.dtd">
+<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Module1" script:language="StarBasic">
+&apos; ---------------------------------------------------------------------------
+&apos; Assemble a quarter (TOC + 13 lessons) into one editable .odt using the
+&apos; insertDocumentFromURL UNO call, driven from Basic in-process in soffice.
+&apos; Ported from the spike (specs/007-assembled-quarter-download/spike/) into
+&apos; production use by sofficeAssemble.ts, which injects this module into a
+&apos; per-job -env:UserInstallation profile before invoking
+&apos; macro:///Standard.Module1.Assemble. Inputs come from env vars set by the
+&apos; wrapper (same names the spike&apos;s assemble.sh used):
+&apos;   SPIKE_FILES   - newline-separated absolute paths, in assembly order
+&apos;   SPIKE_OUT_URL - file:// URL to write the assembled .odt to
+&apos; ---------------------------------------------------------------------------
+
+&apos; Smoke test kept for harness verification.
+Sub Smoke
+    Dim oArgs(0) As New com.sun.star.beans.PropertyValue
+    oArgs(0).Name = &quot;Hidden&quot;
+    oArgs(0).Value = True
+    Dim oDoc As Object
+    oDoc = StarDesktop.loadComponentFromURL(&quot;private:factory/swriter&quot;, &quot;_blank&quot;, 0, oArgs())
+    oDoc.Text.setString(&quot;spike smoke ok&quot;)
+    Dim outUrl As String
+    outUrl = Environ(&quot;SPIKE_OUT_URL&quot;)
+    Dim oSave(0) As New com.sun.star.beans.PropertyValue
+    oSave(0).Name = &quot;FilterName&quot;
+    oSave(0).Value = &quot;writer8&quot;
+    oDoc.storeToURL(outUrl, oSave())
+    oDoc.close(False)
+    StarDesktop.terminate()
+End Sub
+
+Sub Assemble
+    Dim sFiles As String, sOut As String, sOutPath As String, sLog As String
+    sFiles = Environ(&quot;SPIKE_FILES&quot;)
+    sOut = Environ(&quot;SPIKE_OUT_URL&quot;)
+    sOutPath = ConvertFromURL(sOut)
+    sLog = sOutPath &amp; &quot;.log&quot;
+
+    Dim nLimit As Integer
+    nLimit = 0
+    If Environ(&quot;SPIKE_LIMIT&quot;) &lt;&gt; &quot;&quot; Then nLimit = CInt(Environ(&quot;SPIKE_LIMIT&quot;))
+
+    Dim aFiles() As String
+    aFiles = Split(sFiles, Chr(10))
+
+    LogLine(sLog, &quot;start&quot;, True)
+
+    Dim oArgs(0) As New com.sun.star.beans.PropertyValue
+    oArgs(0).Name = &quot;Hidden&quot;
+    oArgs(0).Value = True
+
+    &apos; Insert properties: do NOT update/prompt for links (headless-safe).
+    Dim oInsProps(0) As New com.sun.star.beans.PropertyValue
+    oInsProps(0).Name = &quot;UpdateDocMode&quot;
+    oInsProps(0).Value = com.sun.star.document.UpdateDocMode.NO_UPDATE
+
+    &apos; Start from a blank Writer doc and insert every constituent into it. (Opening
+    &apos; the TOC as the base instead makes the TOC&apos;s named page styles win the
+    &apos; name-collision and bleed its footer across all lessons, so blank-base is
+    &apos; required to keep per-lesson footers.) The blank doc&apos;s single empty
+    &apos; paragraph is deleted after assembly (see below) so it does not consume a
+    &apos; page in the counter.
+    Dim oDoc As Object, oText As Object, oCursor As Object
+    oDoc = StarDesktop.loadComponentFromURL(&quot;private:factory/swriter&quot;, &quot;_blank&quot;, 0, oArgs())
+    oText = oDoc.getText()
+    oCursor = oText.createTextCursorByRange(oText.getStart())
+
+    Dim i As Integer, sPath As String, sUrl As String
+    Dim nInserted As Integer
+    nInserted = 0
+
+    For i = LBound(aFiles) To UBound(aFiles)
+        sPath = Trim(aFiles(i))
+        If sPath &lt;&gt; &quot;&quot; Then
+            If nLimit &gt; 0 And nInserted &gt;= nLimit Then Exit For
+            sUrl = ConvertToURL(sPath)
+            oCursor.gotoEnd(False)
+            &apos; Force each constituent onto a fresh page. This IS required: relying on
+            &apos; the lessons&apos; own first-page master-page does NOT reliably break (tested:
+            &apos; 78 pages without this vs 91 with it — lessons ran onto the prior page).
+            &apos; Note: this break interacts with the TOC-&gt;lesson1 boundary to leave a +1
+            &apos; page-number offset (see FINDINGS &quot;pagination&quot;). Set SPIKE_MANUAL_BREAK=0
+            &apos; to disable for experiments.
+            If nInserted &gt; 0 And Environ(&quot;SPIKE_MANUAL_BREAK&quot;) &lt;&gt; &quot;0&quot; Then
+                oText.insertControlCharacter(oCursor, com.sun.star.text.ControlCharacter.PARAGRAPH_BREAK, False)
+                oCursor.gotoEnd(False)
+                oCursor.BreakType = com.sun.star.style.BreakType.PAGE_BEFORE
+            End If
+            LogLine(sLog, &quot;before insert #&quot; &amp; (nInserted + 1) &amp; &quot; : &quot; &amp; sPath, False)
+            oCursor.insertDocumentFromURL(sUrl, oInsProps())
+            nInserted = nInserted + 1
+            LogLine(sLog, &quot;after  insert #&quot; &amp; nInserted, False)
+        End If
+    Next i
+
+    &apos; OPT-IN ONLY (SPIKE_REMOVE_LEAD=1): removing the blank base doc&apos;s leading
+    &apos; empty paragraph is destructive here — the merge absorbs the cover page&apos;s
+    &apos; content and it does NOT fix the +1 numbering offset. Kept off by default;
+    &apos; see FINDINGS &quot;numbering offset&quot; for the real fix direction.
+    If Environ(&quot;SPIKE_REMOVE_LEAD&quot;) = &quot;1&quot; Then
+        Dim oRemCur As Object
+        oRemCur = oText.createTextCursor()
+        oRemCur.gotoStart(False)
+        If oRemCur.isStartOfParagraph() And oRemCur.isEndOfParagraph() Then
+            &apos; Extend-select the whole empty paragraph INCLUDING its pilcrow (to the
+            &apos; start of the next paragraph) and delete it. This removes para 1 and
+            &apos; its break while leaving para 2 (the cover) and its master-page intact.
+            oRemCur.gotoNextParagraph(True)
+            oRemCur.setString(&quot;&quot;)
+            LogLine(sLog, &quot;removed leading empty paragraph&quot;, False)
+        Else
+            LogLine(sLog, &quot;no leading empty paragraph to remove&quot;, False)
+        End If
+    End If
+
+    LogLine(sLog, &quot;saving -> &quot; &amp; sOutPath, False)
+    Dim oSave(0) As New com.sun.star.beans.PropertyValue
+    oSave(0).Name = &quot;FilterName&quot;
+    oSave(0).Value = &quot;writer8&quot;
+    oDoc.storeToURL(sOut, oSave())
+
+    Dim iFile As Integer
+    iFile = FreeFile
+    Open sOutPath &amp; &quot;.done&quot; For Output As #iFile
+    Print #iFile, &quot;inserted=&quot; &amp; nInserted
+    Close #iFile
+    LogLine(sLog, &quot;done inserted=&quot; &amp; nInserted, False)
+
+    oDoc.close(False)
+    StarDesktop.terminate()
+End Sub
+
+Sub LogLine(sLog As String, sMsg As String, bReset As Boolean)
+    Dim iFile As Integer
+    iFile = FreeFile
+    If bReset Then
+        Open sLog For Output As #iFile
+    Else
+        Open sLog For Append As #iFile
+    End If
+    Print #iFile, sMsg
+    Close #iFile
+End Sub
+</script:module>
