@@ -287,16 +287,41 @@ comms-only item: 013 makes the book-title field authoritative, and it resolves
 from `dc:title`, which finalize sets from the first constituent's meta — so the
 asserted title, not the asset's cache, is what must be checked.)
 
-### List/numbering styles reach body-content lists, not only the outline (FR-005, red-team)
+### List/numbering styles reach body-content lists, not only the outline (FR-005, red-team, deepen-plan pass)
 
 `LoadNumberingStyles=True` overwrites same-named list styles wherever they are
 used — including ordinary bulleted/numbered lists inside lesson body content, not
-just the outline that drives the TOC. Template-wins is the intended behavior, but
-a same-named body-list style whose template definition differs could change how
-body lists render. Low risk (the outline/TOC axis is the load-bearing one, and
-finalize post-patches it), but the integration axis should spot-confirm that a
-body-content list still renders acceptably rather than assume the outline check
-covers it.
+just the outline that drives the TOC. Template-wins is the intended behavior; the
+open question was whether a same-named body-list style's template definition
+differs from the constituent's in a way that would visibly change rendering.
+
+**Resolved by direct comparison (2026-07-23)**: a real lesson constituent
+(`test/docs/serverDocs/Luke-1-01v03.odt`) references list styles `WWNum1`–`WWNum20`,
+`Bullet - checkmark`, `Bullet - Diamond`, and `Table Bullet - checkmark` from its
+body-content paragraph styles (`Body`, `M.T. Text`, `Table Contents`, etc. via
+`style:list-style-name`) — confirming these are body-list styles, not outline-only.
+Byte-comparing every one of those 23 list-style definitions against the bilingual
+template's `styles.xml` (`quarter-styles-template.odt`) shows:
+
+- `Bullet - checkmark`, `Bullet - Diamond`, `Table Bullet - checkmark`: **byte-identical**.
+- All 20 `WWNumN` styles: differ only in attributes that do not change rendering —
+  either an added `text:style-name`/`loext:num-list-format` pair (a redundant
+  paragraph-style link and a format-string mirror of the existing
+  `style:num-suffix`/`style:num-format`, both non-visual), or the same bullet
+  font expressed two equivalent ways (`style:font-name="Symbol"` vs.
+  `fo:font-family="Symbol" style:font-charset="x-symbol"` — same font, same
+  glyph). No bullet character, numbering format, suffix/prefix, or indent differs
+  across any of the 23 styles.
+
+This retires the earlier open hedge about body-list rendering: for the sampled
+lesson and the full 20-style `WWNumN` family, the template overwrite is a no-op
+on visual rendering (the same finding is expected to hold for the monolingual
+template, which carries the identical 33-name list-style set per the FR-003
+static diff above). The integration axis (`assembleQuarter.integration.test.ts`)
+MUST still assert that a body-content bulleted/numbered list renders with the
+expected bullet/numbering, per FR-005, as a regression guard against a future
+asset edit reintroducing a real divergence — not because this research found a
+discrepancy, but because the outline/TOC axis alone does not cover body lists.
 
 ### Corrupt / missing template (unchanged, FR-006)
 
