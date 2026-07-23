@@ -38,6 +38,7 @@ export default function LanguageView(props: IProps) {
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [archiveBlockedDependents, setArchiveBlockedDependents] = useState<string[] | null>(null);
   const [srcLangUpdateFailed, setSrcLangUpdateFailed] = useState(false);
+  const [archiveUpdateFailed, setArchiveUpdateFailed] = useState(false);
 
   const languages = useAppSelector((state) => state.languages);
 
@@ -59,8 +60,12 @@ export default function LanguageView(props: IProps) {
 
   const handleArchiveConfirm = async () => {
     setConfirmArchive(false);
+    setArchiveUpdateFailed(false);
     const result = await push(pushArchiveLanguage(props.language.languageId));
-    if (!result) return;
+    if (!result) {
+      setArchiveUpdateFailed(true);
+      return;
+    }
     if ("error" in result) {
       setArchiveBlockedDependents(result.dependents.map((dependent) => dependent.name));
     } else {
@@ -77,6 +82,7 @@ export default function LanguageView(props: IProps) {
           text={t("Archive")}
           onClick={() => {
             setArchiveBlockedDependents(null);
+            setArchiveUpdateFailed(false);
             setConfirmArchive(true);
           }}
         />
@@ -98,6 +104,11 @@ export default function LanguageView(props: IProps) {
       {srcLangUpdateFailed && (
         <div role="alert" aria-live="assertive">
           {t("Source_language_update_failed")}
+        </div>
+      )}
+      {archiveUpdateFailed && (
+        <div role="alert" aria-live="assertive">
+          {t("Archive_update_failed")}
         </div>
       )}
 

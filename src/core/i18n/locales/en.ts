@@ -179,6 +179,7 @@ const en = {
     "Can't archive: the following languages still use this one as their source: %{names}",
   Source_language_update_failed:
     "That source language is no longer available. Please choose another.",
+  Archive_update_failed: "The language could not be archived. Please try again.",
 };
 
 export type I18nStrings = typeof en;

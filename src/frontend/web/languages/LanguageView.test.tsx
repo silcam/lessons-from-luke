@@ -157,4 +157,32 @@ describe("LanguageView archive flow", () => {
 
     expect(select.value).toBe("1");
   });
+
+  it("shows an assertive alert and does not close when the archive push returns a falsy result", async () => {
+    mockPost.mockResolvedValue(null);
+    const done = jest.fn();
+    const { getByRole, findByRole } = renderWithProviders(
+      <LanguageView language={sampleLanguage} done={done} />,
+      {
+        syncState: defaultSyncState,
+        languages: { languages: [], adminLanguages: [sampleLanguage] },
+        currentUser: { user: null, locale: "en", loaded: false },
+        lessons: [],
+      }
+    );
+    await act(async () => {});
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /archive/i }));
+    });
+    const dialog = getByRole("dialog");
+    const confirmButton = dialog.querySelector("button:last-of-type") as HTMLButtonElement;
+    await act(async () => {
+      fireEvent.click(confirmButton);
+    });
+
+    const alert = await findByRole("alert");
+    expect(alert.getAttribute("aria-live")).toBe("assertive");
+    expect(done).not.toHaveBeenCalled();
+  });
 });
