@@ -45,13 +45,22 @@ export default class PGStorage implements Persistence {
     return rows[0] || null;
   }
 
-  // Runs on the INSTANCE `this.sql` (not a module-level connection) so
-  // `TransactionalTestStorage` nests it correctly — see the comment on
-  // archiveLanguage below for why `.begin`/`.savepoint` is picked dynamically.
-  async createLanguage(newLanguage: NewLanguage): Promise<Language> {
+  // Runs `fn` on the INSTANCE `this.sql` (not a module-level connection) so
+  // `TransactionalTestStorage` nests it correctly: at the top level
+  // `this.sql` is a root connection (has `.begin`), but
+  // `TransactionalTestStorage` swaps `this.sql` to the per-test transaction's
+  // scoped sql for the duration of a test — postgres@1's scoped tx sql only
+  // exposes `.savepoint` (not `.begin`), so we pick whichever is present.
+  // Either way this nests on the SAME connection as the caller's `this.sql`.
+  // The `any` cast is confined to this single helper.
+  private runInTx<T>(fn: (tx: SqlFunc) => Promise<T>): Promise<T> {
     const sql: any = this.sql;
     const runInTransaction = (sql.begin ? sql.begin : sql.savepoint).bind(sql);
-    return runInTransaction(async (tx: SqlFunc) => {
+    return runInTransaction(fn);
+  }
+
+  async createLanguage(newLanguage: NewLanguage): Promise<Language> {
+    return this.runInTx(async (tx: SqlFunc) => {
       const [source] = await tx`
         SELECT languageid FROM languages WHERE languageId=${newLanguage.defaultSrcLang} AND NOT archived FOR UPDATE
       `;
@@ -84,12 +93,10 @@ export default class PGStorage implements Persistence {
   // Like updateLanguage, but when `update.defaultSrcLang` is present AND
   // differs from the row's current value, validates the new source is
   // active (locked FOR UPDATE) before applying — rejects with
-  // { status: 422 } if missing or archived. Runs on the INSTANCE `this.sql`
-  // — see archiveLanguage's comment below for why.
+  // { status: 422 } if missing or archived. Runs via runInTx — see its
+  // comment for why the transaction-starter is picked dynamically.
   async updateLanguageChecked(id: number, update: Partial<Language>): Promise<Language> {
-    const sql: any = this.sql;
-    const runInTransaction = (sql.begin ? sql.begin : sql.savepoint).bind(sql);
-    await runInTransaction(async (tx: SqlFunc) => {
+    await this.runInTx(async (tx: SqlFunc) => {
       const [row] = await tx`
         SELECT languageid, defaultsrclang FROM languages WHERE languageId=${id} FOR UPDATE
       `;
@@ -113,17 +120,10 @@ export default class PGStorage implements Persistence {
   }
 
   // Archives a language iff no other active language depends on it as a
-  // defaultSrcLang. Runs on the INSTANCE `this.sql` (not a module-level
-  // connection) so `TransactionalTestStorage` nests it correctly: at the top
-  // level `this.sql` is a root connection (has `.begin`), but
-  // `TransactionalTestStorage` swaps `this.sql` to the per-test transaction's
-  // scoped sql for the duration of a test — postgres@1's scoped tx sql only
-  // exposes `.savepoint` (not `.begin`), so we pick whichever is present.
-  // Either way this nests on the SAME connection as the caller's `this.sql`.
+  // defaultSrcLang. Runs via runInTx — see its comment for why the
+  // transaction-starter is picked dynamically.
   async archiveLanguage(languageId: number): Promise<ArchiveLanguageResult> {
-    const sql: any = this.sql;
-    const runInTransaction = (sql.begin ? sql.begin : sql.savepoint).bind(sql);
-    return runInTransaction(async (tx: SqlFunc) => {
+    return this.runInTx(async (tx: SqlFunc) => {
       const [row] = await tx`
         SELECT languageid FROM languages WHERE languageId=${languageId} AND NOT archived FOR UPDATE
       `;
