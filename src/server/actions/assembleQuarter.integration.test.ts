@@ -42,6 +42,36 @@ const ORDERED_LESSON_NUMBERS = [TOC_LESSON, ...LESSON_NUMBERS];
 const SERVER_DOCS_DIR = path.join(process.cwd(), "test", "docs", "serverDocs");
 
 /**
+ * Each lesson's own level-1 heading text — what `text:chapter[display="name"]`
+ * resolves to in the merged book's content footer
+ * (contracts/template-application.md §4 "Per-lesson content footers
+ * resolve"). Used both to assert that field is non-blank/per-lesson and to
+ * assert the TOC's own listing carries every lesson in ascending order.
+ * Confirmed against each fixture's own real `content.xml` heading text — NOT
+ * `dc:subject`, which diverges for the two review lessons (20 and 26: their
+ * own real heading is the generic "Review Lesson", not their `dc:subject`
+ * "Lessons 14-19"/"Lessons 21-25" — which, notably, coincides with the
+ * template asset's own stale-cached chapter-name value for THOSE two
+ * lessons specifically, so this field can't discriminate real-vs-cached for
+ * 20/26; it still must assert non-blank/present).
+ */
+const LESSON_TITLES: Record<number, string> = {
+  14: "The Twelve Apostles",
+  15: "True Disciples of Jesus Love Their Enemies",
+  16: "A True Disciple of Jesus is Generous",
+  17: "A True Disciple of Jesus Bears Good Fruit",
+  18: "The Wise Man and the Foolish Man",
+  19: "Jesus Heals the Centurion's Servant",
+  20: "Review Lesson",
+  21: "A Woman Wipes Jesus' Feet",
+  22: "The Seed and the Sower",
+  23: "The Lamp on a Stand",
+  24: "Jesus Calms a Storm",
+  25: "Jesus Casts out Demons into Pigs",
+  26: "Review Lesson",
+};
+
+/**
  * The per-lesson-unique rendered footer text (e.g. `"Quarter 2 Lesson 14"`).
  * The Quarter value renders from the live `text:user-defined[Quarter]` field
  * (resolved against the `finalizeAssembledQuarter`-written book metadata) and
@@ -463,6 +493,65 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
     expect(level1).toContain(`text:start-value="${(SERIES - 1) * 13 + 1}"`);
   });
 
+  test("outline / TOC listing: the TOC's own listing carries all 13 lessons, in correct ascending order (FR-005/SC-003, contracts/template-application.md §4)", () => {
+    // The TOC constituent's own review-list page(s) list every lesson's
+    // title (dc:subject) as a row — distinct from the footer/content-page
+    // ordering the "content + lesson ordering" test above already checks.
+    // Confirms the TOC listing itself carries all 13, in the right order.
+    let searchFrom = fullText.indexOf(TOC_MARKER);
+    expect(searchFrom).toBeGreaterThan(-1);
+    LESSON_NUMBERS.forEach((n) => {
+      const title = LESSON_TITLES[n];
+      const index = fullText.indexOf(title, searchFrom);
+      expect(index).toBeGreaterThan(searchFrom);
+      searchFrom = index + title.length;
+    });
+  });
+
+  test("per-lesson content footer fields resolve to non-blank, per-lesson values — text:chapter[name] and text:title/text:user-defined[Quarter] (contracts/template-application.md §4, RE-VERIFY + EXPAND)", () => {
+    // text:chapter[name]: each lesson's own page (the page carrying its
+    // footer marker) must also carry its own title text — not the asset's
+    // stale cached "Review Lesson" heading name, and not blank.
+    LESSON_NUMBERS.forEach((n) => {
+      const marker = footerMarkerFor(n);
+      const contentPageIndex = pages.findIndex((pageText) => pageText.includes(marker));
+      expect(contentPageIndex).toBeGreaterThan(-1);
+      expect(pages[contentPageIndex]).toContain(LESSON_TITLES[n]);
+    });
+
+    // text:title: the front-matter footer resolves a real, non-blank book
+    // title on every front-matter page (empirically the "Front matter"
+    // master page's own footer, carrying the title alongside the live
+    // Quarter field checked above — confirmed present through Page iii,
+    // immediately before lesson 14's own first content page).
+    const tocFooterPages = pages.slice(
+      0,
+      pages.findIndex((p) => p.includes(footerMarkerFor(14)))
+    );
+    expect(tocFooterPages.length).toBeGreaterThan(0);
+    tocFooterPages
+      .filter((p) => /Page\s+i+\b/.test(p))
+      .forEach((p) => {
+        expect(p).toContain("Lessons from Luke");
+      });
+  });
+
+  test("body-content list rendering: a body-list style referenced by lesson content (e.g. 'Bullet - checkmark') still carries a bullet/numbering definition after template application (FR-005, regression guard — not a discriminating check per contracts/template-application.md §4)", () => {
+    const stylesXml = extractStylesXml(outputPath, workDir, "styles-extract-list-style");
+
+    const listStyle =
+      /<text:list-style style:name="Bullet_20_-_20_checkmark"[^>]*>[\s\S]*?<\/text:list-style>/.exec(
+        stylesXml
+      )?.[0];
+    expect(listStyle).toBeDefined();
+
+    const level1Bullet = /<text:list-level-style-bullet text:level="1"[^>]*>/.exec(listStyle!)?.[0];
+    expect(level1Bullet).toBeDefined();
+    const bulletChar = /text:bullet-char="([^"]*)"/.exec(level1Bullet!)?.[1];
+    expect(bulletChar).toBeDefined();
+    expect(bulletChar).not.toHaveLength(0);
+  });
+
   test("page-offset parity: the produced book's final printed page number carries the known +1 offset vs. physical PDF page count (research.md R3 — matched, not fixed)", () => {
     const pdfPath = path.join(workDir, "pdf-out", `${path.basename(outputPath, ".odt")}.pdf`);
     const physicalPageCount = pdfPageCount(pdfPath);
@@ -682,5 +771,29 @@ describe("assembleQuarter (real soffice merge, monolingual template asset is a c
     const firstPageMaster = masterPageBlock(stylesXml, "First Page");
     expect(firstPageMaster).toBeDefined();
     expect(firstPageMaster).not.toContain("<style:footer>");
+
+    // contracts/template-application.md §4 "Per-lesson content footers
+    // resolve": the monolingual asset ships STALE CACHED footer field text —
+    // `text:user-defined[Quarter]` = 4, `text:chapter[number]` = 51/52
+    // (data-model.md) — from whatever quarter/lesson the template was last
+    // saved against. This is the ONE fixture combination in this file where
+    // the asset's cached values genuinely diverge from this job's REAL
+    // values (quarter 2, lesson 14): the bilingual asset's own cache
+    // coincidentally matches series 2's real values, so only here can a
+    // footer assertion actually DISCRIMINATE "field re-resolved live" from
+    // "field shipped its asset-cached snapshot" (finalize's
+    // patchBookMetadata / outline start-value patch either ran and won, or a
+    // skipped/failed patch let the cached text ship untouched).
+    const profileDir = path.join(workDir, "pdf-profile-monolingual");
+    const pdfPath = convertToPdf(outputPath, workDir, profileDir);
+    const fullText = pdfToText(pdfPath);
+
+    // The REAL values must be present...
+    expect(fullText).toContain("Quarter 2");
+    expect(fullText).toContain("Lesson 14");
+    // ...and the asset's stale cached values must NOT have shipped through.
+    expect(fullText).not.toContain("Quarter 4");
+    expect(fullText).not.toContain("Lesson 51");
+    expect(fullText).not.toContain("Lesson 52");
   }, 200_000);
 });
