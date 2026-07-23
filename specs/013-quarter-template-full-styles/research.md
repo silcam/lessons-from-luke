@@ -114,12 +114,20 @@ should already be correct or become correct once the full family set is applied.
 
 **OPEN RISK — single-language FR-003 (design-impacting; escalate to user &
 red-team, do NOT pre-adjudicate as out-of-scope):**
-`OverwriteStyles` only replaces styles the **source template also defines**. The
-monolingual template omits `M.T. Lesson Title`, so a constituent's tighter
-`M.T. Lesson Title` (0.3cm) would **survive** in single-language mode. This makes
-flipping the family flags **necessary but possibly not sufficient** for FR-003 in
-single-language mode — which is the mode the spec complains about most. Two
-evidence gaps keep this an **open risk**, not a settled scope call:
+`OverwriteStyles` only replaces styles the **source template also defines**. A
+follow-up style-name diff (2026-07-23, deepen-plan pass) of both committed
+assets' `styles.xml`/`content.xml` confirms the monolingual template omits
+exactly **five** `M.T.`-prefixed paragraph styles that the bilingual template
+defines: `M.T. Lesson Title`, `M.T. Lesson title - invisible`,
+`M.T. Coloring Page - Memory Verse`, `M.T. Coloring Page - Truth`, and
+`M.T. Example text`. Every other `M.T.`-prefixed style (application, Bible
+story, front matter, text variants, etc.) is defined in **both** assets — the
+gap is scoped to lesson-opening/coloring-page styles, not `M.T.` styles
+generally. So a constituent's tighter `M.T. Lesson Title` (0.3cm) — or any of
+the other four — would **survive** in single-language mode. This makes
+flipping the family flags **necessary but not yet proven sufficient** for
+FR-003 in single-language mode — which is the mode the spec complains about
+most. Two evidence gaps keep this an **open risk**, not a settled scope call:
 
 1. **Carrier is a hypothesis, not a proven fact.** The `M.T. Lesson Title`
    attribute diff identifies a _candidate_ carrier; confirming the rendered

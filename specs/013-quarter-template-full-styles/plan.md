@@ -210,15 +210,25 @@ surfaced by static inspection are recorded here and in
 ### Overwrite reaches only same-named styles — monolingual style-set gap (OPEN RISK, from research R3)
 
 `OverwriteStyles=True` replaces a constituent style **only when the template also
-defines that name**. The monolingual template omits `M.T. Lesson Title` (and
-possibly other opening styles), so a constituent's tighter definition would
-survive in single-language mode. Flipping the flags is **necessary but possibly
-not sufficient** for FR-003 single-language spacing — the mode the spec complains
-about most. This is an **open risk to escalate**, not a settled out-of-scope
-call, for two reasons: (1) the carrier is a static-diff _hypothesis_ until the
-rendered opening's applied style is confirmed; (2) the "assets are current, no
-refresh" premise was established for 009's footer/highlight styles, not 013's
-spacing styles — the missing `M.T. Lesson Title` is direct evidence it may not
+defines that name**. A style-name diff of both committed assets (`unzip` +
+`style:name` extraction from `styles.xml`/`content.xml`, run 2026-07-23) confirms
+the monolingual template omits exactly five `M.T.`-prefixed paragraph styles that
+the bilingual template defines: `M.T. Lesson Title`,
+`M.T. Lesson title - invisible`, `M.T. Coloring Page - Memory Verse`,
+`M.T. Coloring Page - Truth`, and `M.T. Example text`. (Every other `M.T.`-
+prefixed style — `M.T. Application`, `M.T. Bible Story`, `M.T. Text - *`, front-
+matter, etc. — is present in **both** assets; the gap is scoped to lesson-opening
+and coloring-page styles specifically, not `M.T.` styles generally.) A
+constituent's tighter definition of any of these five would survive
+`OverwriteStyles` in single-language mode. Flipping the flags is **necessary but
+not yet proven sufficient** for FR-003 single-language spacing — the mode the
+spec complains about most. This is an **open risk to escalate**, not a settled
+out-of-scope call, for two reasons: (1) the five-name diff is static evidence,
+but whether a real single-language lesson opening actually applies one of these
+five styles (vs. the mode-neutral `Lesson Title` style, present in both assets)
+is only confirmed by the round-trip test/rendered output; (2) the "assets are
+current, no refresh" premise was established for 009's footer/highlight styles,
+not 013's spacing styles — this five-style gap is direct evidence it may not
 hold here. Resolution: verify FR-003 against the monolingual master
 (SC-002/SC-005). If still tight, discriminate **(a)** a monolingual asset
 deficiency (out of scope → **user/curriculum-owner decision**, since it reopens

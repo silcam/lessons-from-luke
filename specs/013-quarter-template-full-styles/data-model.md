@@ -24,8 +24,15 @@ The relevant "entities" are all existing documents and one configuration value.
   - Lesson-opening spacing lives in **paragraph** styles (e.g. `Lesson Title`,
     `M.T. Lesson Title`); frame/graphic styles and page-layout margins are
     identical to the constituent's.
-  - **Style-set gap (single-language):** the monolingual template does **not**
-    define `M.T. Lesson Title` (see research R3 caveat).
+  - **Style-set gap (single-language):** a 2026-07-23 style-name diff of both
+    committed assets confirms the monolingual template omits exactly five
+    `M.T.`-prefixed paragraph styles present in the bilingual template:
+    `M.T. Lesson Title`, `M.T. Lesson title - invisible`,
+    `M.T. Coloring Page - Memory Verse`, `M.T. Coloring Page - Truth`, and
+    `M.T. Example text`. Every other `M.T.`-prefixed style (application, Bible
+    story, front matter, text variants, etc.) is defined in both assets — the
+    gap is scoped to lesson-opening/coloring-page styles, not `M.T.` styles
+    generally (see research R3 caveat).
 
 ### Constituent lesson document (existing)
 
