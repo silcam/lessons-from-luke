@@ -66,6 +66,18 @@ function footerMarkerFor(lessonNumber: number): string {
 /** The TOC's own unmistakable anchor — its actual "Table of Contents" heading, not any lesson's own title (which the TOC also lists). */
 const TOC_MARKER = `Quarter ${SERIES} Table of Contents`;
 
+/**
+ * A single-token substring of the stand-alone lesson `First Page` footer's CC
+ * license text (`"This work is licensed under the Creative Commons
+ * Attribution-NonCommercial-ShareAlike 4.0 International License. To view a
+ * copy of this license, visit http://creativecommons.org/licenses/…"` —
+ * confirmed verbatim in a real constituent's `styles.xml`). The bare license
+ * URL host+path segment is used rather than the full prose sentence because
+ * it is a single unbroken token, immune to any `pdftotext -layout` line
+ * wrapping the longer sentence could suffer.
+ */
+const CC_FOOTER_MARKER = "creativecommons.org/licenses";
+
 function zeroPad2(n: number): string {
   return n < 10 ? `0${n}` : `${n}`;
 }
@@ -152,6 +164,17 @@ function extractStylesXml(outputPath: string, workDir: string, subdir: string): 
   fs.mkdirSync(extractDir, { recursive: true });
   execFileSync("unzip", ["-o", "-q", outputPath, "styles.xml", "-d", extractDir]);
   return fs.readFileSync(path.join(extractDir, "styles.xml"), "utf8");
+}
+
+/**
+ * Extracts the full `<style:master-page>` element carrying the given
+ * `style:display-name` (e.g. `"First Page"`) from a `styles.xml` string, or
+ * `undefined` if no master page with that display name exists.
+ */
+function masterPageBlock(stylesXml: string, displayName: string): string | undefined {
+  return new RegExp(
+    `<style:master-page[^>]*style:display-name="${displayName}"[^>]*>[\\s\\S]*?<\\/style:master-page>`
+  ).exec(stylesXml)?.[0];
 }
 
 /**
@@ -339,6 +362,48 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
       const titlePageIndex = firstContentPageIndex - 1;
       expect(pageNumberFooterOn(pages[titlePageIndex])).toBeUndefined();
     });
+  });
+
+  test("FR-002: no lesson first page renders any footer content — the stand-alone CC license footer is gone (contracts/template-application.md §4)", () => {
+    LESSON_NUMBERS.forEach((n) => {
+      const marker = footerMarkerFor(n);
+      const firstContentPageIndex = pages.findIndex((pageText) => pageText.includes(marker));
+      expect(firstContentPageIndex).toBeGreaterThan(0);
+
+      const titlePageIndex = firstContentPageIndex - 1;
+      expect(pages[titlePageIndex]).not.toContain(CC_FOOTER_MARKER);
+    });
+  });
+
+  test("FR-002: the CC license text occurs only within the TOC section of the book, never on any lesson's own pages (contracts/template-application.md §4)", () => {
+    // The TOC section is everything from the book's start up to (but not
+    // including) the first lesson's own first (title) page — the same
+    // boundary the "first page suppresses its page number" test above
+    // computes for lesson 14, the quarter's first lesson.
+    const firstLessonMarker = footerMarkerFor(LESSON_NUMBERS[0]);
+    const firstLessonContentPageIndex = pages.findIndex((pageText) =>
+      pageText.includes(firstLessonMarker)
+    );
+    expect(firstLessonContentPageIndex).toBeGreaterThan(0);
+    const firstLessonTitlePageIndex = firstLessonContentPageIndex - 1;
+
+    const tocSectionPages = pages.slice(0, firstLessonTitlePageIndex);
+    const lessonSectionPages = pages.slice(firstLessonTitlePageIndex);
+
+    // The CC text genuinely appears somewhere in the TOC section...
+    expect(tocSectionPages.some((pageText) => pageText.includes(CC_FOOTER_MARKER))).toBe(true);
+    // ...and nowhere else in the book (no lesson page — first or content —
+    // carries it).
+    lessonSectionPages.forEach((pageText) => {
+      expect(pageText).not.toContain(CC_FOOTER_MARKER);
+    });
+  });
+
+  test("FR-002: the 'First Page' master page style has no <style:footer> element (contracts/template-application.md §4)", () => {
+    const stylesXml = extractStylesXml(outputPath, workDir, "styles-extract-first-page-footer");
+    const firstPageMaster = masterPageBlock(stylesXml, "First Page");
+    expect(firstPageMaster).toBeDefined();
+    expect(firstPageMaster).not.toContain("<style:footer>");
   });
 
   test("single clean master-page set: every display name appears ONCE and none carries a numeric constituent suffix (the duplicated-page-styles defect this fix removes)", () => {
@@ -610,5 +675,12 @@ describe("assembleQuarter (real soffice merge, monolingual template asset is a c
     // No legacy working-highlight: the M.T. Text background must not be the
     // #ffffcc highlight color (transparent or absent are both acceptable).
     expect(mtTextBackgroundColor(stylesXml)).not.toBe("#ffffcc");
+
+    // FR-002 (contracts/template-application.md §4): the 'First Page' master
+    // page style has no <style:footer> element in single-language mode
+    // either — the same footer-less-First-Page-wins guarantee as bilingual.
+    const firstPageMaster = masterPageBlock(stylesXml, "First Page");
+    expect(firstPageMaster).toBeDefined();
+    expect(firstPageMaster).not.toContain("<style:footer>");
   }, 200_000);
 });
