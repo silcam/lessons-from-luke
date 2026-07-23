@@ -177,6 +177,21 @@ test("POST update language defaultSrcLang", async () => {
   });
 });
 
+// POST /api/admin/languages/:languageId re-point guard — RED
+// (lessons-from-luke-e044.5.5.2, RT-B/RT-F/RT-H). The endpoint still calls
+// storage.updateLanguage directly (no active-source check) — it must route
+// through storage.updateLanguageChecked and surface its 422 rejection.
+test("POST update language: 422 when defaultSrcLang re-points to an archived language", async () => {
+  const storage: TestPersistence = (global as any).testStorage;
+  await storage.updateLanguage(2, { archived: true });
+
+  const agent = await loggedInAgent();
+  const response = await agent
+    .post("/api/admin/languages/3")
+    .send({ motherTongue: true, defaultSrcLang: 2 });
+  expect(response.status).toBe(422);
+});
+
 test("POST usfm", async () => {
   const agent = await loggedInAgent();
   const response = await agent.post("/api/admin/languages/3/usfm").send({ usfm });
