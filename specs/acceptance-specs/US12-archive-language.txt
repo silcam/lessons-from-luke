@@ -1,0 +1,22 @@
+;=============================================
+; Archiving a language with no dependents removes it from the active list.
+;=============================================
+GIVEN an admin viewing a language project with no other language depending on it as a source language.
+WHEN the admin chooses to archive it and confirms.
+THEN the language is archived and disappears from the active Languages list.
+THEN its translation data, including translated strings, progress, and uploaded documents, is retained, not deleted.
+
+;=============================================
+; Cancelling the archive confirmation leaves the language unchanged.
+;=============================================
+GIVEN an admin viewing a language project.
+WHEN the admin chooses to archive it but cancels the confirmation.
+THEN nothing changes.
+THEN the language remains active.
+
+;=============================================
+; Archived language no longer appears in the translator language-selection list.
+;=============================================
+GIVEN a language has just been archived.
+WHEN any translator opens the language-selection list used to choose a language to translate into.
+THEN the archived language no longer appears there.
