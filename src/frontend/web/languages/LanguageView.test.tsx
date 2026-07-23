@@ -126,4 +126,35 @@ describe("LanguageView archive flow", () => {
     expect(alert.textContent).toMatch(/Bambara/);
     expect(done).not.toHaveBeenCalled();
   });
+
+  it("reverts the optimistic source-language change and shows a generic alert when the re-point push is rejected", async () => {
+    mockPost.mockResolvedValue(null);
+    const done = jest.fn();
+    const englishLang = { ...sampleLanguage, languageId: 1, name: "English", defaultSrcLang: 1 };
+    const frenchLang = { ...sampleLanguage, languageId: 2, name: "French" };
+    const testLanguage = { ...sampleLanguage, languageId: 42, defaultSrcLang: 1 };
+    const { getByRole, findByRole } = renderWithProviders(
+      <LanguageView language={testLanguage} done={done} />,
+      {
+        syncState: defaultSyncState,
+        languages: { languages: [], adminLanguages: [englishLang, frenchLang] },
+        currentUser: { user: null, locale: "en", loaded: false },
+        lessons: [],
+      }
+    );
+    await act(async () => {});
+
+    const select = getByRole("combobox") as HTMLSelectElement;
+    expect(select.value).toBe("1");
+
+    await act(async () => {
+      fireEvent.change(select, { target: { value: "2" } });
+    });
+
+    const alert = await findByRole("alert");
+    expect(alert.getAttribute("aria-live")).toBe("assertive");
+    expect(alert.textContent).toMatch(/no longer available/i);
+
+    expect(select.value).toBe("1");
+  });
 });
