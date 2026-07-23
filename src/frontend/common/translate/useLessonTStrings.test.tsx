@@ -111,6 +111,7 @@ const mockLanguage: Language = {
   motherTongue: false,
   defaultSrcLang: ENGLISH_ID,
   progress: [],
+  archived: false,
 };
 
 describe("useLessonTStrings", () => {

@@ -37,6 +37,7 @@ const testStorage: TestPersistence = {
       code,
       motherTongue: true,
       progress: [],
+      archived: false,
     };
     testDb.languages.push(lang);
     return lang;

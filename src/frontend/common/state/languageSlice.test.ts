@@ -16,6 +16,7 @@ function makeLanguage(overrides: Partial<Language> = {}): Language {
     motherTongue: false,
     progress: [],
     defaultSrcLang: 1,
+    archived: false,
     ...overrides,
   };
 }
