@@ -46,4 +46,11 @@ export default function languagesController(app: Express, storage: Persistence) 
     if (!language) throw { status: 404 };
     return { language, tStrings, errors };
   });
+
+  addPostHandler(app, "/api/admin/languages/:languageId/archive", async (req) => {
+    const languageId = parseInt(req.params.languageId);
+    const language = await storage.language({ languageId });
+    if (!language) throw { status: 404 };
+    return storage.archiveLanguage(languageId);
+  });
 }
