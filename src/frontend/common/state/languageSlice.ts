@@ -13,6 +13,7 @@ import { modelListMerge } from "../../../core/util/arrayUtils";
 import { localeByLanguageId } from "../../../core/i18n/I18n";
 import currentUserSlice from "./currentUserSlice";
 import { Pusher } from "../api/useLoad";
+import { ArchiveLanguageResult } from "../../../core/interfaces/Api";
 
 interface State {
   languages: MaybePublicLanguage[];
@@ -41,6 +42,11 @@ const languageSlice = createSlice({
         [action.payload],
         (a, b) => a.languageId == b.languageId,
         languageCompare
+      );
+    },
+    removeAdminLanguage: (state, action: PayloadAction<number>) => {
+      state.adminLanguages = state.adminLanguages.filter(
+        (language) => language.languageId !== action.payload
       );
     },
     setTranslating: (state, action: PayloadAction<Language>) => {
@@ -122,6 +128,16 @@ export function pushLanguageUpdate(language: Language): Pusher<Language> {
     );
     if (updatedLanguage) dispatch(languageSlice.actions.addLanguage(updatedLanguage));
     return updatedLanguage;
+  };
+}
+
+export function pushArchiveLanguage(languageId: number): Pusher<ArchiveLanguageResult> {
+  return async (post, dispatch) => {
+    const result = await post("/api/admin/languages/:languageId/archive", { languageId }, {});
+    if (result && !("error" in result)) {
+      dispatch(languageSlice.actions.removeAdminLanguage(languageId));
+    }
+    return result;
   };
 }
 
