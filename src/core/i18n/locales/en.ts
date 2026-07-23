@@ -177,6 +177,8 @@ const en = {
     "This will archive the language project. This action cannot be undone from within the product.",
   Archive_language_blocked:
     "Can't archive: the following languages still use this one as their source: %{names}",
+  Source_language_update_failed:
+    "That source language is no longer available. Please choose another.",
 };
 
 export type I18nStrings = typeof en;

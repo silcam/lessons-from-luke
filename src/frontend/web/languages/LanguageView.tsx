@@ -37,12 +37,19 @@ export default function LanguageView(props: IProps) {
 
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [archiveBlockedDependents, setArchiveBlockedDependents] = useState<string[] | null>(null);
+  const [srcLangUpdateFailed, setSrcLangUpdateFailed] = useState(false);
 
   const languages = useAppSelector((state) => state.languages);
 
   const handleSrcLangChange = async (v: number) => {
+    const previousLang = activeLang;
+    setSrcLangUpdateFailed(false);
     setActiveLang({ ...activeLang, defaultSrcLang: v });
-    await push(pushLanguageUpdate({ ...activeLang, defaultSrcLang: v }));
+    const result = await push(pushLanguageUpdate({ ...activeLang, defaultSrcLang: v }));
+    if (!result) {
+      setActiveLang(previousLang);
+      setSrcLangUpdateFailed(true);
+    }
   };
 
   const handleMTChange = async (mt: boolean) => {
@@ -86,6 +93,11 @@ export default function LanguageView(props: IProps) {
       {archiveBlockedDependents && (
         <div role="alert" aria-live="assertive">
           {t("Archive_language_blocked", { names: archiveBlockedDependents.join(", ") })}
+        </div>
+      )}
+      {srcLangUpdateFailed && (
+        <div role="alert" aria-live="assertive">
+          {t("Source_language_update_failed")}
         </div>
       )}
 
