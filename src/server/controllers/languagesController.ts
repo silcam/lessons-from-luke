@@ -36,7 +36,7 @@ export default function languagesController(app: Express, storage: Persistence) 
 
   addPostHandler(app, "/api/admin/languages/:languageId", async (req) => {
     const langUpdate = objFilter(req.body, ["motherTongue", "defaultSrcLang"]);
-    return storage.updateLanguage(parseInt(req.params.languageId), langUpdate);
+    return storage.updateLanguageChecked(parseInt(req.params.languageId), langUpdate);
   });
 
   addPostHandler(app, "/api/admin/languages/:languageId/usfm", async (req) => {
@@ -45,5 +45,10 @@ export default function languagesController(app: Express, storage: Persistence) 
     const language = await storage.language({ languageId });
     if (!language) throw { status: 404 };
     return { language, tStrings, errors };
+  });
+
+  addPostHandler(app, "/api/admin/languages/:languageId/archive", async (req) => {
+    const languageId = parseInt(req.params.languageId);
+    return storage.archiveLanguage(languageId);
   });
 }

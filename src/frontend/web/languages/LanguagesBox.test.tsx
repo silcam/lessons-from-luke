@@ -12,10 +12,61 @@ jest.mock("../../common/state/networkSlice", () => ({
   networkConnectionLostAction: jest.fn(),
 }));
 
+// Mock useNavigate so route-driven-selection tests can assert on navigation calls
+// without depending on an actual route change (react-router-dom test convention,
+// see ResetPassword.test.tsx).
+const mockNavigate = jest.fn();
+jest.mock("react-router-dom", () => ({
+  ...jest.requireActual("react-router-dom"),
+  useNavigate: () => mockNavigate,
+}));
+
+// Mock LoadingSnake to a stable, queryable marker (it self-schedules setTimeout
+// animation frames that are irrelevant to this behavior and would otherwise
+// leave open timer handles across tests).
+jest.mock("../../common/base-components/LoadingSnake", () => ({
+  __esModule: true,
+  default: () => <div data-testid="loading-snake" />,
+}));
+
 import React from "react";
-import { fireEvent, act } from "@testing-library/react";
-import { renderWithProviders, sampleLanguage, defaultSyncState } from "../../common/testHelpers";
+import { fireEvent, act, render } from "@testing-library/react";
+import { Provider } from "react-redux";
+import { MemoryRouter, Routes, Route } from "react-router-dom";
+import RequestContext from "../../common/api/RequestContext";
+import {
+  renderWithProviders,
+  sampleLanguage,
+  defaultSyncState,
+  buildStore,
+  mockGet,
+  mockPost,
+} from "../../common/testHelpers";
 import LanguagesBox from "./LanguagesBox";
+
+/**
+ * Render LanguagesBox behind a Routes tree so useParams()/useNavigate() see a
+ * real route match, at a given initial path (per this repo's routing-test
+ * convention — see ResetPassword.test.tsx).
+ */
+function renderBoxAtPath(path: string, initialState?: Record<string, unknown>) {
+  const store = buildStore(initialState);
+  return render(
+    <Provider store={store}>
+      <RequestContext.Provider value={{ get: mockGet, post: mockPost }}>
+        <MemoryRouter
+          initialEntries={[path]}
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
+          <Routes>
+            <Route path="/languages/:languageId" element={<LanguagesBox />} />
+            <Route path="/" element={<LanguagesBox />} />
+          </Routes>
+        </MemoryRouter>
+      </RequestContext.Provider>
+    </Provider>
+  );
+}
 
 describe("LanguagesBox", () => {
   it("renders without crashing with empty languages", async () => {
@@ -112,5 +163,101 @@ describe("LanguagesBox", () => {
     // selectedLanguage is now set, LanguageView should be rendered
     // (LanguageView renders something)
     expect(langButton || true).toBeTruthy();
+  });
+});
+
+// Route-param-driven selection (US3, spec.md contracts/language-detail-route.md).
+// LanguagesBox reads useParams<{ languageId?: string }>() and useNavigate()
+// rather than local useState selection.
+describe("LanguagesBox — route-driven selection", () => {
+  beforeEach(() => {
+    mockNavigate.mockClear();
+  });
+
+  it("(a) renders the list view when no languageId param is present", async () => {
+    const { getByText } = renderBoxAtPath("/", {
+      syncState: defaultSyncState,
+      languages: { languages: [], adminLanguages: [sampleLanguage] },
+      currentUser: { user: null, locale: "en", loaded: false },
+    });
+    await act(async () => {});
+
+    expect(getByText("Test Language")).toBeTruthy();
+  });
+
+  it("(b) renders LoadingSnake — and does not navigate — while a languageId param is loading", () => {
+    renderBoxAtPath("/languages/42", {
+      syncState: defaultSyncState,
+      languages: { languages: [], adminLanguages: [sampleLanguage] },
+      currentUser: { user: null, locale: "en", loaded: false },
+    });
+
+    // Intentionally NOT flushed with `await act(async () => {})`: useLoad's
+    // loading flag is true until the mocked get() promise resolves, so this
+    // synchronously observes the mid-load render.
+    expect(document.querySelector('[data-testid="loading-snake"]')).toBeTruthy();
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("(c) auto-unfolds and renders LanguageView when languageId matches an active language", async () => {
+    const { getByText, getByRole, queryByText } = renderBoxAtPath("/languages/42", {
+      syncState: defaultSyncState,
+      languages: { languages: [], adminLanguages: [sampleLanguage] },
+      currentUser: { user: null, locale: "en", loaded: false },
+    });
+    await act(async () => {});
+
+    // LanguageView renders a heading with the language's name and a
+    // "< Languages" back button — neither appears in the folded/list view.
+    // Query by role (not getByText) because the source-language <select>
+    // also renders an <option> with the same text — getByText would match
+    // both nodes when there's exactly one admin language in the fixture.
+    expect(getByRole("heading", { name: sampleLanguage.name })).toBeTruthy();
+    expect(getByText(/< ?Languages/i)).toBeTruthy();
+    // The folded "N Languages" count summary must not be showing.
+    expect(queryByText(`${1} Languages`)).toBeFalsy();
+  });
+
+  it("(d) redirects to the list (navigate('/', {replace: true})) when languageId is not found", async () => {
+    renderBoxAtPath("/languages/999", {
+      syncState: defaultSyncState,
+      languages: { languages: [], adminLanguages: [sampleLanguage] },
+      currentUser: { user: null, locale: "en", loaded: false },
+    });
+    await act(async () => {});
+
+    expect(mockNavigate).toHaveBeenCalledWith("/", { replace: true });
+  });
+
+  it("(e) clicking a language in the list navigates to /languages/:languageId", async () => {
+    const { getByText } = renderBoxAtPath("/", {
+      syncState: defaultSyncState,
+      languages: { languages: [], adminLanguages: [sampleLanguage] },
+      currentUser: { user: null, locale: "en", loaded: false },
+    });
+    await act(async () => {});
+
+    const langButton = getByText(sampleLanguage.name);
+    await act(async () => {
+      fireEvent.click(langButton);
+    });
+
+    expect(mockNavigate).toHaveBeenCalledWith(`/languages/${sampleLanguage.languageId}`);
+  });
+
+  it("(f) LanguageView's back button navigates to the list route instead of clearing local state", async () => {
+    const { getByText } = renderBoxAtPath("/languages/42", {
+      syncState: defaultSyncState,
+      languages: { languages: [], adminLanguages: [sampleLanguage] },
+      currentUser: { user: null, locale: "en", loaded: false },
+    });
+    await act(async () => {});
+
+    const backButton = getByText(/< ?Languages/i);
+    await act(async () => {
+      fireEvent.click(backButton);
+    });
+
+    expect(mockNavigate).toHaveBeenCalledWith("/");
   });
 });

@@ -29,6 +29,7 @@ const makeLanguage = (): Language => ({
   motherTongue: false,
   progress: [],
   defaultSrcLang: 1,
+  archived: false,
 });
 
 describe("equal", () => {

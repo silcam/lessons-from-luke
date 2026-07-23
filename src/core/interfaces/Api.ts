@@ -43,6 +43,27 @@ export interface InvitationSummaryRow {
   invitedByEmail: string;
 }
 
+// ---------------------------------------------------------------------------
+// Archive-language response shape — shared between Persistence.archiveLanguage,
+// the POST /api/admin/languages/:languageId/archive endpoint, and the frontend
+// thunk that discriminates the union. See
+// specs/012-language-archive-routing/contracts/archive-language.md.
+// ---------------------------------------------------------------------------
+
+/** Successful archive — minimal acknowledgement, NOT the (now-filtered) Language. */
+export interface ArchiveLanguageOk {
+  archived: true;
+  languageId: number;
+}
+
+/** Blocked because one or more active languages still point at this one as their source. */
+export interface ArchiveLanguageBlocked {
+  error: "HAS_DEPENDENTS";
+  dependents: { languageId: number; name: string }[];
+}
+
+export type ArchiveLanguageResult = ArchiveLanguageOk | ArchiveLanguageBlocked;
+
 export interface APIGet {
   // Both
   "/api/languages": [Record<string, never>, PublicLanguage[]];
@@ -92,6 +113,11 @@ export interface APIPost {
     { languageId: number },
     { usfm: string },
     { language: Language; tStrings: TString[]; errors: string[] },
+  ];
+  "/api/admin/languages/:languageId/archive": [
+    { languageId: number },
+    Record<string, never>,
+    ArchiveLanguageResult,
   ];
   "/api/admin/lessons/:lessonId/strings": [
     { lessonId: number },

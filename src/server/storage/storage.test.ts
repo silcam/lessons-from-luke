@@ -53,6 +53,134 @@ test("Get language by missing", async () => {
   expect(await storage.language({ code: "NOPE" })).toBeNull();
 });
 
+test("languages() excludes archived languages", async () => {
+  await storage.updateLanguage(3, { archived: true });
+  const languages = await storage.languages();
+  expect(languages.length).toBe(2);
+  expect(languages.find((lang) => lang.languageId === 3)).toBeUndefined();
+});
+
+test("language() returns null for an archived languageId", async () => {
+  await storage.updateLanguage(3, { archived: true });
+  expect(await storage.language({ languageId: 3 })).toBeNull();
+});
+
+test("language() returns null for an archived code", async () => {
+  await storage.updateLanguage(3, { archived: true });
+  expect(await storage.language({ code: "GHI" })).toBeNull();
+});
+
+test("archiveLanguage archives a language with zero active dependents", async () => {
+  // Fixture language 2 (Français) has no other active language pointing at it
+  // as defaultSrcLang (everything defaults to source language 1), so it has
+  // zero active dependents and should archive cleanly.
+  const result = await storage.archiveLanguage(2);
+
+  expect(result).toEqual({ archived: true, languageId: 2 });
+
+  // Raw read: the row is now excluded from languages().
+  const languages = await storage.languages();
+  expect(languages.find((lang) => lang.languageId === 2)).toBeUndefined();
+});
+
+test("archiveLanguage is blocked by active dependents and makes no state change", async () => {
+  // Fixture languages 2 (Français) and 3 (Batanga) both default to source
+  // language 1 (English), so language 1 has two active dependents.
+  const result = await storage.archiveLanguage(1);
+
+  expect(result).toEqual({
+    error: "HAS_DEPENDENTS",
+    dependents: expect.arrayContaining([
+      { languageId: 2, name: "Français" },
+      { languageId: 3, name: "Batanga" },
+    ]),
+  });
+  expect((result as { dependents: unknown[] }).dependents).toHaveLength(2);
+
+  // No state change: the target row's archived flag stays false.
+  const english = await storage.language({ languageId: 1 });
+  expect(english).not.toBeNull();
+  expect(english!.archived).toBe(false);
+});
+
+test("updateLanguageChecked persists both motherTongue and defaultSrcLang when both are provided (RT-F)", async () => {
+  // Fixture language 3 (Batanga) defaults defaultSrcLang to 1 (English); 2
+  // (Français) is active, so this re-point is a legitimate change.
+  const batanga = await storage.updateLanguageChecked(3, {
+    motherTongue: false,
+    defaultSrcLang: 2,
+  });
+  expect(batanga).toMatchObject({
+    languageId: 3,
+    name: "Batanga",
+    motherTongue: false,
+    defaultSrcLang: 2,
+  });
+});
+
+test("updateLanguageChecked rejects a defaultSrcLang re-point to an archived language, with no state change (RT-B/RT-F)", async () => {
+  await storage.updateLanguage(2, { archived: true });
+
+  await expect(
+    (async () =>
+      storage.updateLanguageChecked(3, {
+        motherTongue: true,
+        defaultSrcLang: 2,
+      }))()
+  ).rejects.toMatchObject({ status: 422 });
+
+  // No state change: language 3 still points at its original defaultSrcLang.
+  const batanga = await storage.language({ languageId: 3 });
+  expect(batanga!.defaultSrcLang).toBe(1);
+});
+
+test("updateLanguageChecked rejects a defaultSrcLang re-point to a nonexistent language (RT-B/RT-F)", async () => {
+  await expect(
+    (async () =>
+      storage.updateLanguageChecked(3, {
+        motherTongue: true,
+        defaultSrcLang: 99999,
+      }))()
+  ).rejects.toMatchObject({ status: 422 });
+});
+
+test("updateLanguageChecked skips the active-check when defaultSrcLang is unchanged, even if it dangles (RT-B/RT-F)", async () => {
+  // Point language 3 at 2, then archive 2 directly via updateLanguage
+  // (bypassing archiveLanguage's dependent guard) to manufacture a dangling
+  // defaultSrcLang — the legacy/pre-feature scenario this test protects.
+  await storage.updateLanguage(3, { defaultSrcLang: 2 });
+  await storage.updateLanguage(2, { archived: true });
+
+  // Re-sending the SAME (now-dangling) defaultSrcLang alongside a
+  // mother-tongue-only toggle must succeed — no active-check on an unchanged
+  // value.
+  const batanga = await storage.updateLanguageChecked(3, {
+    motherTongue: false,
+    defaultSrcLang: 2,
+  });
+  expect(batanga).toMatchObject({
+    languageId: 3,
+    motherTongue: false,
+    defaultSrcLang: 2,
+  });
+});
+
+test("updateLanguageChecked returns the full updated Language on success", async () => {
+  const batanga = await storage.updateLanguageChecked(3, {
+    motherTongue: false,
+    defaultSrcLang: 2,
+  });
+  expect(batanga).toMatchObject({
+    languageId: 3,
+    name: "Batanga",
+    code: "GHI",
+    motherTongue: false,
+    defaultSrcLang: 2,
+    archived: false,
+  });
+  expect(Array.isArray(batanga.progress)).toBe(true);
+});
+
 test("Create Language", async () => {
   const german = await storage.createLanguage({
     name: "German",
@@ -66,6 +194,37 @@ test("Create Language", async () => {
   });
   expect(german.languageId).toBeGreaterThan(3);
   expect(german.code.length).toBeGreaterThan(3);
+});
+
+// createLanguage active-source guard — RED (lessons-from-luke-e044.5.5.2, RT-H).
+// PGStorage.createLanguage/testStorage.createLanguage do not yet validate that
+// defaultSrcLang resolves to an active language; today they insert whatever id
+// the client sends. These calls should reject with { status: 422 } until the
+// Green task (e044.5.5.3) adds the guard.
+test("createLanguage rejects a defaultSrcLang pointing at an archived language (RT-H)", async () => {
+  await storage.updateLanguage(3, { archived: true });
+
+  await expect(
+    (async () => storage.createLanguage({ name: "Klingon", defaultSrcLang: 3 }))()
+  ).rejects.toMatchObject({ status: 422 });
+});
+
+test("createLanguage rejects a defaultSrcLang pointing at a nonexistent language (RT-H)", async () => {
+  await expect(
+    (async () => storage.createLanguage({ name: "Klingon", defaultSrcLang: 99999 }))()
+  ).rejects.toMatchObject({ status: 422 });
+});
+
+test("createLanguage succeeds and sets archived:false when defaultSrcLang is active", async () => {
+  const german = await storage.createLanguage({
+    name: "German",
+    defaultSrcLang: 2,
+  });
+  expect(german).toMatchObject({
+    name: "German",
+    defaultSrcLang: 2,
+    archived: false,
+  });
 });
 
 test("Update Language", async () => {

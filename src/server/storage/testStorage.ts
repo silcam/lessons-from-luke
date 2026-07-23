@@ -9,25 +9,28 @@ import { percent } from "../../core/util/numberUtils";
 import fs from "fs";
 import { LessonProgress } from "../../core/models/Language";
 import { VerseStringPattern } from "../usfm/translateFromUsfm";
-import { LanguageTimestamp } from "../../core/interfaces/Api";
+import { LanguageTimestamp, ArchiveLanguageResult } from "../../core/interfaces/Api";
 
 let testDb = fixtures();
 updateProgress(); // We could await this if it seemed necessary
 
 const testStorage: TestPersistence = {
   languages: async () => {
-    return testDb.languages;
+    return testDb.languages.filter((lang) => !lang.archived);
   },
 
   language: async (params) => {
-    return (
+    const language =
       ("code" in params
         ? findBy(testDb.languages, "code", params.code)
-        : findBy(testDb.languages, "languageId", params.languageId)) || null
-    );
+        : findBy(testDb.languages, "languageId", params.languageId)) || null;
+    return language && !language.archived ? language : null;
   },
 
   createLanguage: async (newLanguage) => {
+    const source = findBy(testDb.languages, "languageId", newLanguage.defaultSrcLang);
+    if (!source || source.archived) throw { status: 422 };
+
     const languageId = last(testDb.languages).languageId + 1;
     let code = encode();
     while (testDb.languages.find((lng) => lng.code == code)) code = encode();
@@ -37,6 +40,7 @@ const testStorage: TestPersistence = {
       code,
       motherTongue: true,
       progress: [],
+      archived: false,
     };
     testDb.languages.push(lang);
     return lang;
@@ -47,6 +51,45 @@ const testStorage: TestPersistence = {
     Object.assign(language, update);
     await updateProgress();
     return findByStrict(testDb.languages, "languageId", languageId);
+  },
+
+  // Like updateLanguage, but when `update.defaultSrcLang` is present AND
+  // differs from the row's current value, validates the new source is
+  // active — rejects with { status: 422 } if missing or archived. Mirrors
+  // PGStorage.updateLanguageChecked synchronously.
+  updateLanguageChecked: async (languageId, update) => {
+    const language = findByStrict(testDb.languages, "languageId", languageId);
+
+    if (update.defaultSrcLang !== undefined && update.defaultSrcLang !== language.defaultSrcLang) {
+      const source = findBy(testDb.languages, "languageId", update.defaultSrcLang);
+      if (!source || source.archived) throw { status: 422 };
+    }
+
+    Object.assign(language, update);
+    await updateProgress();
+    return findByStrict(testDb.languages, "languageId", languageId);
+  },
+
+  // Mirrors PGStorage.archiveLanguage's semantics synchronously (no real
+  // transaction needed in-memory): lock-free equivalent of the dependency
+  // check + atomic flag-set. Never re-reads via `language()` afterward — see
+  // PGStorage.archiveLanguage for why.
+  archiveLanguage: async (languageId): Promise<ArchiveLanguageResult> => {
+    const language = findBy(testDb.languages, "languageId", languageId);
+    if (!language || language.archived) throw { status: 404 };
+
+    const dependents = testDb.languages
+      .filter(
+        (lang) =>
+          !lang.archived && lang.defaultSrcLang == languageId && lang.languageId != languageId
+      )
+      .map((lang) => ({ languageId: lang.languageId, name: lang.name }));
+    if (dependents.length > 0) {
+      return { error: "HAS_DEPENDENTS", dependents };
+    }
+
+    language.archived = true;
+    return { archived: true, languageId };
   },
 
   invalidCode: async (code, languageIds) => {

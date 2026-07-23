@@ -1,0 +1,21 @@
+;=============================================
+; Archiving is blocked when active languages depend on it as their source.
+;=============================================
+GIVEN one or more active languages have this language set as their source language.
+WHEN the admin attempts to archive it.
+THEN the archive action is blocked.
+THEN the admin sees the list of dependent languages.
+
+;=============================================
+; Re-pointing dependents away allows the archive to subsequently succeed.
+;=============================================
+GIVEN a language has dependents shown as blocking its archive.
+WHEN the admin re-points those dependents to a different source language and no active language depends on this one anymore.
+THEN the admin can subsequently archive it successfully.
+
+;=============================================
+; Archiving proceeds without a blocking message when there are no dependents.
+;=============================================
+GIVEN a language has no active dependents.
+WHEN the admin archives it.
+THEN the action proceeds without any blocking message.
