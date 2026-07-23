@@ -47,6 +47,7 @@ export default function ConfirmDialog(props: ConfirmDialogProps): JSX.Element | 
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const priorFocusRef = useRef<Element | null>(null);
   const headingId = useId();
+  const messageId = useId();
 
   useEffect(() => {
     if (open) {
@@ -100,12 +101,15 @@ export default function ConfirmDialog(props: ConfirmDialogProps): JSX.Element | 
         role="dialog"
         aria-modal="true"
         aria-labelledby={headingId}
+        aria-describedby={messageId}
         onKeyDown={handleKeyDown}
       >
         <div id={headingId}>
           <Heading level={3} text={title} style={{ margin: 0 }} />
         </div>
-        <P>{message}</P>
+        <div id={messageId}>
+          <P>{message}</P>
+        </div>
         <ButtonRow>
           <Button text={cancelText} onClick={onCancel} link />
           <Button text={confirmText} onClick={onConfirm} red />
