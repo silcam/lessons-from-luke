@@ -33,6 +33,11 @@ Spec: specs/009-quarter-styles-template/spec.md
 Keywords: verse reference, scripture reference, book name split, numeric reference, chapter verse, auto-populate references, pre-fill references, isolated verse reference, text-shape recognition, canAutoTranslate predicate, unsplit reference splitter, split book name, translate once, master string dedup, trim whitespace dedup, hyphen en-dash dash, cross-chapter range, backfill references, re-normalize masters, lesson-update issues, prose reference false positive, numbered books, Sub-Head 1, M.T. Text Lesson Title Scrip Reference, M.T. Table of Contents, Lesson Title Scrip Reference, four reference styles, auto-translate, defaultTranslations, WS-4, SOP 30.3, publishing automation
 Spec: specs/011-verse-reference-auto-population/spec.md
 
+## Quarter Template Full Style-Family Application
+
+Keywords: quarter template overwrite, all style families, page styles, master pages, frame styles, list styles, numbering styles, first page footer, CC footer, Creative Commons footer, license footer, footer removal, lesson title spacing, lesson number graphic spacing, lesson opening layout, chapterized footers, pagination regression, load styles overwrite, supersedes 009 FR-003, assembled quarter styling, Chris Jackson feedback, stand-alone template vs quarter template, print-ready book
+Spec: specs/013-quarter-template-full-styles/spec.md
+
 ## How to Update This File
 
 - Add one entry per feature spec, before this section.
