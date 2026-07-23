@@ -70,6 +70,42 @@ test("language() returns null for an archived code", async () => {
   expect(await storage.language({ code: "GHI" })).toBeNull();
 });
 
+// archiveLanguage — RED (lessons-from-luke-e044.5.4.2): archiveLanguage does not
+// yet exist on Persistence/PGStorage/testStorage. These calls fail at runtime
+// ("... is not a function") until the Green task (e044.5.4.3) implements it.
+test("archiveLanguage archives a language with zero active dependents", async () => {
+  // Fixture language 2 (Français) has no other active language pointing at it
+  // as defaultSrcLang (everything defaults to source language 1), so it has
+  // zero active dependents and should archive cleanly.
+  const result = await (storage as any).archiveLanguage(2);
+
+  expect(result).toEqual({ archived: true, languageId: 2 });
+
+  // Raw read: the row is now excluded from languages().
+  const languages = await storage.languages();
+  expect(languages.find((lang) => lang.languageId === 2)).toBeUndefined();
+});
+
+test("archiveLanguage is blocked by active dependents and makes no state change", async () => {
+  // Fixture languages 2 (Français) and 3 (Batanga) both default to source
+  // language 1 (English), so language 1 has two active dependents.
+  const result = await (storage as any).archiveLanguage(1);
+
+  expect(result).toEqual({
+    error: "HAS_DEPENDENTS",
+    dependents: expect.arrayContaining([
+      { languageId: 2, name: "Français" },
+      { languageId: 3, name: "Batanga" },
+    ]),
+  });
+  expect((result as { dependents: unknown[] }).dependents).toHaveLength(2);
+
+  // No state change: the target row's archived flag stays false.
+  const english = await storage.language({ languageId: 1 });
+  expect(english).not.toBeNull();
+  expect(english!.archived).toBe(false);
+});
+
 test("Create Language", async () => {
   const german = await storage.createLanguage({
     name: "German",
