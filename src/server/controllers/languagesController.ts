@@ -36,7 +36,7 @@ export default function languagesController(app: Express, storage: Persistence) 
 
   addPostHandler(app, "/api/admin/languages/:languageId", async (req) => {
     const langUpdate = objFilter(req.body, ["motherTongue", "defaultSrcLang"]);
-    return storage.updateLanguage(parseInt(req.params.languageId), langUpdate);
+    return storage.updateLanguageChecked(parseInt(req.params.languageId), langUpdate);
   });
 
   addPostHandler(app, "/api/admin/languages/:languageId/usfm", async (req) => {

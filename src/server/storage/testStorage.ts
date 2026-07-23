@@ -28,6 +28,9 @@ const testStorage: TestPersistence = {
   },
 
   createLanguage: async (newLanguage) => {
+    const source = findBy(testDb.languages, "languageId", newLanguage.defaultSrcLang);
+    if (!source || source.archived) throw { status: 422 };
+
     const languageId = last(testDb.languages).languageId + 1;
     let code = encode();
     while (testDb.languages.find((lng) => lng.code == code)) code = encode();
@@ -45,6 +48,23 @@ const testStorage: TestPersistence = {
 
   updateLanguage: async (languageId, update) => {
     const language = findByStrict(testDb.languages, "languageId", languageId);
+    Object.assign(language, update);
+    await updateProgress();
+    return findByStrict(testDb.languages, "languageId", languageId);
+  },
+
+  // Like updateLanguage, but when `update.defaultSrcLang` is present AND
+  // differs from the row's current value, validates the new source is
+  // active — rejects with { status: 422 } if missing or archived. Mirrors
+  // PGStorage.updateLanguageChecked synchronously.
+  updateLanguageChecked: async (languageId, update) => {
+    const language = findByStrict(testDb.languages, "languageId", languageId);
+
+    if (update.defaultSrcLang !== undefined && update.defaultSrcLang !== language.defaultSrcLang) {
+      const source = findBy(testDb.languages, "languageId", update.defaultSrcLang);
+      if (!source || source.archived) throw { status: 422 };
+    }
+
     Object.assign(language, update);
     await updateProgress();
     return findByStrict(testDb.languages, "languageId", languageId);

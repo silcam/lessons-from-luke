@@ -45,27 +45,70 @@ export default class PGStorage implements Persistence {
     return rows[0] || null;
   }
 
+  // Runs on the INSTANCE `this.sql` (not a module-level connection) so
+  // `TransactionalTestStorage` nests it correctly — see the comment on
+  // archiveLanguage below for why `.begin`/`.savepoint` is picked dynamically.
   async createLanguage(newLanguage: NewLanguage): Promise<Language> {
-    const timestamp = Date.now();
-    const newLang = {
-      ...newLanguage,
-      code: encode(),
-      motherTongue: true,
-      progress: "[]",
-      created: timestamp,
-      modified: timestamp,
-    };
-    const [final] = await this.sql`
-      INSERT INTO languages 
-        ${this.sql(newLang)} 
-        returning *`;
-    return final;
+    const sql: any = this.sql;
+    const runInTransaction = (sql.begin ? sql.begin : sql.savepoint).bind(sql);
+    return runInTransaction(async (tx: SqlFunc) => {
+      const [source] = await tx`
+        SELECT languageid FROM languages WHERE languageId=${newLanguage.defaultSrcLang} AND NOT archived FOR UPDATE
+      `;
+      if (!source) throw { status: 422 };
+
+      const timestamp = Date.now();
+      const newLang = {
+        ...newLanguage,
+        code: encode(),
+        motherTongue: true,
+        progress: "[]",
+        created: timestamp,
+        modified: timestamp,
+      };
+      const [final] = await tx`
+        INSERT INTO languages
+          ${tx(newLang)}
+          returning *`;
+      return final;
+    });
   }
 
   async updateLanguage(id: number, update: Partial<Language>): Promise<Language> {
     const finalUpdate = { ...update, modified: Date.now() };
     await this.sql`UPDATE languages SET ${this.sql(finalUpdate)} WHERE languageId=${id}`;
     await this.updateProgress();
+    return (await this.language({ languageId: id }))!;
+  }
+
+  // Like updateLanguage, but when `update.defaultSrcLang` is present AND
+  // differs from the row's current value, validates the new source is
+  // active (locked FOR UPDATE) before applying — rejects with
+  // { status: 422 } if missing or archived. Runs on the INSTANCE `this.sql`
+  // — see archiveLanguage's comment below for why.
+  async updateLanguageChecked(id: number, update: Partial<Language>): Promise<Language> {
+    const sql: any = this.sql;
+    const runInTransaction = (sql.begin ? sql.begin : sql.savepoint).bind(sql);
+    await runInTransaction(async (tx: SqlFunc) => {
+      const [row] = await tx`
+        SELECT languageid, defaultsrclang FROM languages WHERE languageId=${id} FOR UPDATE
+      `;
+      if (!row) throw { status: 404 };
+
+      if (update.defaultSrcLang !== undefined && update.defaultSrcLang !== row.defaultSrcLang) {
+        const [source] = await tx`
+          SELECT languageid FROM languages WHERE languageId=${update.defaultSrcLang} AND NOT archived FOR UPDATE
+        `;
+        if (!source) throw { status: 422 };
+      }
+
+      const finalUpdate = { ...update, modified: Date.now() };
+      await tx`UPDATE languages SET ${tx(finalUpdate)} WHERE languageId=${id}`;
+    });
+    await this.updateProgress();
+    // Safe post-update: the target row stays active (this method never
+    // touches `archived`), so a re-read through `language()` (which filters
+    // out archived rows) always finds it.
     return (await this.language({ languageId: id }))!;
   }
 
