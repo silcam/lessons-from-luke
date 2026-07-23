@@ -19,6 +19,26 @@ The relevant "entities" are all existing documents and one configuration value.
   regenerated** in this feature (scope boundary).
 - Relevant style definitions confirmed by static inspection (research R2–R4):
   - `First Page` master page: **no footer** (both assets).
+  - **No headers anywhere:** neither asset defines a `<style:header>` on any
+    master page (0 headers in both `styles.xml`, verified 2026-07-23). So
+    `LoadPageStyles=True` imports footer content only — there is no template
+    header content to introduce, and the FR-002/FR-004 footer reasoning is
+    complete on the header axis. (A constituent content-page header, if any ever
+    existed, would be stripped by the header-less template master under
+    template-wins — no evidence any constituent carries one, and the spec never
+    references headers.)
+  - **Master-page-set gap (single-language):** the monolingual template defines
+    **fewer master pages** than the bilingual one. Bilingual carries
+    `Table_20_of_20_Contents`, `Front_20_cover`, and `Back_20_cover` masters
+    (and 4 footer blocks); the monolingual template omits those three TOC/cover
+    masters (and has 3 footer blocks). Because `loadStylesFromURL` imports styles
+    (incl. master pages) but **not** body content, a master the mono template
+    lacks is simply not imported — the constituent/merge master for that name
+    survives, exactly as under 009 (page styles off). This introduces **no
+    regression** vs. the 009 mono baseline for those masters, and does not
+    threaten FR-002 (CC text lives in TOC-section _body content_, not governed by
+    a master page). Recorded for asset-inventory completeness alongside the
+    paragraph-style gap below.
   - `Lesson Content` master page footer: entirely field-driven (no static book
     text) — live `text:chapter[number]` (absolute lesson number),
     `text:chapter[name]` (per-lesson name), `text:user-defined[Quarter]`,
