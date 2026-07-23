@@ -239,6 +239,9 @@ Use subagents liberally and aggressively to conserve the main context window. Av
 
 ## Active Technologies
 
+- TypeScript (ES2022, CommonJS, strict + all strict flags), + existing 007/009 assembly pipeline (013-quarter-template-full-styles)
+- No new persistent storage, tables, columns, or migrations. The two (013-quarter-template-full-styles)
+
 - TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + Express (server), libxmljs2 (ODT XML parse/rewrite/merge), the existing `parse` / `mergeXml` / `saveDocStrings` pipeline, LibreOffice `soffice --headless` (round-trip verification). React 16 + Redux Toolkit UI (existing translation & update-issues screens, unchanged). (011-verse-reference-auto-population)
 
 - TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + Express (server), libxmljs2 (ODT XML rewrite/parse/merge), existing `parse`/`mergeXml`/`saveDocStrings` pipeline, LibreOffice `soffice --headless` (round-trip verification), React 16 + Redux Toolkit (existing translation & update-issues UI, unchanged) (011-verse-reference-auto-population)
