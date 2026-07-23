@@ -115,11 +115,15 @@ Sub Assemble
         End If
     End If
 
-    &apos; Load the quarter styles template&apos;s text/paragraph styles into the
-    &apos; assembled doc (SPIKE_TEMPLATE_URL). OverwriteStyles+LoadTextStyles apply
-    &apos; the template&apos;s named styles over whatever the constituents brought in;
-    &apos; page/numbering/frame styles are left alone so per-lesson footers and
-    &apos; pagination (see above) are unaffected.
+    &apos; Load the quarter styles template&apos;s styles into the assembled doc
+    &apos; (SPIKE_TEMPLATE_URL). All five style families now load with
+    &apos; OverwriteStyles=True, applying the template&apos;s named styles &#8212;
+    &apos; including page/numbering/frame styles &#8212; over whatever the
+    &apos; constituents brought in. The footer-less First Page master
+    &apos; intentionally wins (FR-002), and per-lesson footers still survive
+    &apos; because the template&apos;s Lesson Content master carries live
+    &apos; text:chapter/text:user-defined/text:page-number fields (research
+    &apos; R2/R4a) rather than static text.
     Dim sTemplate As String
     sTemplate = Environ(&quot;SPIKE_TEMPLATE_URL&quot;)
 
@@ -129,11 +133,11 @@ Sub Assemble
     oProps(1).Name = &quot;LoadTextStyles&quot;
     oProps(1).Value = True
     oProps(2).Name = &quot;LoadPageStyles&quot;
-    oProps(2).Value = False
+    oProps(2).Value = True
     oProps(3).Name = &quot;LoadNumberingStyles&quot;
-    oProps(3).Value = False
+    oProps(3).Value = True
     oProps(4).Name = &quot;LoadFrameStyles&quot;
-    oProps(4).Value = False
+    oProps(4).Value = True
 
     &apos; Fail loudly: a load error &#8658; abort before storeToURL (no output written)
     On Error Goto TemplateFail

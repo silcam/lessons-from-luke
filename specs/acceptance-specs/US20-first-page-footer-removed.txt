@@ -1,0 +1,15 @@
+;=============================================
+; Assembled quarter lesson first pages have no footer, bilingual mode.
+;=============================================
+GIVEN a quarter whose lessons were uploaded with the stand-alone template carrying a Creative Commons footer.
+WHEN the quarter is assembled in bilingual mode.
+THEN no lesson first page in the output shows any footer content.
+THEN the CC license text appears only within the TOC section of the book.
+
+;=============================================
+; Assembled quarter lesson first pages have no footer, single-language mode.
+;=============================================
+GIVEN a quarter whose lessons were uploaded with the stand-alone template carrying a Creative Commons footer.
+WHEN the quarter is assembled in single-language mode.
+THEN no lesson first page in the output shows any footer content.
+THEN the CC license text appears only within the TOC section of the book.
