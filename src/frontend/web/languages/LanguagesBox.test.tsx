@@ -201,7 +201,7 @@ describe("LanguagesBox — route-driven selection", () => {
   });
 
   it("(c) auto-unfolds and renders LanguageView when languageId matches an active language", async () => {
-    const { getByText, queryByText } = renderBoxAtPath("/languages/42", {
+    const { getByText, getByRole, queryByText } = renderBoxAtPath("/languages/42", {
       syncState: defaultSyncState,
       languages: { languages: [], adminLanguages: [sampleLanguage] },
       currentUser: { user: null, locale: "en", loaded: false },
@@ -210,7 +210,10 @@ describe("LanguagesBox — route-driven selection", () => {
 
     // LanguageView renders a heading with the language's name and a
     // "< Languages" back button — neither appears in the folded/list view.
-    expect(getByText(sampleLanguage.name)).toBeTruthy();
+    // Query by role (not getByText) because the source-language <select>
+    // also renders an <option> with the same text — getByText would match
+    // both nodes when there's exactly one admin language in the fixture.
+    expect(getByRole("heading", { name: sampleLanguage.name })).toBeTruthy();
     expect(getByText(/< ?Languages/i)).toBeTruthy();
     // The folded "N Languages" count summary must not be showing.
     expect(queryByText(`${1} Languages`)).toBeFalsy();
