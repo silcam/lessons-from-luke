@@ -244,6 +244,24 @@ done) by checking what Chris's manual "load all + overwrite" produces on the
 current monolingual asset. Do NOT wave a still-tight single-language opening
 through as "expected gap."
 
+**Resolved 2026-07-23 (5.2.2)**: **(a)** — a monolingual template-asset
+deficiency, out of scope for this feature. `test/docs/serverDocs/Luke-2-14v01.odt`
+(a real lesson constituent), unzipped and inspected directly, shows its
+lesson-opening paragraphs carry `style-name="M.T._20_Lesson_20_Title"` and
+`style-name="M.T._20_Coloring_20_Page_20_-_20_Memory_20_Verse"` — two of the
+five names the static diff found missing from the monolingual template asset.
+This is not hypothetical: a real lesson opening genuinely applies one of these
+five styles. `singleLanguageize()` (`src/core/models/DocString.ts`, invoked
+whenever `majorityLangId === 0`) blanks only the non-mother-tongue paragraph's
+text; the mother-tongue paragraph and its style-name pass through unchanged.
+So the real single-language assembled output carries a style-name the
+monolingual template never defines, and `OverwriteStyles=True` (already on
+pre-013) has nothing to overwrite it with — no flag this feature controls
+reaches it, ruling out **(b)** structurally. Tracked as an independent
+curriculum-owner follow-up (regenerate the monolingual template asset with
+the 5 missing `M.T.`-prefixed styles), not a 013 blocker. See
+`contracts/template-application.md` §4 for the full evidence trail.
+
 ### Imported page/frame/numbering styles must not duplicate the clean page set (FR-004)
 
 Importing page styles can add the template's own masters alongside the merged
