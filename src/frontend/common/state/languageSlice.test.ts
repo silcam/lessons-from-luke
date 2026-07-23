@@ -1,17 +1,11 @@
 import languageSlice, {
   loadLanguages,
   loadTranslatingLanguage,
+  pushArchiveLanguage,
   pushLanguage,
   pushLanguageUpdate,
   pushUsfm,
 } from "./languageSlice";
-import * as languageSliceModule from "./languageSlice";
-
-// RED (lessons-from-luke-e044.5.4.8): pushArchiveLanguage does not exist yet on
-// languageSlice.ts — cast to `any` so this file still type-checks (mirrors the
-// `(storage as any).archiveLanguage(...)` pattern from the e044.5.4.2 RED
-// commit) while the call itself fails at runtime until the Green task lands.
-const pushArchiveLanguage = (languageSliceModule as any).pushArchiveLanguage;
 import { Language, MaybePublicLanguage } from "../../../core/models/Language";
 import { TString } from "../../../core/models/TString";
 
@@ -133,7 +127,7 @@ describe("languageSlice reducers", () => {
 
       const state = languageSlice.reducer(
         stateWithLanguages,
-        (languageSlice.actions as any).removeAdminLanguage(3)
+        languageSlice.actions.removeAdminLanguage(3)
       );
 
       expect(state.adminLanguages).toHaveLength(1);
@@ -149,7 +143,7 @@ describe("languageSlice reducers", () => {
 
       const state = languageSlice.reducer(
         stateWithLanguages,
-        (languageSlice.actions as any).removeAdminLanguage(999)
+        languageSlice.actions.removeAdminLanguage(999)
       );
 
       expect(state.adminLanguages).toEqual([keep]);
@@ -343,7 +337,7 @@ describe("languageSlice thunks", () => {
         { languageId: 12 },
         {}
       );
-      expect(dispatch).toHaveBeenCalledWith((languageSlice.actions as any).removeAdminLanguage(12));
+      expect(dispatch).toHaveBeenCalledWith(languageSlice.actions.removeAdminLanguage(12));
       expect(returned).toEqual(result);
     });
 

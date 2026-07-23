@@ -167,9 +167,8 @@ describe("LanguagesBox", () => {
 });
 
 // Route-param-driven selection (US3, spec.md contracts/language-detail-route.md).
-// LanguagesBox is expected to read useParams<{ languageId?: string }>() and
-// useNavigate() rather than local useState selection. Not yet implemented —
-// these assertions are expected to fail (RED).
+// LanguagesBox reads useParams<{ languageId?: string }>() and useNavigate()
+// rather than local useState selection.
 describe("LanguagesBox — route-driven selection", () => {
   beforeEach(() => {
     mockNavigate.mockClear();
