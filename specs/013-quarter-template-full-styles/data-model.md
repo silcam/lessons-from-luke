@@ -19,8 +19,16 @@ The relevant "entities" are all existing documents and one configuration value.
   regenerated** in this feature (scope boundary).
 - Relevant style definitions confirmed by static inspection (research R2–R4):
   - `First Page` master page: **no footer** (both assets).
-  - `Lesson Content` master page footer: live `text:chapter`,
-    `text:user-defined[Quarter]`, `text:page-number` fields (both assets).
+  - `Lesson Content` master page footer: entirely field-driven (no static book
+    text) — live `text:chapter[number]` (absolute lesson number),
+    `text:chapter[name]` (per-lesson name), `text:user-defined[Quarter]`,
+    `text:title` (book title), and `text:page-number` (both assets). These fields
+    ship with **stale cached sample values** (mono: Quarter 4 / Lesson 51-52; bi:
+    Quarter 2 / Lesson 26); after 013 makes this master authoritative, they must
+    re-resolve against the merged book's metadata/outline that
+    `finalizeAssembledQuarter` patches (`Quarter` user-defined, `dc:title`,
+    outline start-value) — else the cached values ship silently (see plan Edge
+    Cases + contract §4 FR-004 axis).
   - Lesson-opening spacing lives in **paragraph** styles (e.g. `Lesson Title`,
     `M.T. Lesson Title`); frame/graphic styles and page-layout margins are
     identical to the constituent's.

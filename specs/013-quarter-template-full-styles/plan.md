@@ -253,6 +253,51 @@ footer-less `First Page` master governs it. The "each lesson's first page
 suppresses its page number" axis must still hold with the template's master
 driving suppression (re-verify).
 
+### Template content footer is now authoritative AND field-driven — stale cached values must not survive (FR-004, from red-team static inspection)
+
+Direct inspection of both committed assets' `Lesson_20_Content` master footer
+(2026-07-23) shows the per-lesson content footer carries **no static book text** —
+every non-literal part is a live field: `text:user-defined[Quarter]`,
+`text:title` (book title), `text:chapter text:display="number"` (absolute lesson
+number), `text:chapter text:display="name"` (lesson name, e.g. "Review Lesson"),
+and `text:page-number`. Under 009 (page styles off) these fields lived in the
+constituent's own page style; under 013 the **template's** master footer wins, so
+these fields now resolve against the **merged book's** metadata/outline, which
+`finalizeAssembledQuarter` patches: it upserts `//meta:user-defined[@meta:name='Quarter']`
+(what `text:user-defined[Quarter]` reads), `dc:title` (what `text:title` reads),
+and the level-1 outline `start-value` (the `text:chapter` number). The mechanism
+is therefore sound — verified against `finalizeAssembledQuarter.patchBookMetadata`.
+
+**The risk this introduces**: each committed asset ships with **stale cached
+field values baked in** — mono footer caches "Quarter 4 / Lesson 51-52", bilingual
+caches "Quarter 2 / Lesson 26". LibreOffice displays the cached value if a field
+does not re-resolve. So if finalize's metadata patch is ever skipped, fails for a
+mode, or does not cover a field the template footer references, every content
+page would **silently** show the template asset's stale quarter/lesson instead of
+the real one. The current FR-004 assertion only checks `text:chapter` (lesson
+number) and would pass while shipping a wrong `Quarter`/title. **Resolution
+(in-scope, no asset change)**: the FR-004 content-footer axis MUST additionally
+assert, for **both** modes, that the assembled content footer resolves
+`text:user-defined[Quarter]` to the real assembled quarter (not the asset-cached
+4/2), that `text:title` renders the real book title (non-blank), and that
+`text:chapter text:display="name"` resolves the per-lesson name — not merely the
+lesson number. (This also retires the brainstorm's "monolingual master reads
+Lessons from the Old Testament" worry as a **verification** concern rather than a
+comms-only item: 013 makes the book-title field authoritative, and it resolves
+from `dc:title`, which finalize sets from the first constituent's meta — so the
+asserted title, not the asset's cache, is what must be checked.)
+
+### List/numbering styles reach body-content lists, not only the outline (FR-005, red-team)
+
+`LoadNumberingStyles=True` overwrites same-named list styles wherever they are
+used — including ordinary bulleted/numbered lists inside lesson body content, not
+just the outline that drives the TOC. Template-wins is the intended behavior, but
+a same-named body-list style whose template definition differs could change how
+body lists render. Low risk (the outline/TOC axis is the load-bearing one, and
+finalize post-patches it), but the integration axis should spot-confirm that a
+body-content list still renders acceptably rather than assume the outline check
+covers it.
+
 ### Corrupt / missing template (unchanged, FR-006)
 
 Inherited verbatim from 009: `validateTemplateAsset` fast-fails a missing/empty
