@@ -14,6 +14,13 @@ module.exports.up = async () => {
   });
 };
 
-module.exports.down = function (next) {
-  next();
+module.exports.down = async () => {
+  await dbConnect(async (sql) => {
+    console.log("Dropping column...");
+    await sql`
+      ALTER TABLE languages
+      DROP COLUMN archived
+    `;
+    console.log("Done");
+  });
 };
