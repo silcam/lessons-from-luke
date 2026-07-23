@@ -4,6 +4,7 @@ import { plainAgent, loggedInAgent } from "../testHelper";
 import { isLanguage, LessonProgress, Language } from "../../core/models/Language";
 import fs from "fs";
 import { findByStrict } from "../../core/util/arrayUtils";
+import { TestPersistence } from "../../core/interfaces/Persistence";
 
 const usfm = fs.readFileSync("cypress/fixtures/43LUKBMO.SFM").toString();
 
@@ -46,6 +47,16 @@ test("Get Language by code - Invalid Code", async () => {
   expect.assertions(2);
   const agent = plainAgent();
   const response = await agent.get("/api/languages/code/XYZ");
+  expect(response.status).toBe(200);
+  expect(response.body).toBeNull();
+});
+
+test("Get Language by code - Archived Language's Code (RT-D)", async () => {
+  expect.assertions(2);
+  const storage: TestPersistence = (global as any).testStorage;
+  await storage.updateLanguage(3, { archived: true });
+  const agent = plainAgent();
+  const response = await agent.get("/api/languages/code/GHI");
   expect(response.status).toBe(200);
   expect(response.body).toBeNull();
 });

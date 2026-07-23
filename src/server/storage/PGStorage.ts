@@ -29,17 +29,18 @@ export default class PGStorage implements Persistence {
 
   async languages(): Promise<Language[]> {
     const langs = this.sql`
-      SELECT languageid, name, code, motherTongue, progress, defaultsrclang
+      SELECT languageid, name, code, motherTongue, progress, defaultsrclang, archived
       FROM languages
+      WHERE NOT archived
     `;
     return langs;
   }
 
   async language(params: { languageId: number } | { code: string }): Promise<Language | null> {
     const rows = await this.sql`
-      SELECT languageid, name, code, motherTongue, progress, defaultsrclang 
-      FROM languages 
-      WHERE ${this.sql(params)}
+      SELECT languageid, name, code, motherTongue, progress, defaultsrclang, archived
+      FROM languages
+      WHERE ${this.sql(params)} AND NOT archived
     `;
     return rows[0] || null;
   }

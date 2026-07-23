@@ -6,6 +6,7 @@ import { findBy } from "../../core/util/arrayUtils";
 import { LessonString } from "../../core/models/LessonString";
 import { TString } from "../../core/models/TString";
 import { unlinkSafe } from "../../core/util/fsUtils";
+import { TestPersistence } from "../../core/interfaces/Persistence";
 
 afterAll(() => {
   unlinkSafe("test/docs/serverDocs/Luke-1-06v01.odt");
@@ -115,4 +116,12 @@ test("Download Batanga lesson with majorityLanguageId=0 (single language mode)",
   const response = await agent.get("/api/languages/3/lessons/11/document?majorityLanguageId=0");
   expect(response.status).toBe(200);
   expect(response.type).toBe("application/vnd.oasis.opendocument.text");
+});
+
+test("Download document returns 404 for an archived language (RT-D)", async () => {
+  const storage: TestPersistence = (global as any).testStorage;
+  await storage.updateLanguage(3, { archived: true });
+  const agent = plainAgent();
+  const response = await agent.get("/api/languages/3/lessons/11/document");
+  expect(response.status).toBe(404);
 });

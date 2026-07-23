@@ -4,6 +4,7 @@ import { plainAgent } from "../testHelper";
 import { TString } from "../../core/models/TString";
 import { SuperTest } from "supertest";
 import supertest = require("supertest");
+import { TestPersistence } from "../../core/interfaces/Persistence";
 
 test("Get TStrings", async () => {
   expect.assertions(3);
@@ -88,6 +89,27 @@ test("Save TString - Invalid Code", async () => {
       },
     ],
     code: "WRONG",
+  });
+  expect(response.status).toBe(401);
+});
+
+test("Save TString - archived language's code is rejected (RT-D)", async () => {
+  expect.assertions(1);
+  const storage: TestPersistence = (global as any).testStorage;
+  await storage.updateLanguage(3, { archived: true });
+  const agent = plainAgent();
+  const response = await agent.post("/api/tStrings").send({
+    tStrings: [
+      {
+        masterId: 2,
+        languageId: 3,
+        text: "weivrevO nosseL",
+        source: "ommaire de la leçon",
+        sourceLanguageId: 2,
+        history: [],
+      },
+    ],
+    code: "GHI",
   });
   expect(response.status).toBe(401);
 });

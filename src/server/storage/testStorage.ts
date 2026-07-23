@@ -16,15 +16,15 @@ updateProgress(); // We could await this if it seemed necessary
 
 const testStorage: TestPersistence = {
   languages: async () => {
-    return testDb.languages;
+    return testDb.languages.filter((lang) => !lang.archived);
   },
 
   language: async (params) => {
-    return (
+    const language =
       ("code" in params
         ? findBy(testDb.languages, "code", params.code)
-        : findBy(testDb.languages, "languageId", params.languageId)) || null
-    );
+        : findBy(testDb.languages, "languageId", params.languageId)) || null;
+    return language && !language.archived ? language : null;
   },
 
   createLanguage: async (newLanguage) => {

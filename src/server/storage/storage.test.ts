@@ -53,6 +53,23 @@ test("Get language by missing", async () => {
   expect(await storage.language({ code: "NOPE" })).toBeNull();
 });
 
+test("languages() excludes archived languages", async () => {
+  await storage.updateLanguage(3, { archived: true });
+  const languages = await storage.languages();
+  expect(languages.length).toBe(2);
+  expect(languages.find((lang) => lang.languageId === 3)).toBeUndefined();
+});
+
+test("language() returns null for an archived languageId", async () => {
+  await storage.updateLanguage(3, { archived: true });
+  expect(await storage.language({ languageId: 3 })).toBeNull();
+});
+
+test("language() returns null for an archived code", async () => {
+  await storage.updateLanguage(3, { archived: true });
+  expect(await storage.language({ code: "GHI" })).toBeNull();
+});
+
 test("Create Language", async () => {
   const german = await storage.createLanguage({
     name: "German",
