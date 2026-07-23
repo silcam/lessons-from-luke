@@ -143,6 +143,13 @@ without any code modification.
   per-lesson footers, continuous pagination with per-lesson first-page number
   suppression, full editability (no protected or linked sections), and the
   book metadata written by finalization.
+  <!-- SUPERSEDED by specs/013-quarter-template-full-styles/spec.md FR-008
+       (2026-07-23): the mechanism for honoring this guarantee changed from
+       "skip loading page/frame/numbering styles" to "load all style families
+       with overwrite, relying on the template's own master pages to carry the
+       correct footers/pagination." The guarantee itself (no regression) is
+       carried forward as 013 FR-004/FR-005, re-verified by 013's integration
+       tests; added by sp:06-analyze cross-artifact fix. -->
 - **FR-004**: If the template step fails — asset missing, unreadable, or the
   style-load errors — the assembly job MUST fail with a human-readable reason
   surfaced to the caller, and no document may be delivered. An unstyled book
