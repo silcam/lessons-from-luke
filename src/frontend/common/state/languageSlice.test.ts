@@ -5,6 +5,13 @@ import languageSlice, {
   pushLanguageUpdate,
   pushUsfm,
 } from "./languageSlice";
+import * as languageSliceModule from "./languageSlice";
+
+// RED (lessons-from-luke-e044.5.4.8): pushArchiveLanguage does not exist yet on
+// languageSlice.ts — cast to `any` so this file still type-checks (mirrors the
+// `(storage as any).archiveLanguage(...)` pattern from the e044.5.4.2 RED
+// commit) while the call itself fails at runtime until the Green task lands.
+const pushArchiveLanguage = (languageSliceModule as any).pushArchiveLanguage;
 import { Language, MaybePublicLanguage } from "../../../core/models/Language";
 import { TString } from "../../../core/models/TString";
 
@@ -112,6 +119,40 @@ describe("languageSlice reducers", () => {
 
       expect(state.adminLanguages).toHaveLength(1);
       expect(state.adminLanguages[0].name).toBe("English Updated");
+    });
+  });
+
+  describe("removeAdminLanguage", () => {
+    it("filters the archived language out of adminLanguages", () => {
+      const keep = makeLanguage({ languageId: 2, name: "Zulu", code: "zu" });
+      const archived = makeLanguage({ languageId: 3, name: "Arabic", code: "ar" });
+      const stateWithLanguages = {
+        ...initialState,
+        adminLanguages: [keep, archived],
+      };
+
+      const state = languageSlice.reducer(
+        stateWithLanguages,
+        (languageSlice.actions as any).removeAdminLanguage(3)
+      );
+
+      expect(state.adminLanguages).toHaveLength(1);
+      expect(state.adminLanguages.map((l) => l.languageId)).toEqual([2]);
+    });
+
+    it("is a no-op when the id is not present", () => {
+      const keep = makeLanguage({ languageId: 2, name: "Zulu", code: "zu" });
+      const stateWithLanguages = {
+        ...initialState,
+        adminLanguages: [keep],
+      };
+
+      const state = languageSlice.reducer(
+        stateWithLanguages,
+        (languageSlice.actions as any).removeAdminLanguage(999)
+      );
+
+      expect(state.adminLanguages).toEqual([keep]);
     });
   });
 
@@ -286,6 +327,48 @@ describe("languageSlice thunks", () => {
       );
       expect(dispatch).toHaveBeenCalledWith(languageSlice.actions.addLanguage(updatedLang));
       expect(result).toEqual(updatedLang);
+    });
+  });
+
+  describe("pushArchiveLanguage", () => {
+    it("posts to /api/admin/languages/:languageId/archive and dispatches removeAdminLanguage on the ok branch", async () => {
+      const result = { archived: true as const, languageId: 12 };
+      const post = jest.fn().mockResolvedValue(result);
+      const dispatch = jest.fn();
+
+      const returned = await pushArchiveLanguage(12)(post, dispatch);
+
+      expect(post).toHaveBeenCalledWith(
+        "/api/admin/languages/:languageId/archive",
+        { languageId: 12 },
+        {}
+      );
+      expect(dispatch).toHaveBeenCalledWith((languageSlice.actions as any).removeAdminLanguage(12));
+      expect(returned).toEqual(result);
+    });
+
+    it("does not dispatch removeAdminLanguage on the blocked branch", async () => {
+      const result = {
+        error: "HAS_DEPENDENTS" as const,
+        dependents: [{ languageId: 4, name: "Fulfulde" }],
+      };
+      const post = jest.fn().mockResolvedValue(result);
+      const dispatch = jest.fn();
+
+      const returned = await pushArchiveLanguage(12)(post, dispatch);
+
+      expect(dispatch).not.toHaveBeenCalled();
+      expect(returned).toEqual(result);
+    });
+
+    it("returns null and does not dispatch if post returns null", async () => {
+      const post = jest.fn().mockResolvedValue(null);
+      const dispatch = jest.fn();
+
+      const returned = await pushArchiveLanguage(12)(post, dispatch);
+
+      expect(dispatch).not.toHaveBeenCalled();
+      expect(returned).toBeNull();
     });
   });
 
