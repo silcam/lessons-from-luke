@@ -55,13 +55,20 @@ both modes. Failure handling (FR-006) is inherited unchanged from 009.
   re-verified "single clean master-page set" axis.
 - **Which style family carries the lesson-opening spacing?** → research R3:
   **paragraph** styles, NOT frame/page (frame styles and page-layout margins are
-  byte-identical between constituent and template). **Open risk (not
-  pre-adjudicated):** the monolingual template omits `M.T. Lesson Title`, so
-  overwrite may not fully fix single-language spacing — the mode the spec
-  complains about most. Whether that residual is a monolingual template-asset
-  deficiency (out of scope → **user decision**) or the flag flip being
-  insufficient (in scope → not done) is an open disjunction to resolve at the
-  round-trip (SC-002/SC-005), escalated to the user & red-team. See Edge Cases.
+  byte-identical between constituent and template). **Adjudicated 2026-07-23**:
+  `LoadTextStyles`/`OverwriteStyles` (paragraph styles) are already `True` in
+  current (pre-013) `Module1.xba` — the 5.1.2 flag flip only touches
+  Page/Frame/Numbering, so FR-003 spacing is **flag-flip-invariant** and needs
+  no 013 code change; it's a regression guard, confirmed empirically against a
+  real round-trip (see `contracts/template-application.md` §4). **Still open
+  (unaffected by this adjudication):** the monolingual template omits
+  `M.T. Lesson Title`, so overwrite may not fully fix single-language spacing
+  if a real lesson opening uses one of the 5 missing `M.T.`-prefixed styles —
+  the mode the spec complains about most. Whether that residual, if it turns
+  out to be real, is a monolingual template-asset deficiency (out of scope →
+  **user decision**) or something else in scope is deferred to 5.2.2's
+  discriminate-(a)-vs-(b) step at the round-trip (SC-002/SC-005). See Edge
+  Cases.
 - **Does `LoadNumberingStyles=True` disturb the outline/TOC numbering?** →
   research R4c: **No** — `finalizeAssembledQuarter` post-patches the outline
   start value in Node after soffice (finalize wins), and outline participation
