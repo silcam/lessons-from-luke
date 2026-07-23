@@ -177,10 +177,15 @@ cypress/integration/
 └── language-archive-routing.*           # US1/US2/US3 E2E
 
 specs/acceptance-specs/
-├── US01-archive-language.txt
-├── US02-prevent-archive-with-dependents.txt
-└── US03-language-detail-url.txt
+├── US12-archive-language.txt
+├── US13-prevent-archive-with-dependents.txt
+└── US14-language-detail-url.txt
 ```
+
+<!-- Renumbered by sp:06-analyze: specs/acceptance-specs/ is a global namespace
+     already containing US01-US11 from prior features; this feature's specs
+     use the next free numbers (US12-US14), matching the actual files created
+     by sp:05-tasks and referenced by the beads tasks. -->
 
 **Structure Decision**: Web application on the existing isomorphic four-layer
 architecture. Domain change (`archived`) lives in `core/models` and flows through
@@ -195,12 +200,22 @@ Desktop is deliberately untouched (D9).
 
 | User Story                                              | Acceptance Spec File                                              | Scenarios |
 | ------------------------------------------------------- | ----------------------------------------------------------------- | --------- |
-| US1: Archive a language project that's no longer needed | `specs/acceptance-specs/US01-archive-language.txt`                | 3         |
-| US2: Prevent archiving a language others depend on      | `specs/acceptance-specs/US02-prevent-archive-with-dependents.txt` | 3         |
-| US3: Language detail view has a real, shareable URL     | `specs/acceptance-specs/US03-language-detail-url.txt`             | 4         |
+| US1: Archive a language project that's no longer needed | `specs/acceptance-specs/US12-archive-language.txt`                | 3         |
+| US2: Prevent archiving a language others depend on      | `specs/acceptance-specs/US13-prevent-archive-with-dependents.txt` | 3         |
+| US3: Language detail view has a real, shareable URL     | `specs/acceptance-specs/US14-language-detail-url.txt`             | 4         |
 
-**Pipeline**: `specs/acceptance-specs/*.txt` → `acceptance/parse-specs.ts` →
-`acceptance/generate-tests.ts` → `generated-acceptance-tests/*.spec.ts`
+<!-- Corrected by sp:06-analyze: file numbers renumbered to US12-US14 (see
+     Project Structure note above); this repo has no wired-up
+     acceptance/parse-specs.ts → acceptance/generate-tests.ts pipeline or
+     justfile `acceptance` target (verified — no acceptance/ directory, no
+     Justfile). Verification of scenarios is manual against the running
+     dev-web app / Cypress E2E, per the sp:05-tasks-generated Verify tasks
+     (e.g. lessons-from-luke-e044.5.4.11), not an automated GWT-to-test
+     pipeline. -->
+
+**Verification**: Each user story's Cypress E2E spec (`cypress/integration/language-archive-routing.*`)
+serves as the automated proxy for its acceptance scenarios; a manual Verify task
+per story confirms all GWT scenarios pass against the running dev-web app.
 
 ## Adversarial Hardening (Red Team)
 
