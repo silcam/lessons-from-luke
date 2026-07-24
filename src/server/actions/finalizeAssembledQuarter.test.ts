@@ -4,7 +4,10 @@ import fs from "fs";
 import path from "path";
 import { execFileSync } from "child_process";
 import libxmljs2, { Document as XmlDocument, Element } from "libxmljs2";
-import { finalizeAssembledQuarter } from "./finalizeAssembledQuarter";
+import {
+  finalizeAssembledQuarter,
+  FinalizeAssembledQuarterOptions,
+} from "./finalizeAssembledQuarter";
 import { mkdirSafe, unlinkRecursive, unzip } from "../../core/util/fsUtils";
 
 const NAMESPACES = {
@@ -29,7 +32,11 @@ afterEach(() => {
  * Quarter property. Packed WITHOUT mimetype-first ordering so the repack
  * assertion is meaningful.
  */
-function buildMergedFixtureOdt(odtPath: string, officeTextInner = ""): void {
+function buildMergedFixtureOdt(
+  odtPath: string,
+  officeTextInner = "",
+  opts: { omitPlainRestyleTargets?: boolean } = {}
+): void {
   const srcDir = `${workDir}/src-${path.basename(odtPath, ".odt")}`;
   mkdirSafe(workDir);
   mkdirSafe(srcDir);
@@ -49,7 +56,11 @@ function buildMergedFixtureOdt(odtPath: string, officeTextInner = ""): void {
   fs.writeFileSync(
     `${srcDir}/content.xml`,
     `<?xml version="1.0" encoding="UTF-8"?>
-<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" office:version="1.2">
+<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" office:version="1.2">
+  <office:automatic-styles>
+    <style:style style:name="P7" style:family="paragraph" style:parent-style-name="M.T._20_Lesson_20_Title"/>
+    <style:style style:name="P8" style:family="paragraph" style:parent-style-name="M.T._20_Text"/>
+  </office:automatic-styles>
   <office:body><office:text>${officeTextInner}</office:text></office:body>
 </office:document-content>`
   );
@@ -68,8 +79,21 @@ function buildMergedFixtureOdt(odtPath: string, officeTextInner = ""): void {
     <text:outline-style style:name="Outline">
       <text:outline-level-style text:level="1" loext:num-list-format="%1%" style:num-format=""/>
       <text:outline-level-style text:level="2" loext:num-list-format="%2%" style:num-format=""/>
-    </text:outline-style>
+    </text:outline-style>${
+      opts.omitPlainRestyleTargets
+        ? ""
+        : `
+    <style:style style:name="Lesson_20_Title" style:family="paragraph"/>
+    <style:style style:name="Lesson_20_title_20_-_20_invisible" style:family="paragraph"/>
+    <style:style style:name="Coloring_20_Page_20_-_20_Memory_20_Verse" style:family="paragraph"/>
+    <style:style style:name="Coloring_20_Page_20_-_20_Truth" style:family="paragraph"/>`
+    }
+    <style:style style:name="M.T._20_Lesson_20_Title" style:family="paragraph"/>
+    <style:style style:name="M.T._20_Coloring_20_Page_20_-_20_Truth" style:family="paragraph"/>
   </office:styles>
+  <office:automatic-styles>
+    <style:style style:name="MP1" style:family="paragraph" style:parent-style-name="M.T._20_Coloring_20_Page_20_-_20_Truth"/>
+  </office:automatic-styles>
 </office:document-styles>`
   );
 
@@ -226,6 +250,88 @@ test("leaves a non-empty first paragraph untouched (other quarters open directly
   const paragraphs = contentDoc.find<Element>("//office:text/text:p", NAMESPACES);
   expect(paragraphs).toHaveLength(1);
   expect(paragraphs[0].text().trim()).toBe("Somo kutoka kitabu cha Luka.");
+});
+
+/**
+ * Monolingual restyle (feature 014): the mono template deliberately omits
+ * four M.T. paragraph styles, so a single-language assembly must restyle
+ * their references to the plain equivalents.
+ */
+function optionsWithSingleLanguage(
+  odtPath: string,
+  singleLanguage: boolean
+): FinalizeAssembledQuarterOptions {
+  return { ...defaultOptions(odtPath), singleLanguage };
+}
+
+const MT_OFFICE_TEXT_INNER =
+  `<text:h text:style-name="M.T._20_Lesson_20_Title">Yesu</text:h>` +
+  `<text:p text:style-name="M.T._20_Coloring_20_Page_20_-_20_Memory_20_Verse">verse</text:p>` +
+  `<text:p text:style-name="M.T._20_Text">body</text:p>`;
+
+test("singleLanguage: true restyles M.T. references in BOTH content.xml and styles.xml to the plain styles", () => {
+  const odtPath = `${workDir}/assembled.odt`;
+  buildMergedFixtureOdt(odtPath, MT_OFFICE_TEXT_INNER);
+
+  finalizeAssembledQuarter(optionsWithSingleLanguage(odtPath, true));
+
+  const contentDoc = extractXml(odtPath, "content.xml");
+  const heading = contentDoc.get<Element>("//text:h", NAMESPACES)!;
+  expect(heading.attr("style-name")!.value()).toBe("Lesson_20_Title");
+  const verse = contentDoc.get<Element>("//office:text/text:p[1]", NAMESPACES)!;
+  expect(verse.attr("style-name")!.value()).toBe("Coloring_20_Page_20_-_20_Memory_20_Verse");
+  const p7 = contentDoc.get<Element>("//style:style[@style:name='P7']", NAMESPACES)!;
+  expect(p7.attr("parent-style-name")!.value()).toBe("Lesson_20_Title");
+  // Out-of-scope M.T. Text stays, in content refs and auto-style parents alike.
+  const body = contentDoc.get<Element>("//office:text/text:p[2]", NAMESPACES)!;
+  expect(body.attr("style-name")!.value()).toBe("M.T._20_Text");
+  const p8 = contentDoc.get<Element>("//style:style[@style:name='P8']", NAMESPACES)!;
+  expect(p8.attr("parent-style-name")!.value()).toBe("M.T._20_Text");
+
+  const stylesDoc = extractXml(odtPath, "styles.xml");
+  const mp1 = stylesDoc.get<Element>("//style:style[@style:name='MP1']", NAMESPACES)!;
+  expect(mp1.attr("parent-style-name")!.value()).toBe("Coloring_20_Page_20_-_20_Truth");
+  // Definitions are never renamed.
+  const defNames = stylesDoc
+    .find<Element>("//office:styles/style:style", NAMESPACES)
+    .map((el) => el.attr("name")!.value());
+  expect(defNames).toContain("M.T._20_Lesson_20_Title");
+});
+
+test("singleLanguage: false leaves every M.T. reference intact (bilingual output byte-for-byte unaffected)", () => {
+  const odtPath = `${workDir}/assembled.odt`;
+  buildMergedFixtureOdt(odtPath, MT_OFFICE_TEXT_INNER);
+
+  finalizeAssembledQuarter(optionsWithSingleLanguage(odtPath, false));
+
+  const contentDoc = extractXml(odtPath, "content.xml");
+  expect(contentDoc.get<Element>("//text:h", NAMESPACES)!.attr("style-name")!.value()).toBe(
+    "M.T._20_Lesson_20_Title"
+  );
+  const stylesDoc = extractXml(odtPath, "styles.xml");
+  const mp1 = stylesDoc.get<Element>("//style:style[@style:name='MP1']", NAMESPACES)!;
+  expect(mp1.attr("parent-style-name")!.value()).toBe("M.T._20_Coloring_20_Page_20_-_20_Truth");
+});
+
+test("omitting singleLanguage defaults to bilingual — M.T. references intact", () => {
+  const odtPath = `${workDir}/assembled.odt`;
+  buildMergedFixtureOdt(odtPath, MT_OFFICE_TEXT_INNER);
+
+  finalizeAssembledQuarter(defaultOptions(odtPath));
+
+  const contentDoc = extractXml(odtPath, "content.xml");
+  expect(contentDoc.get<Element>("//text:h", NAMESPACES)!.attr("style-name")!.value()).toBe(
+    "M.T._20_Lesson_20_Title"
+  );
+});
+
+test("singleLanguage: true throws loudly when a plain restyle target is missing from styles.xml (template-asset regression)", () => {
+  const odtPath = `${workDir}/assembled.odt`;
+  buildMergedFixtureOdt(odtPath, MT_OFFICE_TEXT_INNER, { omitPlainRestyleTargets: true });
+
+  expect(() => finalizeAssembledQuarter(optionsWithSingleLanguage(odtPath, true))).toThrow(
+    /restyle/i
+  );
 });
 
 test("re-packs with the mimetype entry stored FIRST and UNCOMPRESSED (ODF requirement)", () => {

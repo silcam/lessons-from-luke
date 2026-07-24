@@ -8,6 +8,7 @@ import { prepareConstituentForAssembly, ConstituentMeta } from "./prepareConstit
 import { finalizeAssembledQuarter } from "./finalizeAssembledQuarter";
 import { sofficeAssemble } from "../assembly/sofficeAssemble";
 import {
+  isMonolingualTemplatePath,
   resolveTemplatePath,
   validateTemplateAsset,
   TEMPLATE_ASSET_MISSING_MESSAGE,
@@ -152,6 +153,7 @@ export default async function assembleQuarter(options: AssembleQuarterOptions): 
   // Single-language mode (majorityLangId 0) styles from the monolingual
   // master; bilingual mode keeps the bilingual template. See 009 FR-005.
   const templatePath = resolveTemplatePath(majorityLangId === 0);
+  const singleLanguage = isMonolingualTemplatePath(templatePath);
   try {
     validateTemplateAsset(templatePath);
   } catch {
@@ -186,6 +188,7 @@ export default async function assembleQuarter(options: AssembleQuarterOptions): 
       firstLessonNumber: firstLesson?.lesson ?? 1,
       title: bookMeta?.title ?? "",
       subject: bookMeta?.subject ?? "",
+      singleLanguage,
     });
   } catch {
     // Curated, path-free reason ONLY — a finalization failure (zip/libxmljs2)

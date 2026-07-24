@@ -6,7 +6,11 @@ jest.mock("fs", () => ({
 }));
 
 import fs from "fs";
-import { resolveTemplatePath, validateTemplateAsset } from "./quarterStylesTemplate";
+import {
+  isMonolingualTemplatePath,
+  resolveTemplatePath,
+  validateTemplateAsset,
+} from "./quarterStylesTemplate";
 
 const existsSyncMock = fs.existsSync as unknown as jest.Mock;
 const statSyncMock = fs.statSync as unknown as jest.Mock;
@@ -55,6 +59,19 @@ test("validateTemplateAsset throws the curated message when the file is zero-len
   expect(() => validateTemplateAsset("/some/path/quarter-styles-template.odt")).toThrow(
     "quarter styles template asset is missing or unreadable"
   );
+});
+
+test("isMonolingualTemplatePath is true for a path whose basename is the monolingual template filename", () => {
+  expect(isMonolingualTemplatePath("/any/dir/quarter-styles-template-monolingual.odt")).toBe(true);
+});
+
+test("isMonolingualTemplatePath is false for the bilingual template filename", () => {
+  expect(isMonolingualTemplatePath("/any/dir/quarter-styles-template.odt")).toBe(false);
+});
+
+test("isMonolingualTemplatePath is false for other basenames (bilingual template-swap fixtures)", () => {
+  expect(isMonolingualTemplatePath("/fixtures/swap-template.odt")).toBe(false);
+  expect(isMonolingualTemplatePath("/fixtures/some-other.odt")).toBe(false);
 });
 
 test("validateTemplateAsset does not throw when the file exists and is non-empty", () => {

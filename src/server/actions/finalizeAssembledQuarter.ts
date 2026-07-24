@@ -2,6 +2,10 @@ import fs from "fs";
 import libxmljs2, { Document as XmlDocument, Element } from "libxmljs2";
 import { mkdirSafe, unzip, unlinkRecursive } from "../../core/util/fsUtils";
 import { extractNamespaces, Namespaces } from "../xml/mergeXml";
+import {
+  assertRestyleTargetsDefined,
+  restyleMonolingualParagraphs,
+} from "../xml/monolingualRestyle";
 import { rezipWithMimetypeFirst } from "../xml/rezipWithMimetypeFirst";
 
 /**
@@ -47,6 +51,13 @@ export interface FinalizeAssembledQuarterOptions {
   title: string;
   /** Book subject for `dc:subject` (from the first constituent's own meta). Empty = leave untouched. */
   subject: string;
+  /**
+   * True when the book was styled from the MONOLINGUAL template: also
+   * restyles M.T. paragraph-style references to their plain equivalents
+   * (see `monolingualRestyle`). Defaults to false — bilingual output is
+   * byte-for-byte untouched by the restyle.
+   */
+  singleLanguage?: boolean;
 }
 
 /**
@@ -55,7 +66,7 @@ export interface FinalizeAssembledQuarterOptions {
  * comment for the full contract.
  */
 export function finalizeAssembledQuarter(options: FinalizeAssembledQuarterOptions): void {
-  const { odtPath, series, firstLessonNumber, title, subject } = options;
+  const { odtPath, series, firstLessonNumber, title, subject, singleLanguage = false } = options;
   const extractDirPath = `${odtPath}_finalize`;
 
   try {
@@ -64,12 +75,21 @@ export function finalizeAssembledQuarter(options: FinalizeAssembledQuarterOption
 
     const contentXmlPath = `${extractDirPath}/content.xml`;
     const contentDoc = libxmljs2.parseXml(fs.readFileSync(contentXmlPath, "utf8"));
-    removeLeadingBlankParagraphs(contentDoc, extractNamespaces(contentDoc));
+    const contentNamespaces = extractNamespaces(contentDoc);
+    removeLeadingBlankParagraphs(contentDoc, contentNamespaces);
+    if (singleLanguage) {
+      restyleMonolingualParagraphs(contentDoc, contentNamespaces);
+    }
     fs.writeFileSync(contentXmlPath, contentDoc.toString(false));
 
     const stylesXmlPath = `${extractDirPath}/styles.xml`;
     const stylesDoc = libxmljs2.parseXml(fs.readFileSync(stylesXmlPath, "utf8"));
-    patchOutlineNumbering(stylesDoc, extractNamespaces(stylesDoc), firstLessonNumber);
+    const stylesNamespaces = extractNamespaces(stylesDoc);
+    patchOutlineNumbering(stylesDoc, stylesNamespaces, firstLessonNumber);
+    if (singleLanguage) {
+      assertRestyleTargetsDefined(stylesDoc, stylesNamespaces);
+      restyleMonolingualParagraphs(stylesDoc, stylesNamespaces);
+    }
     fs.writeFileSync(stylesXmlPath, stylesDoc.toString(false));
 
     const metaXmlPath = `${extractDirPath}/meta.xml`;

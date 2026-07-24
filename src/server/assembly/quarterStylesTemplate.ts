@@ -1,5 +1,5 @@
 import { existsSync, statSync } from "fs";
-import { join } from "path";
+import { basename, join } from "path";
 
 /**
  * Curated, path-free error message thrown by `validateTemplateAsset` when
@@ -24,6 +24,16 @@ export const MONOLINGUAL_TEMPLATE_FILENAME = "quarter-styles-template-monolingua
 export function resolveTemplatePath(singleLanguage: boolean = false): string {
   const filename = singleLanguage ? MONOLINGUAL_TEMPLATE_FILENAME : BILINGUAL_TEMPLATE_FILENAME;
   return join(process.cwd(), "assets", filename);
+}
+
+/**
+ * True when `templatePath` is the MONOLINGUAL quarter-styles template asset
+ * (by basename). The monolingual M.T. restyle is gated on this predicate —
+ * not on the majority-language id — so the restyle decision stays consistent
+ * by construction with whichever template actually styled the book.
+ */
+export function isMonolingualTemplatePath(templatePath: string): boolean {
+  return basename(templatePath) === MONOLINGUAL_TEMPLATE_FILENAME;
 }
 
 /**

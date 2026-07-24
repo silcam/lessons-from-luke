@@ -16,8 +16,14 @@ import makeLessonFile from "./makeLessonFile";
 import { prepareConstituentForAssembly } from "./prepareConstituentForAssembly";
 import { finalizeAssembledQuarter } from "./finalizeAssembledQuarter";
 import { sofficeAssemble } from "../assembly/sofficeAssemble";
-import { resolveTemplatePath, validateTemplateAsset } from "../assembly/quarterStylesTemplate";
+import {
+  isMonolingualTemplatePath,
+  resolveTemplatePath,
+  validateTemplateAsset,
+} from "../assembly/quarterStylesTemplate";
 import assembleQuarter from "./assembleQuarter";
+
+const isMonolingualTemplatePathMock = isMonolingualTemplatePath as unknown as jest.Mock;
 
 const makeLessonFileMock = makeLessonFile as unknown as jest.Mock;
 const prepareConstituentForAssemblyMock = prepareConstituentForAssembly as unknown as jest.Mock;
@@ -145,6 +151,46 @@ describe("assembleQuarter", () => {
 
     expect(resolveTemplatePathMock).toHaveBeenCalledTimes(1);
     expect(resolveTemplatePathMock).toHaveBeenCalledWith(true);
+  });
+
+  test("passes singleLanguage: true to finalizeAssembledQuarter when the resolved template is the monolingual asset", async () => {
+    isMonolingualTemplatePathMock.mockReset();
+    isMonolingualTemplatePathMock.mockReturnValue(true);
+    resolveTemplatePathMock.mockReturnValue("/fixture/quarter-styles-template-monolingual.odt");
+
+    await assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId: "job-single-language-1",
+      workRoot: fixtureDir,
+    });
+
+    expect(isMonolingualTemplatePathMock).toHaveBeenCalledWith(
+      "/fixture/quarter-styles-template-monolingual.odt"
+    );
+    expect(finalizeAssembledQuarterMock).toHaveBeenCalledTimes(1);
+    const [options] = finalizeAssembledQuarterMock.mock.calls[0] as [{ singleLanguage?: boolean }];
+    expect(options.singleLanguage).toBe(true);
+  });
+
+  test("passes singleLanguage: false to finalizeAssembledQuarter when the resolved template is bilingual", async () => {
+    isMonolingualTemplatePathMock.mockReset();
+    isMonolingualTemplatePathMock.mockReturnValue(false);
+
+    await assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId: "job-single-language-2",
+      workRoot: fixtureDir,
+    });
+
+    expect(finalizeAssembledQuarterMock).toHaveBeenCalledTimes(1);
+    const [options] = finalizeAssembledQuarterMock.mock.calls[0] as [{ singleLanguage?: boolean }];
+    expect(options.singleLanguage).toBe(false);
   });
 
   test("fails the job loudly with a curated reason when the template asset is missing or unreadable, without invoking sofficeAssemble", async () => {

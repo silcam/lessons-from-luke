@@ -196,6 +196,29 @@ function extractStylesXml(outputPath: string, workDir: string, subdir: string): 
   return fs.readFileSync(path.join(extractDir, "styles.xml"), "utf8");
 }
 
+/** Extracts and reads `content.xml` from the assembled book into a fresh subdir of `workDir` — parallel to `extractStylesXml`, for content-side style-reference assertions. */
+function extractContentXml(outputPath: string, workDir: string, subdir: string): string {
+  const extractDir = path.join(workDir, subdir);
+  fs.mkdirSync(extractDir, { recursive: true });
+  execFileSync("unzip", ["-o", "-q", outputPath, "content.xml", "-d", extractDir]);
+  return fs.readFileSync(path.join(extractDir, "content.xml"), "utf8");
+}
+
+/**
+ * The four ODT-encoded `M.T.` paragraph-style names the monolingual restyle
+ * rewrites to their plain counterparts (the monolingual template deliberately
+ * omits these styles, so any surviving REFERENCE keeps stale constituent
+ * formatting — the verified 0.6 cm Lesson Title spacing defect). Only
+ * references (`text:style-name`/`style:parent-style-name`) are renamed;
+ * `style:name` DEFINITIONS may legitimately survive unreferenced.
+ */
+const MONOLINGUAL_RESTYLED_MT_NAMES = [
+  "M.T._20_Lesson_20_Title",
+  "M.T._20_Lesson_20_title_20_-_20_invisible",
+  "M.T._20_Coloring_20_Page_20_-_20_Memory_20_Verse",
+  "M.T._20_Coloring_20_Page_20_-_20_Truth",
+] as const;
+
 /**
  * Extracts the full `<style:master-page>` element carrying the given
  * `style:display-name` (e.g. `"First Page"`) from a `styles.xml` string, or
@@ -486,6 +509,14 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
       /<style:style style:name="M\.T\._20_Text"[^>]*>[\s\S]*?<\/style:style>/.exec(stylesXml)?.[0];
     expect(mtTextStyle).toBeDefined();
     expect(mtTextStyle).not.toContain('fo:background-color="#ffffcc"');
+  });
+
+  test("bilingual output is untouched by the monolingual restyle (014): assembled bilingual content.xml still references M.T. Lesson Title", () => {
+    // The bilingual template DEFINES the M.T. styles, so bilingual assemblies
+    // must keep their M.T. references byte-for-byte — the restyle is gated to
+    // monolingual-template jobs only.
+    const contentXml = extractContentXml(outputPath, workDir, "content-extract-bilingual-mt");
+    expect(contentXml).toContain('text:style-name="M.T._20_Lesson_20_Title"');
   });
 
   test("outline numbering: the merged book's level-1 outline style starts at the quarter's first absolute lesson number (14), so chapter-number footer fields render", () => {
@@ -799,5 +830,41 @@ describe("assembleQuarter (real soffice merge, monolingual template asset is a c
     expect(fullText).not.toContain("Quarter 4");
     expect(fullText).not.toContain("Lesson 51");
     expect(fullText).not.toContain("Lesson 52");
+
+    // --- Monolingual restyle (014): the monolingual template deliberately
+    // omits the four M.T. styles below, so any surviving REFERENCE to them in
+    // the assembled book keeps the constituent's stale formatting (the
+    // verified 0.6 cm Lesson Title top-margin defect). Assembled monolingual
+    // output must carry NO references to those four names — in either
+    // reference shape (`text:style-name` direct refs and
+    // `style:parent-style-name` automatic-style parents), in EITHER file
+    // (content.xml and styles.xml — the Luke-2-14 constituent parents a
+    // footer automatic style on `M.T. Coloring Page - Truth` in styles.xml).
+    // Definitions (`style:name="M.T._20_..."`) may legitimately survive
+    // unreferenced, so these checks target reference attributes only.
+    const contentXml = extractContentXml(outputPath, workDir, "content-extract-monolingual");
+    MONOLINGUAL_RESTYLED_MT_NAMES.forEach((mtName) => {
+      expect(contentXml).not.toContain(`text:style-name="${mtName}"`);
+      expect(contentXml).not.toContain(`style:parent-style-name="${mtName}"`);
+      expect(stylesXml).not.toContain(`text:style-name="${mtName}"`);
+      expect(stylesXml).not.toContain(`style:parent-style-name="${mtName}"`);
+    });
+
+    // ...and the renamed plain references must be present in their place
+    // (both reference shapes exist in the Luke-2-14 constituent: a direct
+    // `text:style-name` ref for Lesson Title, automatic-style parents for
+    // Coloring Page - Truth).
+    expect(contentXml).toContain('text:style-name="Lesson_20_Title"');
+    expect(contentXml).toContain('style:parent-style-name="Coloring_20_Page_20_-_20_Truth"');
+
+    // Spacing pin for the actual defect: the plain `Lesson Title` style the
+    // restyled title now resolves to must carry the monolingual template's
+    // 0.9 cm top margin (the constituent's stale M.T. value was 0.3 cm).
+    const lessonTitleStyle =
+      /<style:style style:name="Lesson_20_Title"[^>]*>[\s\S]*?<\/style:style>/.exec(stylesXml)?.[0];
+    expect(lessonTitleStyle).toBeDefined();
+    // The asset stores 0.9cm; soffice re-serializes lengths in inches
+    // (0.9 cm = 0.3543 in), so accept either spelling of the same measure.
+    expect(lessonTitleStyle).toMatch(/fo:margin-top="(0\.9cm|0\.3543in)"/);
   }, 200_000);
 });
