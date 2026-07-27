@@ -23,7 +23,15 @@ export function unzip(inPath: string, outPath: string) {
 export function zip(srcDir: string, outPath: string) {
   const tmpzip = ".tmpzip.zip";
   child_process.execSync(`cd "${srcDir}" && zip -r "${tmpzip}" ./*`);
-  fs.renameSync(`${srcDir}/${tmpzip}`, outPath);
+  const tmpPath = `${srcDir}/${tmpzip}`;
+  try {
+    fs.renameSync(tmpPath, outPath);
+  } catch (err) {
+    // renameSync can't cross filesystems (EXDEV), e.g. workspace -> /tmp in CI
+    if ((err as NodeJS.ErrnoException).code !== "EXDEV") throw err;
+    fs.copyFileSync(tmpPath, outPath);
+    fs.unlinkSync(tmpPath);
+  }
 }
 
 export function copyRecursive(from: string, to: string) {
