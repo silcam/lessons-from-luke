@@ -22,6 +22,7 @@ import os from "os";
 import path from "path";
 import crypto from "crypto";
 import { execFileSync } from "child_process";
+import libxmljs2, { Element } from "libxmljs2";
 import { Persistence } from "../../core/interfaces/Persistence";
 import { Language, ENGLISH_ID } from "../../core/models/Language";
 import { Lesson, TOC_LESSON } from "../../core/models/Lesson";
@@ -224,6 +225,47 @@ const MONOLINGUAL_RESTYLED_MT_NAMES = [
  * `style:display-name` (e.g. `"First Page"`) from a `styles.xml` string, or
  * `undefined` if no master page with that display name exists.
  */
+const ODF_NAMESPACES = {
+  office: "urn:oasis:names:tc:opendocument:xmlns:office:1.0",
+  text: "urn:oasis:names:tc:opendocument:xmlns:text:1.0",
+  style: "urn:oasis:names:tc:opendocument:xmlns:style:1.0",
+};
+
+/**
+ * The assembled book's visible lesson openings (014 WS2): every level-1
+ * `text:h` in `office:body` (`text:outline-level` "1" or absent), excluding
+ * the pipeline's injected hidden headings (automatic style with
+ * `text:display="none"`), paired with its content.xml automatic style (or
+ * undefined for a common named style).
+ */
+function visibleLessonOpenings(
+  contentDoc: ReturnType<typeof libxmljs2.parseXml>
+): { heading: Element; autoStyle: Element | undefined }[] {
+  return contentDoc
+    .find<Element>("//office:body//text:h", ODF_NAMESPACES)
+    .filter((heading) => {
+      const level = heading.attr("outline-level");
+      return !level || level.value() === "1";
+    })
+    .map((heading) => {
+      const styleName = heading.attr("style-name")?.value();
+      const autoStyle = styleName
+        ? (contentDoc.get<Element>(
+            `//office:automatic-styles/style:style[@style:name='${styleName}']`,
+            ODF_NAMESPACES
+          ) ?? undefined)
+        : undefined;
+      return { heading, autoStyle };
+    })
+    .filter(
+      ({ autoStyle }) =>
+        autoStyle
+          ?.get<Element>("style:text-properties", ODF_NAMESPACES)
+          ?.attr("display")
+          ?.value() !== "none"
+    );
+}
+
 function masterPageBlock(stylesXml: string, displayName: string): string | undefined {
   // A master-page with no children (e.g. a footer-less "First Page") is
   // self-closing (`.../>`); one with children is a container closed by a
@@ -517,6 +559,21 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
     // monolingual-template jobs only.
     const contentXml = extractContentXml(outputPath, workDir, "content-extract-bilingual-mt");
     expect(contentXml).toContain('text:style-name="M.T._20_Lesson_20_Title"');
+  });
+
+  test("lesson-opening master pages (014 WS2 regression guard, GREEN from birth — no committed fixture ships the Lesson-9 defect): every visible level-1 heading's automatic style carries master-page-name First_20_Page, and exactly 13 openings exist", () => {
+    const contentXml = extractContentXml(outputPath, workDir, "content-extract-master-pages");
+    const openings = visibleLessonOpenings(libxmljs2.parseXml(contentXml));
+    expect(openings).toHaveLength(LESSON_NUMBERS.length);
+    openings.forEach(({ heading, autoStyle }) => {
+      // Every opening must resolve to a content.xml automatic style pinned
+      // to the First Page master (the canonical opening shape). Keyed by
+      // heading text so a failure names the offending lesson.
+      expect({
+        heading: heading.text().trim(),
+        master: autoStyle?.attr("master-page-name")?.value(),
+      }).toEqual({ heading: heading.text().trim(), master: "First_20_Page" });
+    });
   });
 
   test("outline numbering: the merged book's level-1 outline style starts at the quarter's first absolute lesson number (14), so chapter-number footer fields render", () => {
@@ -866,5 +923,77 @@ describe("assembleQuarter (real soffice merge, monolingual template asset is a c
     // The asset stores 0.9cm; soffice re-serializes lengths in inches
     // (0.9 cm = 0.3543 in), so accept either spelling of the same measure.
     expect(lessonTitleStyle).toMatch(/fo:margin-top="(0\.9cm|0\.3543in)"/);
+  }, 200_000);
+});
+
+describe("assembleQuarter (real soffice merge, doctored Lesson-9-shaped constituent — 014 WS2 end-to-end)", () => {
+  // The production Luke-1-09 constituent's opening heading carries only
+  // `fo:break-before="page"` — no `style:master-page-name` — so the whole
+  // lesson inherits the previous page's master. No committed fixture ships
+  // that defect, so this doctors a copy of Luke-2-15 into the exact shape
+  // and proves `finalizeAssembledQuarter`'s normalization survives the real
+  // soffice merge (i.e. soffice doesn't undo the patch). This is the one
+  // true-RED end-to-end proof for WS2.
+  const DOCTORED_VERSION = 90;
+  const doctoredPath = path.join(SERVER_DOCS_DIR, `${BOOK}-${SERIES}-15v${DOCTORED_VERSION}.odt`);
+  // The exact P28 opening auto style verified in Luke-2-15v01's content.xml.
+  const CLEAN_OPENING_STYLE =
+    '<style:style style:name="P28" style:family="paragraph" style:parent-style-name="M.T._20_Lesson_20_title_20_-_20_invisible" style:master-page-name="First_20_Page"><style:paragraph-properties style:page-number="auto"/></style:style>';
+  const DOCTORED_OPENING_STYLE =
+    '<style:style style:name="P28" style:family="paragraph" style:parent-style-name="M.T._20_Lesson_20_title_20_-_20_invisible"><style:paragraph-properties fo:break-before="page"/></style:style>';
+  let workDir: string;
+
+  beforeAll(() => {
+    execFileSync("soffice", ["--version"]);
+    workDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembleQuarter-doctored-"));
+
+    // Doctor a copy of the clean constituent into the Lesson-9 defect shape.
+    const srcDir = path.join(workDir, "doctored-src");
+    execFileSync("unzip", ["-q", sourcePathFor(15), "-d", srcDir]);
+    const contentXmlPath = path.join(srcDir, "content.xml");
+    const cleanXml = fs.readFileSync(contentXmlPath, "utf8");
+    expect(cleanXml).toContain(CLEAN_OPENING_STYLE);
+    fs.writeFileSync(contentXmlPath, cleanXml.replace(CLEAN_OPENING_STYLE, DOCTORED_OPENING_STYLE));
+    // Re-zip mimetype FIRST and UNCOMPRESSED (ODF requirement).
+    fs.rmSync(doctoredPath, { force: true });
+    execFileSync("zip", ["-X", "-0", doctoredPath, "mimetype"], { cwd: srcDir });
+    execFileSync("zip", ["-rX", doctoredPath, ".", "-x", "mimetype"], { cwd: srcDir });
+  });
+
+  afterAll(() => {
+    fs.rmSync(doctoredPath, { force: true });
+    if (workDir) fs.rmSync(workDir, { recursive: true, force: true });
+  });
+
+  test("the finalize normalization restores master-page-name First_20_Page on the doctored opening, and the real soffice merge does not undo it", async () => {
+    // The doctored input genuinely lacks the master (true-RED precondition:
+    // with normalizeLessonOpeningMasterPages absent, the assembled output
+    // keeps this defect and the assertion below fails).
+    const doctoredUnzipDir = path.join(workDir, "doctored-verify");
+    execFileSync("unzip", ["-q", doctoredPath, "content.xml", "-d", doctoredUnzipDir]);
+    const doctoredXml = fs.readFileSync(path.join(doctoredUnzipDir, "content.xml"), "utf8");
+    expect(doctoredXml).toContain(DOCTORED_OPENING_STYLE);
+
+    const jobId = "doctored-master-page";
+    const jobWorkRoot = path.join(workDir, "assembly-work");
+    fs.mkdirSync(path.join(jobWorkRoot, jobId), { recursive: true });
+
+    const outputPath = await assembleQuarter({
+      storage,
+      lessons: [{ ...lesson(15), version: DOCTORED_VERSION }],
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId,
+      workRoot: jobWorkRoot,
+    });
+    expect(fs.existsSync(outputPath)).toBe(true);
+
+    const contentXml = extractContentXml(outputPath, workDir, "content-extract-doctored");
+    const openings = visibleLessonOpenings(libxmljs2.parseXml(contentXml));
+    expect(openings.length).toBeGreaterThan(0);
+    openings.forEach(({ autoStyle }) => {
+      expect(autoStyle).toBeDefined();
+      expect(autoStyle!.attr("master-page-name")?.value()).toBe("First_20_Page");
+    });
   }, 200_000);
 });
