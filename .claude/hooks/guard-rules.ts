@@ -4,8 +4,7 @@
  * Discriminated union: 'allow' has no message, 'block' includes a message.
  */
 export type GuardResult =
-  | { action: "allow"; message?: undefined }
-  | { action: "block"; message: string };
+  { action: "allow"; message?: undefined } | { action: "block"; message: string };
 
 /**
  * A named pattern defining a blocked command.
