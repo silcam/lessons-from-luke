@@ -38,7 +38,9 @@ const DialogBox = styled.div`
 
 const ButtonRow = styled.div`
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 0.5em;
   margin-top: 1em;
 `;
 
