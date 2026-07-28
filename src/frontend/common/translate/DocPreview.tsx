@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { LessonTString } from "./useLessonTStrings";
 import styled from "styled-components";
 import Colors from "../util/Colors";
@@ -27,23 +27,31 @@ export default function DocPreview(props: IProps) {
         `##${ltStr.lStr.lessonStringId}##`,
         `<span class="lessonString" id="ls${
           ltStr.lStr.lessonStringId
-        }" style="cursor:pointer" onclick="window.setSelectedLessonString(${index})">${escapeHTML(
+        }" style="cursor:pointer" data-ls-index="${index}">${escapeHTML(
           ltStr.tStrs[1]?.text || ltStr.tStrs[0]?.text || "[...]"
         )}</span>`
       ),
     finalHtml
   );
 
-  useEffect(() => {
-    (window as any).setSelectedLessonString = (index: number) => {
-      props.setSelectedIndex(index);
-    };
-    return () => {
-      (window as any).setSelectedLessonString = () => {};
-    };
-  });
+  // Stamp the document's CSP nonce onto every LibreOffice <style> element so the
+  // production CSP (style-src 'self' 'nonce-…') honors it. On desktop there is no
+  // csp-nonce meta and no CSP, so cspNonce is falsy and we leave the HTML untouched.
+  const cspNonce = document.querySelector('meta[name="csp-nonce"]')?.getAttribute("content");
+  if (cspNonce) {
+    finalHtml = finalHtml.replace(/<style(?=[\s>])/gi, `<style nonce="${cspNonce}"`);
+  }
 
-  return <PreviewDiv dangerouslySetInnerHTML={{ __html: finalHtml }} />;
+  const handlePreviewClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = (e.target as HTMLElement).closest(".lessonString");
+    if (el instanceof HTMLElement && el.dataset.lsIndex !== undefined) {
+      props.setSelectedIndex(Number(el.dataset.lsIndex));
+    }
+  };
+
+  return (
+    <PreviewDiv onClick={handlePreviewClick} dangerouslySetInnerHTML={{ __html: finalHtml }} />
+  );
 }
 
 const PreviewDiv = styled.div<React.HTMLAttributes<HTMLDivElement>>`
