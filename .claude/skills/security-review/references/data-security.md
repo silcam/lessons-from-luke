@@ -85,8 +85,7 @@ function buildOrderClause(column: string, direction: string): string {
 
 ```typescript
 type ValidationResult<T> =
-  | { success: true; value: T }
-  | { success: false; errors: ValidationError[] };
+  { success: true; value: T } | { success: false; errors: ValidationError[] };
 
 interface ValidationError {
   field: string;
