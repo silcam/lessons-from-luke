@@ -8,6 +8,7 @@ import { prepareConstituentForAssembly, ConstituentMeta } from "./prepareConstit
 import { finalizeAssembledQuarter } from "./finalizeAssembledQuarter";
 import { sofficeAssemble } from "../assembly/sofficeAssemble";
 import docStorage from "../storage/docStorage";
+import { moveFileSync } from "../../core/util/fsUtils";
 
 /**
  * assembleQuarter — orchestrates the 14-constituent quarter-book merge
@@ -228,14 +229,18 @@ async function assembleIntoJobDir(
   // caller's `finally` deletes it. `tmpFilePath` yields
   // `<docs>/tmp/<timestamp>_<jobId>.odt`: the timestamp prefix is what makes
   // the existing 24 h `cleanTmpDir` sweep able to reap it, the jobId suffix
-  // keeps it collision-free and traceable. Same filesystem (both under
-  // `docsDirPath()`), so no EXDEV concern.
+  // keeps it collision-free and traceable.
   const retainedPath = docStorage.tmpFilePath(`${jobId}.odt`);
   try {
-    fs.renameSync(result.outputPath, retainedPath);
+    // `moveFileSync`, not a bare rename: `workRoot` is caller-supplied — the
+    // tests pass an `os.tmpdir()` fixture dir, and `docs/` can be its own
+    // mount — so this move can cross filesystems and fail EXDEV. Its copy
+    // fallback leaves the source behind, which the caller's `finally` deletes
+    // along with the rest of the job dir.
+    moveFileSync(result.outputPath, retainedPath);
   } catch {
-    // Curated, path-free reason ONLY — a rename failure (EACCES, ENOSPC,
-    // EXDEV) carries both absolute paths.
+    // Curated, path-free reason ONLY — a move failure (EACCES, ENOSPC)
+    // carries both absolute paths.
     throw new Error("assembly failed to store the result");
   }
 

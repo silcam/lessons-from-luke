@@ -368,6 +368,27 @@ describe("assembleQuarter — working-dir lifecycle", () => {
     expect(fs.existsSync(retained)).toBe(true);
   });
 
+  test("a cross-device (EXDEV) rename falls back to a copy rather than failing the job", async () => {
+    // The exact CI failure this guards: `workRoot` is caller-supplied, so
+    // the job dir and docStorage's tmp dir can live on different
+    // filesystems (an os.tmpdir() fixture dir vs. the workspace inside a CI
+    // container). On macOS they share a device and renameSync succeeds, so
+    // only a forced EXDEV reproduces it.
+    const exdev = Object.assign(new Error("EXDEV: cross-device link not permitted, rename"), {
+      code: "EXDEV",
+    });
+    const renameSpy = jest.spyOn(fs, "renameSync").mockImplementationOnce(() => {
+      throw exdev;
+    });
+
+    const retained = await assemble("job-cleanup-5");
+    renameSpy.mockRestore();
+
+    expect(fs.existsSync(retained)).toBe(true);
+    expect(fs.readFileSync(retained, "utf8")).toBe("assembled contents");
+    expect(fs.existsSync(path.join(fixtureDir, "job-cleanup-5"))).toBe(false);
+  });
+
   test("a rename failure IS fatal, with a curated path-free reason, and still cleans up", async () => {
     const jobDir = path.join(fixtureDir, "job-cleanup-4");
     const rawDetail =
