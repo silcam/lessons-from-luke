@@ -42,6 +42,17 @@ export default function LanguageView(props: IProps) {
 
   const languages = useAppSelector((state) => state.languages);
 
+  // Languages that still point at this one as their source. Mirrors the server's
+  // HAS_DEPENDENTS check (PGStorage.archiveLanguage) so the Archive button is
+  // never offered for an archive that would be rejected.
+  const dependentNames = languages.adminLanguages
+    .filter(
+      (lng) =>
+        lng.languageId != props.language.languageId &&
+        lng.defaultSrcLang == props.language.languageId
+    )
+    .map((lng) => lng.name);
+
   const handleSrcLangChange = async (v: number) => {
     const previousLang = activeLang;
     setSrcLangUpdateFailed(false);
@@ -155,16 +166,20 @@ export default function LanguageView(props: IProps) {
             })}
           </Table>
           <Div padVert>
-            {!confirmArchive && (
-              <Button
-                red
-                text={t("Archive")}
-                onClick={() => {
-                  setArchiveBlockedDependents(null);
-                  setArchiveUpdateFailed(false);
-                  setConfirmArchive(true);
-                }}
-              />
+            {dependentNames.length > 0 ? (
+              <div>{t("Archive_language_dependents", { names: dependentNames.join(", ") })}</div>
+            ) : (
+              !confirmArchive && (
+                <Button
+                  red
+                  text={t("Archive")}
+                  onClick={() => {
+                    setArchiveBlockedDependents(null);
+                    setArchiveUpdateFailed(false);
+                    setConfirmArchive(true);
+                  }}
+                />
+              )
             )}
             <ConfirmDialog
               open={confirmArchive}

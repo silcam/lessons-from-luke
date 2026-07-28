@@ -45,6 +45,25 @@ describe("LanguageView archive flow", () => {
     expect(archiveButton.tagName).toBe("BUTTON");
   });
 
+  it("hides the Archive button and names the dependents when other languages use this one as their source", async () => {
+    const done = jest.fn();
+    const dependentA = { ...sampleLanguage, languageId: 4, name: "Fulfulde", defaultSrcLang: 42 };
+    const dependentB = { ...sampleLanguage, languageId: 7, name: "Bambara", defaultSrcLang: 42 };
+    const { queryByRole, getByText } = renderWithProviders(
+      <LanguageView language={sampleLanguage} done={done} />,
+      {
+        syncState: defaultSyncState,
+        languages: { languages: [], adminLanguages: [sampleLanguage, dependentA, dependentB] },
+        currentUser: { user: null, locale: "en", loaded: false },
+        lessons: [],
+      }
+    );
+    await act(async () => {});
+
+    expect(queryByRole("button", { name: /^archive$/i })).toBeNull();
+    expect(getByText(/Fulfulde, Bambara/)).toBeTruthy();
+  });
+
   it("opens a confirm dialog stating the action cannot be undone when Archive is clicked", async () => {
     const done = jest.fn();
     const { getByRole, getByText } = renderWithProviders(
