@@ -10,9 +10,7 @@ const DEVICE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code";
 
 /** Result of a completed device-pairing flow. */
 export type PairingResult =
-  | { status: "approved"; token: string }
-  | { status: "declined" }
-  | { status: "expired" };
+  { status: "approved"; token: string } | { status: "declined" } | { status: "expired" };
 
 /**
  * Returned by `startPairing()`.
