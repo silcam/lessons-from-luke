@@ -39,13 +39,16 @@ already occupying the dev ports:
 
 - **In-progress indicator never freezes** — `cypress/integration/assembleQuarter.spec.js` ("shows
   Assembling… while queued/running, then downloads on ready") asserts the `role="status"` region reads
-  "Assembling…" and the control is `aria-disabled` (not `disabled`, so it stays focusable/responsive)
-  while queued/running. Authored and green in 6.4.6 (commit `1b8ea1a`).
+  "Assembling…" and that it _replaces_ that mode's control while queued/running (the control returns on
+  `ready`). Authored and green in 6.4.6 (commit `1b8ea1a`); the control originally stayed mounted as an
+  `aria-disabled` button, which rendered "Assembling…" twice — see the note in plan.md line 200.
 - **Download available on ready** — same spec: after the poll transitions to `ready`, the download
   fires and the status region reads "Ready — file downloaded."
 - **Duplicate request attaches to the running job** — `cypress/integration/assembleQuarter.spec.js`
-  ("attaches a rapid double-click to the same job") asserts exactly one `POST .../assembly` call fires
-  across a rapid triple-click. Backed by `AssemblyJobRegistry.test.ts`'s dedup/lifecycle/concurrency-1
+  ("removes the control once the job is queued, so no duplicate start is possible") asserts exactly one
+  `POST .../assembly` call fires, the control having been replaced by the status region once the job is
+  queued. The UI never guarded against a genuine same-tick double-POST (the old `aria-disabled` was also
+  only applied after the POST resolved) — that dedup is and always was the server's. Backed by `AssemblyJobRegistry.test.ts`'s dedup/lifecycle/concurrency-1
   coverage.
 
 Re-ran on 2026-07-08 as evidence for this close:

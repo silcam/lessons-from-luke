@@ -77,11 +77,13 @@ describe("Assemble Quarter (US3)", () => {
 
     cy.wait("@startAssembly");
 
-    // Queued/running: aria-live status region announces "Assembling…" and
-    // the control is aria-disabled (not disabled — stays focusable).
+    // Queued/running: the aria-live status region announces "Assembling…" and
+    // replaces the button for that mode — no second, dead-looking control.
     cy.get("[role='status']").should("contain.text", "Assembling…");
     cy.contains("tr", "Luke 2").within(() => {
-      cy.get("button[aria-disabled='true']").should("exist");
+      cy.contains("button", "Bilingual").should("not.exist");
+      // The sibling mode in the same row stays live and clickable.
+      cy.contains("button", "Single-Language").should("exist");
     });
 
     cy.wait("@pollStatus");
@@ -90,7 +92,7 @@ describe("Assemble Quarter (US3)", () => {
     cy.get("[role='status']").should("contain.text", "Ready — file downloaded.");
   });
 
-  it("attaches a rapid double-click to the same job (no duplicate start)", () => {
+  it("removes the control once the job is queued, so no duplicate start is possible", () => {
     let postCount = 0;
     cy.intercept("POST", "/api/languages/999/quarters/Luke/2/assembly", (req) => {
       postCount += 1;
@@ -108,7 +110,11 @@ describe("Assemble Quarter (US3)", () => {
     visitLanguagePage();
 
     cy.contains("tr", "Luke 2").within(() => {
-      cy.contains("button", "Bilingual").click().click({ force: true }).click({ force: true });
+      cy.contains("button", "Bilingual").click();
+      // Once the job is queued the control is replaced by the "Assembling…"
+      // status region, so there is nothing left to click a second time — a
+      // duplicate start is structurally impossible rather than merely inert.
+      cy.contains("button", "Bilingual").should("not.exist");
     });
 
     cy.wait("@startAssembly");

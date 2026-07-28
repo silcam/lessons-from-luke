@@ -45,8 +45,8 @@ export default function UpdateIssuesPage(props: IProps) {
 
 function TSubTable(props: { tSub: TSub }) {
   const { tSub } = props;
-  const language = useAppSelector(
-    (state) => state.languages.adminLanguages.find((l) => l.languageId == tSub.languageId)!
+  const language = useAppSelector((state) =>
+    state.languages.adminLanguages.find((l) => l.languageId == tSub.languageId)!
   );
   if (!language) return null;
 
