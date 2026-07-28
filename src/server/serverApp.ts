@@ -92,11 +92,27 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
           defaultSrc: ["'self'"],
           scriptSrc: ["'self'"],
           // Allow styled-components' runtime <style> tags via a per-request
-          // nonce instead of the blanket 'unsafe-inline'.
+          // nonce instead of the blanket 'unsafe-inline'. This governs <style>
+          // ELEMENTS (style-src-elem falls back to style-src).
           styleSrc: [
             "'self'",
             (_req, res) => `'nonce-${(res as express.Response).locals.cspNonce}'`,
           ],
+          // The lesson preview injects LibreOffice-generated HTML (DocPreview.tsx,
+          // via dangerouslySetInnerHTML) whose formatting — verse highlights, the
+          // header bar, table borders/fills — lives in inline style="…" attributes.
+          // CSP nonces cannot cover style ATTRIBUTES (only <style>/<script>
+          // elements), so 'unsafe-inline' is the only way to let them render.
+          // Scoped to attributes only: <style> elements stay nonce-controlled
+          // above. This does open attribute-based CSS vectors (UI-redressing,
+          // attribute-selector data exfil) app-wide, but script-src is untouched,
+          // so the script-execution surface is unchanged.
+          // NOTE: style-src-attr is a CSP3 directive supported by all modern
+          // browsers (Chrome 75+, Firefox 108+, Safari 15.4+). Browsers older
+          // than that ignore it and fall back to style-src, which re-blocks the
+          // inline attributes — i.e. they degrade to the same unstyled preview
+          // they already get today, so no one regresses.
+          styleSrcAttr: ["'unsafe-inline'"],
           imgSrc: ["'self'", "data:", "blob:"],
           connectSrc: ["'self'"],
           fontSrc: ["'self'"],

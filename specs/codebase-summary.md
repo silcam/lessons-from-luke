@@ -651,10 +651,6 @@ yarn build-desktop  # Build Electron app
 yarn deploy         # Capistrano deploy
 ```
 
-### Docker
-
-Docker configuration available for containerized development/deployment.
-
 ---
 
 ## Configuration Files

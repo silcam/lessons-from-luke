@@ -44,38 +44,44 @@ yarn build-desktop   # Build Electron app
 yarn deploy          # Capistrano production deploy
 ```
 
-## Docker Environment
+## Local Environment (native, on-host)
 
-A Docker container provides a Node 24 development environment with PostgreSQL. To use it:
+Development and tests run natively on the host — there is no Docker environment. (CI uses GitHub Actions Postgres _service containers_, which are unrelated.)
 
 ```bash
-# Build and start the container
-docker compose up -d --build
+# One-time: install Node (via nvm, version from .nvmrc — currently 24) and Postgres
+brew install postgresql@16
+brew services start postgresql@16
+
+# One-time: create the role and databases
+createuser lessons-from-luke --createdb
+psql -c "ALTER USER \"lessons-from-luke\" PASSWORD 'lessons-from-luke'"
+createdb -O lessons-from-luke lessons-from-luke
+createdb -O lessons-from-luke lessons-from-luke-test
+createdb -O lessons-from-luke lessons-from-luke-dev
 
 # Install dependencies (use yarn, not npm — npm can cause TypeScript resolution issues)
-docker compose exec claude-container bash -c "cd /workspace && yarn install"
+yarn install
 
 # Run migrations against the test database
-docker compose exec claude-container bash -c "cd /workspace && yarn migrate:test"
+yarn migrate:test
 
 # Run tests
-docker compose exec claude-container bash -c "cd /workspace && NODE_ENV=test npx jest --runInBand"
+NODE_ENV=test npx jest --runInBand
 
 # Run tests with coverage
-docker compose exec claude-container bash -c "cd /workspace && yarn test-coverage"
+yarn test-coverage
 ```
 
 Key details:
 
-- Node is installed via `nvm` under `/home/ubuntu/.nvm` to mirror the production deploy host (which uses `capistrano-nvm`). The version comes from `.nvmrc` (currently 24). `node`/`npm`/`yarn` are on `PATH` via `$NVM_DIR/current/bin`
-- The workspace is bind-mounted at `/workspace`, so changes are shared between host and container
-- `node_modules` lives in a Docker named volume (`node_modules:/workspace/node_modules` in `docker-compose.yml`) that shadows any host `node_modules`, so a host-built tree from macOS won't conflict. After rebasing the container image, run `docker compose down -v` to drop the named volume so native addons (libxmljs2, etc.) get rebuilt against the new Node
-- The entrypoint starts PostgreSQL and creates three databases automatically: `lessons-from-luke` (production), `lessons-from-luke-test` (Jest/Cypress/Playwright), and `lessons-from-luke-dev` (interactive `dev-web`/`dev-desktop`)
-- A `secrets.json` is auto-generated if not present, containing `db`, `testDb`, and `devDb` blocks
+- Node comes from `nvm` using `.nvmrc` (currently 24), mirroring the production deploy host (`capistrano-nvm`)
+- Homebrew Postgres listens on the **Unix socket** (`/tmp/.s.PGSQL.5432`), not TCP — check it with `pg_isready`, not `nc localhost 5432`. If `secrets.json` omits host/port, the domain driver connects over the socket; better-auth's separate `pg.Pool` connects over TCP to `127.0.0.1:5432`
+- If `secrets.json` is absent, `defaultSecrets` (`src/server/util/secrets.ts`) supplies working local credentials for all three databases
 - Migrations target databases by env var: `TEST_DB=true` → test DB, `DEV_DB=true` → dev DB, no flag → production DB. Connection info comes from `secrets.json`
-- Migration state files: `.migrate-test`, `.migrate-dev`, `.migrate-prod` (one per environment). Each persists in the workspace across container rebuilds. The legacy `.migrate` file is auto-copied to `.migrate-prod` on first run for backward compatibility
-- If you rebuild the container and get `relation "languages" does not exist`, the state file thinks migrations already ran against the now-empty database. Reset with e.g. `echo '{"lastRun":null,"migrations":[]}' > .migrate-test && yarn migrate:test`
-- The container runs natively on Apple Silicon (no QEMU emulation)
+- Migration state files: `.migrate-test`, `.migrate-dev`, `.migrate-prod` (one per environment, gitignored). The legacy `.migrate` file is auto-copied to `.migrate-prod` on first run for backward compatibility
+- If a database is recreated/emptied and `migrate` reports `relation "languages" does not exist`, the state file thinks migrations already ran. Reset with e.g. `echo '{"lastRun":null,"migrations":[]}' > .migrate-test && yarn migrate:test`
+- If you check out a branch whose `migrations/` set is _behind_ what `.migrate-test` records, `migrate` aborts with `Missing migration file: <name>`. Non-destructive fix: restore the missing migration file(s) untracked (`git show <branch>:migrations/<f> > migrations/<f>`), run the migration, then delete them — this leaves `.migrate-test` and the DB intact for the other branch. The state-file reset above is the heavier alternative
 
 ## Environments
 
@@ -93,9 +99,7 @@ Only the test environment mounts the `/api/test/reset-storage` endpoint; in dev 
 
 Existing checkouts of this repo only have the production and test DBs. To opt in to the dev environment:
 
-1. Create the dev database:
-   - Docker: `docker compose up -d --build` (the entrypoint creates it automatically)
-   - Non-Docker: `createdb -U lessons-from-luke lessons-from-luke-dev`
+1. Create the dev database: `createdb -O lessons-from-luke lessons-from-luke-dev`
 2. Add a `devDb` block to `secrets.json` (delete and let it regenerate, or hand-add):
    ```json
    "devDb": {
