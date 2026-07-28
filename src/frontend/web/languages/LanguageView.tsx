@@ -77,38 +77,9 @@ export default function LanguageView(props: IProps) {
     <div>
       <Button link text={`< ${t("Languages")}`} onClick={props.done} />
       <Heading text={props.language.name} level={3} />
-      {!confirmArchive && (
-        <Button
-          text={t("Archive")}
-          onClick={() => {
-            setArchiveBlockedDependents(null);
-            setArchiveUpdateFailed(false);
-            setConfirmArchive(true);
-          }}
-        />
-      )}
-      <ConfirmDialog
-        open={confirmArchive}
-        title={t("Archive")}
-        message={t("Archive_language_confirm")}
-        confirmText={t("Archive")}
-        cancelText={t("Cancel")}
-        onConfirm={handleArchiveConfirm}
-        onCancel={() => setConfirmArchive(false)}
-      />
-      {archiveBlockedDependents && (
-        <div role="alert" aria-live="assertive">
-          {t("Archive_language_blocked", { names: archiveBlockedDependents.join(", ") })}
-        </div>
-      )}
       {srcLangUpdateFailed && (
         <div role="alert" aria-live="assertive">
           {t("Source_language_update_failed")}
-        </div>
-      )}
-      {archiveUpdateFailed && (
-        <div role="alert" aria-live="assertive">
-          {t("Archive_update_failed")}
         </div>
       )}
 
@@ -183,6 +154,38 @@ export default function LanguageView(props: IProps) {
               );
             })}
           </Table>
+          <Div padVert>
+            {!confirmArchive && (
+              <Button
+                red
+                text={t("Archive")}
+                onClick={() => {
+                  setArchiveBlockedDependents(null);
+                  setArchiveUpdateFailed(false);
+                  setConfirmArchive(true);
+                }}
+              />
+            )}
+            <ConfirmDialog
+              open={confirmArchive}
+              title={t("Archive")}
+              message={t("Archive_language_confirm")}
+              confirmText={t("Archive")}
+              cancelText={t("Cancel")}
+              onConfirm={handleArchiveConfirm}
+              onCancel={() => setConfirmArchive(false)}
+            />
+            {archiveBlockedDependents && (
+              <div role="alert" aria-live="assertive">
+                {t("Archive_language_blocked", { names: archiveBlockedDependents.join(", ") })}
+              </div>
+            )}
+            {archiveUpdateFailed && (
+              <div role="alert" aria-live="assertive">
+                {t("Archive_update_failed")}
+              </div>
+            )}
+          </Div>
         </React.Fragment>
       )}
     </div>
