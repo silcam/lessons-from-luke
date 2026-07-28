@@ -16,11 +16,7 @@ export type { InvitationResult };
 
 export interface InvitationError {
   code:
-    | "account_exists"
-    | "malformed_email"
-    | "invalid_role"
-    | "validation_error"
-    | "network_error";
+    "account_exists" | "malformed_email" | "invalid_role" | "validation_error" | "network_error";
   message: string;
 }
 
