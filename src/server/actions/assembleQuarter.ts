@@ -7,6 +7,7 @@ import makeLessonFile from "./makeLessonFile";
 import { prepareConstituentForAssembly, ConstituentMeta } from "./prepareConstituentForAssembly";
 import { finalizeAssembledQuarter } from "./finalizeAssembledQuarter";
 import { sofficeAssemble } from "../assembly/sofficeAssemble";
+import docStorage from "../storage/docStorage";
 
 /**
  * assembleQuarter — orchestrates the 14-constituent quarter-book merge
@@ -55,6 +56,19 @@ import { sofficeAssemble } from "../assembly/sofficeAssemble";
  * numbering (start value = first absolute lesson number) and book-level
  * metadata so those live fields resolve. See both modules' doc comments for
  * the full design.
+ *
+ * **Working-dir lifecycle (this is where eager cleanup lives)**: the per-job
+ * dir `<workRoot>/<jobId>/` holds 14 constituent copies, the merge output and
+ * `sofficeAssemble`'s LibreOffice profile tree. It is `rm -rf`'d in a
+ * `finally` as soon as the job finishes — success OR failure — which is the
+ * cleanup both `sofficeAssemble` and `sweepAssemblyWork` describe (the
+ * startup sweep is the crash-recovery backstop, not the primary mechanism).
+ * The one file that must outlive the job, the assembled result, is FIRST
+ * moved into `docStorage`'s `tmp` dir (`<docs>/tmp/<timestamp>_<jobId>.odt`),
+ * where the existing 24 h `cleanTmpDir` sweep already covers it — the same
+ * retention every per-lesson download gets. `assembly-work` is a *sibling* of
+ * `tmp` and its basename `parseInt`s to `NaN`, so `cleanTmpDir` would never
+ * reach anything left behind here.
  */
 export interface AssembleQuarterOptions {
   /** Storage instance, passed through to `makeLessonFile` for TString lookups. */
@@ -85,13 +99,49 @@ export interface AssembleQuarterOptions {
  * finalization orchestration for one assembly job. See the module doc
  * comment for the full contract this satisfies.
  *
- * @returns Absolute path to the assembled `.odt` once `soffice` has written it.
+ * @returns Absolute path to the retained assembled `.odt` under
+ *   `docStorage`'s `tmp` dir — NOT a path inside the (already deleted)
+ *   per-job working dir.
  */
 export default async function assembleQuarter(options: AssembleQuarterOptions): Promise<string> {
-  const { storage, lessons, motherLang, majorityLangId, jobId, workRoot } = options;
+  const { lessons, jobId, workRoot } = options;
 
   const orderedLessons = orderQuarterLessons(lessons);
   const jobDir = path.join(workRoot, jobId);
+
+  // The `finally` below `rm -rf`s jobDir, and in production `workRoot` is
+  // `docs/assembly-work` — a sibling of the admin-uploaded source ODTs. An
+  // empty or traversing jobId collapses `path.join` onto `workRoot` itself
+  // (or outside it), so validate strict containment BEFORE anything creates
+  // or deletes a directory.
+  const relativeToRoot = path.relative(workRoot, jobDir);
+  if (relativeToRoot === "" || relativeToRoot.startsWith("..") || path.isAbsolute(relativeToRoot)) {
+    throw new Error("failed to prepare assembly working directory");
+  }
+
+  try {
+    return await assembleIntoJobDir(options, orderedLessons, jobDir);
+  } finally {
+    // Best-effort ONLY: a cleanup failure must never turn a successful
+    // assembly into a failed job. Being a `finally` is what makes failed
+    // jobs clean up too — the worst of the leak, since the user retries
+    // immediately after one.
+    try {
+      fs.rmSync(jobDir, { recursive: true, force: true });
+    } catch (error) {
+      console.warn("assembleQuarter: failed to clean up the job working dir", error);
+    }
+  }
+}
+
+/** The assembly proper. Everything it writes lives under `jobDir`, which its caller deletes. */
+async function assembleIntoJobDir(
+  options: AssembleQuarterOptions,
+  orderedLessons: Lesson[],
+  jobDir: string
+): Promise<string> {
+  const { storage, motherLang, majorityLangId, jobId, workRoot } = options;
+
   try {
     // Recursive so the dedicated `<docStorage>/assembly-work` root is created
     // on first use — nothing else provisions it (the startup sweep only
@@ -174,7 +224,22 @@ export default async function assembleQuarter(options: AssembleQuarterOptions): 
     throw new Error("assembly failed to finalize the merged book");
   }
 
-  return result.outputPath;
+  // Move the one file that must outlive the job out of jobDir before the
+  // caller's `finally` deletes it. `tmpFilePath` yields
+  // `<docs>/tmp/<timestamp>_<jobId>.odt`: the timestamp prefix is what makes
+  // the existing 24 h `cleanTmpDir` sweep able to reap it, the jobId suffix
+  // keeps it collision-free and traceable. Same filesystem (both under
+  // `docsDirPath()`), so no EXDEV concern.
+  const retainedPath = docStorage.tmpFilePath(`${jobId}.odt`);
+  try {
+    fs.renameSync(result.outputPath, retainedPath);
+  } catch {
+    // Curated, path-free reason ONLY — a rename failure (EACCES, ENOSPC,
+    // EXDEV) carries both absolute paths.
+    throw new Error("assembly failed to store the result");
+  }
+
+  return retainedPath;
 }
 
 /**
