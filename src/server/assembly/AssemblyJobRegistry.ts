@@ -56,8 +56,7 @@ export const CAP_REJECTED_REASON = "server busy, retry shortly";
 export const TIMEOUT_REASON = "assembly timed out";
 
 export type StartOrAttachResult =
-  | { outcome: "started" | "attached"; job: AssemblyJob }
-  | { outcome: "rejected"; reason: string };
+  { outcome: "started" | "attached"; job: AssemblyJob } | { outcome: "rejected"; reason: string };
 
 export interface AssemblyJobRegistryOptions {
   /** Max number of live (`queued` + `running`) jobs before a new key is rejected. */
