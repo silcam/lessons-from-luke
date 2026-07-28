@@ -98,12 +98,12 @@ describe("AssembleQuarterButton", () => {
     });
   });
 
-  it("announces queued/running/ready progress via an aria-live region and uses aria-disabled (not disabled) while assembling (US3, RED)", async () => {
+  it("announces queued/running/ready progress via an aria-live region, showing the status text exactly once and no dead button (US3)", async () => {
     mockedAxios.post.mockResolvedValue({ data: { jobId: "job-1", status: "queued" } });
     mockedAxios.get.mockResolvedValueOnce({ data: { jobId: "job-1", status: "ready" } });
     mockedAxios.get.mockResolvedValueOnce({ data: new ArrayBuffer(8) });
 
-    const { getByText, getByRole } = render(
+    const { getByText, getAllByText, getByRole, queryByRole } = render(
       <AssembleQuarterButton
         language={language}
         book="Luke"
@@ -116,16 +116,19 @@ describe("AssembleQuarterButton", () => {
     fireEvent.click(getByText("Assemble Quarter 1"));
 
     // The busy state must be exposed via `role="status"` (an implicit
-    // `aria-live="polite"` region), not a silent visual-only indicator, and
-    // the control must stay focusable/announced via `aria-disabled`
-    // (never the `disabled` attribute, which drops it from the tab order).
+    // `aria-live="polite"` region), not a silent visual-only indicator — and
+    // exactly once: the button is replaced by the status region while a job
+    // runs, so there is no second, dead-looking "Assembling…" control.
     await waitFor(() => {
       const status = getByRole("status");
       expect(status.textContent).toMatch(/assembling/i);
     });
-    const control = getByRole("button", { name: "Assemble Quarter 1" });
-    expect(control.getAttribute("aria-disabled")).toBe("true");
-    expect(control.hasAttribute("disabled")).toBe(false);
+    expect(getAllByText(/assembling/i)).toHaveLength(1);
+    expect(queryByRole("button")).toBeNull();
+
+    // Unmounting the button would strand keyboard focus on `<body>`, so the
+    // status region takes it.
+    expect(document.activeElement).toBe(getByRole("status"));
 
     // Once the job transitions to ready, the live region must announce
     // that the download is available (the auto-download itself is silent
@@ -136,6 +139,11 @@ describe("AssembleQuarterButton", () => {
     await waitFor(() => {
       expect(getByRole("status").textContent).toMatch(/ready|available|downloaded/i);
     });
+
+    // …and the control comes back, taking focus from the (now stale) status
+    // region so a keyboard user can retry without hunting for it.
+    const restored = getByRole("button", { name: "Assemble Quarter 1" });
+    expect(document.activeElement).toBe(restored);
   });
 
   it("moves focus to the failure message and offers a working retry control when the job fails (US4, RED)", async () => {
