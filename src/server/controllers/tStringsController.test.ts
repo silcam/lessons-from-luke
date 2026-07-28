@@ -2,8 +2,6 @@
 
 import { plainAgent } from "../testHelper";
 import { TString } from "../../core/models/TString";
-import { SuperTest } from "supertest";
-import supertest = require("supertest");
 
 test("Get TStrings", async () => {
   expect.assertions(3);
@@ -184,7 +182,7 @@ test("Save TString - empty tStrings array returns 422", async () => {
   expect(response.status).toBe(422);
 });
 
-async function batangaTStringCount(agent: SuperTest<supertest.Test>): Promise<number> {
+async function batangaTStringCount(agent: ReturnType<typeof plainAgent>): Promise<number> {
   const response = await agent.get("/api/languages/3/lessons/11/tStrings");
   return response.body.length;
 }

@@ -51,6 +51,21 @@ describe("HTTP security headers", () => {
     expect(styleSrcValue).not.toContain("'unsafe-inline'");
   });
 
+  test("Content-Security-Policy allows inline style ATTRIBUTES via style-src-attr", async () => {
+    // The lesson preview injects LibreOffice-generated HTML whose formatting
+    // (verse highlights, header bar, table borders/fills) lives in inline
+    // style="…" attributes. CSP nonces cannot cover style attributes, so this
+    // 'unsafe-inline' is required for the preview to render in production —
+    // removing it silently strips all preview styling. It is deliberately
+    // scoped to style-src-attr; style-src (i.e. <style> elements) stays
+    // nonce-controlled per the test above.
+    const app = serverApp({ silent: true });
+    const response = await request(app).get("/api/languages");
+    const csp = (response.header["content-security-policy"] ?? "") as string;
+    const styleSrcAttr = csp.match(/style-src-attr\s+([^;]*)/i)?.[1] ?? "";
+    expect(styleSrcAttr).toContain("'unsafe-inline'");
+  });
+
   test("Content-Security-Policy styleSrc carries a per-request nonce", async () => {
     // styled-components injects runtime <style> tags; without a style-src nonce
     // (and with no 'unsafe-inline') the production SPA throws
