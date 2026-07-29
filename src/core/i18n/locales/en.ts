@@ -176,8 +176,7 @@ const en = {
   Archive_language_confirm: "This will archive the language project. This action cannot be undone.",
   Archive_language_blocked:
     "Can't archive: the following languages still use this one as their source: %{names}",
-  Archive_language_dependents:
-    "This language can't be archived — these languages still use it as their source: %{names}",
+  Archive_language_dependents: "These languages still use this one as their source: %{names}",
   Source_language_update_failed:
     "That source language is no longer available. Please choose another.",
   Archive_update_failed: "The language could not be archived. Please try again.",
