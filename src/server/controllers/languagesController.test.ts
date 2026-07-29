@@ -192,6 +192,15 @@ test("POST update language: 422 when defaultSrcLang re-points to an archived lan
   expect(response.status).toBe(422);
 });
 
+test("POST update language: 404 when the target language is archived", async () => {
+  const storage: TestPersistence = (global as any).testStorage;
+  await storage.updateLanguage(3, { archived: true });
+
+  const agent = await loggedInAgent();
+  const response = await agent.post("/api/admin/languages/3").send({ motherTongue: false });
+  expect(response.status).toBe(404);
+});
+
 test("POST usfm", async () => {
   const agent = await loggedInAgent();
   const response = await agent.post("/api/admin/languages/3/usfm").send({ usfm });

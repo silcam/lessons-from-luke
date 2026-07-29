@@ -53,12 +53,14 @@ const testStorage: TestPersistence = {
     return findByStrict(testDb.languages, "languageId", languageId);
   },
 
-  // Like updateLanguage, but when `update.defaultSrcLang` is present AND
-  // differs from the row's current value, validates the new source is
+  // Like updateLanguage, but (a) rejects with { status: 404 } unless the
+  // target itself is active, and (b) when `update.defaultSrcLang` is present
+  // AND differs from the row's current value, validates the new source is
   // active — rejects with { status: 422 } if missing or archived. Mirrors
   // PGStorage.updateLanguageChecked synchronously.
   updateLanguageChecked: async (languageId, update) => {
-    const language = findByStrict(testDb.languages, "languageId", languageId);
+    const language = findBy(testDb.languages, "languageId", languageId);
+    if (!language || language.archived) throw { status: 404 };
 
     if (update.defaultSrcLang !== undefined && update.defaultSrcLang !== language.defaultSrcLang) {
       const source = findBy(testDb.languages, "languageId", update.defaultSrcLang);
@@ -151,7 +153,12 @@ const testStorage: TestPersistence = {
     return [];
   },
 
+  // Mirrors PGStorage.tStrings' archived-language guard: an archived language
+  // reads exactly like a nonexistent one.
   tStrings: async (params) => {
+    const language = findBy(testDb.languages, "languageId", params.languageId);
+    if (!language || language.archived) return [];
+
     const langTStrings = testDb.tStrings.filter((ts) => ts.languageId == params.languageId);
     if (!params.lessonId) return langTStrings;
     const masterIds = testDb.lessonStrings

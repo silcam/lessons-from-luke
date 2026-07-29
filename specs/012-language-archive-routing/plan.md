@@ -319,6 +319,36 @@ but not this document-fetch path.
 use, consistent with INV-1) — document it and add a regression test asserting the
 archived-language document fetch 404s. Plan-only; no interface/data change.
 
+### RT-D2 (post-review addition) — tString reads and the generic update endpoint
+
+**Concern** (raised by a PR reviewer, not by the red-team passes): RT-D covered the
+document path, but `tStrings()` never touched the `languages` table at all, so
+`GET /api/languages/:archivedId/tStrings`, `.../lessons/:lessonId/tStrings` and
+`.../tStrings/:ids` kept returning an archived language's real translations by
+numeric id. Separately, `updateLanguageChecked` locked its target **without**
+`AND NOT archived`, so `POST /api/admin/languages/:archivedId` mutated a hidden
+row and answered `200` with a `null` body — reporting success on a mutation of a
+row the API otherwise pretends does not exist.
+
+**Mitigation**: guard all three `tStrings()` branches with an uncorrelated
+`EXISTS` on an active `languages` row (200 + `[]`, parity with a nonexistent id —
+no new 404s on those routes), and add `AND NOT archived` to the
+`updateLanguageChecked` target lock so an archived target 404s like a nonexistent
+one. Both mirrored in `testStorage`. See research D2 and data-model.md.
+
+**Enumerated consequence — blank source column for legacy rows**: `makeLessonFile`
+reads tStrings for the mother-tongue language _and_ for `majorityLangId`, derived
+from `language.defaultSrcLang`. An **active** language may carry a legacy
+`defaultSrcLang` pointing at an archived row (exactly the case
+`storage.test.ts` "skips the active-check when defaultSrcLang is unchanged, even if
+it dangles" preserves). Such a language's document now renders with a populated
+mother-tongue column and a **blank source column** — `mergeXml` still writes a
+valid .odt, no throw — and `findTSubs` produces no substitutions for it. Degraded,
+not broken, and reachable only from legacy data, since `updateLanguageChecked` and
+`createLanguage` now 422 any new re-point to an archived source (INV-4). This is a
+user-visible change for a language that is _not itself_ archived, so it is
+enumerated here rather than left to be discovered.
+
 ### RT-E (Low, ErrorHandling) — Transaction abort / deadlock surfaces as a bare 500
 
 **Concern**: Two concurrent re-points forming a lock cycle (admin A re-points L1

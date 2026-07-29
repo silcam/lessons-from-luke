@@ -61,6 +61,39 @@ with 401 — so a translator already mid-session cannot silently save into a
 just-archived language. No new code; MUST be covered by a test (archived code →
 tString save rejected).
 
+**Gap found in PR review (tString reads)**: the write path above was covered, but
+the **read** path was not. `tStrings()` queries only `tStrings`/`lessonstrings`
+and never joins `languages`, so `GET /api/languages/:archivedId/tStrings`,
+`.../lessons/:lessonId/tStrings` and `.../tStrings/:ids` kept serving an archived
+language's translations by numeric id. Resolved by appending an uncorrelated
+`EXISTS (SELECT 1 FROM languages lang WHERE lang.languageId = :languageId AND NOT
+lang.archived)` to all three branches of `PGStorage.tStrings` (mirrored in
+`testStorage.tStrings`), yielding 200 + `[]` — parity with a nonexistent id. See
+data-model.md "tString read filtering" for why the guard is inline rather than a
+shared fragment or a preliminary `SELECT`.
+
+**Accepted residual risk (English archived)**: the guard deliberately has no
+`ENGLISH_ID` carve-out — a private unfiltered read would be a hole in INV-1 on the
+same change that widens it. `archiveLanguage` blocks only on _active_ dependents,
+so English becomes archivable once every language sourcing from it is archived. If
+that happened, `addOrFindMasterStrings` would see an empty `engStrings`, miss every
+text dedup, and insert a **duplicate master row per text** on the next English
+upload; `englishScriptureTStrings` and `defaultTranslations` would silently no-op.
+Accepted because archiving English is already destructive today (documents 404 and
+all tString writes 401 via the D2 filter), and because `spec.md`'s assumptions
+forbid special-casing `ENGLISH_ID` inside `archiveLanguage`. A regression test
+pins the _safe_ side: master-string dedup still works when another language is
+archived.
+
+**`sync()` — considered and declined**: `PGStorage.sync` pulls changed masterIds
+per languageId with no archived filter. Left unfiltered deliberately: it is not a
+discovery surface (it only echoes languageIds the client itself supplied in
+`languageTimestamps`), desktop propagation is an explicit non-goal (see the
+`spec.md` desktop-picker assumption), and the payload lands in `LocalStorage.setTStrings`
+→ `modelListMerge`, where an empty list is a no-op — so filtering would change
+nothing observable while touching a deferred surface. The declined one-liner is the
+same `EXISTS` clause used in `tStrings`.
+
 **Alternatives considered**:
 
 - Hybrid (list filters, single lookup returns archived): rejected — it would

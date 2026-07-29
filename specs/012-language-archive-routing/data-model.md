@@ -77,6 +77,29 @@ Both reads exclude archived rows uniformly:
   `language()`) MUST add `archived` to the projection, or the field never returns.
 - `testStorage.createLanguage` MUST set `archived: false` on the new row.
 
+### tString read filtering (added post-review)
+
+Added after a PR reviewer found that `GET /api/languages/:archivedId/lessons/:lessonId/tStrings`
+still returned real translations: `tStrings()` queries only `tStrings`/`lessonstrings`
+and never touched `languages`, so the D2 filter never reached it. The spec's FRs are
+silent on this (FR-002 retains the data; FR-003/FR-004 speak only to pickers and
+translation targets), so this is a deliberate widening of the read barrier, not a
+correction of a stated requirement.
+
+- `PGStorage.tStrings({languageId, lessonId?, masterIds?})` appends
+  `AND EXISTS (SELECT 1 FROM languages lang WHERE lang.languageId = :languageId AND NOT lang.archived)`
+  to **all three** branches. Repeated inline because postgres@1 has no query-fragment
+  composition (a nested `` sql`…` `` is bound as a _value_, not spliced), and because a
+  preliminary guard `SELECT` would add a round-trip per call — `updateProgress` calls
+  `tStrings` once per active language on every save. The subquery is uncorrelated, so
+  it is evaluated once against the `languages` PK.
+- `testStorage.tStrings` returns `[]` when the language is missing or archived.
+- API contract: **200 + `[]`**, identical to a nonexistent languageId (the behavior
+  already asserted at `tStringsController.test.ts` "Get TStrings - invalid ids").
+  No 404 is introduced on any tStrings route.
+- No `ENGLISH_ID` bypass: the guard applies to `englishScriptureTStrings` and
+  `addOrFindMasterStrings` too. See research D2 for the accepted residual risk.
+
 ## Write path (archive)
 
 New `Persistence.archiveLanguage(languageId)` (research D3), invoked only by the
@@ -95,13 +118,20 @@ A new dedicated transactional method `updateLanguageChecked(languageId,
 finalized by RT-F) — **not** `updateLanguage` — performs the generic update. It
 persists **both** filtered fields, because the client always posts both
 (`languageSlice.ts:116-125`; there is no `motherTongue`-only request — RT-F).
-Inside one `this.sql.begin(...)` it locks the target language row `FOR UPDATE`;
-**only when `defaultSrcLang` is present and differs from the current value** it
+Inside one `this.sql.begin(...)` it locks the target language row `FOR UPDATE`
+**with `AND NOT archived`** — an archived (or nonexistent) target rejects with
+404, closing the post-review hole where `POST /api/admin/languages/:archivedId`
+mutated a hidden row and returned a `200 null` body. Note the deliberate
+asymmetry: `updateLanguage` keeps **no** archived filter, because flipping
+`archived` through it is how the test suite manufactures archived state.
+Then, **only when `defaultSrcLang` is present and differs from the current value**, it
 requires the new source to resolve to an **active** language
 (`SELECT ... WHERE languageId = :defaultSrcLang AND NOT archived FOR UPDATE`),
 rejecting (422) when missing/archived; otherwise it applies the update and
-**re-reads/returns the `Language`** (safe — the row stays active, so it is not
-hidden by the D2 filter; the "must not re-read" rule is `archiveLanguage`-only).
+**re-reads/returns the `Language`** (safe — the locked `AND NOT archived`
+predicate proves the target was active and this method never sets `archived`,
+so it is not hidden by the D2 filter; the "must not re-read" rule is
+`archiveLanguage`-only).
 This closes both the archive/re-point race (common lock on the language row) and
 the sequential dangling-reference hole (pointing at an already-archived or
 nonexistent language). `updateLanguage` cannot host this — it runs on `this.sql`
@@ -144,7 +174,13 @@ active (archived=false) ──archive (admin, no active dependents, confirmed)�
 ## Invariants
 
 - INV-1: An archived language never appears in any value returned by
-  `languages()` or `language()` (hence absent from every web picker — FR-003).
+  `languages()`, `language()`, or `tStrings()` (hence absent from every web
+  picker — FR-003 — and unreadable through the tString read routes). Two
+  deliberate carve-outs: `sync()` stays unfiltered (it only echoes languageIds
+  the client itself named, and desktop propagation is a non-goal —
+  `spec.md` "desktop offline picker"), and `saveTStrings` is gated upstream at
+  the controller by `invalidCode` → `language({code})` → 401, not by its own
+  predicate.
 - INV-2: A language with ≥1 active dependent cannot become archived (FR-007/008),
   enforced atomically server-side (research D4).
 - INV-3: `archived` can only be set `true`, and only via the archive endpoint;

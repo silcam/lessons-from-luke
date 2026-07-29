@@ -165,6 +165,24 @@ test("updateLanguageChecked skips the active-check when defaultSrcLang is unchan
   });
 });
 
+test("updateLanguageChecked rejects an archived target with 404 and makes no state change", async () => {
+  await storage.updateLanguage(3, { archived: true });
+
+  await expect(
+    (async () =>
+      storage.updateLanguageChecked(3, {
+        motherTongue: false,
+        defaultSrcLang: 2,
+      }))()
+  ).rejects.toMatchObject({ status: 404 });
+
+  // No state change: un-archive and confirm the fixture values are untouched.
+  // (updateLanguage stays unfiltered precisely so tests can do this.)
+  await storage.updateLanguage(3, { archived: false });
+  const batanga = await storage.language({ languageId: 3 });
+  expect(batanga).toMatchObject({ motherTongue: true, defaultSrcLang: 1 });
+});
+
 test("updateLanguageChecked returns the full updated Language on success", async () => {
   const batanga = await storage.updateLanguageChecked(3, {
     motherTongue: false,
@@ -375,6 +393,72 @@ test("Get TStrings by language and lesson", async () => {
     lessonId: 11,
   });
   expect(less1BatStrings.length).toBe(3);
+});
+
+test("tStrings() returns [] for an archived languageId", async () => {
+  // Sanity: language 3 has strings before it is archived.
+  expect((await storage.tStrings({ languageId: 3 })).length).toBeGreaterThan(0);
+
+  await storage.updateLanguage(3, { archived: true });
+
+  expect(await storage.tStrings({ languageId: 3 })).toHaveLength(0);
+});
+
+test("tStrings() returns [] for an archived languageId with a lessonId", async () => {
+  expect((await storage.tStrings({ languageId: 3, lessonId: 11 })).length).toBeGreaterThan(0);
+
+  await storage.updateLanguage(3, { archived: true });
+
+  expect(await storage.tStrings({ languageId: 3, lessonId: 11 })).toHaveLength(0);
+});
+
+test("tStrings() returns [] for an archived languageId with masterIds", async () => {
+  expect((await storage.tStrings({ languageId: 3, masterIds: [1, 3] })).length).toBeGreaterThan(0);
+
+  await storage.updateLanguage(3, { archived: true });
+
+  expect(await storage.tStrings({ languageId: 3, masterIds: [1, 3] })).toHaveLength(0);
+});
+
+test("tStrings() reads an archived language identically to a nonexistent one", async () => {
+  await storage.updateLanguage(3, { archived: true });
+
+  expect(await storage.tStrings({ languageId: 3 })).toEqual(
+    await storage.tStrings({ languageId: 99999 })
+  );
+  expect(await storage.tStrings({ languageId: 3, lessonId: 11 })).toEqual(
+    await storage.tStrings({ languageId: 99999, lessonId: 11 })
+  );
+  expect(await storage.tStrings({ languageId: 3, masterIds: [1, 3] })).toEqual(
+    await storage.tStrings({ languageId: 99999, masterIds: [1, 3] })
+  );
+});
+
+test("archiving one language leaves other languages' tStrings and progress intact", async () => {
+  // Canary for an over-broad archived guard: updateProgress() feeds on
+  // tStrings(), so a guard that reached active languages would silently zero
+  // their progress instead of failing loudly.
+  const before = await storage.language({ languageId: 3 });
+
+  await storage.updateLanguage(2, { archived: true });
+
+  expect((await storage.tStrings({ languageId: 3 })).length).toBe(4);
+  expect((await storage.tStrings({ languageId: ENGLISH_ID })).length).toBe(654);
+  const after = await storage.language({ languageId: 3 });
+  expect(after!.progress[0]).toEqual(before!.progress[0]);
+});
+
+test("addOrFindMasterStrings still dedups English masters after another language is archived", async () => {
+  await storage.updateLanguage(3, { archived: true });
+
+  const tStrings = await storage.addOrFindMasterStrings([
+    "The Book of Luke and the Birth of John the Baptizer",
+    "Pizza is Tasty!",
+    "The Book of Luke and the Birth of John the Baptizer",
+  ]);
+  expect(tStrings[0]).toMatchObject({ languageId: ENGLISH_ID, masterId: 1 });
+  expect(tStrings[2].masterId).toBe(tStrings[0].masterId);
+  expect((await storage.tStrings({ languageId: ENGLISH_ID })).length).toBe(655);
 });
 
 test("Get Tstrings by master id and language", async () => {

@@ -65,6 +65,22 @@ test("Get TStrings by master ids", async () => {
   });
 });
 
+test("Get TStrings - archived language returns 200 and [] on all three routes", async () => {
+  const storage: TestPersistence = (global as any).testStorage;
+  await storage.updateLanguage(3, { archived: true });
+  const agent = plainAgent();
+
+  for (const path of [
+    "/api/languages/3/tStrings",
+    "/api/languages/3/lessons/11/tStrings",
+    "/api/languages/3/tStrings/1,3",
+  ]) {
+    const response = await agent.get(path);
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual([]);
+  }
+});
+
 test("Save TString - Invalid Type", async () => {
   expect.assertions(1);
   const agent = plainAgent();
