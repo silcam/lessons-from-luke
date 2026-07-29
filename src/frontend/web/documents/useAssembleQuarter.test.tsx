@@ -173,6 +173,67 @@ describe("useAssembleQuarter", () => {
     expect(mockedSaveAs).not.toHaveBeenCalled();
   });
 
+  it("treats a poll 404 as terminal: fails the job and stops polling", async () => {
+    // The registry is in-memory and process-scoped, so a 404 is definitive —
+    // a server restart or the 24h TTL. Retrying it forever leaves the UI
+    // stuck on "Assembling…".
+    mockedAxios.post.mockResolvedValue({ data: { jobId: "job-1", status: "queued" } });
+    mockedAxios.get.mockRejectedValue({ response: { status: 404, data: { error: "no job" } } });
+
+    const { result } = renderHook(() => useAssembleQuarter(language, BOOK, SERIES, "bilingual"));
+
+    await act(async () => {
+      result.current.start();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(result.current.status.tag).toBe("failed");
+    if (result.current.status.tag !== "failed") throw new Error("unreachable");
+    expect(result.current.status.reason).not.toBe("");
+
+    const callsAfterFailure = mockedAxios.get.mock.calls.length;
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+      await Promise.resolve();
+    });
+    expect(mockedAxios.get.mock.calls.length).toBe(callsAfterFailure);
+  });
+
+  it("keeps retrying after a network-style poll failure carrying no response", async () => {
+    mockedAxios.post.mockResolvedValue({ data: { jobId: "job-1", status: "queued" } });
+    mockedAxios.get.mockRejectedValue(new Error("network error"));
+
+    const { result } = renderHook(() => useAssembleQuarter(language, BOOK, SERIES, "bilingual"));
+
+    await act(async () => {
+      result.current.start();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // Status is untouched by a transient failure...
+    expect(result.current.status.tag).toBe("queued");
+
+    // ...and the loop is still alive.
+    const callsSoFar = mockedAxios.get.mock.calls.length;
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+      await Promise.resolve();
+    });
+    expect(mockedAxios.get.mock.calls.length).toBeGreaterThan(callsSoFar);
+  });
+
   it("surfaces the reason from a POST 409 (quarter incomplete) without polling", async () => {
     mockedAxios.post.mockRejectedValue({
       response: {

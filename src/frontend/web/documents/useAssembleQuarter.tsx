@@ -40,6 +40,15 @@ interface AssemblyJobResponse {
 const GENERIC_FAILURE_REASON = "assembly failed (internal)";
 
 /**
+ * Shown when a poll 404s. The server's job registry is in-memory and
+ * process-scoped (FR-011), so a 404 means the job is gone for good — a server
+ * restart, or the 24h TTL — and no amount of further polling will bring it
+ * back. The only recovery is to start a new job.
+ */
+const JOB_GONE_REASON =
+  "this assembly is no longer available (the server may have restarted) — please try again";
+
+/**
  * Drives an assembly job (US1): POST to start/attach, poll for status, and
  * download + save the finished document once ready. Mirrors the existing
  * `useGetDocument` blob-download pattern; adds only the poll loop (see
@@ -54,6 +63,7 @@ export default function useAssembleQuarter(
   const [status, setStatus] = useState<AssembleStatus>({ tag: "idle" });
   const jobIdRef = useRef<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const firstPollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const basePath = `/api/languages/${language.languageId}/quarters/${book}/${series}/assembly`;
 
@@ -61,6 +71,12 @@ export default function useAssembleQuarter(
     if (intervalRef.current !== null) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
+    }
+    // The deferred first poll below is scheduled separately from the interval,
+    // so clearing only the interval leaves it to fire after unmount.
+    if (firstPollRef.current !== null) {
+      clearTimeout(firstPollRef.current);
+      firstPollRef.current = null;
     }
   }, []);
 
@@ -83,6 +99,12 @@ export default function useAssembleQuarter(
     // Transient poll failures (e.g. a dropped/unmocked request) are not a
     // job failure — only an explicit server `"failed"` status is (contract
     // §2). Leave status untouched and let the next tick retry.
+    //
+    // A `404` is the one exception: it is definitive, not transient. The job
+    // registry is in-memory and process-scoped (FR-011), so once the server
+    // says it has no job for this key, no later poll will ever say otherwise.
+    // Retrying it forever leaves the button stuck on "Assembling…" with
+    // nothing to show the user, so a 404 terminates the loop instead.
     try {
       const response = await Axios.get<AssemblyJobResponse>(`${basePath}?mode=${mode}`);
       const data = response.data;
@@ -105,7 +127,12 @@ export default function useAssembleQuarter(
         stopPolling();
         setStatus({ tag: "failed", reason: data.reason ?? GENERIC_FAILURE_REASON });
       }
-    } catch {
+    } catch (err) {
+      if (extractErrorResponseStatus(err) === 404) {
+        stopPolling();
+        setStatus({ tag: "failed", reason: JOB_GONE_REASON });
+        return;
+      }
       /* swallow — see comment above */
     }
   }, [basePath, mode, stopPolling, downloadAndFinish]);
@@ -129,7 +156,10 @@ export default function useAssembleQuarter(
         // observable before a fast job's result can overwrite it; without
         // this, a same-tick-resolving job would jump straight from click to
         // "ready", and a screen-reader user would hear no progress at all.
-        setTimeout(() => void poll(), 0);
+        firstPollRef.current = setTimeout(() => {
+          firstPollRef.current = null;
+          void poll();
+        }, 0);
       } catch (err) {
         // A synchronous 409/422 on the initial POST (quarter incomplete —
         // contract §1) never reaches the poll loop, so its curated `reason`
@@ -144,6 +174,25 @@ export default function useAssembleQuarter(
   }, [basePath, mode, poll, stopPolling]);
 
   return { status, start };
+}
+
+/**
+ * Pulls the HTTP status code out of an Axios error's response, if present —
+ * duck-typed for the same reason `extractErrorResponseReason` below is (the
+ * tests pass plain `{ response: { … } }` literals, deliberately). Returns
+ * `undefined` for a network error or any other shape carrying no response,
+ * which is exactly the transient case the poll loop must keep retrying.
+ */
+function extractErrorResponseStatus(err: unknown): number | undefined {
+  if (typeof err !== "object" || err === null || !("response" in err)) {
+    return undefined;
+  }
+  const response = (err as { response?: unknown }).response;
+  if (typeof response !== "object" || response === null || !("status" in response)) {
+    return undefined;
+  }
+  const status = (response as { status?: unknown }).status;
+  return typeof status === "number" ? status : undefined;
 }
 
 /**
