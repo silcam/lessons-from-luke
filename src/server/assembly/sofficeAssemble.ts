@@ -71,11 +71,16 @@ export interface SofficeAssembleResult {
 }
 
 /**
- * Hard per-run timeout: ~2.5x the ~40s baseline observed in the spike
- * (research.md §R1), so a merge that is merely slow still completes, while a
- * genuinely hung `soffice` is bounded.
+ * Hard per-run timeout: ~12x the ~15s baseline measured for a 14-document
+ * merge on an M3 with real fixtures (research.md §R1), so a merge that is
+ * merely slow — a throttled 2-vCPU burstable instance is several times
+ * slower — still completes, while a genuinely hung `soffice` is bounded.
+ *
+ * This timer, and only this timer, kills the `soffice` process group. The
+ * registry's own per-job timeout is deliberately derived from this value so
+ * it can never fire first; see `assemblyBudget.ts`.
  */
-export const DEFAULT_TIMEOUT_MS = 100_000;
+export const DEFAULT_TIMEOUT_MS = 180_000;
 
 /** Fixed-vocabulary error thrown when the hard timeout fires and the process group is killed. */
 export class SofficeAssembleTimeoutError extends Error {

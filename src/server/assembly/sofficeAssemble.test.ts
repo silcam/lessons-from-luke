@@ -176,6 +176,9 @@ test("profileDirFor derives the per-job profile path used by the run-step args",
   );
 });
 
-test("DEFAULT_TIMEOUT_MS is a positive multiple of the ~40s observed baseline", () => {
-  expect(DEFAULT_TIMEOUT_MS).toBeGreaterThan(40_000);
+test("DEFAULT_TIMEOUT_MS leaves generous headroom over the ~15s measured baseline", () => {
+  // 15,259ms measured for a 14-insert merge on an M3 against real fixtures
+  // (Luke series 2). The deployed 2-vCPU box is several times slower, so the
+  // ceiling has to be a large multiple, not a small one.
+  expect(DEFAULT_TIMEOUT_MS).toBeGreaterThanOrEqual(10 * 15_000);
 });

@@ -1,4 +1,5 @@
 import { Book } from "../../core/models/Lesson";
+import { ASSEMBLY_MIN_AVAILABLE_BYTES } from "./assemblyBudget";
 
 /**
  * The two per-lesson download modes an assembled quarter can be produced in.
@@ -61,7 +62,15 @@ export type StartOrAttachResult =
 export interface AssemblyJobRegistryOptions {
   /** Max number of live (`queued` + `running`) jobs before a new key is rejected. */
   maxLiveJobs: number;
-  /** Hard per-job timeout in ms, measured from run-start (slot acquisition), not enqueue. */
+  /**
+   * Hard per-job timeout in ms, measured from run-start (slot acquisition),
+   * not enqueue.
+   *
+   * This timeout does NOT kill the runner's `soffice` process —
+   * `sofficeAssemble`'s own timer does. It must therefore be set strictly
+   * longer than that timer plus the job's non-soffice work, or the slot is
+   * freed while a `soffice` process is still alive. See `assemblyBudget.ts`.
+   */
   timeoutMs: number;
   /** TTL in ms for terminal (`ready`/`failed`) entries, aligned with docStorage's 24h cleanup. */
   ttlMs: number;
@@ -71,6 +80,19 @@ export interface AssemblyJobRegistryOptions {
   now: () => number;
   /** Injectable id generator (real impl: `crypto.randomUUID`). */
   makeJobId: () => string;
+  /**
+   * Injectable available-system-memory probe in bytes (real impl:
+   * `availableSystemMemory`, which reads Linux `MemAvailable`). Omitted, or
+   * returning `undefined`, disables the low-memory admission guard — which is
+   * what makes the guard inert on macOS dev boxes and in tests.
+   */
+  availableMemory?: () => number | undefined;
+  /**
+   * Floor of available memory below which a genuinely new job is rejected.
+   * Only consulted when `availableMemory` yields a number. Defaults to
+   * `ASSEMBLY_MIN_AVAILABLE_BYTES`, which is where the tuning notes live.
+   */
+  minAvailableBytes?: number;
 }
 
 /**
@@ -104,7 +126,15 @@ interface InternalJob extends AssemblyJob {
  *   fresh job.
  * - Concurrency-1 serialization of the underlying runner (the soffice
  *   merge step is single-instance).
- * - Per-job hard timeout measured from run-start, not enqueue.
+ * - Per-job hard timeout measured from run-start, not enqueue. The timeout
+ *   marks the job `failed` and frees the slot; it does NOT cancel or kill the
+ *   runner (the registry has no abort channel). For the soffice merge that
+ *   means `sofficeAssemble`'s own timer is the thing that kills the process,
+ *   which is why `timeoutMs` must outlast it — see `assemblyBudget.ts`.
+ * - Terminal (`ready`/`failed`) statuses are immutable: a runner that settles
+ *   after its job already timed out is ignored, so a `failed` job is never
+ *   resurrected and the successor's slot is never clobbered.
+ * - Optional low-memory admission guard on genuinely new jobs.
  * - Queue-depth cap surfaced as a rejection (mapped to `429` by the caller).
  * - TTL eviction of terminal entries, plus immediate eviction of a `ready`
  *   entry once its result file is found missing.
@@ -156,6 +186,23 @@ export class AssemblyJobRegistry {
 
     if (this.countLiveJobs() >= this.options.maxLiveJobs) {
       return { outcome: "rejected", reason: CAP_REJECTED_REASON };
+    }
+
+    // Low-memory admission guard. Deliberately AFTER the dedup lookup, so
+    // attaching to an existing job always works, and after the cheap cap
+    // check so the in-memory comparison short-circuits the file read. Also
+    // deliberately NOT in `promoteNext` — refusing there would strand an
+    // already-queued job forever, since promotion is only ever reattempted
+    // from `startOrAttach`, the timeout branch, and `completeJob`.
+    const availableBytes = this.options.availableMemory?.();
+    if (availableBytes !== undefined) {
+      const floor = this.options.minAvailableBytes ?? ASSEMBLY_MIN_AVAILABLE_BYTES;
+      if (availableBytes < floor) {
+        console.warn(
+          `[AssemblyJobRegistry] refusing new job: ${availableBytes} bytes available, floor is ${floor}`
+        );
+        return { outcome: "rejected", reason: CAP_REJECTED_REASON };
+      }
     }
 
     const jobId = this.options.makeJobId();
@@ -302,6 +349,24 @@ export class AssemblyJobRegistry {
   private completeJob(jobId: string, status: AssemblyJobStatus): void {
     const job = this.jobsById.get(jobId);
     if (job) {
+      if (job.status.tag === "ready" || job.status.tag === "failed") {
+        // The job already reached a terminal state — it timed out, and a
+        // successor may now own the concurrency-1 slot. Recording this late
+        // settlement would resurrect a `failed` job as `ready`, refresh its
+        // `terminalAt` (and so extend its TTL), and clobber the successor's
+        // slot. Terminal states are immutable; leave everything alone.
+        //
+        // Reaching here means the registry timeout fired while the runner was
+        // still alive, which the `assemblyBudget.ts` ordering invariant is
+        // supposed to make impossible. This warning is the one observable
+        // signal that the concurrency-1 invariant was breached in production.
+        console.warn(
+          `[AssemblyJobRegistry] job ${jobId} settled after reaching terminal state ` +
+            `"${job.status.tag}"; ignoring. The registry timeout fired while the runner ` +
+            `was still running — see the ordering invariant in assemblyBudget.ts.`
+        );
+        return;
+      }
       job.status = status;
       job.terminalAt = this.options.now();
     }

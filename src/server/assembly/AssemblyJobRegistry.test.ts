@@ -315,6 +315,158 @@ describe("AssemblyJobRegistry", () => {
     });
   });
 
+  describe("terminal states are immutable once a job has timed out", () => {
+    /**
+     * The registry timeout does not cancel the runner — there is no abort
+     * channel — so a timed-out job's runner keeps going and settles later.
+     * That late settlement must not be recorded.
+     */
+    let warn: jest.SpyInstance;
+    beforeEach(() => {
+      warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    });
+    afterEach(() => {
+      warn.mockRestore();
+    });
+
+    it("keeps a timed-out job failed with TIMEOUT_REASON when its runner later resolves", async () => {
+      const { registry, clock } = makeRegistry({ timeoutMs: 1000, ttlMs: 5000 });
+      const job = pendingRunner();
+      const started = registry.startOrAttach(makeKey(), job.runner);
+      if (started.outcome === "rejected") throw new Error("unreachable");
+
+      clock.advance(1001);
+      expect(registry.get(started.job.jobId)?.status).toEqual({
+        tag: "failed",
+        reason: TIMEOUT_REASON,
+      });
+
+      job.resolve("/tmp/late-result.odt");
+      await flush();
+
+      expect(registry.get(started.job.jobId)?.status).toEqual({
+        tag: "failed",
+        reason: TIMEOUT_REASON,
+      });
+      expect(warn).toHaveBeenCalled();
+    });
+
+    it("keeps a timed-out job's TIMEOUT_REASON when its runner later rejects", async () => {
+      // The likely production path: soffice self-kills, sofficeAssemble
+      // throws, and the runner's rejection would otherwise overwrite the
+      // registry's own timeout reason.
+      const { registry, clock } = makeRegistry({ timeoutMs: 1000, ttlMs: 5000 });
+      const job = pendingRunner();
+      const started = registry.startOrAttach(makeKey(), job.runner);
+      if (started.outcome === "rejected") throw new Error("unreachable");
+
+      clock.advance(1001);
+      expect(registry.get(started.job.jobId)?.status.tag).toBe("failed");
+
+      job.reject(new Error("soffice assembly timed out"));
+      await flush();
+
+      expect(registry.get(started.job.jobId)?.status).toEqual({
+        tag: "failed",
+        reason: TIMEOUT_REASON,
+      });
+    });
+
+    it("does not extend the terminal TTL when the runner settles late", async () => {
+      const { registry, clock } = makeRegistry({ timeoutMs: 1000, ttlMs: 5000 });
+      const job = pendingRunner();
+      const started = registry.startOrAttach(makeKey(), job.runner);
+      if (started.outcome === "rejected") throw new Error("unreachable");
+
+      clock.advance(1001);
+      registry.get(started.job.jobId); // the timeout is lazy; this is what fires it.
+      clock.advance(4000); // 4s into the 5s TTL...
+      job.resolve("/tmp/late-result.odt"); // ...and the runner settles.
+      await flush();
+
+      // The TTL is still measured from the ORIGINAL terminalAt, so 1.1s more
+      // is enough to evict. Were terminalAt refreshed, this would survive.
+      clock.advance(1100);
+      expect(registry.get(started.job.jobId)).toBeUndefined();
+    });
+
+    it("does not disturb the successor's running slot when a timed-out predecessor settles late", async () => {
+      const { registry, clock } = makeRegistry({ timeoutMs: 1000, maxLiveJobs: 10 });
+      const jobA = pendingRunner();
+      const jobB = pendingRunner();
+
+      const startedA = registry.startOrAttach(makeKey({ languageId: 1 }), jobA.runner);
+      const startedB = registry.startOrAttach(makeKey({ languageId: 2 }), jobB.runner);
+      if (startedA.outcome === "rejected" || startedB.outcome === "rejected") {
+        throw new Error("unreachable");
+      }
+
+      clock.advance(1001); // A times out; B is promoted into the freed slot.
+      registry.get(startedA.job.jobId);
+      await flush();
+      expect(registry.get(startedB.job.jobId)?.status.tag).toBe("running");
+
+      jobA.resolve("/tmp/late-result.odt");
+      await flush();
+
+      expect(registry.get(startedB.job.jobId)?.status.tag).toBe("running");
+      // And B's own run-start clock is untouched by A's late settlement.
+      clock.advance(999);
+      expect(registry.get(startedB.job.jobId)?.status.tag).toBe("running");
+    });
+  });
+
+  describe("low-memory admission guard", () => {
+    let warn: jest.SpyInstance;
+    beforeEach(() => {
+      warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    });
+    afterEach(() => {
+      warn.mockRestore();
+    });
+
+    it("rejects a genuinely new job when available memory is below the floor", () => {
+      const { registry } = makeRegistry({
+        availableMemory: () => 100 * 1024 * 1024,
+        minAvailableBytes: 512 * 1024 * 1024,
+      });
+
+      const rejected = registry.startOrAttach(makeKey(), pendingRunner().runner);
+      expect(rejected.outcome).toBe("rejected");
+      if (rejected.outcome !== "rejected") throw new Error("unreachable");
+      // Reuses the cap reason so the caller's 429 contract is unchanged.
+      expect(rejected.reason).toBe(CAP_REJECTED_REASON);
+      expect(warn).toHaveBeenCalled();
+    });
+
+    it("still attaches to an existing live job under memory pressure", () => {
+      const memory = { bytes: 4096 * 1024 * 1024 };
+      const { registry } = makeRegistry({
+        availableMemory: () => memory.bytes,
+        minAvailableBytes: 512 * 1024 * 1024,
+      });
+      const started = registry.startOrAttach(makeKey(), pendingRunner().runner);
+      expect(started.outcome).toBe("started");
+
+      memory.bytes = 100 * 1024 * 1024;
+      const attached = registry.startOrAttach(makeKey(), pendingRunner().runner);
+      expect(attached.outcome).toBe("attached");
+    });
+
+    it("is inert when the memory probe is absent or cannot read a value", () => {
+      const { registry } = makeRegistry({ minAvailableBytes: 512 * 1024 * 1024 });
+      expect(registry.startOrAttach(makeKey(), pendingRunner().runner).outcome).toBe("started");
+
+      const { registry: withUnreadableProbe } = makeRegistry({
+        availableMemory: () => undefined,
+        minAvailableBytes: 512 * 1024 * 1024,
+      });
+      expect(withUnreadableProbe.startOrAttach(makeKey(), pendingRunner().runner).outcome).toBe(
+        "started"
+      );
+    });
+  });
+
   describe("queue-depth cap", () => {
     it("rejects a new key once maxLiveJobs live (queued+running) jobs already exist", () => {
       const { registry } = makeRegistry({ maxLiveJobs: 1 });
