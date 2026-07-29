@@ -24,6 +24,7 @@ import syncController from "./controllers/syncController";
 import { getAuth, getAuthPool } from "./auth/auth";
 import { AssemblyJobRegistry } from "./assembly/AssemblyJobRegistry";
 import {
+  ASSEMBLY_ABANDON_MS,
   ASSEMBLY_MAX_LIVE_JOBS,
   ASSEMBLY_TIMEOUT_MS,
   ASSEMBLY_TTL_MS,
@@ -194,6 +195,7 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   const assemblyRegistry = new AssemblyJobRegistry({
     maxLiveJobs: ASSEMBLY_MAX_LIVE_JOBS,
     timeoutMs: ASSEMBLY_TIMEOUT_MS,
+    abandonMs: ASSEMBLY_ABANDON_MS,
     ttlMs: ASSEMBLY_TTL_MS,
     fileExists: fs.existsSync,
     now: Date.now,

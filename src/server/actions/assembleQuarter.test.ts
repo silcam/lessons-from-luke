@@ -155,6 +155,53 @@ describe("assembleQuarter", () => {
     ]);
   });
 
+  test("bails between constituents when the signal aborts, without reaching the soffice merge", async () => {
+    // The registry holds its concurrency-1 slot until the runner settles, so
+    // an aborted job must unwind promptly rather than grinding through all 14
+    // constituents first.
+    const controller = new AbortController();
+    let generated = 0;
+    makeLessonFileMock.mockImplementation(async (_storage: Persistence, lsn: Lesson) => {
+      generated += 1;
+      if (generated === 3) controller.abort();
+      const rawPath = path.join(fixtureDir, `raw-${lsn.lesson}.odt`);
+      fs.writeFileSync(rawPath, "raw");
+      return rawPath;
+    });
+
+    await expect(
+      assembleQuarter({
+        storage,
+        lessons: unorderedQuarterLessons(),
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId: "job-abort",
+        workRoot: fixtureDir,
+        signal: controller.signal,
+      })
+    ).rejects.toThrow();
+
+    expect(generated).toBe(3);
+    expect(sofficeAssembleMock).not.toHaveBeenCalled();
+  });
+
+  test("passes the abort signal through to sofficeAssemble", async () => {
+    const controller = new AbortController();
+
+    await assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId: "job-signal",
+      workRoot: fixtureDir,
+      signal: controller.signal,
+    });
+
+    const { signal } = sofficeAssembleMock.mock.calls[0][0] as { signal?: AbortSignal };
+    expect(signal).toBe(controller.signal);
+  });
+
   test("names copies with ASCII deterministic insertion-order filenames under the per-job dir", async () => {
     await assembleQuarter({
       storage,

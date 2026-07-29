@@ -54,6 +54,7 @@ function makeRegistry(overrides: Partial<AssemblyJobRegistryOptions> = {}) {
   const registry = new AssemblyJobRegistry({
     maxLiveJobs: 10,
     timeoutMs: 1000,
+    abandonMs: 100_000,
     ttlMs: 5000,
     fileExists: () => true,
     now: clock.now,
@@ -69,17 +70,21 @@ function pendingRunner(): {
   resolve: (path: string) => void;
   reject: (e: unknown) => void;
   calls: number;
+  signals: AbortSignal[];
 } {
   const d = deferred<string>();
   const state = { calls: 0 };
-  const runner: AssemblyRunner = () => {
+  const signals: AbortSignal[] = [];
+  const runner: AssemblyRunner = (signal: AbortSignal) => {
     state.calls += 1;
+    signals.push(signal);
     return d.promise;
   };
   return {
     runner,
     resolve: d.resolve,
     reject: d.reject,
+    signals,
     get calls() {
       return state.calls;
     },
@@ -285,7 +290,7 @@ describe("AssemblyJobRegistry", () => {
       expect(registry.get(startedB.job.jobId)?.status.tag).toBe("queued");
     });
 
-    it("fails a running job once its own run-start timeout budget elapses, then starts the next queued job's own clock at that moment", async () => {
+    it("fails a running job once its own run-start timeout budget elapses, but holds its slot until the orphaned runner settles", async () => {
       const { registry, clock } = makeRegistry({ timeoutMs: 1000, maxLiveJobs: 10 });
       const jobA = pendingRunner();
       const jobB = pendingRunner();
@@ -301,10 +306,20 @@ describe("AssemblyJobRegistry", () => {
       expect(jobAStatus).toEqual({ tag: "failed", reason: TIMEOUT_REASON });
       await flush();
 
-      // B's slot is freed by A's timeout; B's OWN timeout clock starts now, at
-      // slot-acquisition time — it must not immediately be considered timed
-      // out just because 1001ms have elapsed since ITS enqueue too.
+      // A's runner is still in flight and may still own a live soffice, so
+      // B must NOT be promoted into a slot A has not actually let go of.
+      expect(registry.get(startedB.job.jobId)?.status.tag).toBe("queued");
+      expect(jobB.calls).toBe(0);
+
+      // Only A's real settlement releases the slot.
+      jobA.reject(new Error("soffice assembly timed out"));
+      await flush();
+
+      // B's OWN timeout clock starts at slot acquisition — it must not be
+      // considered timed out just because 1001ms have elapsed since ITS
+      // enqueue too.
       expect(registry.get(startedB.job.jobId)?.status.tag).toBe("running");
+      expect(jobB.calls).toBe(1);
       clock.advance(999);
       expect(registry.get(startedB.job.jobId)?.status.tag).toBe("running");
       clock.advance(2);
@@ -312,6 +327,35 @@ describe("AssemblyJobRegistry", () => {
         tag: "failed",
         reason: TIMEOUT_REASON,
       });
+    });
+
+    it("aborts the runner's signal when the job times out", () => {
+      const { registry, clock } = makeRegistry({ timeoutMs: 1000 });
+      const job = pendingRunner();
+      const started = registry.startOrAttach(makeKey(), job.runner);
+      if (started.outcome === "rejected") throw new Error("unreachable");
+
+      expect(job.signals[0].aborted).toBe(false);
+
+      clock.advance(1001);
+      registry.get(started.job.jobId); // the timeout is lazy; this fires it.
+
+      expect(job.signals[0].aborted).toBe(true);
+    });
+
+    it("gives each promoted job its own signal", async () => {
+      const { registry } = makeRegistry();
+      const jobA = pendingRunner();
+      const jobB = pendingRunner();
+
+      registry.startOrAttach(makeKey({ languageId: 1 }), jobA.runner);
+      registry.startOrAttach(makeKey({ languageId: 2 }), jobB.runner);
+      jobA.resolve("/tmp/a.odt");
+      await flush();
+
+      expect(jobB.calls).toBe(1);
+      expect(jobB.signals[0]).not.toBe(jobA.signals[0]);
+      expect(jobB.signals[0].aborted).toBe(false);
     });
   });
 
@@ -390,7 +434,7 @@ describe("AssemblyJobRegistry", () => {
       expect(registry.get(started.job.jobId)).toBeUndefined();
     });
 
-    it("does not disturb the successor's running slot when a timed-out predecessor settles late", async () => {
+    it("promotes the successor only once the timed-out predecessor's runner settles", async () => {
       const { registry, clock } = makeRegistry({ timeoutMs: 1000, maxLiveJobs: 10 });
       const jobA = pendingRunner();
       const jobB = pendingRunner();
@@ -401,18 +445,191 @@ describe("AssemblyJobRegistry", () => {
         throw new Error("unreachable");
       }
 
-      clock.advance(1001); // A times out; B is promoted into the freed slot.
+      clock.advance(1001); // A times out — but A's runner still owns the slot.
       registry.get(startedA.job.jobId);
       await flush();
-      expect(registry.get(startedB.job.jobId)?.status.tag).toBe("running");
+      expect(registry.get(startedB.job.jobId)?.status.tag).toBe("queued");
+      expect(jobB.calls).toBe(0);
 
       jobA.resolve("/tmp/late-result.odt");
       await flush();
 
+      // The late settlement releases the slot without resurrecting A.
+      expect(registry.get(startedA.job.jobId)?.status).toEqual({
+        tag: "failed",
+        reason: TIMEOUT_REASON,
+      });
       expect(registry.get(startedB.job.jobId)?.status.tag).toBe("running");
-      // And B's own run-start clock is untouched by A's late settlement.
+      expect(jobB.calls).toBe(1);
+      // And B's own run-start clock starts at ITS promotion, not A's.
       clock.advance(999);
       expect(registry.get(startedB.job.jobId)?.status.tag).toBe("running");
+    });
+
+    it("does not start a second runner for a retried key while the timed-out predecessor is still in flight", async () => {
+      // The retry path: the user hits the button again after seeing the
+      // timeout. `startOrAttach` evicts the `failed` entry and starts a fresh
+      // job — which must NOT run until the orphaned runner (possibly still
+      // holding a live soffice) has let the slot go.
+      const { registry, clock } = makeRegistry({ timeoutMs: 1000 });
+      const first = pendingRunner();
+      const started = registry.startOrAttach(makeKey(), first.runner);
+      if (started.outcome === "rejected") throw new Error("unreachable");
+
+      clock.advance(1001);
+      expect(registry.get(started.job.jobId)?.status).toEqual({
+        tag: "failed",
+        reason: TIMEOUT_REASON,
+      });
+
+      const retry = pendingRunner();
+      const retried = registry.startOrAttach(makeKey(), retry.runner);
+      if (retried.outcome === "rejected") throw new Error("unreachable");
+
+      expect(retried.job.jobId).not.toBe(started.job.jobId);
+      expect(retried.job.status.tag).toBe("queued");
+      expect(retry.calls).toBe(0);
+
+      first.reject(new Error("soffice assembly timed out"));
+      await flush();
+
+      expect(registry.get(retried.job.jobId)?.status.tag).toBe("running");
+      expect(retry.calls).toBe(1);
+    });
+
+    it("releases the slot when an evicted job's runner finally settles", async () => {
+      // A job can be evicted (retried, or TTL'd) while its runner is still in
+      // flight — it is gone from the id map but still owns the slot.
+      const { registry, clock } = makeRegistry({ timeoutMs: 1000, ttlMs: 5000 });
+      const first = pendingRunner();
+      const started = registry.startOrAttach(makeKey(), first.runner);
+      if (started.outcome === "rejected") throw new Error("unreachable");
+
+      clock.advance(1001);
+      registry.get(started.job.jobId); // fire the lazy timeout
+      clock.advance(5001);
+      expect(registry.get(started.job.jobId)).toBeUndefined(); // TTL-evicted
+
+      const next = pendingRunner();
+      const queued = registry.startOrAttach(makeKey({ languageId: 9 }), next.runner);
+      if (queued.outcome === "rejected") throw new Error("unreachable");
+      expect(queued.job.status.tag).toBe("queued");
+      expect(next.calls).toBe(0);
+
+      first.resolve("/tmp/late.odt");
+      await flush();
+
+      expect(next.calls).toBe(1);
+      expect(registry.get(queued.job.jobId)?.status.tag).toBe("running");
+    });
+
+    it("does not release a live runner's slot when its job is TTL-evicted", () => {
+      const { registry, clock } = makeRegistry({ timeoutMs: 1000, ttlMs: 5000 });
+      const first = pendingRunner();
+      const started = registry.startOrAttach(makeKey(), first.runner);
+      if (started.outcome === "rejected") throw new Error("unreachable");
+
+      clock.advance(1001);
+      registry.get(started.job.jobId); // fire the lazy timeout
+      clock.advance(5001);
+      expect(registry.get(started.job.jobId)).toBeUndefined(); // TTL-evicted
+
+      // The evicted job's runner never settled, so nothing else may run.
+      const next = pendingRunner();
+      registry.startOrAttach(makeKey({ languageId: 9 }), next.runner);
+      expect(next.calls).toBe(0);
+    });
+
+    it("fails the job and frees the slot when a runner throws synchronously", async () => {
+      const { registry } = makeRegistry();
+      const thrower: AssemblyRunner = () => {
+        throw new Error("synchronous boom");
+      };
+      const started = registry.startOrAttach(makeKey({ languageId: 1 }), thrower);
+      if (started.outcome === "rejected") throw new Error("unreachable");
+
+      await flush();
+      expect(registry.get(started.job.jobId)?.status).toEqual({
+        tag: "failed",
+        reason: "synchronous boom",
+      });
+
+      const next = pendingRunner();
+      registry.startOrAttach(makeKey({ languageId: 2 }), next.runner);
+      expect(next.calls).toBe(1);
+    });
+
+    it("does not trip the abandon check from a runner that looks itself up synchronously", () => {
+      // `assemblyController`'s runner calls `registry.getByKey` as its first
+      // act, re-entering `checkSlotAbandon` before `startOrAttach` returns.
+      // The slot's clock must already be set by then.
+      const { registry } = makeRegistry({ abandonMs: 1 });
+      let lookedUpStatus: string | undefined;
+      const runner: AssemblyRunner = () => {
+        lookedUpStatus = registry.getByKey(makeKey())?.status.tag;
+        return new Promise<string>(() => {});
+      };
+
+      registry.startOrAttach(makeKey(), runner);
+
+      expect(lookedUpStatus).toBe("running");
+      // The slot is still held, so a second key cannot start.
+      const next = pendingRunner();
+      registry.startOrAttach(makeKey({ languageId: 2 }), next.runner);
+      expect(next.calls).toBe(0);
+    });
+  });
+
+  describe("abandonMs force-release hatch", () => {
+    let error: jest.SpyInstance;
+    let warn: jest.SpyInstance;
+    beforeEach(() => {
+      error = jest.spyOn(console, "error").mockImplementation(() => {});
+      warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    });
+    afterEach(() => {
+      error.mockRestore();
+      warn.mockRestore();
+    });
+
+    it("force-releases and loudly logs a slot held past abandonMs", () => {
+      const { registry, clock } = makeRegistry({ timeoutMs: 1000, abandonMs: 3000, ttlMs: 500 });
+      const wedged = pendingRunner();
+      registry.startOrAttach(makeKey({ languageId: 1 }), wedged.runner);
+
+      const successor = pendingRunner();
+      const queued = registry.startOrAttach(makeKey({ languageId: 2 }), successor.runner);
+      if (queued.outcome === "rejected") throw new Error("unreachable");
+      expect(successor.calls).toBe(0);
+
+      // The wedged runner never settles. Assert on the SUCCESSOR — by now
+      // the abandoned job may already be TTL-gone.
+      clock.advance(3001);
+      expect(registry.get(queued.job.jobId)?.status.tag).toBe("running");
+      expect(successor.calls).toBe(1);
+      expect(error).toHaveBeenCalled();
+    });
+
+    it("does not let the abandoned runner's later settlement clobber its successor", async () => {
+      const { registry, clock } = makeRegistry({ timeoutMs: 1000, abandonMs: 3000, ttlMs: 500 });
+      const wedged = pendingRunner();
+      registry.startOrAttach(makeKey({ languageId: 1 }), wedged.runner);
+      const successor = pendingRunner();
+      const queued = registry.startOrAttach(makeKey({ languageId: 2 }), successor.runner);
+      if (queued.outcome === "rejected") throw new Error("unreachable");
+
+      clock.advance(3001);
+      registry.get(queued.job.jobId); // fires the lazy abandon check
+      expect(successor.calls).toBe(1);
+
+      wedged.resolve("/tmp/very-late.odt");
+      await flush();
+
+      // The identity guard keeps the successor's slot intact.
+      expect(registry.get(queued.job.jobId)?.status.tag).toBe("running");
+      const third = pendingRunner();
+      registry.startOrAttach(makeKey({ languageId: 3 }), third.runner);
+      expect(third.calls).toBe(0);
     });
   });
 

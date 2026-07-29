@@ -45,6 +45,30 @@ export const ASSEMBLY_NON_SOFFICE_BUDGET_MS = 2 * 60 * 1000;
 export const ASSEMBLY_TIMEOUT_MS = DEFAULT_TIMEOUT_MS + ASSEMBLY_NON_SOFFICE_BUDGET_MS;
 
 /**
+ * How long the registry will let a timed-out job keep holding the
+ * concurrency-1 slot before force-releasing it. The escape hatch of last
+ * resort — it should never fire.
+ *
+ * The slot is normally held until the runner actually settles, which is what
+ * guarantees two `soffice` processes never overlap. But the runner has awaits
+ * that nothing bounds: `PGStorage` configures no `statement_timeout`,
+ * `query_timeout`, or `connect_timeout`, so a stalled connection inside the
+ * ~28 `storage.tStrings()` calls hangs forever, and an `AbortSignal` cannot
+ * cancel an in-flight porsager query. Without this hatch that would wedge the
+ * slot for the life of the process.
+ *
+ * The residual risk is acceptable precisely because of WHICH scenario reaches
+ * here. `soffice` self-kills at `DEFAULT_TIMEOUT_MS`, so a hung merge rejects
+ * well before `ASSEMBLY_TIMEOUT_MS`. Reaching the registry timeout at all
+ * means the NON-soffice work overran its budget — and getting a further
+ * `ASSEMBLY_NON_SOFFICE_BUDGET_MS` past that means it is stuck in a DB await,
+ * where there is provably no live `soffice` to collide with.
+ *
+ * Asserted `> ASSEMBLY_TIMEOUT_MS` in `assemblyBudget.test.ts`.
+ */
+export const ASSEMBLY_ABANDON_MS = ASSEMBLY_TIMEOUT_MS + ASSEMBLY_NON_SOFFICE_BUDGET_MS;
+
+/**
  * Floor of Linux `MemAvailable` below which a genuinely new assembly job is
  * refused (the low-memory admission guard in `AssemblyJobRegistry`).
  *

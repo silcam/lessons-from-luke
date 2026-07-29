@@ -93,6 +93,41 @@ export interface AssembleQuarterOptions {
    * `<workRoot>/<jobId>/`.
    */
   workRoot: string;
+  /**
+   * Cancellation channel from `AssemblyJobRegistry` (aborted when the job's
+   * hard timeout fires). Checked between steps, and passed into
+   * `sofficeAssemble` so an abort mid-merge kills the process group.
+   *
+   * Unwinding promptly matters: the registry holds its concurrency-1 slot
+   * until this promise settles, so every step this skips is time the next
+   * queued assembly spends waiting.
+   */
+  signal?: AbortSignal;
+}
+
+/**
+ * Fixed-vocabulary error for an aborted assembly. Path-free like every other
+ * reason this module throws (see "reason hygiene" in the catches below),
+ * though in practice the registry discards it — a job is only ever aborted
+ * once it has already gone terminal with its own `TIMEOUT_REASON`.
+ */
+class AssemblyAbortedError extends Error {
+  constructor() {
+    super("assembly was cancelled");
+    this.name = "AssemblyAbortedError";
+  }
+}
+
+/**
+ * Abort checkpoint. Every call site sits OUTSIDE the surrounding
+ * `try`/`catch`, so an abort is never rewritten into a misleading
+ * "a lesson failed to generate" — the reason-hygiene contract below depends
+ * on those catches only ever seeing failures they actually describe.
+ */
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) {
+    throw new AssemblyAbortedError();
+  }
 }
 
 /**
@@ -141,8 +176,9 @@ async function assembleIntoJobDir(
   orderedLessons: Lesson[],
   jobDir: string
 ): Promise<string> {
-  const { storage, motherLang, majorityLangId, jobId, workRoot } = options;
+  const { storage, motherLang, majorityLangId, jobId, workRoot, signal } = options;
 
+  throwIfAborted(signal);
   try {
     // Recursive so the dedicated `<docStorage>/assembly-work` root is created
     // on first use — nothing else provisions it (the startup sweep only
@@ -160,6 +196,7 @@ async function assembleIntoJobDir(
   /** The FIRST constituent's (the TOC's) own meta — the assembled book's title/subject source. */
   let bookMeta: ConstituentMeta | undefined;
   for (let i = 0; i < orderedLessons.length; i++) {
+    throwIfAborted(signal);
     const lesson = orderedLessons[i];
     let rawPath: string;
     try {
@@ -196,11 +233,13 @@ async function assembleIntoJobDir(
   }
 
   const outputPath = path.join(jobDir, "assembled.odt");
+  throwIfAborted(signal);
   const result = await sofficeAssemble({
     jobId,
     files,
     outputPath,
     workRoot,
+    signal,
   });
 
   // Curated, path-free reason: covers both a never-written outputPath (e.g.
@@ -211,6 +250,7 @@ async function assembleIntoJobDir(
   }
 
   const firstLesson = orderedLessons.find((lsn) => !isTOCLesson(lsn));
+  throwIfAborted(signal);
   try {
     finalizeAssembledQuarter({
       odtPath: result.outputPath,
@@ -231,6 +271,7 @@ async function assembleIntoJobDir(
   // the existing 24 h `cleanTmpDir` sweep able to reap it, the jobId suffix
   // keeps it collision-free and traceable.
   const retainedPath = docStorage.tmpFilePath(`${jobId}.odt`);
+  throwIfAborted(signal);
   try {
     // `moveFileSync`, not a bare rename: `workRoot` is caller-supplied — the
     // tests pass an `os.tmpdir()` fixture dir, and `docs/` can be its own

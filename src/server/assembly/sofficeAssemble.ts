@@ -25,6 +25,14 @@ import { MODULE1_XBA } from "./macro/module1Xba";
  * started detached (its own process group) so a hard-timeout kill can target
  * the whole group (`process.kill(-pid, "SIGKILL")`), never a lone PID.
  *
+ * Guaranteed settlement: `AssemblyJobRegistry` holds its concurrency-1 slot
+ * until the runner's promise settles, so this promise MUST always settle.
+ * Every exit — resolve, reject, timeout, abort — funnels through one
+ * `finish()` that clears the timer and drops the abort listener, and the
+ * process-group kill swallows its own failures (a throw out of a timer
+ * callback would otherwise wedge the slot permanently). The optional
+ * `signal` is the caller's cancellation channel; see the option's doc.
+ *
  * Per-job working-dir root (plan.md Red-Team Pass 3, "Temp-Dir Lifecycle"):
  * the profile is NOT a bare `mktemp -d` — it lives at a deterministic path
  * under a single dedicated root (`<docStorage>/assembly-work/<jobId>/`, see
@@ -62,6 +70,14 @@ export interface SofficeAssembleOptions {
   timeoutMs?: number;
   /** Override for the `soffice` executable name/path (defaults to `"soffice"`). Test seam. */
   sofficeBin?: string;
+  /**
+   * Cancellation channel owned by the caller (`AssemblyJobRegistry` creates
+   * one per job). Aborting kills the live `soffice` process group and rejects
+   * with {@link SofficeAssembleAbortedError}. An already-aborted signal
+   * rejects BEFORE anything is spawned — the point of the abort is that no
+   * `soffice` should be running, so starting one first would defeat it.
+   */
+  signal?: AbortSignal;
 }
 
 /** Successful-run result. */
@@ -87,6 +103,14 @@ export class SofficeAssembleTimeoutError extends Error {
   constructor() {
     super("soffice assembly timed out");
     this.name = "SofficeAssembleTimeoutError";
+  }
+}
+
+/** Fixed-vocabulary error thrown when the caller's {@link SofficeAssembleOptions.signal} aborts. */
+export class SofficeAssembleAbortedError extends Error {
+  constructor() {
+    super("soffice assembly aborted");
+    this.name = "SofficeAssembleAbortedError";
   }
 }
 
@@ -144,6 +168,7 @@ export function sofficeAssemble(options: SofficeAssembleOptions): Promise<Soffic
     workRoot,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     sofficeBin = "soffice",
+    signal,
   } = options;
 
   const profileDir = profileDirFor(workRoot, jobId);
@@ -153,27 +178,71 @@ export function sofficeAssemble(options: SofficeAssembleOptions): Promise<Soffic
     let settled = false;
     let currentChild: ChildProcess | undefined;
 
-    const timer = setTimeout(() => {
+    /**
+     * Kill the live `soffice` process group, swallowing any failure.
+     *
+     * `ESRCH` — the group has already exited — is the common race, because
+     * `oosplash` forking `soffice.bin` means the group can go away between
+     * the timer firing and the kill landing. A throw escaping a `setTimeout`
+     * callback is an uncaught exception that leaves this promise unsettled
+     * FOREVER, and `AssemblyJobRegistry` now holds the concurrency-1 slot
+     * until this promise settles. So the kill must never throw.
+     */
+    function killCurrentGroup(): void {
+      if (!currentChild?.pid) return;
+      try {
+        process.kill(-currentChild.pid, "SIGKILL");
+      } catch (err) {
+        console.warn("sofficeAssemble: process-group kill failed", err);
+      }
+    }
+
+    /**
+     * The single settle funnel: every path out of this promise goes through
+     * here, so the timer is always cleared and the abort listener is always
+     * removed exactly once. `settled` is set before `act()` runs, so nothing
+     * `act()` does can re-enter.
+     */
+    function finish(act: () => void): void {
       if (settled) return;
       settled = true;
-      if (currentChild && currentChild.pid) {
-        process.kill(-currentChild.pid, "SIGKILL");
-      }
-      reject(new SofficeAssembleTimeoutError());
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      act();
+    }
+
+    function onAbort(): void {
+      finish(() => {
+        killCurrentGroup();
+        reject(new SofficeAssembleAbortedError());
+      });
+    }
+
+    // Before the warm spawn, deliberately: an already-aborted signal means
+    // the caller wants no soffice running, so spawning one and killing it
+    // immediately would be both wasteful and racy.
+    if (signal?.aborted) {
+      settled = true;
+      reject(new SofficeAssembleAbortedError());
+      return;
+    }
+    signal?.addEventListener("abort", onAbort);
+
+    // Declared after the already-aborted early return above, which never
+    // reaches `finish` and so never reads it.
+    const timer = setTimeout(() => {
+      finish(() => {
+        killCurrentGroup();
+        reject(new SofficeAssembleTimeoutError());
+      });
     }, timeoutMs);
 
     function settleResolve(result: SofficeAssembleResult): void {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve(result);
+      finish(() => resolve(result));
     }
 
     function settleReject(err: Error): void {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      reject(err);
+      finish(() => reject(err));
     }
 
     // Step 3 (run): spawned synchronously from the warm child's `close`

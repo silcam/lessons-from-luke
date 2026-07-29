@@ -1,6 +1,7 @@
 /// <reference types="jest" />
 
 import {
+  ASSEMBLY_ABANDON_MS,
   ASSEMBLY_MAX_LIVE_JOBS,
   ASSEMBLY_NON_SOFFICE_BUDGET_MS,
   ASSEMBLY_TIMEOUT_MS,
@@ -30,6 +31,14 @@ describe("assembly budget constants", () => {
     // makeLessonFile — call it ~9s all told. The deployed 2-vCPU Lightsail
     // box is roughly 2.5-3.5x slower on single-thread work, so ~21-27s.
     expect(ASSEMBLY_NON_SOFFICE_BUDGET_MS).toBeGreaterThanOrEqual(60_000);
+  });
+
+  it("only force-releases an abandoned slot strictly after the registry timeout", () => {
+    // The slot is held until the runner settles; the abandon hatch exists
+    // only for a runner stuck in an unbounded DB await. Firing it at or
+    // before the registry timeout would defeat the point of holding the slot
+    // at all — a timed-out job would free its slot immediately again.
+    expect(ASSEMBLY_ABANDON_MS).toBeGreaterThan(ASSEMBLY_TIMEOUT_MS);
   });
 
   it("keeps the live-job cap and terminal TTL positive", () => {

@@ -9,6 +9,7 @@ import {
   profileDirFor,
   DEFAULT_TIMEOUT_MS,
   SofficeAssembleTimeoutError,
+  SofficeAssembleAbortedError,
 } from "./sofficeAssemble";
 
 /** Minimal fake `ChildProcess`: an EventEmitter with a `pid` and no-op `stdout`/`stderr`. */
@@ -127,6 +128,95 @@ test("kills the whole process group (not a lone PID) when the hard timeout fires
   expect(killSpy).not.toHaveBeenCalledWith(333, expect.any(String));
 
   killSpy.mockRestore();
+});
+
+test("still rejects with the timeout error when the process-group kill throws ESRCH", async () => {
+  // The group commonly exits between the timer firing and the kill landing
+  // (oosplash forks soffice.bin), so `process.kill` throws ESRCH. A throw
+  // escaping the timer callback would leave this promise unsettled forever —
+  // and the registry now holds its concurrency-1 slot until it settles.
+  jest.useFakeTimers();
+  const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+  const killSpy = jest.spyOn(process, "kill").mockImplementation(() => {
+    const err: NodeJS.ErrnoException = new Error("kill ESRCH");
+    err.code = "ESRCH";
+    throw err;
+  });
+
+  const warmChild = new FakeChildProcess(111);
+  const runChild = new FakeChildProcess(444);
+  spawnMock.mockImplementationOnce(() => warmChild).mockImplementationOnce(() => runChild);
+
+  const promise = sofficeAssemble({
+    jobId: "job-esrch",
+    files: ["/docs/assembly-work/job-esrch/00.odt"],
+    outputPath: "/docs/assembly-work/job-esrch/out.odt",
+    workRoot: "/docs/assembly-work",
+    timeoutMs: 5_000,
+  });
+  promise.catch(() => {
+    // Assertions below observe the rejection directly.
+  });
+
+  queueMicrotask(() => warmChild.emit("close", 0));
+  await Promise.resolve();
+  await Promise.resolve();
+
+  jest.advanceTimersByTime(5_000);
+
+  await expect(promise).rejects.toBeInstanceOf(SofficeAssembleTimeoutError);
+  expect(warnSpy).toHaveBeenCalled();
+
+  killSpy.mockRestore();
+  warnSpy.mockRestore();
+});
+
+test("aborts mid-run: kills the process group and rejects with the aborted error", async () => {
+  const killSpy = jest.spyOn(process, "kill").mockImplementation(() => true);
+  const controller = new AbortController();
+
+  const warmChild = new FakeChildProcess(111);
+  const runChild = new FakeChildProcess(555);
+  spawnMock.mockImplementationOnce(() => warmChild).mockImplementationOnce(() => runChild);
+
+  const promise = sofficeAssemble({
+    jobId: "job-abort",
+    files: ["/docs/assembly-work/job-abort/00.odt"],
+    outputPath: "/docs/assembly-work/job-abort/out.odt",
+    workRoot: "/docs/assembly-work",
+    signal: controller.signal,
+  });
+  promise.catch(() => {
+    // Assertions below observe the rejection directly.
+  });
+
+  queueMicrotask(() => warmChild.emit("close", 0));
+  await Promise.resolve();
+  await Promise.resolve();
+
+  controller.abort();
+
+  await expect(promise).rejects.toBeInstanceOf(SofficeAssembleAbortedError);
+  expect(killSpy).toHaveBeenCalledWith(-555, expect.any(String));
+
+  killSpy.mockRestore();
+});
+
+test("rejects without spawning anything when the signal is already aborted", async () => {
+  const controller = new AbortController();
+  controller.abort();
+
+  await expect(
+    sofficeAssemble({
+      jobId: "job-pre-abort",
+      files: ["/docs/assembly-work/job-pre-abort/00.odt"],
+      outputPath: "/docs/assembly-work/job-pre-abort/out.odt",
+      workRoot: "/docs/assembly-work",
+      signal: controller.signal,
+    })
+  ).rejects.toBeInstanceOf(SofficeAssembleAbortedError);
+
+  expect(spawnMock).not.toHaveBeenCalled();
 });
 
 test("derives a distinct per-job profile path under the dedicated assembly-work root", async () => {
