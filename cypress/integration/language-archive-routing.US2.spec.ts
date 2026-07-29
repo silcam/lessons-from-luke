@@ -9,7 +9,7 @@ describe("Language archive routing — US2: archive withheld while dependents ex
 
     // No Archive button is offered; the dependent languages are named instead.
     cy.contains("button", "Archive").should("not.exist");
-    cy.contains("can't be archived")
+    cy.contains("These languages still use this one")
       .should("contain.text", "Français")
       .and("contain.text", "Batanga");
 
