@@ -260,6 +260,50 @@ test("derives a distinct per-job profile path under the dedicated assembly-work 
   expect(profileArgA).not.toEqual(profileArgB);
 });
 
+test("rejects on a non-zero warm exit without ever spawning the run step", async () => {
+  // The warm step is what builds the profile's `user/basic` tree, so a bad
+  // warm exit means there is nothing usable to inject the macro into. The
+  // "run step was never spawned" assertion is the one that pins the
+  // behaviour: rejecting alone would also pass if we spawned the merge and
+  // abandoned it, leaving a detached `soffice` behind.
+  const warmChild = new FakeChildProcess(111);
+  const runChild = new FakeChildProcess(222);
+  spawnMock.mockImplementationOnce(() => warmChild).mockImplementationOnce(() => runChild);
+
+  const promise = sofficeAssemble({
+    jobId: "job-warm-fail",
+    files: ["/docs/assembly-work/job-warm-fail/00.odt"],
+    outputPath: "/docs/assembly-work/job-warm-fail/out.odt",
+    workRoot: "/docs/assembly-work",
+  });
+
+  queueMicrotask(() => warmChild.emit("close", 1));
+
+  await expect(promise).rejects.toThrow(/warm step exited with code 1/);
+  expect(spawnMock).toHaveBeenCalledTimes(1);
+});
+
+test("reports a signal-killed warm step as killed, not as 'code null'", async () => {
+  // `close` carries `(null, "SIGKILL")` when the child died to a signal — an
+  // OOM kill or an external `kill` on the group. "exited with code null"
+  // would read as a bug in this wrapper rather than what happened.
+  const warmChild = new FakeChildProcess(111);
+  const runChild = new FakeChildProcess(222);
+  spawnMock.mockImplementationOnce(() => warmChild).mockImplementationOnce(() => runChild);
+
+  const promise = sofficeAssemble({
+    jobId: "job-warm-killed",
+    files: ["/docs/assembly-work/job-warm-killed/00.odt"],
+    outputPath: "/docs/assembly-work/job-warm-killed/out.odt",
+    workRoot: "/docs/assembly-work",
+  });
+
+  queueMicrotask(() => warmChild.emit("close", null, "SIGKILL"));
+
+  await expect(promise).rejects.toThrow(/warm step was killed by SIGKILL/);
+  expect(spawnMock).toHaveBeenCalledTimes(1);
+});
+
 test("profileDirFor derives the per-job profile path used by the run-step args", () => {
   expect(profileDirFor("/docs/assembly-work", "job-xyz")).toBe(
     "/docs/assembly-work/job-xyz/profile"
