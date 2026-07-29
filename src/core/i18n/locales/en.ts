@@ -173,8 +173,7 @@ const en = {
 
   // Archive a language (US1 — language-archive-routing)
   Archive: "Archive",
-  Archive_language_confirm:
-    "This will archive the language project. This action cannot be undone from within the product.",
+  Archive_language_confirm: "This will archive the language project. This action cannot be undone.",
   Archive_language_blocked:
     "Can't archive: the following languages still use this one as their source: %{names}",
   Archive_language_dependents:
