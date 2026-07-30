@@ -41,6 +41,25 @@ import useAssembleQuarter, { AssembleMode } from "./useAssembleQuarter";
  * discoverable without a visual scan (screen readers announce the focused
  * content). Retry re-uses the normal `start()` action — clicking the button
  * again simply re-triggers assembly via a fresh POST.
+ *
+ * Rejected state (a `429` — contract §1: "MUST NOT be rendered as a terminal
+ * `failed` job"): the reason shares the ordinary `role="status"` region
+ * rather than getting a presentation of its own, and `busy` stays false, so
+ * this is the one state where the status region and the button are mounted at
+ * the same time — which is exactly the contract's "the client simply re-POSTs
+ * after a delay". Three consequences, all deliberate:
+ *
+ * - It is announced politely instead of seizing focus. The user's focus is
+ *   still on the button they just pressed, so they press Enter again. Both
+ *   focus effects above are edge-guarded on `busy`, which never changes here
+ *   (false → false), so neither fires and nothing is stolen.
+ * - It stays inline, unlike the `failed` branch's block `Div`, so a
+ *   "Bilingual | Single-Language" pair keeps sharing a line in `LanguageView`'s
+ *   table cell.
+ * - It is not an `Alert`. A bare `<Alert>` (no `danger`/`success`) sets amber
+ *   `Colors.highlight` body text, which `Alert.tsx` itself records as failing
+ *   WCAG AA — and `Alert danger` would say "this is broken" about the most
+ *   transient condition there is.
  */
 export default function AssembleQuarterButton(props: {
   language: PublicLanguage;
@@ -107,7 +126,13 @@ export default function AssembleQuarterButton(props: {
   }
 
   const statusMessage =
-    status.tag === "ready" ? "Ready — file downloaded." : busy ? "Assembling…" : null;
+    status.tag === "ready"
+      ? "Ready — file downloaded."
+      : status.tag === "rejected"
+        ? status.reason
+        : busy
+          ? "Assembling…"
+          : null;
 
   return (
     <React.Fragment>
