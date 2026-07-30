@@ -282,6 +282,11 @@ export default class LocalStorage {
     const filepath = path.join(this.basePath, filename);
     const tmpFilepath = filepath + "_tmp";
     fs.writeFileSync(tmpFilepath, value);
+    // Deliberate bare rename: this is an ATOMIC same-directory replace, which
+    // is the whole point of the tmp file. `moveFileSync`'s cross-device copy
+    // fallback cannot apply (one directory, one filesystem) and would defeat
+    // the atomicity if it did.
+    // eslint-disable-next-line no-restricted-syntax
     fs.renameSync(tmpFilepath, filepath);
   }
 
