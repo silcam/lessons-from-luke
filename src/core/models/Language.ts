@@ -14,6 +14,7 @@ export interface Language {
   motherTongue: boolean;
   progress: LessonProgress[];
   defaultSrcLang: number;
+  archived: boolean;
 }
 
 export type PublicLanguage = Omit<Language, "code">;

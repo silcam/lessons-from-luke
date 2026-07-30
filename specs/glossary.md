@@ -19,6 +19,8 @@
 
 **Accepted** (noun): Terminal status of an Invitation that has been successfully redeemed; an Account exists for the bound email. [See: Invitation, Pending, Retracted, Expired]
 
+**Archived** (adjective): Terminal, one-way status of a Language project that an Administrator has soft-deleted. Retains all translation data (TStrings, progress, uploaded documents) but is excluded from every language list and cannot be used as a translation target. No in-product restore exists. [Docs: specs/012-language-archive-routing/spec.md] [See: Language, Source language dependency]
+
 ## B
 
 **Book-name string** (noun): The translatable book-name portion of a normalized isolated verse reference (e.g. `Luke`). An ordinary translatable string, not auto-populated; because identical English text shares one master string, translating it once completes it across every reference using that book name in the language. [Docs: specs/011-verse-reference-auto-population/spec.md] [See: Isolated verse reference, Numeric reference string, Reference normalization]
@@ -37,7 +39,7 @@
 
 ## L
 
-**Language** (noun): A translation target in the domain layer, with progress tracking and optional motherTongue variant. Managed through the `Persistence` interface. [See: Persistence]
+**Language** (noun): A translation target in the domain layer, with progress tracking and optional motherTongue variant. Managed through the `Persistence` interface. Can be Archived. [See: Persistence, Archived]
 
 **Lesson** (noun): Domain entity organized by Book (Luke/Acts), Series, and Lesson number. Contains LessonStrings. [See: LessonString, TString]
 
@@ -76,6 +78,8 @@
 **Retracted** (noun): Terminal status of a Pending Invitation that an Administrator has explicitly cancelled. The link stops working immediately; the record is retained for audit. [See: Invitation, Pending]
 
 ## S
+
+**Source language dependency** (noun): The relationship where one Language designates another as `defaultSrcLang`, the language it translates from. Any Language, not only English, can be a source for others. An active dependency blocks its target from being Archived until dependents are re-pointed. [Docs: specs/012-language-archive-routing/spec.md] [See: Language, Archived]
 
 **Standard role** (noun): The non-administrator role granted to a newly created Account when the Invitation's role is `'standard'`. Maps to `user.admin = false`. [See: Administrator, Invitation]
 

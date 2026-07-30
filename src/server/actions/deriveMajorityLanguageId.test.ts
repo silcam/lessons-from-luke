@@ -20,6 +20,7 @@ function makeLanguage(overrides: Partial<Language>): Language {
     code: "tst",
     motherTongue: false,
     progress: [],
+    archived: false,
     defaultSrcLang: 1,
     ...overrides,
   };

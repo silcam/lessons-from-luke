@@ -94,6 +94,7 @@ function makeStorage(initialLesson: Lesson, initialEnglishStrings: TString[]): P
         motherTongue: false,
         progress: [],
         defaultSrcLang: ENGLISH_ID,
+        archived: false,
       },
     ],
     language: async () => null,
@@ -101,6 +102,12 @@ function makeStorage(initialLesson: Lesson, initialEnglishStrings: TString[]): P
       throw new Error("not implemented in fixture");
     },
     updateLanguage: async () => {
+      throw new Error("not implemented in fixture");
+    },
+    updateLanguageChecked: async () => {
+      throw new Error("not implemented in fixture");
+    },
+    archiveLanguage: async () => {
       throw new Error("not implemented in fixture");
     },
     invalidCode: async () => false,
@@ -336,6 +343,12 @@ describe("reparseEnglish/reparseLesson — US19 scenarios", () => {
         throw new Error("not implemented in fixture");
       },
       updateLanguage: async () => {
+        throw new Error("not implemented in fixture");
+      },
+      updateLanguageChecked: async () => {
+        throw new Error("not implemented in fixture");
+      },
+      archiveLanguage: async () => {
         throw new Error("not implemented in fixture");
       },
       invalidCode: async () => false,

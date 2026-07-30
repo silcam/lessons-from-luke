@@ -21,7 +21,23 @@ const makeLanguage = (overrides = {}): Language => ({
   motherTongue: false,
   progress: [],
   defaultSrcLang: 1,
+  archived: false,
   ...overrides,
+});
+
+describe("Language.archived", () => {
+  test("archived is a required field on Language", () => {
+    // @ts-expect-error archived is required and must be supplied
+    const missingArchived: Language = {
+      languageId: 1,
+      name: "English",
+      code: "en",
+      motherTongue: false,
+      progress: [],
+      defaultSrcLang: 1,
+    };
+    expect(missingArchived).toBeDefined();
+  });
 });
 
 describe("isLanguage", () => {
