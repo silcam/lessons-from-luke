@@ -1,0 +1,6 @@
+;=============================================
+; Stand-alone single-lesson download keeps its CC footer.
+;=============================================
+GIVEN a translator downloads a single lesson from the translation app.
+WHEN the downloaded document is opened.
+THEN its first page still shows the stand-alone Creative Commons footer, unchanged from before this feature.

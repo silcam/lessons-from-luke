@@ -2,6 +2,10 @@ import fs from "fs";
 import libxmljs2, { Document as XmlDocument, Element } from "libxmljs2";
 import { mkdirSafe, unzip, unlinkRecursive } from "../../core/util/fsUtils";
 import { extractNamespaces, Namespaces } from "../xml/mergeXml";
+import {
+  assertRestyleTargetsDefined,
+  restyleMonolingualParagraphs,
+} from "../xml/monolingualRestyle";
 import { rezipWithMimetypeFirst } from "../xml/rezipWithMimetypeFirst";
 
 /**
@@ -31,6 +35,12 @@ import { rezipWithMimetypeFirst } from "../xml/rezipWithMimetypeFirst";
  *   opens with an EMPTY paragraph pinned to a `page-usage="left"` (verso)
  *   master, which as the document's first element makes LibreOffice insert
  *   a blank recto filler page (see `removeLeadingBlankParagraphs`).
+ * - **Lesson-opening master pages (content.xml)**: pin every visible
+ *   level-1 heading's automatic style to the `First_20_Page` master when it
+ *   carries none — the production Luke-1-09 constituent opens with only
+ *   `fo:break-before="page"`, which makes the whole lesson inherit the
+ *   previous page's master and its margins (see
+ *   `normalizeLessonOpeningMasterPages`).
  *
  * Re-zips with the `mimetype` entry stored FIRST and UNCOMPRESSED (ODF
  * requirement). Mutates `odtPath` (the merge output inside the per-job
@@ -47,6 +57,13 @@ export interface FinalizeAssembledQuarterOptions {
   title: string;
   /** Book subject for `dc:subject` (from the first constituent's own meta). Empty = leave untouched. */
   subject: string;
+  /**
+   * True when the book was styled from the MONOLINGUAL template: also
+   * restyles M.T. paragraph-style references to their plain equivalents
+   * (see `monolingualRestyle`). Defaults to false — bilingual output is
+   * byte-for-byte untouched by the restyle.
+   */
+  singleLanguage?: boolean;
 }
 
 /**
@@ -55,7 +72,7 @@ export interface FinalizeAssembledQuarterOptions {
  * comment for the full contract.
  */
 export function finalizeAssembledQuarter(options: FinalizeAssembledQuarterOptions): void {
-  const { odtPath, series, firstLessonNumber, title, subject } = options;
+  const { odtPath, series, firstLessonNumber, title, subject, singleLanguage = false } = options;
   const extractDirPath = `${odtPath}_finalize`;
 
   try {
@@ -64,12 +81,22 @@ export function finalizeAssembledQuarter(options: FinalizeAssembledQuarterOption
 
     const contentXmlPath = `${extractDirPath}/content.xml`;
     const contentDoc = libxmljs2.parseXml(fs.readFileSync(contentXmlPath, "utf8"));
-    removeLeadingBlankParagraphs(contentDoc, extractNamespaces(contentDoc));
+    const contentNamespaces = extractNamespaces(contentDoc);
+    removeLeadingBlankParagraphs(contentDoc, contentNamespaces);
+    if (singleLanguage) {
+      restyleMonolingualParagraphs(contentDoc, contentNamespaces);
+    }
+    normalizeLessonOpeningMasterPages(contentDoc, contentNamespaces);
     fs.writeFileSync(contentXmlPath, contentDoc.toString(false));
 
     const stylesXmlPath = `${extractDirPath}/styles.xml`;
     const stylesDoc = libxmljs2.parseXml(fs.readFileSync(stylesXmlPath, "utf8"));
-    patchOutlineNumbering(stylesDoc, extractNamespaces(stylesDoc), firstLessonNumber);
+    const stylesNamespaces = extractNamespaces(stylesDoc);
+    patchOutlineNumbering(stylesDoc, stylesNamespaces, firstLessonNumber);
+    if (singleLanguage) {
+      assertRestyleTargetsDefined(stylesDoc, stylesNamespaces);
+      restyleMonolingualParagraphs(stylesDoc, stylesNamespaces);
+    }
     fs.writeFileSync(stylesXmlPath, stylesDoc.toString(false));
 
     const metaXmlPath = `${extractDirPath}/meta.xml`;
@@ -134,6 +161,82 @@ function removeLeadingBlankParagraphs(contentDoc: XmlDocument, namespaces: Names
       continue;
     }
     break;
+  }
+}
+
+/** The master page every lesson opens on in the client's quarter masters. */
+const FIRST_PAGE_MASTER_NAME = "First_20_Page";
+
+/**
+ * Pins every lesson-opening heading's automatic style to the
+ * `First_20_Page` master when it carries no `style:master-page-name`.
+ *
+ * Under the assembly pipeline's exactly-one-participant contract, every
+ * visible level-1 `text:h` in the merged document is a lesson opening, and
+ * the canonical opening shape drives pagination purely through
+ * `style:master-page-name="First_20_Page"` on the heading's content.xml
+ * automatic style. The production Luke-1-09 constituent instead ships only
+ * `fo:break-before="page"` — the lesson still breaks onto a new page but
+ * inherits the PREVIOUS page's master (Coloring Page margins) for its whole
+ * run. Deliberately not gated on `fo:break-before`, so a variant lacking
+ * both attributes is normalized too.
+ *
+ * Skipped: the injected hidden heading (auto style with
+ * `text:display="none"`), level-2+ headings, headings on common NAMED
+ * styles (patching those would restyle every user of the style), and auto
+ * styles that already carry any master (existing values are trusted). An
+ * auto style shared with non-heading content is never patched in place —
+ * it is cloned under a fresh name, the clone patched, and only the
+ * heading(s) repointed.
+ */
+function normalizeLessonOpeningMasterPages(contentDoc: XmlDocument, namespaces: Namespaces): void {
+  const isOpeningHeading = (el: Element): boolean => {
+    if (el.name() !== "h") return false;
+    const level = el.attr("outline-level");
+    return !level || level.value() === "1";
+  };
+
+  for (const heading of contentDoc.find<Element>("//office:body//text:h", namespaces)) {
+    if (!isOpeningHeading(heading)) continue;
+    const styleName = heading.attr("style-name")?.value();
+    if (!styleName) continue;
+    const autoStyle = contentDoc.get<Element>(
+      `//office:automatic-styles/style:style[@style:name='${styleName}']`,
+      namespaces
+    );
+    if (!autoStyle) continue; // common named style — out of the defect class
+    const display = autoStyle
+      .get<Element>("style:text-properties", namespaces)
+      ?.attr("display")
+      ?.value();
+    if (display === "none") continue; // the injected hidden heading
+    if (autoStyle.attr("master-page-name")) continue; // already pinned
+
+    const referencers = contentDoc.find<Element>(
+      `//*[@text:style-name='${styleName}']`,
+      namespaces
+    );
+    if (referencers.every(isOpeningHeading)) {
+      autoStyle.attr({ "style:master-page-name": FIRST_PAGE_MASTER_NAME });
+      continue;
+    }
+    // Shared with non-heading content: patch a clone, repoint only headings.
+    let cloneName = styleName;
+    do {
+      cloneName = `${cloneName}_QA`;
+    } while (
+      contentDoc.get<Element>(
+        `//office:automatic-styles/style:style[@style:name='${cloneName}']`,
+        namespaces
+      )
+    );
+    const clone = autoStyle.clone() as Element;
+    autoStyle.addNextSibling(clone);
+    clone.attr({
+      "style:name": cloneName,
+      "style:master-page-name": FIRST_PAGE_MASTER_NAME,
+    });
+    referencers.filter(isOpeningHeading).forEach((el) => el.attr({ "text:style-name": cloneName }));
   }
 }
 

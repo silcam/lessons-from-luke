@@ -8,6 +8,7 @@ import {
   SofficeAssembleAbortedError,
   SofficeAssembleTimeoutError,
 } from "./sofficeAssemble";
+import { resolveTemplatePath } from "./quarterStylesTemplate";
 
 /**
  * Integration coverage for `sofficeAssemble`'s process-group kill against REAL
@@ -349,6 +350,7 @@ describePosix("sofficeAssemble process-group kill (real detached processes)", ()
     const settled = sofficeAssemble({
       jobId: fixture.jobId,
       files: [],
+      templatePath: resolveTemplatePath(),
       outputPath: fixture.outputPath,
       workRoot: fixture.workRoot,
       sofficeBin: fixture.scriptPath,
@@ -378,6 +380,7 @@ describePosix("sofficeAssemble process-group kill (real detached processes)", ()
     const settled = sofficeAssemble({
       jobId: fixture.jobId,
       files: [],
+      templatePath: resolveTemplatePath(),
       outputPath: fixture.outputPath,
       workRoot: fixture.workRoot,
       sofficeBin: fixture.scriptPath,

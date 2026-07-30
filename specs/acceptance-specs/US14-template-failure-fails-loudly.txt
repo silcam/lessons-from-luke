@@ -1,0 +1,15 @@
+;=============================================
+; A missing or unreadable template asset fails the job with a reason.
+;=============================================
+GIVEN the quarter styles template asset is missing or unreadable.
+WHEN an assembly job runs.
+THEN the job ends in the failed state with a human-readable reason.
+THEN no document is delivered for download.
+
+;=============================================
+; A style-load error mid-assembly fails the job the same way.
+;=============================================
+GIVEN the style-load step itself errors mid-assembly.
+WHEN the job runs.
+THEN the job ends in the failed state with a human-readable reason.
+THEN the operator never receives a book that skipped the template step.

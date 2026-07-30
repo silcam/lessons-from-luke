@@ -1,0 +1,25 @@
+;=============================================
+; A downloaded quarter book carries the quarter styles template.
+;=============================================
+GIVEN a language with a complete quarter of lessons.
+WHEN the operator requests an assembled quarter book and the job completes.
+THEN the delivered document has the quarter styles template applied.
+THEN no M.T.* paragraph style in the document defines a background highlight.
+
+;=============================================
+; Template application does not regress existing assembled-quarter guarantees.
+;=============================================
+GIVEN the same request.
+WHEN the styled book is delivered.
+THEN the document has a single clean, un-suffixed page-style set.
+THEN per-lesson footers and continuous pagination with per-lesson first-page number suppression are intact.
+THEN the document remains fully editable, with no protected or linked sections.
+THEN the book metadata written by finalization is present.
+
+;=============================================
+; The template is always applied, with no unstyled variant and no toggle.
+;=============================================
+GIVEN any language, book, quarter, and assembly mode combination.
+WHEN a book is assembled.
+THEN the quarter styles template is always applied.
+THEN there is no user-facing toggle and no unstyled variant offered.

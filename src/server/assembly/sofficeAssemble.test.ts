@@ -41,6 +41,7 @@ test("constructs the run-step soffice invocation with the macro URI and per-job 
     files: ["/docs/assembly-work/job-abc/00.odt", "/docs/assembly-work/job-abc/01.odt"],
     outputPath: "/docs/assembly-work/job-abc/out.odt",
     workRoot: "/docs/assembly-work",
+    templatePath: "/docs/templates/quarter-styles.ott",
   });
 
   // Let the warm step "succeed" so the flow proceeds to the run step.
@@ -71,6 +72,28 @@ test("constructs the run-step soffice invocation with the macro URI and per-job 
   expect(runOpts.env.SPIKE_OUT_URL).toContain("/docs/assembly-work/job-abc/out.odt");
 });
 
+test("sets SPIKE_TEMPLATE_URL on the run child's env from the templatePath option", async () => {
+  const warmChild = new FakeChildProcess(111);
+  const runChild = new FakeChildProcess(222);
+  spawnMock.mockImplementationOnce(() => warmChild).mockImplementationOnce(() => runChild);
+
+  const promise = sofficeAssemble({
+    jobId: "job-template",
+    files: ["/docs/assembly-work/job-template/00.odt"],
+    outputPath: "/docs/assembly-work/job-template/out.odt",
+    workRoot: "/docs/assembly-work",
+    templatePath: "/docs/templates/quarter-styles.ott",
+  });
+
+  queueMicrotask(() => warmChild.emit("close", 0));
+  queueMicrotask(() => runChild.emit("close", 0));
+
+  await promise;
+
+  const runOpts = spawnMock.mock.calls[1][2];
+  expect(runOpts.env.SPIKE_TEMPLATE_URL).toBe("file:///docs/templates/quarter-styles.ott");
+});
+
 test("spawns every soffice process detached in its own process group", async () => {
   const warmChild = new FakeChildProcess(111);
   const runChild = new FakeChildProcess(222);
@@ -81,6 +104,7 @@ test("spawns every soffice process detached in its own process group", async () 
     files: ["/docs/assembly-work/job-detach/00.odt"],
     outputPath: "/docs/assembly-work/job-detach/out.odt",
     workRoot: "/docs/assembly-work",
+    templatePath: "/docs/templates/quarter-styles.ott",
   });
 
   queueMicrotask(() => warmChild.emit("close", 0));
@@ -108,6 +132,7 @@ test("kills the whole process group (not a lone PID) when the hard timeout fires
     files: ["/docs/assembly-work/job-timeout/00.odt"],
     outputPath: "/docs/assembly-work/job-timeout/out.odt",
     workRoot: "/docs/assembly-work",
+    templatePath: "/docs/templates/quarter-styles.ott",
     timeoutMs: 5_000,
   });
   promise.catch(() => {
@@ -152,6 +177,7 @@ test("still rejects with the timeout error when the process-group kill throws ES
     files: ["/docs/assembly-work/job-esrch/00.odt"],
     outputPath: "/docs/assembly-work/job-esrch/out.odt",
     workRoot: "/docs/assembly-work",
+    templatePath: "/docs/templates/quarter-styles.ott",
     timeoutMs: 5_000,
   });
   promise.catch(() => {
@@ -184,6 +210,7 @@ test("aborts mid-run: kills the process group and rejects with the aborted error
     files: ["/docs/assembly-work/job-abort/00.odt"],
     outputPath: "/docs/assembly-work/job-abort/out.odt",
     workRoot: "/docs/assembly-work",
+    templatePath: "/docs/templates/quarter-styles.ott",
     signal: controller.signal,
   });
   promise.catch(() => {
@@ -212,6 +239,7 @@ test("rejects without spawning anything when the signal is already aborted", asy
       files: ["/docs/assembly-work/job-pre-abort/00.odt"],
       outputPath: "/docs/assembly-work/job-pre-abort/out.odt",
       workRoot: "/docs/assembly-work",
+      templatePath: "/docs/templates/quarter-styles.ott",
       signal: controller.signal,
     })
   ).rejects.toBeInstanceOf(SofficeAssembleAbortedError);
@@ -235,6 +263,7 @@ test("derives a distinct per-job profile path under the dedicated assembly-work 
     files: ["/docs/assembly-work/job-A/00.odt"],
     outputPath: "/docs/assembly-work/job-A/out.odt",
     workRoot: "/docs/assembly-work",
+    templatePath: "/docs/templates/quarter-styles.ott",
   });
   queueMicrotask(() => warmChildA.emit("close", 0));
   queueMicrotask(() => runChildA.emit("close", 0));
@@ -245,6 +274,7 @@ test("derives a distinct per-job profile path under the dedicated assembly-work 
     files: ["/docs/assembly-work/job-B/00.odt"],
     outputPath: "/docs/assembly-work/job-B/out.odt",
     workRoot: "/docs/assembly-work",
+    templatePath: "/docs/templates/quarter-styles.ott",
   });
   queueMicrotask(() => warmChildB.emit("close", 0));
   queueMicrotask(() => runChildB.emit("close", 0));
@@ -275,6 +305,7 @@ test("rejects on a non-zero warm exit without ever spawning the run step", async
     files: ["/docs/assembly-work/job-warm-fail/00.odt"],
     outputPath: "/docs/assembly-work/job-warm-fail/out.odt",
     workRoot: "/docs/assembly-work",
+    templatePath: "/docs/templates/quarter-styles.ott",
   });
 
   queueMicrotask(() => warmChild.emit("close", 1));
@@ -296,6 +327,7 @@ test("reports a signal-killed warm step as killed, not as 'code null'", async ()
     files: ["/docs/assembly-work/job-warm-killed/00.odt"],
     outputPath: "/docs/assembly-work/job-warm-killed/out.odt",
     workRoot: "/docs/assembly-work",
+    templatePath: "/docs/templates/quarter-styles.ott",
   });
 
   queueMicrotask(() => warmChild.emit("close", null, "SIGKILL"));

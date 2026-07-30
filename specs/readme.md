@@ -28,10 +28,25 @@ Spec: specs/005-transactional-email-reset/spec.md
 Keywords: cover, covers, quarter cover, cover page, front cover, book cover, A4 cover, A3 cover, cut-sheet, booklet, cover format, reserved lesson number, 97, 98, TOC 99 precedent, cover upload, cover download, cover translation, auto-populate translations, TString dedup, master string reuse, copyright line, publisher address, title subtitle, hand-edit elimination, LibreOffice hand-editing, SOP 22, SOP 30.2, WS-3, filename detection, Q vs T series prefix, Cover (A4) display name, print handoff, color cover, quarter assembly unaffected
 Spec: specs/008-covers-in-platform/spec.md
 
+## Automated Quarter-Styles Template Application
+
+Keywords: quarter styles template, styles template, template application, load styles, print-ready, print styles, M.T. highlight, mother tongue highlight, yellow highlight, remove highlight, background color, paragraph styles, page styles, style source, swappable asset, stand-in template, Q2 reference master, assembled quarter styling, assembly job failure, LibreOffice styles, publishing automation, WS-2c, SOP 16
+Spec: specs/009-quarter-styles-template/spec.md
+
+## Auto-Populate Verse-Reference Strings
+
+Keywords: verse reference, scripture reference, book name split, numeric reference, chapter verse, auto-populate references, pre-fill references, isolated verse reference, text-shape recognition, canAutoTranslate predicate, unsplit reference splitter, split book name, translate once, master string dedup, trim whitespace dedup, hyphen en-dash dash, cross-chapter range, backfill references, re-normalize masters, lesson-update issues, prose reference false positive, numbered books, Sub-Head 1, M.T. Text Lesson Title Scrip Reference, M.T. Table of Contents, Lesson Title Scrip Reference, four reference styles, auto-translate, defaultTranslations, WS-4, SOP 30.3, publishing automation
+Spec: specs/011-verse-reference-auto-population/spec.md
+
 ## Language Project Archiving and Detail-View Routing
 
 Keywords: language project, delete language, remove language, archive language, soft delete, deprecate language, source language, defaultSrcLang, dependent language, translation target, language list, Languages screen, admin delete, un-archive, restore, URL routing, language detail URL, /languages/:languageId, browser back forward, page refresh, react-router, shareable link, permalink, translate access, translator picker
 Spec: specs/012-language-archive-routing/spec.md
+
+## Quarter Template Full Style-Family Application
+
+Keywords: quarter template overwrite, all style families, page styles, master pages, frame styles, list styles, numbering styles, first page footer, CC footer, Creative Commons footer, license footer, footer removal, lesson title spacing, lesson number graphic spacing, lesson opening layout, chapterized footers, pagination regression, load styles overwrite, supersedes 009 FR-003, assembled quarter styling, Chris Jackson feedback, stand-alone template vs quarter template, print-ready book
+Spec: specs/013-quarter-template-full-styles/spec.md
 
 ## How to Update This File
 

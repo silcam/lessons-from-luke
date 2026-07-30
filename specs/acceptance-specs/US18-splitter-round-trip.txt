@@ -1,0 +1,30 @@
+;=============================================
+; The splitter splits a residual unsplit reference run.
+;=============================================
+GIVEN a reference stored as a single unsplit text run.
+WHEN the splitter runs.
+THEN it is split into a book-name run and a numeric run.
+THEN the numeric part becomes its own master string.
+
+;=============================================
+; A split document round-trips visually identical to the original.
+;=============================================
+GIVEN a document the splitter has modified.
+WHEN it is downloaded or merged.
+THEN the rendered document is visually identical to the original.
+THEN the visible text, styles, spacing, and layout are all preserved.
+
+;=============================================
+; The splitter is idempotent on an already-split master.
+;=============================================
+GIVEN an already-split or already-processed master.
+WHEN the splitter runs again.
+THEN it makes no change.
+THEN it creates no duplicate strings.
+
+;=============================================
+; The splitter writes the document atomically.
+;=============================================
+GIVEN the splitter writes the document.
+WHEN the write occurs.
+THEN no partially-written master is ever observable.

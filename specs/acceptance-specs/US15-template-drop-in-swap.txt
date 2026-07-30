@@ -1,0 +1,14 @@
+;=============================================
+; Replacing the template asset changes the output with no code change.
+;=============================================
+GIVEN a replacement template file dropped in place of the shipped asset.
+WHEN the next assembly job runs.
+THEN the output carries the replacement's styles.
+THEN no code change was required.
+
+;=============================================
+; One global template applies to every language, book, quarter, and mode.
+;=============================================
+GIVEN the shipped stand-in quarter styles template.
+WHEN any quarter is assembled.
+THEN one and the same global template applies to all languages, books, quarters, and assembly modes.

@@ -8,6 +8,12 @@ import makeLessonFile from "./makeLessonFile";
 import { prepareConstituentForAssembly, ConstituentMeta } from "./prepareConstituentForAssembly";
 import { finalizeAssembledQuarter } from "./finalizeAssembledQuarter";
 import { sofficeAssemble } from "../assembly/sofficeAssemble";
+import {
+  isMonolingualTemplatePath,
+  resolveTemplatePath,
+  validateTemplateAsset,
+  TEMPLATE_ASSET_MISSING_MESSAGE,
+} from "../assembly/quarterStylesTemplate";
 import docStorage from "../storage/docStorage";
 import { moveFileSync } from "../../core/util/fsUtils";
 
@@ -233,6 +239,20 @@ async function assembleIntoJobDir(
     files.push(copyPath);
   }
 
+  // Single-language mode (majorityLangId 0) styles from the monolingual
+  // master; bilingual mode keeps the bilingual template. See 009 FR-005.
+  const templatePath = resolveTemplatePath(majorityLangId === 0);
+  const singleLanguage = isMonolingualTemplatePath(templatePath);
+  try {
+    validateTemplateAsset(templatePath);
+  } catch {
+    // Curated, path-free reason ONLY — a missing/unreadable template asset
+    // error (e.g. ENOENT) carries an absolute filesystem path; never forward
+    // it (see the makeLessonFile catch above for the full "reason hygiene"
+    // contract).
+    throw new Error(TEMPLATE_ASSET_MISSING_MESSAGE);
+  }
+
   const outputPath = path.join(jobDir, "assembled.odt");
   throwIfAborted(signal);
   const result = await sofficeAssemble({
@@ -240,6 +260,7 @@ async function assembleIntoJobDir(
     files,
     outputPath,
     workRoot,
+    templatePath,
     signal,
   });
 
@@ -259,6 +280,7 @@ async function assembleIntoJobDir(
       firstLessonNumber: firstLesson?.lesson ?? 1,
       title: bookMeta?.title ?? "",
       subject: bookMeta?.subject ?? "",
+      singleLanguage,
     });
   } catch {
     // Curated, path-free reason ONLY — a finalization failure (zip/libxmljs2)
