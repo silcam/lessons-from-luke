@@ -49,6 +49,7 @@ const language: PublicLanguage = {
   languageId: 1,
   name: "Espanol",
   motherTongue: false,
+  archived: false,
   progress: [],
   defaultSrcLang: 0,
 };

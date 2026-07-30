@@ -73,6 +73,7 @@ export const sampleLanguage = {
   motherTongue: false,
   progress: [],
   defaultSrcLang: 1,
+  archived: false,
 };
 
 /** A minimal TString fixture */

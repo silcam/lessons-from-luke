@@ -87,6 +87,7 @@ export default function MainRouter() {
           <Route path="/reset-password" element={<ResetPassword />} />
           {user?.admin && <Route path="/admin/invitations/new" element={<CreateInvitation />} />}
           {user?.admin && <Route path="/admin/invitations" element={<InvitationsList />} />}
+          {user?.admin && <Route path="/languages/:languageId" element={<AdminHome />} />}
           <Route path="*" element={renderHome(user)} />
         </Routes>
       ) : (

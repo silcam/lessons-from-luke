@@ -70,6 +70,22 @@ test("Get TStrings by master ids", async () => {
   });
 });
 
+test("Get TStrings - archived language returns 200 and [] on all three routes", async () => {
+  const storage: TestPersistence = (global as any).testStorage;
+  await storage.updateLanguage(3, { archived: true });
+  const agent = plainAgent();
+
+  for (const path of [
+    "/api/languages/3/tStrings",
+    "/api/languages/3/lessons/11/tStrings",
+    "/api/languages/3/tStrings/1,3",
+  ]) {
+    const response = await agent.get(path);
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual([]);
+  }
+});
+
 test("Save TString - Invalid Type", async () => {
   expect.assertions(1);
   const agent = plainAgent();
@@ -92,6 +108,27 @@ test("Save TString - Invalid Code", async () => {
       },
     ],
     code: "WRONG",
+  });
+  expect(response.status).toBe(401);
+});
+
+test("Save TString - archived language's code is rejected (RT-D)", async () => {
+  expect.assertions(1);
+  const storage: TestPersistence = (global as any).testStorage;
+  await storage.updateLanguage(3, { archived: true });
+  const agent = plainAgent();
+  const response = await agent.post("/api/tStrings").send({
+    tStrings: [
+      {
+        masterId: 2,
+        languageId: 3,
+        text: "weivrevO nosseL",
+        source: "ommaire de la leçon",
+        sourceLanguageId: 2,
+        history: [],
+      },
+    ],
+    code: "GHI",
   });
   expect(response.status).toBe(401);
 });

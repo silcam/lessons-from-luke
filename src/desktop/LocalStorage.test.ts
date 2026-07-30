@@ -119,8 +119,22 @@ describe("LocalStorage", () => {
   test("getTStringCount sums tStrings across all languages", () => {
     const ls = new LocalStorage(testDir);
     ls.setLanguages([
-      { languageId: 3, name: "French", motherTongue: false, defaultSrcLang: 1, progress: [] },
-      { languageId: 4, name: "German", motherTongue: false, defaultSrcLang: 1, progress: [] },
+      {
+        languageId: 3,
+        name: "French",
+        motherTongue: false,
+        defaultSrcLang: 1,
+        progress: [],
+        archived: false,
+      },
+      {
+        languageId: 4,
+        name: "German",
+        motherTongue: false,
+        defaultSrcLang: 1,
+        progress: [],
+        archived: false,
+      },
     ]);
     ls.setTStrings(3, [makeTStr(1, 3, "A"), makeTStr(2, 3, "B")]);
     ls.setTStrings(4, [makeTStr(1, 4, "C")]);
@@ -156,7 +170,14 @@ describe("LocalStorage", () => {
   test("setLanguages persists across restart", () => {
     const ls = new LocalStorage(testDir);
     ls.setLanguages([
-      { languageId: 3, name: "French", motherTongue: false, defaultSrcLang: 1, progress: [] },
+      {
+        languageId: 3,
+        name: "French",
+        motherTongue: false,
+        defaultSrcLang: 1,
+        progress: [],
+        archived: false,
+      },
     ]);
     const ls2 = new LocalStorage(testDir);
     expect(ls2.getLanguages()).toHaveLength(1);
@@ -247,6 +268,7 @@ describe("LocalStorage", () => {
           motherTongue: false,
           progress: [],
           defaultSrcLang: 1,
+          archived: false,
         },
       },
       null
@@ -266,6 +288,7 @@ describe("LocalStorage", () => {
           motherTongue: false,
           progress: [],
           defaultSrcLang: 1,
+          archived: false,
         },
       },
       null
@@ -292,6 +315,7 @@ describe("LocalStorage", () => {
           motherTongue: false,
           progress: [],
           defaultSrcLang: 1,
+          archived: false,
         },
       },
       null
@@ -411,6 +435,7 @@ describe("LocalStorage", () => {
           motherTongue: false,
           progress: [],
           defaultSrcLang: 1,
+          archived: false,
         },
       },
       null

@@ -5,13 +5,13 @@
  * Run via: `npx tsx .claude/skills/ralph/commit-red.ts <task-id>`
  *
  * Commits a *known-failing* test for a RED beads task locally, skipping ONLY
- * the jest step of the pre-commit hook (the linters, type-check and build still
- * run). It does NOT push — the following Green task's push carries this commit
- * as a non-tip ancestor, so CI never sees a red branch tip.
+ * the vitest step of the pre-commit hook (the linters, type-check, knip and
+ * build still run). It does NOT push — the following Green task's push carries
+ * this commit as a non-tip ancestor, so CI never sees a red branch tip.
  *
  * This is a pure decision procedure: its outcome is a deterministic function of
  * the beads record (`br show`), the git index, and the staged test's result.
- * All git/jest/br calls live behind the {@link CommitRedIo} seam so the
+ * All git/vitest/br calls live behind the {@link CommitRedIo} seam so the
  * decision core is fully unit-testable without a live repo.
  *
  * It is NOT a `--no-verify` bypass: it refuses loudly unless the task really is
@@ -22,17 +22,16 @@
 import { execFileSync } from "node:child_process";
 
 /**
- * Name of the environment variable consumed by the lint-staged jest step in
- * package.json. When set to {@link RED_COMMIT_SENTINEL}, that step skips jest
- * (the intentionally-failing RED test is expected) and lets the rest of the
- * hook run.
+ * Name of the environment variable consumed by the lint-staged vitest wrapper
+ * (`scripts/lint-staged-vitest-related.sh`). When set to {@link RED_COMMIT_SENTINEL},
+ * the wrapper skips the vitest step and lets the rest of the hook run.
  *
  * Intentionally undocumented in agent-facing files: the worker is told only to
  * run this script, never to set the variable itself.
  */
 export const RED_COMMIT_ENV = "RALPH_RED_COMMIT";
 
-/** Opaque sentinel value the hook checks for. Must match the value in the package.json lint-staged jest step. */
+/** Opaque sentinel value the wrapper checks for. Must match the value in the wrapper script. */
 export const RED_COMMIT_SENTINEL = "ralph-red-commit-9f2c";
 
 /** Maximum commitlint header length (`header-max-length` in commitlint.config.js). */
@@ -49,7 +48,7 @@ export interface BeadsTask {
 }
 
 /**
- * Injected IO boundary. The real implementation shells out to br/git/jest;
+ * Injected IO boundary. The real implementation shells out to br/git/vitest;
  * tests substitute fakes so the decision core needs no live repo.
  */
 export interface CommitRedIo {
@@ -57,8 +56,8 @@ export interface CommitRedIo {
   showTask: (id: string) => BeadsTask | null;
   /** Return the staged file paths (`git diff --cached --name-only`). */
   stagedFiles: () => string[];
-  /** Run jest on the given spec files; true if they PASS (exit 0), false if they FAIL. */
-  runJest: (specFiles: string[]) => boolean;
+  /** Run vitest on the given spec files; true if they PASS (exit 0), false if they FAIL. */
+  runVitest: (specFiles: string[]) => boolean;
   /** Perform the local commit with the sentinel env set. Throws if the hook rejects it. */
   commit: (message: string) => void;
   /** Emit a refusal / diagnostic line (stderr). */
@@ -82,8 +81,8 @@ export function isRedTask(task: BeadsTask): boolean {
 }
 
 /**
- * True when a path is a TypeScript test file (`*.spec.ts`, `*.test.ts`, or
- * their `.tsx` React variants — frontend RED tasks stage `*.test.tsx`).
+ * True when a path is a TypeScript (or TSX) test file (`*.spec.ts`,
+ * `*.test.ts`, `*.spec.tsx`, or `*.test.tsx`).
  *
  * @param path - A repository-relative file path.
  * @returns Whether the path names a test file.
@@ -168,7 +167,7 @@ export function run(argv: readonly string[], io: CommitRedIo): number {
 
   // 2.5 Reject an over-long header up front (the script owns the message; this is
   //     NOT a test failure — the title must be shortened). Guarding here, before
-  //     the staged-file and jest steps, means a doomed commit never wastes a
+  //     the staged-file and vitest steps, means a doomed commit never wastes a
   //     test run.
   const subject = buildSubject(task.title);
   if (subject.length > HEADER_MAX_LENGTH) {
@@ -186,14 +185,14 @@ export function run(argv: readonly string[], io: CommitRedIo): number {
   const specs = stagedTestFiles(io.stagedFiles());
   if (specs.length === 0) {
     io.error(
-      "commit-red: no staged test file (*.spec.ts / *.test.ts). " +
+      "commit-red: no staged test file (*.spec.ts / *.test.ts / *.spec.tsx / *.test.tsx). " +
         "Stage the failing test (git add) before committing a RED task."
     );
     return 1;
   }
 
   // 4. Machine-verify RED: the staged spec files must FAIL.
-  const passed = io.runJest(specs);
+  const passed = io.runVitest(specs);
   if (passed) {
     io.error(
       "commit-red: a RED commit must contain a failing test; these pass — did you mean a GREEN task?"
@@ -201,7 +200,7 @@ export function run(argv: readonly string[], io: CommitRedIo): number {
     return 1;
   }
 
-  // 5. Commit locally (sentinel skips ONLY jest), no push.
+  // 5. Commit locally (sentinel skips ONLY vitest), no push.
   const message = buildCommitMessage(task.title, id);
   try {
     io.commit(message);
@@ -217,7 +216,7 @@ export function run(argv: readonly string[], io: CommitRedIo): number {
 }
 
 /**
- * Builds the real IO boundary that shells out to br, git, and jest.
+ * Builds the real IO boundary that shells out to br, git, and vitest.
  *
  * @returns A {@link CommitRedIo} backed by child processes.
  */
@@ -252,23 +251,16 @@ function makeRealIo(): CommitRedIo {
         .map((line) => line.trim())
         .filter((line) => line.length > 0);
     },
-    runJest(specFiles: string[]): boolean {
+    runVitest(specFiles: string[]): boolean {
       try {
-        // This repo's runner is jest (see jest.config.js), invoked the same way
-        // the task acceptance commands and the lint-staged step do. Passing the
-        // spec paths directly runs exactly those test files; a non-zero exit
-        // (the RED test failing) throws and is reported as "did not pass".
-        execFileSync("npx", ["jest", ...specFiles, "--runInBand"], {
-          stdio: "inherit",
-          env: { ...process.env, NODE_ENV: "test" },
-        });
+        execFileSync("npx", ["vitest", "run", ...specFiles], { stdio: "inherit" });
         return true;
       } catch {
         return false;
       }
     },
     commit(message: string): void {
-      // No --no-verify: the full hook runs; the sentinel only skips jest.
+      // No --no-verify: the full hook runs; the sentinel only skips vitest.
       execFileSync("git", ["commit", "-m", message], {
         stdio: "inherit",
         env: { ...process.env, [RED_COMMIT_ENV]: RED_COMMIT_SENTINEL },

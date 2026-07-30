@@ -45,6 +45,7 @@ const motherLang: Language = {
   motherTongue: true,
   progress: [],
   defaultSrcLang: ENGLISH_ID,
+  archived: false,
 };
 
 function coverLesson(): Lesson {
