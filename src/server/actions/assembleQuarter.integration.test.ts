@@ -214,6 +214,11 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
 
   afterAll(() => {
     if (workDir) fs.rmSync(workDir, { recursive: true, force: true });
+    // `assembleQuarter` deletes its own job dir and retains the result in
+    // docStorage's tmp dir (`test/docs/serverDocs/tmp/`) — outside workDir,
+    // so unlink it explicitly rather than accumulating one assembled book
+    // per jest run.
+    if (outputPath) fs.rmSync(outputPath, { force: true });
   });
 
   test("source-immutability guard (Pass 6, MANDATORY): every constituent source is byte-identical after assembly", () => {

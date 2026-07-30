@@ -25,23 +25,39 @@ import { MODULE1_XBA } from "./macro/module1Xba";
  * started detached (its own process group) so a hard-timeout kill can target
  * the whole group (`process.kill(-pid, "SIGKILL")`), never a lone PID.
  *
+ * Guaranteed settlement: `AssemblyJobRegistry` holds its concurrency-1 slot
+ * until the runner's promise settles, so this promise MUST always settle.
+ * Every exit — resolve, reject, timeout, abort — funnels through one
+ * `finish()` that clears the timer and drops the abort listener, and the
+ * process-group kill swallows its own failures (a throw out of a timer
+ * callback would otherwise wedge the slot permanently). The optional
+ * `signal` is the caller's cancellation channel; see the option's doc.
+ *
  * Per-job working-dir root (plan.md Red-Team Pass 3, "Temp-Dir Lifecycle"):
  * the profile is NOT a bare `mktemp -d` — it lives at a deterministic path
  * under a single dedicated root (`<docStorage>/assembly-work/<jobId>/`, see
  * data-model.md "AssemblyJobRegistry (working-dir lifecycle)") so the whole
  * root can be swept on server startup and `rm -rf`'d eagerly on completion.
  *
+ * Both `soffice` steps are gated on their exit status. The warm step exits
+ * `0` on success (verified against Homebrew LibreOffice: converting the
+ * throwaway `warm.txt` reports the filter it used and exits `0`), so a
+ * non-zero — or `null`, i.e. killed by a signal such as the OOM killer —
+ * warm exit means the profile was never built or is half-built. Injecting a
+ * macro into it and running the merge on top would fail obscurely at best,
+ * so the warm status is a rejection in its own right.
+ *
  * Inject-step fs prep (warm throwaway file, `user/basic/Standard` mkdir,
  * macro copy, stale `.lock` removal) is best-effort and synchronous: the
- * warm step is what actually builds the profile's `user/basic` tree, so in
- * production these calls succeed once warm has run. Wrapping them in
- * try/catch with a `console.warn` means a prep hiccup doesn't crash the
- * flow — the run step's own non-zero exit (macro not found) is the real,
- * user-visible failure signal. Being synchronous (no `await`) also matters:
- * the warm child's `close` handler must synchronously spawn the run step
- * and attach its `close` listener before yielding, or a caller that fires
- * `close` on a pre-existing event-loop tick can race past an unattached
- * listener.
+ * warm step is what actually builds the profile's `user/basic` tree, so by
+ * the time inject runs — only ever after a clean warm exit — these calls
+ * succeed in production. Wrapping them in try/catch with a `console.warn`
+ * means a prep hiccup doesn't crash the flow; the run step's own non-zero
+ * exit (macro not found) then reports it. Being synchronous (no `await`)
+ * also matters: the warm child's `close` handler must synchronously spawn
+ * the run step and attach its `close` listener before yielding, or a caller
+ * that fires `close` on a pre-existing event-loop tick can race past an
+ * unattached listener.
  */
 
 /** Ordered, ASCII-named (`00.odt`..`13.odt`) absolute constituent file paths, and where to write the result. */
@@ -62,6 +78,14 @@ export interface SofficeAssembleOptions {
   timeoutMs?: number;
   /** Override for the `soffice` executable name/path (defaults to `"soffice"`). Test seam. */
   sofficeBin?: string;
+  /**
+   * Cancellation channel owned by the caller (`AssemblyJobRegistry` creates
+   * one per job). Aborting kills the live `soffice` process group and rejects
+   * with {@link SofficeAssembleAbortedError}. An already-aborted signal
+   * rejects BEFORE anything is spawned — the point of the abort is that no
+   * `soffice` should be running, so starting one first would defeat it.
+   */
+  signal?: AbortSignal;
 }
 
 /** Successful-run result. */
@@ -71,17 +95,30 @@ export interface SofficeAssembleResult {
 }
 
 /**
- * Hard per-run timeout: ~2.5x the ~40s baseline observed in the spike
- * (research.md §R1), so a merge that is merely slow still completes, while a
- * genuinely hung `soffice` is bounded.
+ * Hard per-run timeout: ~12x the ~15s baseline measured for a 14-document
+ * merge on an M3 with real fixtures (research.md §R1), so a merge that is
+ * merely slow — a throttled 2-vCPU burstable instance is several times
+ * slower — still completes, while a genuinely hung `soffice` is bounded.
+ *
+ * This timer, and only this timer, kills the `soffice` process group. The
+ * registry's own per-job timeout is deliberately derived from this value so
+ * it can never fire first; see `assemblyBudget.ts`.
  */
-export const DEFAULT_TIMEOUT_MS = 100_000;
+export const DEFAULT_TIMEOUT_MS = 180_000;
 
 /** Fixed-vocabulary error thrown when the hard timeout fires and the process group is killed. */
 export class SofficeAssembleTimeoutError extends Error {
   constructor() {
     super("soffice assembly timed out");
     this.name = "SofficeAssembleTimeoutError";
+  }
+}
+
+/** Fixed-vocabulary error thrown when the caller's {@link SofficeAssembleOptions.signal} aborts. */
+export class SofficeAssembleAbortedError extends Error {
+  constructor() {
+    super("soffice assembly aborted");
+    this.name = "SofficeAssembleAbortedError";
   }
 }
 
@@ -139,6 +176,7 @@ export function sofficeAssemble(options: SofficeAssembleOptions): Promise<Soffic
     workRoot,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     sofficeBin = "soffice",
+    signal,
   } = options;
 
   const profileDir = profileDirFor(workRoot, jobId);
@@ -148,27 +186,71 @@ export function sofficeAssemble(options: SofficeAssembleOptions): Promise<Soffic
     let settled = false;
     let currentChild: ChildProcess | undefined;
 
-    const timer = setTimeout(() => {
+    /**
+     * Kill the live `soffice` process group, swallowing any failure.
+     *
+     * `ESRCH` — the group has already exited — is the common race, because
+     * `oosplash` forking `soffice.bin` means the group can go away between
+     * the timer firing and the kill landing. A throw escaping a `setTimeout`
+     * callback is an uncaught exception that leaves this promise unsettled
+     * FOREVER, and `AssemblyJobRegistry` now holds the concurrency-1 slot
+     * until this promise settles. So the kill must never throw.
+     */
+    function killCurrentGroup(): void {
+      if (!currentChild?.pid) return;
+      try {
+        process.kill(-currentChild.pid, "SIGKILL");
+      } catch (err) {
+        console.warn("sofficeAssemble: process-group kill failed", err);
+      }
+    }
+
+    /**
+     * The single settle funnel: every path out of this promise goes through
+     * here, so the timer is always cleared and the abort listener is always
+     * removed exactly once. `settled` is set before `act()` runs, so nothing
+     * `act()` does can re-enter.
+     */
+    function finish(act: () => void): void {
       if (settled) return;
       settled = true;
-      if (currentChild && currentChild.pid) {
-        process.kill(-currentChild.pid, "SIGKILL");
-      }
-      reject(new SofficeAssembleTimeoutError());
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      act();
+    }
+
+    function onAbort(): void {
+      finish(() => {
+        killCurrentGroup();
+        reject(new SofficeAssembleAbortedError());
+      });
+    }
+
+    // Before the warm spawn, deliberately: an already-aborted signal means
+    // the caller wants no soffice running, so spawning one and killing it
+    // immediately would be both wasteful and racy.
+    if (signal?.aborted) {
+      settled = true;
+      reject(new SofficeAssembleAbortedError());
+      return;
+    }
+    signal?.addEventListener("abort", onAbort);
+
+    // Declared after the already-aborted early return above, which never
+    // reaches `finish` and so never reads it.
+    const timer = setTimeout(() => {
+      finish(() => {
+        killCurrentGroup();
+        reject(new SofficeAssembleTimeoutError());
+      });
     }, timeoutMs);
 
     function settleResolve(result: SofficeAssembleResult): void {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve(result);
+      finish(() => resolve(result));
     }
 
     function settleReject(err: Error): void {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      reject(err);
+      finish(() => reject(err));
     }
 
     // Step 3 (run): spawned synchronously from the warm child's `close`
@@ -216,8 +298,25 @@ export function sofficeAssemble(options: SofficeAssembleOptions): Promise<Soffic
     currentChild = warmChild;
 
     warmChild.on("error", (err) => settleReject(err));
-    warmChild.on("close", () => {
+    warmChild.on("close", (code, killedBy) => {
+      // Our own timeout/abort kill already settled and killed the group; the
+      // guard keeps this handler from spawning a run step on top of it.
       if (settled) return;
+      // A bad warm exit means there is no usable profile to inject into, so
+      // fail here rather than letting the merge fail obscurely on top of it.
+      // A `null` code is a signal death (OOM killer, external kill) — worth
+      // distinguishing in the reason, since "exited with code null" reads as
+      // a bug in this wrapper.
+      if (code !== 0) {
+        settleReject(
+          new Error(
+            killedBy === null || killedBy === undefined
+              ? `soffice warm step exited with code ${String(code)}`
+              : `soffice warm step was killed by ${killedBy}`
+          )
+        );
+        return;
+      }
       // Step 2 (inject) — synchronous fs, then synchronously spawn the run
       // step so its `close` listener is attached before yielding (see
       // module doc comment).

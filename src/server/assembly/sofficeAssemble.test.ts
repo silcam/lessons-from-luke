@@ -9,6 +9,7 @@ import {
   profileDirFor,
   DEFAULT_TIMEOUT_MS,
   SofficeAssembleTimeoutError,
+  SofficeAssembleAbortedError,
 } from "./sofficeAssemble";
 
 /** Minimal fake `ChildProcess`: an EventEmitter with a `pid` and no-op `stdout`/`stderr`. */
@@ -129,6 +130,95 @@ test("kills the whole process group (not a lone PID) when the hard timeout fires
   killSpy.mockRestore();
 });
 
+test("still rejects with the timeout error when the process-group kill throws ESRCH", async () => {
+  // The group commonly exits between the timer firing and the kill landing
+  // (oosplash forks soffice.bin), so `process.kill` throws ESRCH. A throw
+  // escaping the timer callback would leave this promise unsettled forever —
+  // and the registry now holds its concurrency-1 slot until it settles.
+  jest.useFakeTimers();
+  const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+  const killSpy = jest.spyOn(process, "kill").mockImplementation(() => {
+    const err: NodeJS.ErrnoException = new Error("kill ESRCH");
+    err.code = "ESRCH";
+    throw err;
+  });
+
+  const warmChild = new FakeChildProcess(111);
+  const runChild = new FakeChildProcess(444);
+  spawnMock.mockImplementationOnce(() => warmChild).mockImplementationOnce(() => runChild);
+
+  const promise = sofficeAssemble({
+    jobId: "job-esrch",
+    files: ["/docs/assembly-work/job-esrch/00.odt"],
+    outputPath: "/docs/assembly-work/job-esrch/out.odt",
+    workRoot: "/docs/assembly-work",
+    timeoutMs: 5_000,
+  });
+  promise.catch(() => {
+    // Assertions below observe the rejection directly.
+  });
+
+  queueMicrotask(() => warmChild.emit("close", 0));
+  await Promise.resolve();
+  await Promise.resolve();
+
+  jest.advanceTimersByTime(5_000);
+
+  await expect(promise).rejects.toBeInstanceOf(SofficeAssembleTimeoutError);
+  expect(warnSpy).toHaveBeenCalled();
+
+  killSpy.mockRestore();
+  warnSpy.mockRestore();
+});
+
+test("aborts mid-run: kills the process group and rejects with the aborted error", async () => {
+  const killSpy = jest.spyOn(process, "kill").mockImplementation(() => true);
+  const controller = new AbortController();
+
+  const warmChild = new FakeChildProcess(111);
+  const runChild = new FakeChildProcess(555);
+  spawnMock.mockImplementationOnce(() => warmChild).mockImplementationOnce(() => runChild);
+
+  const promise = sofficeAssemble({
+    jobId: "job-abort",
+    files: ["/docs/assembly-work/job-abort/00.odt"],
+    outputPath: "/docs/assembly-work/job-abort/out.odt",
+    workRoot: "/docs/assembly-work",
+    signal: controller.signal,
+  });
+  promise.catch(() => {
+    // Assertions below observe the rejection directly.
+  });
+
+  queueMicrotask(() => warmChild.emit("close", 0));
+  await Promise.resolve();
+  await Promise.resolve();
+
+  controller.abort();
+
+  await expect(promise).rejects.toBeInstanceOf(SofficeAssembleAbortedError);
+  expect(killSpy).toHaveBeenCalledWith(-555, expect.any(String));
+
+  killSpy.mockRestore();
+});
+
+test("rejects without spawning anything when the signal is already aborted", async () => {
+  const controller = new AbortController();
+  controller.abort();
+
+  await expect(
+    sofficeAssemble({
+      jobId: "job-pre-abort",
+      files: ["/docs/assembly-work/job-pre-abort/00.odt"],
+      outputPath: "/docs/assembly-work/job-pre-abort/out.odt",
+      workRoot: "/docs/assembly-work",
+      signal: controller.signal,
+    })
+  ).rejects.toBeInstanceOf(SofficeAssembleAbortedError);
+
+  expect(spawnMock).not.toHaveBeenCalled();
+});
+
 test("derives a distinct per-job profile path under the dedicated assembly-work root", async () => {
   const warmChildA = new FakeChildProcess(1);
   const runChildA = new FakeChildProcess(2);
@@ -170,12 +260,59 @@ test("derives a distinct per-job profile path under the dedicated assembly-work 
   expect(profileArgA).not.toEqual(profileArgB);
 });
 
+test("rejects on a non-zero warm exit without ever spawning the run step", async () => {
+  // The warm step is what builds the profile's `user/basic` tree, so a bad
+  // warm exit means there is nothing usable to inject the macro into. The
+  // "run step was never spawned" assertion is the one that pins the
+  // behaviour: rejecting alone would also pass if we spawned the merge and
+  // abandoned it, leaving a detached `soffice` behind.
+  const warmChild = new FakeChildProcess(111);
+  const runChild = new FakeChildProcess(222);
+  spawnMock.mockImplementationOnce(() => warmChild).mockImplementationOnce(() => runChild);
+
+  const promise = sofficeAssemble({
+    jobId: "job-warm-fail",
+    files: ["/docs/assembly-work/job-warm-fail/00.odt"],
+    outputPath: "/docs/assembly-work/job-warm-fail/out.odt",
+    workRoot: "/docs/assembly-work",
+  });
+
+  queueMicrotask(() => warmChild.emit("close", 1));
+
+  await expect(promise).rejects.toThrow(/warm step exited with code 1/);
+  expect(spawnMock).toHaveBeenCalledTimes(1);
+});
+
+test("reports a signal-killed warm step as killed, not as 'code null'", async () => {
+  // `close` carries `(null, "SIGKILL")` when the child died to a signal — an
+  // OOM kill or an external `kill` on the group. "exited with code null"
+  // would read as a bug in this wrapper rather than what happened.
+  const warmChild = new FakeChildProcess(111);
+  const runChild = new FakeChildProcess(222);
+  spawnMock.mockImplementationOnce(() => warmChild).mockImplementationOnce(() => runChild);
+
+  const promise = sofficeAssemble({
+    jobId: "job-warm-killed",
+    files: ["/docs/assembly-work/job-warm-killed/00.odt"],
+    outputPath: "/docs/assembly-work/job-warm-killed/out.odt",
+    workRoot: "/docs/assembly-work",
+  });
+
+  queueMicrotask(() => warmChild.emit("close", null, "SIGKILL"));
+
+  await expect(promise).rejects.toThrow(/warm step was killed by SIGKILL/);
+  expect(spawnMock).toHaveBeenCalledTimes(1);
+});
+
 test("profileDirFor derives the per-job profile path used by the run-step args", () => {
   expect(profileDirFor("/docs/assembly-work", "job-xyz")).toBe(
     "/docs/assembly-work/job-xyz/profile"
   );
 });
 
-test("DEFAULT_TIMEOUT_MS is a positive multiple of the ~40s observed baseline", () => {
-  expect(DEFAULT_TIMEOUT_MS).toBeGreaterThan(40_000);
+test("DEFAULT_TIMEOUT_MS leaves generous headroom over the ~15s measured baseline", () => {
+  // 15,259ms measured for a 14-insert merge on an M3 against real fixtures
+  // (Luke series 2). The deployed 2-vCPU box is several times slower, so the
+  // ceiling has to be a large multiple, not a small one.
+  expect(DEFAULT_TIMEOUT_MS).toBeGreaterThanOrEqual(10 * 15_000);
 });

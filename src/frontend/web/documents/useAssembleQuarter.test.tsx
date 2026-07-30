@@ -23,7 +23,10 @@ jest.mock("file-saver", () => ({ saveAs: jest.fn() }));
 import { act, renderHook } from "@testing-library/react";
 import Axios from "axios";
 import { saveAs } from "file-saver";
-import useAssembleQuarter from "./useAssembleQuarter";
+import useAssembleQuarter, {
+  GENERIC_FAILURE_REASON,
+  RESULT_EXPIRED_REASON,
+} from "./useAssembleQuarter";
 import { PublicLanguage } from "../../../core/models/Language";
 
 const mockedAxios = Axios as jest.Mocked<typeof Axios>;
@@ -173,6 +176,67 @@ describe("useAssembleQuarter", () => {
     expect(mockedSaveAs).not.toHaveBeenCalled();
   });
 
+  it("treats a poll 404 as terminal: fails the job and stops polling", async () => {
+    // The registry is in-memory and process-scoped, so a 404 is definitive —
+    // a server restart or the 24h TTL. Retrying it forever leaves the UI
+    // stuck on "Assembling…".
+    mockedAxios.post.mockResolvedValue({ data: { jobId: "job-1", status: "queued" } });
+    mockedAxios.get.mockRejectedValue({ response: { status: 404, data: { error: "no job" } } });
+
+    const { result } = renderHook(() => useAssembleQuarter(language, BOOK, SERIES, "bilingual"));
+
+    await act(async () => {
+      result.current.start();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(result.current.status.tag).toBe("failed");
+    if (result.current.status.tag !== "failed") throw new Error("unreachable");
+    expect(result.current.status.reason).not.toBe("");
+
+    const callsAfterFailure = mockedAxios.get.mock.calls.length;
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+      await Promise.resolve();
+    });
+    expect(mockedAxios.get.mock.calls.length).toBe(callsAfterFailure);
+  });
+
+  it("keeps retrying after a network-style poll failure carrying no response", async () => {
+    mockedAxios.post.mockResolvedValue({ data: { jobId: "job-1", status: "queued" } });
+    mockedAxios.get.mockRejectedValue(new Error("network error"));
+
+    const { result } = renderHook(() => useAssembleQuarter(language, BOOK, SERIES, "bilingual"));
+
+    await act(async () => {
+      result.current.start();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // Status is untouched by a transient failure...
+    expect(result.current.status.tag).toBe("queued");
+
+    // ...and the loop is still alive.
+    const callsSoFar = mockedAxios.get.mock.calls.length;
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+      await Promise.resolve();
+    });
+    expect(mockedAxios.get.mock.calls.length).toBeGreaterThan(callsSoFar);
+  });
+
   it("surfaces the reason from a POST 409 (quarter incomplete) without polling", async () => {
     mockedAxios.post.mockRejectedValue({
       response: {
@@ -197,5 +261,95 @@ describe("useAssembleQuarter", () => {
       reason: "missing constituent: Luke 1-TOC, Luke 1-6",
     });
     expect(mockedAxios.get).not.toHaveBeenCalled();
+  });
+
+  it("explains a download 404 as an expired result rather than an internal fault", async () => {
+    // The download request sets `responseType: "blob"`, so Axios never
+    // JSON-parses the error body — `response.data` is a `Blob` carrying
+    // neither `reason` nor `error`. Only `response.status` is readable, hence
+    // the deliberate `Blob` here: a JSON literal would let a body-reading
+    // implementation pass a test that production would fail.
+    mockedAxios.post.mockResolvedValue({ data: { jobId: "job-1", status: "queued" } });
+    // Keyed on URL rather than call order: the deferred first poll and the
+    // 2s interval both fire inside the single `advanceTimersByTime` below, so
+    // a `…Once` queue would feed the download whatever the *second* poll left
+    // over instead of the 404 under test.
+    mockedAxios.get.mockImplementation((url: string) =>
+      url === POLL_PATH
+        ? Promise.resolve({ data: { jobId: "job-1", status: "ready" } })
+        : Promise.reject({ response: { status: 404, data: new Blob(["not json"]) } })
+    );
+
+    const { result } = renderHook(() => useAssembleQuarter(language, BOOK, SERIES, "bilingual"));
+
+    await act(async () => {
+      result.current.start();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(result.current.status).toEqual({ tag: "failed", reason: RESULT_EXPIRED_REASON });
+    expect(mockedSaveAs).not.toHaveBeenCalled();
+  });
+
+  it("treats a POST 429 as a transient rejection, not a terminal failed job", async () => {
+    // Contract §1: "a 429 … MUST NOT be rendered as a terminal `failed` job
+    // (it started no work and offers no assembly to 'retry')".
+    mockedAxios.post.mockRejectedValue({
+      response: { status: 429, data: { reason: "server busy, retry shortly" } },
+    });
+
+    const { result } = renderHook(() => useAssembleQuarter(language, BOOK, SERIES, "bilingual"));
+
+    await act(async () => {
+      result.current.start();
+      await Promise.resolve();
+    });
+
+    expect(result.current.status).toEqual({
+      tag: "rejected",
+      reason: "server busy, retry shortly",
+    });
+    // Nothing was started, so no poll loop may exist.
+    expect(mockedAxios.get).not.toHaveBeenCalled();
+  });
+
+  it("explains a POST 403 (origin rejected) rather than blaming an internal fault", async () => {
+    mockedAxios.post.mockRejectedValue({
+      response: { status: 403, data: { error: "Forbidden" } },
+    });
+
+    const { result } = renderHook(() => useAssembleQuarter(language, BOOK, SERIES, "bilingual"));
+
+    await act(async () => {
+      result.current.start();
+      await Promise.resolve();
+    });
+
+    expect(result.current.status.tag).toBe("failed");
+    if (result.current.status.tag !== "failed") throw new Error("unreachable");
+    expect(result.current.status.reason).not.toBe(GENERIC_FAILURE_REASON);
+  });
+
+  it("explains a POST 404 (quarter gone) rather than blaming an internal fault", async () => {
+    mockedAxios.post.mockRejectedValue({
+      response: { status: 404, data: { error: "unknown language" } },
+    });
+
+    const { result } = renderHook(() => useAssembleQuarter(language, BOOK, SERIES, "bilingual"));
+
+    await act(async () => {
+      result.current.start();
+      await Promise.resolve();
+    });
+
+    expect(result.current.status.tag).toBe("failed");
+    if (result.current.status.tag !== "failed") throw new Error("unreachable");
+    expect(result.current.status.reason).not.toBe(GENERIC_FAILURE_REASON);
   });
 });
