@@ -23,6 +23,13 @@ import docStorage from "./storage/docStorage";
 import syncController from "./controllers/syncController";
 import { getAuth, getAuthPool } from "./auth/auth";
 import { AssemblyJobRegistry } from "./assembly/AssemblyJobRegistry";
+import {
+  ASSEMBLY_ABANDON_MS,
+  ASSEMBLY_MAX_LIVE_JOBS,
+  ASSEMBLY_TIMEOUT_MS,
+  ASSEMBLY_TTL_MS,
+} from "./assembly/assemblyBudget";
+import { availableSystemMemory } from "./assembly/availableSystemMemory";
 import { sweepAssemblyWork } from "./assembly/sweepAssemblyWork";
 
 const PRODUCTION = process.env.NODE_ENV == "production";
@@ -36,16 +43,6 @@ const PRODUCTION = process.env.NODE_ENV == "production";
 function assemblyWorkRoot(): string {
   return path.join(docStorage.docsDirPath(), "assembly-work");
 }
-
-// In-memory, process-scoped assembly job registry (FR-011 — explicitly
-// non-durable; see data-model.md "Process-scoping assumption"). Bounds chosen
-// conservatively: soffice merges are concurrency-1 and take tens of seconds,
-// so a small live-job cap and a generous per-job timeout avoid unbounded
-// queue growth without spuriously failing a legitimately slow merge. The TTL
-// mirrors docStorage's existing 24h tmp-file retention window.
-const ASSEMBLY_MAX_LIVE_JOBS = 5;
-const ASSEMBLY_TIMEOUT_MS = 2 * 60 * 1000;
-const ASSEMBLY_TTL_MS = 24 * 60 * 60 * 1000;
 
 function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   const app = express();
@@ -198,10 +195,12 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   const assemblyRegistry = new AssemblyJobRegistry({
     maxLiveJobs: ASSEMBLY_MAX_LIVE_JOBS,
     timeoutMs: ASSEMBLY_TIMEOUT_MS,
+    abandonMs: ASSEMBLY_ABANDON_MS,
     ttlMs: ASSEMBLY_TTL_MS,
     fileExists: fs.existsSync,
     now: Date.now,
     makeJobId: () => crypto.randomUUID(),
+    availableMemory: availableSystemMemory,
   });
   assemblyController(app, storage, {
     registry: assemblyRegistry,

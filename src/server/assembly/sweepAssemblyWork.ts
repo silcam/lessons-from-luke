@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { reapOrphanedSoffice } from "./reapOrphanedSoffice";
 
 /**
  * Startup sweep of the dedicated assembly-work root
@@ -13,6 +14,12 @@ import path from "path";
  * once, on server startup (registry init), before any new job can write under
  * `workRoot`.
  *
+ * Orphaned PROCESSES are reaped first (`reapOrphanedSoffice`), before the
+ * `rm -rf` below. `soffice` is spawned detached, so it survives the restart
+ * that stranded its dir — and deleting a live LibreOffice's profile tree out
+ * from under it is its own hazard, on top of leaving a second merge running
+ * against the fresh registry's free concurrency-1 slot.
+ *
  * Safe ONLY under the single-process deployment constraint (see the separate
  * Passenger single-process-pin operational task) — do not call this assuming
  * multi-worker safety, since a second live worker's in-flight job dirs would
@@ -22,6 +29,7 @@ export function sweepAssemblyWork(workRoot: string): void {
   if (!fs.existsSync(workRoot)) {
     return;
   }
+  reapOrphanedSoffice(workRoot);
   for (const entry of fs.readdirSync(workRoot)) {
     fs.rmSync(path.join(workRoot, entry), { recursive: true, force: true });
   }

@@ -7,6 +7,7 @@ import {
   assetsPath,
   tmpDirPath,
   copyRecursive,
+  moveFileSync,
   setupDesktopStorage,
 } from "./fsUtils";
 import fs from "fs";
@@ -61,6 +62,54 @@ test("Unzip overwrites", () => {
     // This will fail if the overwrite flag is not set
     unzip(zipPath, dirPath);
   }).not.toThrow();
+});
+
+test("moveFileSync moves a file within one filesystem", () => {
+  const src = "test/tmp-moveFileSync-src.txt";
+  const dst = "test/tmp-moveFileSync-dst.txt";
+  fs.writeFileSync(src, "contents");
+
+  moveFileSync(src, dst);
+
+  expect(fs.existsSync(dst)).toBe(true);
+  expect(fs.readFileSync(dst, "utf8")).toBe("contents");
+  expect(fs.existsSync(src)).toBe(false);
+  unlinkSafe(dst);
+});
+
+test("moveFileSync falls back to a copy when the rename crosses filesystems (EXDEV)", () => {
+  // The failure this helper exists for: a cross-device rename throws EXDEV,
+  // and whether two paths share a device is environment-dependent — macOS
+  // dev machines say yes where CI containers say no, so it can only be
+  // reproduced by forcing the error.
+  const src = "test/tmp-moveFileSync-exdev-src.txt";
+  const dst = "test/tmp-moveFileSync-exdev-dst.txt";
+  fs.writeFileSync(src, "contents");
+  const renameSpy = jest.spyOn(fs, "renameSync").mockImplementationOnce(() => {
+    throw Object.assign(new Error("EXDEV: cross-device link not permitted, rename"), {
+      code: "EXDEV",
+    });
+  });
+
+  moveFileSync(src, dst);
+  renameSpy.mockRestore();
+
+  expect(fs.readFileSync(dst, "utf8")).toBe("contents");
+  unlinkSafe(src);
+  unlinkSafe(dst);
+});
+
+test("moveFileSync rethrows a non-EXDEV failure rather than silently copying", () => {
+  const renameSpy = jest.spyOn(fs, "renameSync").mockImplementationOnce(() => {
+    throw Object.assign(new Error("EACCES: permission denied, rename"), { code: "EACCES" });
+  });
+  const copySpy = jest.spyOn(fs, "copyFileSync");
+
+  expect(() => moveFileSync("test/tmp-a.txt", "test/tmp-b.txt")).toThrow(/EACCES/);
+  expect(copySpy).not.toHaveBeenCalled();
+
+  renameSpy.mockRestore();
+  copySpy.mockRestore();
 });
 
 test("copyRecursive copies a file to a new location", () => {

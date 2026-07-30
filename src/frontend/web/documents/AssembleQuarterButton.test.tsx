@@ -187,6 +187,40 @@ describe("AssembleQuarterButton", () => {
     });
   });
 
+  it("shows a server-busy 429 politely, keeping the retry control mounted (contract §1)", async () => {
+    // A 429 started no job, so it must not be dressed up as a terminal
+    // failure: the message goes in the polite `role="status"` region and the
+    // button stays put, because "retry" here is just a second POST.
+    mockedAxios.post.mockRejectedValue({
+      response: { status: 429, data: { reason: "server busy, retry shortly" } },
+    });
+
+    const { getByText, getByRole } = render(
+      <AssembleQuarterButton
+        language={language}
+        book="Luke"
+        series={1}
+        mode="bilingual"
+        text="Assemble Quarter 1"
+      />
+    );
+
+    fireEvent.click(getByText("Assemble Quarter 1"));
+
+    await waitFor(() => {
+      expect(getByRole("status").textContent).toMatch(/server busy, retry shortly/);
+    });
+
+    // Contrast with the queued/running case, which asserts the button is
+    // *gone*: here it must still be there to re-POST with.
+    const retry = getByRole("button", { name: "Assemble Quarter 1" });
+    fireEvent.click(retry);
+
+    await waitFor(() => {
+      expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+    });
+  });
+
   it("downloads via file-saver once the job is ready", async () => {
     mockedAxios.post.mockResolvedValue({ data: { jobId: "job-1", status: "queued" } });
     mockedAxios.get.mockResolvedValueOnce({ data: { jobId: "job-1", status: "ready" } });
