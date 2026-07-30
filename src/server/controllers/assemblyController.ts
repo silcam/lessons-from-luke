@@ -8,6 +8,7 @@ import {
   AssemblyJobKey,
   AssemblyJobRegistry,
   AssemblyMode,
+  AssemblyRunner,
 } from "../assembly/AssemblyJobRegistry";
 import { requireSameOrigin } from "../middle/requireSameOrigin";
 import assembleQuarter from "../actions/assembleQuarter";
@@ -96,20 +97,22 @@ function assembledFilenames(
  * (lessons-from-luke-koog.6.2.14).
  *
  * The registry generates a job's `jobId` internally and invokes this runner
- * with no arguments (`AssemblyRunner = () => Promise<string>`) — and it may
- * do so *synchronously*, before `startOrAttach` has even returned to the
- * caller. So the jobId can't be captured from `startOrAttach`'s return value;
- * instead the runner looks its own job back up by `key` once it starts
- * (safe — the registry inserts the job into its lookup maps *before* it can
- * ever invoke the runner, per `startOrAttach`'s check-then-insert ordering).
+ * with the job's `AbortSignal` (`AssemblyRunner`) — and it may do so
+ * *synchronously*, before `startOrAttach` has even returned to the caller. So
+ * the jobId can't be captured from `startOrAttach`'s return value; instead
+ * the runner looks its own job back up by `key` once it starts (safe — the
+ * registry inserts the job into its lookup maps *before* it can ever invoke
+ * the runner, per `startOrAttach`'s check-then-insert ordering, and claims
+ * the concurrency-1 slot before it too, so this synchronous `getByKey` can't
+ * trip the registry's slot-abandon check).
  */
 function makeRunner(
   storage: Persistence,
   workRoot: string,
   registry: AssemblyJobRegistry,
   key: AssemblyJobKey
-): () => Promise<string> {
-  return async () => {
+): AssemblyRunner {
+  return async (signal: AbortSignal) => {
     const job = registry.getByKey(key);
     if (!job) {
       throw new Error("assembly failed (internal)");
@@ -154,6 +157,7 @@ function makeRunner(
       majorityLangId,
       jobId,
       workRoot,
+      signal,
     });
   };
 }

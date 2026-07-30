@@ -23,7 +23,12 @@ import assemblyController from "./assemblyController";
 import { Persistence } from "../../core/interfaces/Persistence";
 import { Language, ENGLISH_ID } from "../../core/models/Language";
 import { BaseLesson, Lesson, TOC_LESSON } from "../../core/models/Lesson";
-import { AssemblyJobRegistry, AssemblyJob, AssemblyJobKey } from "../assembly/AssemblyJobRegistry";
+import {
+  AssemblyJobRegistry,
+  AssemblyJob,
+  AssemblyJobKey,
+  AssemblyRunner,
+} from "../assembly/AssemblyJobRegistry";
 import assembleQuarter from "../actions/assembleQuarter";
 
 jest.mock("../actions/assembleQuarter");
@@ -452,6 +457,7 @@ describe("US4: generation-time failure flows a curated reason through a REAL reg
     const registry = new AssemblyJobRegistry({
       maxLiveJobs: 10,
       timeoutMs: 60_000,
+      abandonMs: 120_000,
       ttlMs: 60_000,
       fileExists: () => true,
       now: () => Date.now(),
@@ -514,6 +520,7 @@ describe("makeRunner storage-layer failure never leaks a raw DB/fs error as the 
     const registry = new AssemblyJobRegistry({
       maxLiveJobs: 10,
       timeoutMs: 60_000,
+      abandonMs: 120_000,
       ttlMs: 60_000,
       fileExists: () => true,
       now: () => Date.now(),
@@ -550,6 +557,7 @@ describe("makeRunner storage-layer failure never leaks a raw DB/fs error as the 
     const registry = new AssemblyJobRegistry({
       maxLiveJobs: 10,
       timeoutMs: 60_000,
+      abandonMs: 120_000,
       ttlMs: 60_000,
       fileExists: () => true,
       now: () => Date.now(),
@@ -690,9 +698,9 @@ describe("US2/US10 acceptance: bilingual/single-language mode parity + no per-st
       status: { tag: "queued" },
       createdAt: Date.now(),
     };
-    let capturedRunner: (() => Promise<string>) | undefined;
+    let capturedRunner: AssemblyRunner | undefined;
     const registry = makeRegistry({
-      startOrAttach: jest.fn((_key: AssemblyJobKey, runner: () => Promise<string>) => {
+      startOrAttach: jest.fn((_key: AssemblyJobKey, runner: AssemblyRunner) => {
         capturedRunner = runner;
         return { outcome: "started", job };
       }),
@@ -710,7 +718,7 @@ describe("US2/US10 acceptance: bilingual/single-language mode parity + no per-st
     // blocked by a stricter completeness bar than the per-lesson download.
     expect(res.status).toBe(202);
     expect(capturedRunner).toBeDefined();
-    await capturedRunner!();
+    await capturedRunner!(new AbortController().signal);
   }
 
   beforeEach(() => {

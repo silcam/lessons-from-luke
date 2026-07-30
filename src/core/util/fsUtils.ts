@@ -16,6 +16,29 @@ export function touch(filepath: string) {
   fs.writeFileSync(filepath, "");
 }
 
+/**
+ * Move a file, falling back to a copy when the two paths are on different
+ * filesystems.
+ *
+ * ALWAYS use this instead of a bare `fs.renameSync` (the `no-restricted-syntax`
+ * rule in `eslint.config.js` enforces it). A cross-device rename fails EXDEV,
+ * and that failure is environment-dependent in exactly the way that hides
+ * during development and appears in CI or production: on macOS `/tmp`, `docs/`
+ * and the workspace share a device, so `renameSync` succeeds; inside a CI
+ * container — or on a host where `docs/` is its own mount — they do not.
+ *
+ * The source is left in place on the copy path. Callers that need it gone must
+ * unlink it themselves (usually they are already deleting the whole source dir).
+ */
+export function moveFileSync(from: string, to: string) {
+  try {
+    fs.renameSync(from, to);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EXDEV") throw error;
+    fs.copyFileSync(from, to);
+  }
+}
+
 export function unzip(inPath: string, outPath: string) {
   child_process.execSync(`unzip -o "${inPath}" -d "${outPath}"`);
 }
@@ -23,15 +46,8 @@ export function unzip(inPath: string, outPath: string) {
 export function zip(srcDir: string, outPath: string) {
   const tmpzip = ".tmpzip.zip";
   child_process.execSync(`cd "${srcDir}" && zip -r "${tmpzip}" ./*`);
-  const tmpPath = `${srcDir}/${tmpzip}`;
-  try {
-    fs.renameSync(tmpPath, outPath);
-  } catch (err) {
-    // renameSync can't cross filesystems (EXDEV), e.g. workspace -> /tmp in CI
-    if ((err as NodeJS.ErrnoException).code !== "EXDEV") throw err;
-    fs.copyFileSync(tmpPath, outPath);
-    fs.unlinkSync(tmpPath);
-  }
+  moveFileSync(`${srcDir}/${tmpzip}`, outPath);
+  unlinkSafe(`${srcDir}/${tmpzip}`);
 }
 
 export function copyRecursive(from: string, to: string) {
