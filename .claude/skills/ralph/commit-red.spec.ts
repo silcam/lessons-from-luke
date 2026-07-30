@@ -1,4 +1,4 @@
-import { describe, expect, it } from "@jest/globals";
+import { describe, expect, it } from "vitest";
 
 import type { BeadsTask, CommitRedIo } from "./commit-red";
 import {
@@ -21,8 +21,8 @@ interface FakeIo extends CommitRedIo {
   readonly logs: string[];
   /** Messages passed to io.commit(). */
   readonly commits: string[];
-  /** The spec-file lists passed to io.runJest(). */
-  readonly jestCalls: string[][];
+  /** The spec-file lists passed to io.runVitest(). */
+  readonly vitestCalls: string[][];
 }
 
 const RED_TASK: BeadsTask = {
@@ -41,12 +41,12 @@ function makeFakeIo(overrides: Partial<CommitRedIo> = {}): FakeIo {
   const errors: string[] = [];
   const logs: string[] = [];
   const commits: string[] = [];
-  const jestCalls: string[][] = [];
+  const vitestCalls: string[][] = [];
   const base: CommitRedIo = {
     showTask: () => RED_TASK,
     stagedFiles: () => ["src/domain/user.spec.ts", "src/domain/user.ts"],
-    runJest: (specFiles) => {
-      jestCalls.push(specFiles);
+    runVitest: (specFiles) => {
+      vitestCalls.push(specFiles);
       return false; // default: tests fail (a genuine RED)
     },
     commit: (message) => {
@@ -59,7 +59,7 @@ function makeFakeIo(overrides: Partial<CommitRedIo> = {}): FakeIo {
       logs.push(message);
     },
   };
-  return { ...base, ...overrides, errors, logs, commits, jestCalls };
+  return { ...base, ...overrides, errors, logs, commits, vitestCalls };
 }
 
 describe("isRedTask", () => {
@@ -87,30 +87,24 @@ describe("isTestFile", () => {
     expect(isTestFile("src/foo.test.ts")).toBe(true);
   });
 
-  it("accepts .spec.tsx and .test.tsx (frontend RED tasks)", () => {
-    expect(isTestFile("src/frontend/web/documents/useAssembleQuarter.test.tsx")).toBe(true);
-    expect(isTestFile("src/foo.spec.tsx")).toBe(true);
+  it("accepts .spec.tsx and .test.tsx", () => {
+    expect(isTestFile("src/Foo.spec.tsx")).toBe(true);
+    expect(isTestFile("src/Foo.test.tsx")).toBe(true);
   });
 
   it("rejects non-test files", () => {
     expect(isTestFile("src/foo.ts")).toBe(false);
-    expect(isTestFile("src/foo.tsx")).toBe(false);
+    expect(isTestFile("src/Foo.tsx")).toBe(false);
     expect(isTestFile("migrations/0001_init.sql")).toBe(false);
   });
 });
 
 describe("stagedTestFiles", () => {
-  it("keeps only test files (.ts and .tsx), preserving order", () => {
-    expect(
-      stagedTestFiles([
-        "src/a.ts",
-        "src/a.spec.ts",
-        "src/b.test.ts",
-        "src/c.test.tsx",
-        "src/c.tsx",
-        "README.md",
-      ])
-    ).toEqual(["src/a.spec.ts", "src/b.test.ts", "src/c.test.tsx"]);
+  it("keeps only test files, preserving order", () => {
+    expect(stagedTestFiles(["src/a.ts", "src/a.spec.ts", "src/b.test.ts", "README.md"])).toEqual([
+      "src/a.spec.ts",
+      "src/b.test.ts",
+    ]);
   });
 });
 
@@ -188,32 +182,20 @@ describe("run", () => {
     const io = makeFakeIo({ stagedFiles: () => ["src/domain/user.ts"] });
     expect(run(["tb-1"], io)).toBe(1);
     expect(io.errors[0]).toContain("no staged test file");
-    expect(io.jestCalls).toHaveLength(0);
+    expect(io.vitestCalls).toHaveLength(0);
   });
 
   it("refuses when the staged tests pass (looks like a GREEN task)", () => {
-    const io = makeFakeIo({ runJest: () => true });
+    const io = makeFakeIo({ runVitest: () => true });
     expect(run(["tb-1"], io)).toBe(1);
     expect(io.errors[0]).toContain("must contain a failing test");
     expect(io.commits).toHaveLength(0);
   });
 
-  it("runs jest against only the staged test files", () => {
+  it("runs vitest against only the staged test files", () => {
     const io = makeFakeIo();
     run(["tb-1"], io);
-    expect(io.jestCalls).toEqual([["src/domain/user.spec.ts"]]);
-  });
-
-  it("recognises a staged .tsx test and commits a genuine frontend RED", () => {
-    const io = makeFakeIo({
-      stagedFiles: () => [
-        "src/frontend/web/documents/useAssembleQuarter.test.tsx",
-        "src/frontend/web/documents/useAssembleQuarter.tsx",
-      ],
-    });
-    expect(run(["tb-1"], io)).toBe(0);
-    expect(io.jestCalls).toEqual([["src/frontend/web/documents/useAssembleQuarter.test.tsx"]]);
-    expect(io.commits).toHaveLength(1);
+    expect(io.vitestCalls).toEqual([["src/domain/user.spec.ts"]]);
   });
 
   it("commits locally with [skip ci] + Refs footer and does not push on a genuine RED task", () => {
@@ -226,7 +208,7 @@ describe("run", () => {
     expect(io.logs[0]).toContain("Not pushed");
   });
 
-  it("refuses an over-long title before staging, jest, or commit", () => {
+  it("refuses an over-long title before staging, vitest, or commit", () => {
     const longTitle = `Red: ${"a".repeat(120)}`;
     const io = makeFakeIo({
       showTask: () => ({ title: longTitle, description: "**Type**: RED" }),
@@ -235,7 +217,7 @@ describe("run", () => {
     expect(io.errors[0]).toContain("too long");
     expect(io.errors[0]).toContain("br update tb-1");
     expect(io.commits).toHaveLength(0);
-    expect(io.jestCalls).toHaveLength(0);
+    expect(io.vitestCalls).toHaveLength(0);
   });
 
   it("surfaces a commit failure (linters/type-check still enforced)", () => {

@@ -45,6 +45,7 @@ const motherLang: Language = {
   code: "en",
   motherTongue: true,
   progress: [],
+  archived: false,
   defaultSrcLang: 0,
 };
 
@@ -733,6 +734,7 @@ describe("US2/US10 acceptance: bilingual/single-language mode parity + no per-st
       code: "en",
       motherTongue: true,
       progress: [],
+      archived: false,
       defaultSrcLang: 7,
     };
     await startAndRunJob(makeFullStorage(language), "bilingual", language.languageId);
@@ -748,6 +750,7 @@ describe("US2/US10 acceptance: bilingual/single-language mode parity + no per-st
       code: "tst",
       motherTongue: false,
       progress: [],
+      archived: false,
       defaultSrcLang: 1,
     };
     await startAndRunJob(makeFullStorage(language), "bilingual", language.languageId);
@@ -763,6 +766,7 @@ describe("US2/US10 acceptance: bilingual/single-language mode parity + no per-st
       code: "en",
       motherTongue: true,
       progress: [],
+      archived: false,
       defaultSrcLang: 7,
     };
     await startAndRunJob(makeFullStorage(language), "single-language", language.languageId);
@@ -778,6 +782,7 @@ describe("US2/US10 acceptance: bilingual/single-language mode parity + no per-st
       code: "tst",
       motherTongue: false,
       progress: [],
+      archived: false,
       defaultSrcLang: 1,
     };
     const storage = makeFullStorage(language);

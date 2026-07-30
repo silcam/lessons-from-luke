@@ -1,5 +1,16 @@
-import styled from "styled-components";
+import styled, { css } from "styled-components";
 import Div from "./Div";
+
+// Buttons are sized by their own padding, so keep the flex line from stretching
+// them to the full cross-axis extent. Scoped to direct children on purpose: as a
+// descendant selector this reached into nested flex containers (a dialog button
+// row, an action group) and overrode the alignment those containers set for
+// themselves.
+const DontStretchButtons = css`
+  & > button {
+    align-self: flex-start;
+  }
+`;
 
 export interface FlexProps {
   flexZero?: boolean;
@@ -21,9 +32,7 @@ export const FlexCol = styled(DivBase)<FlexProps>`
   height: ${(props) => (props.flexRoot ? "100%" : "auto")};
   align-items: ${(props) => (props.alignCenter ? "center" : "stretch")};
 
-  button {
-    align-self: flex-start;
-  }
+  ${DontStretchButtons}
 `;
 
 export const FlexRow = styled(DivBase)<FlexProps>`
@@ -35,6 +44,8 @@ export const FlexRow = styled(DivBase)<FlexProps>`
   flex-shrink: ${(props) => (props.flexZero ? 0 : 1)};
   height: ${(props) => (props.flexRoot ? "100%" : "auto")};
   align-items: ${(props) => (props.alignCenter ? "center" : "stretch")};
+
+  ${DontStretchButtons}
 `;
 
 // export const FlexFill = styled(Div)`
