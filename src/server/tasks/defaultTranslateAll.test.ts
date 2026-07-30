@@ -63,6 +63,7 @@ function makeStorage(): Persistence {
         motherTongue: false,
         progress: [],
         defaultSrcLang: ENGLISH_ID,
+        archived: false,
       },
     ],
     language: async () => null,
@@ -70,6 +71,12 @@ function makeStorage(): Persistence {
       throw new Error("not implemented in fixture");
     },
     updateLanguage: async () => {
+      throw new Error("not implemented in fixture");
+    },
+    updateLanguageChecked: async () => {
+      throw new Error("not implemented in fixture");
+    },
+    archiveLanguage: async () => {
       throw new Error("not implemented in fixture");
     },
     invalidCode: async () => false,
