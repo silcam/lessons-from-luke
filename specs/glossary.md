@@ -23,9 +23,13 @@
 
 **Invitation link** (noun): The URL shared with a Recipient that encodes the redemption token. Format: `${BETTER_AUTH_URL}/invitation/${token}`. Single-use; valid only while the Invitation is Pending and non-expired. [See: Invitation, Token]
 
+## A
+
+**Archived** (adjective): Terminal, one-way status of a Language project that an Administrator has soft-deleted. Retains all translation data (TStrings, progress, uploaded documents) but is excluded from every language list and cannot be used as a translation target. No in-product restore exists. [Docs: specs/012-language-archive-routing/spec.md] [See: Language, Source language dependency]
+
 ## L
 
-**Language** (noun): A translation target in the domain layer, with progress tracking and optional motherTongue variant. Managed through the `Persistence` interface. [See: Persistence]
+**Language** (noun): A translation target in the domain layer, with progress tracking and optional motherTongue variant. Managed through the `Persistence` interface. Can be Archived. [See: Persistence, Archived]
 
 **Lesson** (noun): Domain entity organized by Book (Luke/Acts), Series, and Lesson number. Contains LessonStrings. [See: LessonString, TString]
 
@@ -46,6 +50,8 @@
 **Retracted** (noun): Terminal status of a Pending Invitation that an Administrator has explicitly cancelled. The link stops working immediately; the record is retained for audit. [See: Invitation, Pending]
 
 ## S
+
+**Source language dependency** (noun): The relationship where one Language designates another as `defaultSrcLang`, the language it translates from. Any Language, not only English, can be a source for others. An active dependency blocks its target from being Archived until dependents are re-pointed. [Docs: specs/012-language-archive-routing/spec.md] [See: Language, Archived]
 
 **Standard role** (noun): The non-administrator role granted to a newly created Account when the Invitation's role is `'standard'`. Maps to `user.admin = false`. [See: Administrator, Invitation]
 

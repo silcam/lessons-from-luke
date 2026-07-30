@@ -18,6 +18,11 @@ Spec: specs/002-invitation-system/spec.md
 Keywords: transactional email, Mailgun, email service, send email, SMTP, password reset, forgot password, reset link, self-service recovery, account recovery, locked out, change password, set new password, email-and-password auth, better-auth sendResetPassword, account enumeration, invalidate sessions, sign out other sessions, auto-email invitation, invitation email, resend invitation, resend email, invitation delivery, email-bound invite, environment-gated email, fail-fast secrets, log transport, dev/test email logging, secrets.json, sending domain, from-address, rate limiting, email flooding, server-only email, web-only
 Spec: specs/005-transactional-email-reset/spec.md
 
+## Language Project Archiving and Detail-View Routing
+
+Keywords: language project, delete language, remove language, archive language, soft delete, deprecate language, source language, defaultSrcLang, dependent language, translation target, language list, Languages screen, admin delete, un-archive, restore, URL routing, language detail URL, /languages/:languageId, browser back forward, page refresh, react-router, shareable link, permalink, translate access, translator picker
+Spec: specs/012-language-archive-routing/spec.md
+
 ## How to Update This File
 
 - Add one entry per feature spec, before this section.
