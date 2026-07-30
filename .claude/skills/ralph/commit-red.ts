@@ -81,13 +81,14 @@ export function isRedTask(task: BeadsTask): boolean {
 }
 
 /**
- * True when a path is a TypeScript test file (`*.spec.ts` or `*.test.ts`).
+ * True when a path is a TypeScript (or TSX) test file (`*.spec.ts`,
+ * `*.test.ts`, `*.spec.tsx`, or `*.test.tsx`).
  *
  * @param path - A repository-relative file path.
  * @returns Whether the path names a test file.
  */
 export function isTestFile(path: string): boolean {
-  return /\.(spec|test)\.ts$/.test(path);
+  return /\.(spec|test)\.tsx?$/.test(path);
 }
 
 /**
@@ -184,7 +185,7 @@ export function run(argv: readonly string[], io: CommitRedIo): number {
   const specs = stagedTestFiles(io.stagedFiles());
   if (specs.length === 0) {
     io.error(
-      "commit-red: no staged test file (*.spec.ts / *.test.ts). " +
+      "commit-red: no staged test file (*.spec.ts / *.test.ts / *.spec.tsx / *.test.tsx). " +
         "Stage the failing test (git add) before committing a RED task."
     );
     return 1;

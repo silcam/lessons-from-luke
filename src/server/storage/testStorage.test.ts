@@ -89,6 +89,32 @@ describe("tStrings", () => {
     const tStrings = await storage.tStrings({ languageId: 9999 });
     expect(tStrings).toEqual([]);
   });
+
+  test("returns empty array for an archived language", async () => {
+    expect((await storage.tStrings({ languageId: 3 })).length).toBeGreaterThan(0);
+    await storage.updateLanguage(3, { archived: true });
+    expect(await storage.tStrings({ languageId: 3 })).toEqual([]);
+  });
+
+  test("returns empty array for an archived language with lessonId", async () => {
+    await storage.updateLanguage(3, { archived: true });
+    expect(await storage.tStrings({ languageId: 3, lessonId: 11 })).toEqual([]);
+  });
+});
+
+describe("updateLanguageChecked", () => {
+  test("throws 404 for an archived target", async () => {
+    await storage.updateLanguage(3, { archived: true });
+    await expect(
+      (async () => storage.updateLanguageChecked(3, { motherTongue: false }))()
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
+  test("throws 404 for a nonexistent languageId", async () => {
+    await expect(
+      (async () => storage.updateLanguageChecked(9999, { motherTongue: false }))()
+    ).rejects.toMatchObject({ status: 404 });
+  });
 });
 
 describe("saveTStrings", () => {

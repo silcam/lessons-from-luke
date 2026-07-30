@@ -144,6 +144,7 @@ function makeStorage(opts: {
       motherTongue: false,
       progress: [],
       defaultSrcLang: ENGLISH_ID,
+      archived: false,
     },
   ];
 
@@ -166,6 +167,7 @@ function makeStorage(opts: {
       motherTongue: false,
       progress: [],
       defaultSrcLang: 1,
+      archived: false,
     }),
     updateLanguage: async () => ({
       languageId: 99,
@@ -174,7 +176,18 @@ function makeStorage(opts: {
       motherTongue: false,
       progress: [],
       defaultSrcLang: 1,
+      archived: false,
     }),
+    updateLanguageChecked: async () => ({
+      languageId: 99,
+      name: "",
+      code: "",
+      motherTongue: false,
+      progress: [],
+      defaultSrcLang: 1,
+      archived: false,
+    }),
+    archiveLanguage: async (languageId: number) => ({ archived: true, languageId }),
     invalidCode: async () => false,
     lessons: async () => [],
     lesson: async (id: number) => (id === 1 ? lesson : null),
@@ -291,6 +304,7 @@ describe("findTSubs integration", () => {
         motherTongue: false,
         progress: [],
         defaultSrcLang: ENGLISH_ID,
+        archived: false,
       },
       {
         languageId: 2,
@@ -299,6 +313,7 @@ describe("findTSubs integration", () => {
         motherTongue: true,
         progress: [],
         defaultSrcLang: ENGLISH_ID,
+        archived: false,
       },
     ];
     const storage = makeStorage({

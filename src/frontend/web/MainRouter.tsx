@@ -19,6 +19,7 @@ import CreateInvitation from "./invitations/CreateInvitation";
 import InvitationsList from "./invitations/InvitationsList";
 import RedeemInvitation from "./auth/RedeemInvitation";
 import AuthGate from "./auth/AuthGate";
+import AdminGate from "./auth/AdminGate";
 import { safeReturnTo } from "./auth/safeReturnTo";
 import ForgotPassword from "./auth/ForgotPassword";
 import ResetPassword from "./auth/ResetPassword";
@@ -107,8 +108,13 @@ export default function MainRouter() {
             element={<DocStringsPageWrapper />}
           />
           <Route path="/update-issues/:lessonId" element={<UpdateIssuesPageWrapper />} />
-          {user?.admin && <Route path="/admin/invitations/new" element={<CreateInvitation />} />}
-          {user?.admin && <Route path="/admin/invitations" element={<InvitationsList />} />}
+          {/* Admin-only routes — registered unconditionally so deep-links resolve
+              during initial auth load; AdminGate owns the authorization decision. */}
+          <Route element={<AdminGate />}>
+            <Route path="/admin/invitations/new" element={<CreateInvitation />} />
+            <Route path="/admin/invitations" element={<InvitationsList />} />
+            <Route path="/languages/:languageId" element={<AdminHome />} />
+          </Route>
         </Route>
         {/* Public route — anyone with the token URL can redeem (FR-007, FR-011).
             MUST be outside AuthGate to prevent redirect loops. */}
