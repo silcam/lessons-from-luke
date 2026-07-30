@@ -1,0 +1,29 @@
+;=============================================
+; Selecting a language updates the browser URL to its detail view.
+;=============================================
+GIVEN an admin is on the Languages list.
+WHEN they select a language.
+THEN the browser URL changes to reflect that specific language's detail view.
+
+;=============================================
+; Refreshing the detail view returns to the same language, not the bare list.
+;=============================================
+GIVEN an admin is viewing a language's detail view via its URL.
+WHEN they refresh the page.
+THEN they land back on that same language's detail view, not the bare Languages list.
+
+;=============================================
+; Back and forward navigation move between the list and the detail view.
+;=============================================
+GIVEN an admin is viewing a language's detail view.
+WHEN they use the browser back button.
+THEN they return to the Languages list.
+WHEN they use the browser forward button.
+THEN they return to the language detail view.
+
+;=============================================
+; A shared detail-view link renders the detail view directly for a signed-in admin.
+;=============================================
+GIVEN an admin has a language detail URL.
+WHEN they open it directly, such as from a shared link, while signed in as an admin.
+THEN the language's detail view renders directly, without first landing on the Languages list.

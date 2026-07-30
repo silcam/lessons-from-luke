@@ -16,8 +16,9 @@ import Table from "../../common/base-components/Table";
 import { GetDocumentButton } from "../documents/useGetDocument";
 import SelectInput from "../../common/base-components/SelectInput";
 import Label from "../../common/base-components/Label";
-import { pushLanguageUpdate } from "../../common/state/languageSlice";
+import { pushLanguageUpdate, pushArchiveLanguage } from "../../common/state/languageSlice";
 import { usePush } from "../../common/api/useLoad";
+import ConfirmDialog from "../../common/base-components/ConfirmDialog";
 
 interface IProps {
   language: Language;
@@ -34,11 +35,33 @@ export default function LanguageView(props: IProps) {
 
   const [activeLang, setActiveLang] = useState(props.language);
 
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const [archiveBlockedDependents, setArchiveBlockedDependents] = useState<string[] | null>(null);
+  const [srcLangUpdateFailed, setSrcLangUpdateFailed] = useState(false);
+  const [archiveUpdateFailed, setArchiveUpdateFailed] = useState(false);
+
   const languages = useAppSelector((state) => state.languages);
 
+  // Languages that still point at this one as their source. Mirrors the server's
+  // HAS_DEPENDENTS check (PGStorage.archiveLanguage) so the Archive button is
+  // never offered for an archive that would be rejected.
+  const dependentNames = languages.adminLanguages
+    .filter(
+      (lng) =>
+        lng.languageId != props.language.languageId &&
+        lng.defaultSrcLang == props.language.languageId
+    )
+    .map((lng) => lng.name);
+
   const handleSrcLangChange = async (v: number) => {
+    const previousLang = activeLang;
+    setSrcLangUpdateFailed(false);
     setActiveLang({ ...activeLang, defaultSrcLang: v });
-    await push(pushLanguageUpdate({ ...activeLang, defaultSrcLang: v }));
+    const result = await push(pushLanguageUpdate({ ...activeLang, defaultSrcLang: v }));
+    if (!result) {
+      setActiveLang(previousLang);
+      setSrcLangUpdateFailed(true);
+    }
   };
 
   const handleMTChange = async (mt: boolean) => {
@@ -46,10 +69,30 @@ export default function LanguageView(props: IProps) {
     await push(pushLanguageUpdate({ ...activeLang, motherTongue: mt }));
   };
 
+  const handleArchiveConfirm = async () => {
+    setConfirmArchive(false);
+    setArchiveUpdateFailed(false);
+    const result = await push(pushArchiveLanguage(props.language.languageId));
+    if (!result) {
+      setArchiveUpdateFailed(true);
+      return;
+    }
+    if ("error" in result) {
+      setArchiveBlockedDependents(result.dependents.map((dependent) => dependent.name));
+    } else {
+      props.done();
+    }
+  };
+
   return (
     <div>
       <Button link text={`< ${t("Languages")}`} onClick={props.done} />
       <Heading text={props.language.name} level={3} />
+      {srcLangUpdateFailed && (
+        <div role="alert" aria-live="assertive">
+          {t("Source_language_update_failed")}
+        </div>
+      )}
 
       {uploadUsfmForm ? (
         <UploadUsfmForm language={props.language} done={() => setUploadUsfmForm(false)} />
@@ -122,6 +165,42 @@ export default function LanguageView(props: IProps) {
               );
             })}
           </Table>
+          <Div padVert>
+            {dependentNames.length > 0 ? (
+              <div>{t("Archive_language_dependents", { names: dependentNames.join(", ") })}</div>
+            ) : (
+              !confirmArchive && (
+                <Button
+                  red
+                  text={t("Archive")}
+                  onClick={() => {
+                    setArchiveBlockedDependents(null);
+                    setArchiveUpdateFailed(false);
+                    setConfirmArchive(true);
+                  }}
+                />
+              )
+            )}
+            <ConfirmDialog
+              open={confirmArchive}
+              title={t("Archive")}
+              message={t("Archive_language_confirm")}
+              confirmText={t("Archive")}
+              cancelText={t("Cancel")}
+              onConfirm={handleArchiveConfirm}
+              onCancel={() => setConfirmArchive(false)}
+            />
+            {archiveBlockedDependents && (
+              <div role="alert" aria-live="assertive">
+                {t("Archive_language_blocked", { names: archiveBlockedDependents.join(", ") })}
+              </div>
+            )}
+            {archiveUpdateFailed && (
+              <div role="alert" aria-live="assertive">
+                {t("Archive_update_failed")}
+              </div>
+            )}
+          </Div>
         </React.Fragment>
       )}
     </div>

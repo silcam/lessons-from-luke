@@ -43,12 +43,21 @@ jest.mock("../common/banners/useClearBannersOnNavigation", () => ({
   useClearBannersOnNavigation: () => {},
 }));
 
+// Mock InvitationsList — the real component fetches invitations on mount.
+jest.mock("./invitations/InvitationsList", () => ({
+  __esModule: true,
+  default: () => {
+    const React = jest.requireActual("react");
+    return React.createElement("div", null, "Invitations list page");
+  },
+}));
+
 import React from "react";
-import { act } from "@testing-library/react";
-import { render } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { Provider } from "react-redux";
-import { buildStore } from "../common/testHelpers";
+import { buildStore, mockGet, mockPost } from "../common/testHelpers";
+import RequestContext from "../common/api/RequestContext";
 import currentUserSlice from "../common/state/currentUserSlice";
 import MainRouter from "./MainRouter";
 
@@ -203,6 +212,75 @@ describe("MainRouter post-login return-to navigation", () => {
       // return the full path+search — the user_code query param is NOT in a
       // path segment, so the authority-confusion guard leaves it intact.
       expect(mockNavigate).toHaveBeenCalledWith("/link?user_code=WDJB-MJHT", { replace: true });
+    });
+  });
+
+  describe("admin deep-link cold load — no sign-in flash (AdminGate regression)", () => {
+    /**
+     * Render MainRouter with a RequestContext provider (AdminHome's child
+     * boxes call useLoad on mount, which reads the request context).
+     */
+    function renderMainRouterWithApi(
+      initialPath: string,
+      preloadedCurrentUser: { user: { id: string; admin: boolean } | null; loaded: boolean }
+    ) {
+      const store = buildStore({
+        currentUser: { ...preloadedCurrentUser, locale: "en", error: null },
+      });
+
+      const utils = render(
+        <Provider store={store}>
+          <RequestContext.Provider value={{ get: mockGet, post: mockPost }}>
+            <MemoryRouter
+              initialEntries={[initialPath]}
+              future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+            >
+              <MainRouter />
+            </MemoryRouter>
+          </RequestContext.Provider>
+        </Provider>
+      );
+
+      return { store, ...utils };
+    }
+
+    it("cold-loading /admin/invitations never flashes the sign-in page; admin content appears once resolved", async () => {
+      // Cold load: auth state unknown — the admin route must be REGISTERED
+      // (not conditionally omitted), so the catch-all sign-in page never renders.
+      const { store } = renderMainRouterWithApi("/admin/invitations", {
+        user: null,
+        loaded: false,
+      });
+
+      // No sign-in heading ("Log In") flash while auth state resolves
+      expect(screen.queryAllByText("Log In")).toHaveLength(0);
+      expect(screen.queryByText("Invitations list page")).toBeNull();
+
+      // Auth resolves to an admin user (loaded: false → true)
+      await act(async () => {
+        store.dispatch(currentUserSlice.actions.setUser({ id: "u1", admin: true }));
+      });
+
+      // Admin content renders; still no sign-in page
+      expect(screen.getByText("Invitations list page")).toBeTruthy();
+      expect(screen.queryAllByText("Log In")).toHaveLength(0);
+    });
+
+    it("cold-loading /languages/42 never flashes the sign-in page; AdminHome appears once resolved", async () => {
+      const { store } = renderMainRouterWithApi("/languages/42", {
+        user: null,
+        loaded: false,
+      });
+
+      expect(screen.queryAllByText("Log In")).toHaveLength(0);
+
+      await act(async () => {
+        store.dispatch(currentUserSlice.actions.setUser({ id: "u1", admin: true }));
+      });
+
+      // AdminHome (the /languages/:languageId element) renders its header bar
+      expect(screen.getByText("Log Out")).toBeTruthy();
+      expect(screen.queryAllByText("Log In")).toHaveLength(0);
     });
   });
 

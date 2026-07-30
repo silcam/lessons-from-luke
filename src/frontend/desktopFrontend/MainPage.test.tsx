@@ -163,6 +163,7 @@ describe("MainPage", () => {
       motherTongue: false,
       progress: [],
       defaultSrcLang: 1,
+      archived: false,
     };
     const store = createTestStore({
       loaded: true,
@@ -195,6 +196,7 @@ describe("MainPage", () => {
       motherTongue: false,
       progress: [],
       defaultSrcLang: 1,
+      archived: false,
     };
     const store = createTestStore({
       loaded: true,
@@ -237,6 +239,7 @@ describe("DownSyncPage", () => {
       motherTongue: false,
       progress: [],
       defaultSrcLang: 1,
+      archived: false,
     };
     const store = createTestStore({
       loaded: true,
@@ -293,6 +296,7 @@ describe("DownSyncPage", () => {
       motherTongue: false,
       progress: [],
       defaultSrcLang: 1,
+      archived: false,
     };
     const store = createTestStore({
       loaded: true,

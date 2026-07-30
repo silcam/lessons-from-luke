@@ -6,6 +6,7 @@ import { DocString } from "../models/DocString";
 import { SyncState, ContinuousSyncPackage } from "../models/SyncState";
 import { Locale } from "../i18n/I18n";
 import { TSub } from "../models/TSub";
+import { ArchiveLanguageResult } from "../interfaces/Api";
 
 // ---------------------------------------------------------------------------
 // Invitation response shapes — shared between server and frontend thunks
@@ -150,6 +151,11 @@ interface WebOnlyAPIPost {
     { languageId: number },
     { usfm: string },
     { language: Language; tStrings: TString[]; errors: string[] },
+  ];
+  "/api/admin/languages/:languageId/archive": [
+    { languageId: number },
+    Record<string, never>,
+    ArchiveLanguageResult,
   ];
   "/api/admin/lessons/:lessonId/strings": [
     { lessonId: number },

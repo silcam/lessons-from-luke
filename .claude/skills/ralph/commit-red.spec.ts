@@ -87,8 +87,14 @@ describe("isTestFile", () => {
     expect(isTestFile("src/foo.test.ts")).toBe(true);
   });
 
+  it("accepts .spec.tsx and .test.tsx", () => {
+    expect(isTestFile("src/Foo.spec.tsx")).toBe(true);
+    expect(isTestFile("src/Foo.test.tsx")).toBe(true);
+  });
+
   it("rejects non-test files", () => {
     expect(isTestFile("src/foo.ts")).toBe(false);
+    expect(isTestFile("src/Foo.tsx")).toBe(false);
     expect(isTestFile("migrations/0001_init.sql")).toBe(false);
   });
 });
