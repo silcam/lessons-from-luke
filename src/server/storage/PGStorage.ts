@@ -17,7 +17,7 @@ import { uniq, discriminate, findBy } from "../../core/util/arrayUtils";
 import { VerseStringPattern } from "../usfm/translateFromUsfm";
 import pgLoadFixtures from "./pgLoadFixtures";
 import secrets from "../util/secrets";
-import { LanguageTimestamp } from "../../core/interfaces/Api";
+import { LanguageTimestamp, ArchiveLanguageResult } from "../../core/interfaces/Api";
 
 export default class PGStorage implements Persistence {
   sql: SqlFunc;
@@ -29,36 +29,58 @@ export default class PGStorage implements Persistence {
 
   async languages(): Promise<Language[]> {
     const langs = this.sql`
-      SELECT languageid, name, code, motherTongue, progress, defaultsrclang
+      SELECT languageid, name, code, motherTongue, progress, defaultsrclang, archived
       FROM languages
+      WHERE NOT archived
     `;
     return langs;
   }
 
   async language(params: { languageId: number } | { code: string }): Promise<Language | null> {
     const rows = await this.sql`
-      SELECT languageid, name, code, motherTongue, progress, defaultsrclang 
-      FROM languages 
-      WHERE ${this.sql(params)}
+      SELECT languageid, name, code, motherTongue, progress, defaultsrclang, archived
+      FROM languages
+      WHERE ${this.sql(params)} AND NOT archived
     `;
     return rows[0] || null;
   }
 
+  // Runs `fn` on the INSTANCE `this.sql` (not a module-level connection) so
+  // `TransactionalTestStorage` nests it correctly: at the top level
+  // `this.sql` is a root connection (has `.begin`), but
+  // `TransactionalTestStorage` swaps `this.sql` to the per-test transaction's
+  // scoped sql for the duration of a test — postgres@1's scoped tx sql only
+  // exposes `.savepoint` (not `.begin`), so we pick whichever is present.
+  // Either way this nests on the SAME connection as the caller's `this.sql`.
+  // The `any` cast is confined to this single helper.
+  private runInTx<T>(fn: (tx: SqlFunc) => Promise<T>): Promise<T> {
+    const sql: any = this.sql;
+    const runInTransaction = (sql.begin ? sql.begin : sql.savepoint).bind(sql);
+    return runInTransaction(fn);
+  }
+
   async createLanguage(newLanguage: NewLanguage): Promise<Language> {
-    const timestamp = Date.now();
-    const newLang = {
-      ...newLanguage,
-      code: encode(),
-      motherTongue: true,
-      progress: "[]",
-      created: timestamp,
-      modified: timestamp,
-    };
-    const [final] = await this.sql`
-      INSERT INTO languages 
-        ${this.sql(newLang)} 
-        returning *`;
-    return final;
+    return this.runInTx(async (tx: SqlFunc) => {
+      const [source] = await tx`
+        SELECT languageid FROM languages WHERE languageId=${newLanguage.defaultSrcLang} AND NOT archived FOR UPDATE
+      `;
+      if (!source) throw { status: 422 };
+
+      const timestamp = Date.now();
+      const newLang = {
+        ...newLanguage,
+        code: encode(),
+        motherTongue: true,
+        progress: "[]",
+        created: timestamp,
+        modified: timestamp,
+      };
+      const [final] = await tx`
+        INSERT INTO languages
+          ${tx(newLang)}
+          returning *`;
+      return final;
+    });
   }
 
   async updateLanguage(id: number, update: Partial<Language>): Promise<Language> {
@@ -66,6 +88,68 @@ export default class PGStorage implements Persistence {
     await this.sql`UPDATE languages SET ${this.sql(finalUpdate)} WHERE languageId=${id}`;
     await this.updateProgress();
     return (await this.language({ languageId: id }))!;
+  }
+
+  // Like updateLanguage, but (a) rejects with { status: 404 } unless the
+  // target itself is active, and (b) when `update.defaultSrcLang` is present
+  // AND differs from the row's current value, validates the new source is
+  // active (locked FOR UPDATE) before applying — rejects with
+  // { status: 422 } if missing or archived. Runs via runInTx — see its
+  // comment for why the transaction-starter is picked dynamically.
+  //
+  // `updateLanguage` deliberately keeps NO archived filter: it is how tests
+  // (and only tests) flip `archived` in the first place.
+  async updateLanguageChecked(id: number, update: Partial<Language>): Promise<Language> {
+    await this.runInTx(async (tx: SqlFunc) => {
+      const [row] = await tx`
+        SELECT languageid, defaultsrclang FROM languages
+        WHERE languageId=${id} AND NOT archived FOR UPDATE
+      `;
+      // No active row: nonexistent or archived. Both are a 404 — an archived
+      // language must not be mutable through the generic update endpoint.
+      if (!row) throw { status: 404 };
+
+      if (update.defaultSrcLang !== undefined && update.defaultSrcLang !== row.defaultSrcLang) {
+        const [source] = await tx`
+          SELECT languageid FROM languages WHERE languageId=${update.defaultSrcLang} AND NOT archived FOR UPDATE
+        `;
+        if (!source) throw { status: 422 };
+      }
+
+      const finalUpdate = { ...update, modified: Date.now() };
+      await tx`UPDATE languages SET ${tx(finalUpdate)} WHERE languageId=${id}`;
+    });
+    await this.updateProgress();
+    // Safe post-update: the locked `AND NOT archived` predicate above proves
+    // the target was active, and this method never sets `archived`, so a
+    // re-read through `language()` (which filters out archived rows) always
+    // finds it.
+    return (await this.language({ languageId: id }))!;
+  }
+
+  // Archives a language iff no other active language depends on it as a
+  // defaultSrcLang. Runs via runInTx — see its comment for why the
+  // transaction-starter is picked dynamically.
+  async archiveLanguage(languageId: number): Promise<ArchiveLanguageResult> {
+    return this.runInTx(async (tx: SqlFunc) => {
+      const [row] = await tx`
+        SELECT languageid FROM languages WHERE languageId=${languageId} AND NOT archived FOR UPDATE
+      `;
+      // No active row: nonexistent or already archived. Surfaced as a 404 at
+      // the controller layer (contract: archive-language.md).
+      if (!row) throw { status: 404 };
+
+      const dependents: { languageId: number; name: string }[] = await tx`
+        SELECT languageid, name FROM languages
+        WHERE NOT archived AND defaultSrcLang=${languageId} AND languageId != ${languageId}
+      `;
+      if (dependents.length > 0) {
+        return { error: "HAS_DEPENDENTS", dependents };
+      }
+
+      await tx`UPDATE languages SET archived=true, modified=${Date.now()} WHERE languageId=${languageId}`;
+      return { archived: true, languageId };
+    });
   }
 
   async invalidCode(code: string, languageIds: number[]): Promise<boolean> {
@@ -143,6 +227,17 @@ export default class PGStorage implements Persistence {
       : this.sql`SELECT * FROM oldLessonStrings WHERE lessonId=${lessonId} ORDER BY lessonStringId`;
   }
 
+  // An archived language reads exactly like a nonexistent one: [] (200 + []
+  // at the API, never a 404) — see data-model.md "Read-path filtering".
+  //
+  // The `EXISTS` guard is repeated inline in all three branches rather than
+  // factored into a shared fragment because postgres@1 has no fragment
+  // composition: a nested sql`` object is bound as a *value*, not spliced
+  // (lib/index.js parseValue/addValue). A preliminary `SELECT 1` guard would
+  // instead cost one extra round-trip per call, and `updateProgress` calls
+  // this once per active language on every save. The guard is uncorrelated
+  // (only a bound param), so Postgres evaluates it once against the languages
+  // PK and skips the tStrings scan entirely when it is false.
   async tStrings(params: {
     languageId: number;
     lessonId?: number;
@@ -161,6 +256,8 @@ export default class PGStorage implements Persistence {
         WHERE languageId=${params.languageId}
         AND masterId IN (${masterIds})
         AND (lessonStringId IN (${lessonStringIds}) OR lessonStringId IS NULL)
+        AND EXISTS (SELECT 1 FROM languages lang
+                    WHERE lang.languageId=${params.languageId} AND NOT lang.archived)
         ORDER BY masterid
       `;
     } else if (params.masterIds) {
@@ -169,6 +266,8 @@ export default class PGStorage implements Persistence {
         FROM tStrings
         WHERE languageId=${params.languageId}
         AND masterId IN (${params.masterIds})
+        AND EXISTS (SELECT 1 FROM languages lang
+                    WHERE lang.languageId=${params.languageId} AND NOT lang.archived)
         ORDER BY masterid
       `;
     } else {
@@ -176,6 +275,8 @@ export default class PGStorage implements Persistence {
         SELECT masterid, languageid, sourcelanguageid, source, text, history, lessonstringid
         FROM tStrings
         WHERE ${this.sql(params)}
+        AND EXISTS (SELECT 1 FROM languages lang
+                    WHERE lang.languageId=${params.languageId} AND NOT lang.archived)
         ORDER BY masterid
       `;
     }

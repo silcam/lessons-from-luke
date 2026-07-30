@@ -101,6 +101,12 @@ describe("defaultTranslations — US16 acceptance scenarios", () => {
       updateLanguage: async () => {
         throw new Error("not implemented in fixture");
       },
+      updateLanguageChecked: async () => {
+        throw new Error("not implemented in fixture");
+      },
+      archiveLanguage: async () => {
+        throw new Error("not implemented in fixture");
+      },
       invalidCode: async () => false,
       lessons: async () => [],
       lesson: async () => null,
