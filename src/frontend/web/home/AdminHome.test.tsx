@@ -42,6 +42,10 @@ import AdminHome from "./AdminHome";
 // <dialog open> attribute is never set, making the element invisible to
 // testing-library queries.  Polyfill both methods to toggle the `open`
 // attribute, which is how non-modal dialogs become visible in the DOM.
+// The component mounts the <dialog> only while open (confirmUser set) and
+// calls showModal() from a mount effect, so open/close in tests is driven by
+// mount/unmount; the polyfill just keeps the mounted dialog visible to
+// role queries and Cancel-path close() from throwing.
 beforeAll(() => {
   if (!HTMLDialogElement.prototype.showModal) {
     HTMLDialogElement.prototype.showModal = function () {

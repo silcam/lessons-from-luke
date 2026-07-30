@@ -151,11 +151,17 @@ export default function AdminHome() {
   // Dialog open / close
   // ------------------------------------------------------------------
   const openDialog = (targetUser: AdminUserRow) => {
+    // Setting confirmUser mounts the <dialog>; the effect below then calls
+    // showModal() once the element exists in the DOM.
     setConfirmUser(targetUser);
-    // showModal() activates focus trapping; Escape closes the dialog natively
-    // and fires the onCancel event (handled by closeDialog).
-    dialogRef.current?.showModal();
   };
+
+  // showModal() activates focus trapping; Escape closes the dialog natively
+  // and fires the onCancel event (handled by closeDialog). It must run after
+  // the dialog mounts, hence a mount effect keyed on confirmUser.
+  useEffect(() => {
+    if (confirmUser) dialogRef.current?.showModal();
+  }, [confirmUser]);
 
   const closeDialog = () => {
     dialogRef.current?.close();
@@ -274,27 +280,31 @@ export default function AdminHome() {
           use showModal() and sit on top of the page as a true modal. The native
           <dialog> element provides focus trapping, Escape-to-close, and
           backdrop rendering. Inline styles are used because styled-components
-          does not forward refs, which showModal() requires. */}
-      <dialog
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="revoke-dialog-title"
-        onCancel={closeDialog}
-        style={dialogStyle}
-      >
-        <p id="revoke-dialog-title">
-          {confirmUser ? t("AdminHome_revoke_confirm_prompt", { name: confirmUser.name }) : ""}
-        </p>
-        <DialogActions>
-          <Button
-            red
-            text={t("AdminHome_revoke_confirm_button")}
-            onClick={() => void handleRevoke()}
-          />
-          <Button link text={t("Cancel")} onClick={closeDialog} />
-        </DialogActions>
-      </dialog>
+          does not forward refs, which showModal() requires.
+          Mounted only while open (confirmUser set) so a closed dialog never
+          matches [role='dialog'] queries alongside other dialogs on the page. */}
+      {confirmUser !== null && (
+        <dialog
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="revoke-dialog-title"
+          onCancel={closeDialog}
+          style={dialogStyle}
+        >
+          <p id="revoke-dialog-title">
+            {t("AdminHome_revoke_confirm_prompt", { name: confirmUser.name })}
+          </p>
+          <DialogActions>
+            <Button
+              red
+              text={t("AdminHome_revoke_confirm_button")}
+              onClick={() => void handleRevoke()}
+            />
+            <Button link text={t("Cancel")} onClick={closeDialog} />
+          </DialogActions>
+        </dialog>
+      )}
     </>
   );
 }
