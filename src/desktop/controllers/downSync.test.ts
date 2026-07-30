@@ -296,6 +296,7 @@ describe("downSyncTStrings", () => {
         motherTongue: false,
         progress: [],
         defaultSrcLang: 1,
+        archived: false,
       },
     });
     const app = makeApp(syncState);
@@ -420,6 +421,7 @@ describe("downSync - fetchMissingSrcStrings (lines 188-202)", () => {
       motherTongue: false,
       progress: [],
       defaultSrcLang: 1,
+      archived: false,
     };
     const syncState = makeSyncState({
       downSync: makeDownSync({ tStrings: { 10: [999] }, timestamp: 5 }),
@@ -475,6 +477,7 @@ describe("downSync - fetchMissingSrcStrings (lines 188-202)", () => {
       motherTongue: false,
       progress: [],
       defaultSrcLang: 1,
+      archived: false,
     };
     const syncState = makeSyncState({
       downSync: makeDownSync({ tStrings: { 10: [1] }, timestamp: 5 }),

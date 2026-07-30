@@ -55,6 +55,7 @@ const motherLang: Language = {
   code: "en",
   motherTongue: true,
   progress: [],
+  archived: false,
   defaultSrcLang: 0,
 };
 

@@ -33,6 +33,7 @@ const language: PublicLanguage = {
   name: "English",
   motherTongue: true,
   progress: [],
+  archived: false,
   defaultSrcLang: 0,
 };
 
