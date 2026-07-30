@@ -28,6 +28,11 @@ Spec: specs/005-transactional-email-reset/spec.md
 Keywords: quarter styles template, styles template, template application, load styles, print-ready, print styles, M.T. highlight, mother tongue highlight, yellow highlight, remove highlight, background color, paragraph styles, page styles, style source, swappable asset, stand-in template, Q2 reference master, assembled quarter styling, assembly job failure, LibreOffice styles, publishing automation, WS-2c, SOP 16
 Spec: specs/009-quarter-styles-template/spec.md
 
+## Language Project Archiving and Detail-View Routing
+
+Keywords: language project, delete language, remove language, archive language, soft delete, deprecate language, source language, defaultSrcLang, dependent language, translation target, language list, Languages screen, admin delete, un-archive, restore, URL routing, language detail URL, /languages/:languageId, browser back forward, page refresh, react-router, shareable link, permalink, translate access, translator picker
+Spec: specs/012-language-archive-routing/spec.md
+
 ## How to Update This File
 
 - Add one entry per feature spec, before this section.
