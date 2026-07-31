@@ -184,7 +184,7 @@ const en = {
   // Language rename (US1 — language-project-rename)
   Language_name_duplicate: "A language with that name already exists.",
   Language_name_required: "Language name is required.",
-  Language_name_too_long: "Language name must be 100 characters or fewer.",
+  Language_name_too_long: "Language name must be %{max} characters or fewer.",
 };
 
 export type I18nStrings = typeof en;

@@ -1,12 +1,11 @@
 import { Express } from "express";
 import { addGetHandler, addPostHandler } from "../api/WebAPI";
-import { isNewLanguage } from "../../core/models/Language";
+import { isNewLanguage, MAX_LANGUAGE_NAME_LENGTH } from "../../core/models/Language";
 import { Persistence } from "../../core/interfaces/Persistence";
 import { unset, objFilter } from "../../core/util/objectUtils";
 import importUsfm from "../usfm/importUsfm";
 import defaultTranslations from "../actions/defaultTranslations";
 
-const MAX_LANGUAGE_NAME_LENGTH = 100;
 // eslint-disable-next-line no-control-regex
 const C0_C1_CONTROL_CHARS = /[\u0000-\u001F\u007F-\u009F]/;
 

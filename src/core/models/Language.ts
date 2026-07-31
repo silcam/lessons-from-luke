@@ -6,6 +6,7 @@ import { TString } from "./TString";
 
 export const ENGLISH_ID = 1;
 export const FRENCH_ID = 2;
+export const MAX_LANGUAGE_NAME_LENGTH = 100;
 
 export interface Language {
   languageId: number;

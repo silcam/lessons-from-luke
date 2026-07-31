@@ -546,6 +546,39 @@ describe("LanguageView rename flow", () => {
     expect((getByLabelText("Language Name") as HTMLInputElement).value).toBe(tooLongValue);
   });
 
+  it("shows the required message (not too-long) on a 422 for a draft of 101 spaces, matching the server's trimmed check", async () => {
+    const done = jest.fn();
+    const { getByRole, getByLabelText, findByRole } = renderWithProviders(
+      <LanguageView language={sampleLanguage} done={done} />,
+      {
+        syncState: defaultSyncState,
+        languages: { languages: [], adminLanguages: [sampleLanguage] },
+        currentUser: { user: null, locale: "en", loaded: false },
+        lessons: [],
+      }
+    );
+    await act(async () => {});
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+    });
+
+    const spacesValue = " ".repeat(101);
+    const nameInput = getByLabelText("Language Name") as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: spacesValue } });
+
+    mockPost.mockRejectedValueOnce({ type: "HTTP", status: 422 });
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^save$/i }));
+    });
+
+    expect(mockPost).toHaveBeenCalledTimes(1);
+
+    const alert = await findByRole("alert");
+    expect(alert.textContent).toMatch(/required/i);
+  });
+
   it("shows the trimmed value in the heading, and re-seeds the editor from it, after saving a name typed with leading/trailing whitespace", async () => {
     mockPost.mockResolvedValue({ ...sampleLanguage, name: "New Name" });
     const done = jest.fn();

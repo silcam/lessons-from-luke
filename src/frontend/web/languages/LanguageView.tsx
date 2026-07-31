@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Language, ENGLISH_ID } from "../../../core/models/Language";
+import { Language, ENGLISH_ID, MAX_LANGUAGE_NAME_LENGTH } from "../../../core/models/Language";
 import Heading from "../../common/base-components/Heading";
 import { useAppSelector } from "../../common/state/appState";
 import { lessonName } from "../../../core/models/Lesson";
@@ -87,7 +87,9 @@ export default function LanguageView(props: IProps) {
     const updatedLanguage = await push(pushLanguageRename(activeLang.languageId, draft), (err) => {
       if (err.type == "HTTP" && err.status == 422) {
         setNameError(
-          draft.length > 100 ? t("Language_name_too_long") : t("Language_name_required")
+          draft.trim().length > MAX_LANGUAGE_NAME_LENGTH
+            ? t("Language_name_too_long", { max: `${MAX_LANGUAGE_NAME_LENGTH}` })
+            : t("Language_name_required")
         );
         return true;
       }
