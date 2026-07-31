@@ -91,6 +91,11 @@ export default function LanguageView(props: IProps) {
     }
   };
 
+  const cancelEditing = () => {
+    setEditing(false);
+    setReturningFromEditor(true);
+  };
+
   const handleArchiveConfirm = async () => {
     setConfirmArchive(false);
     setArchiveUpdateFailed(false);
@@ -124,23 +129,13 @@ export default function LanguageView(props: IProps) {
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === "Escape" && !saving) {
-                  setEditing(false);
-                  setReturningFromEditor(true);
+                  cancelEditing();
                 }
               }}
             />
           </Label>
           <Button type="submit" text={t("Save")} onClick={() => {}} disabled={saving} />
-          <Button
-            type="button"
-            red
-            text={t("Cancel")}
-            onClick={() => {
-              setEditing(false);
-              setReturningFromEditor(true);
-            }}
-            disabled={saving}
-          />
+          <Button type="button" red text={t("Cancel")} onClick={cancelEditing} disabled={saving} />
         </form>
       ) : (
         <Button
