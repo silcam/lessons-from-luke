@@ -206,6 +206,25 @@ test("POST update language: valid trimmed name is accepted and persisted", async
   expect(language.name).toBe("New Name");
 });
 
+// POST /api/admin/languages/:languageId rename — RED (lessons-from-luke-fm4a.5.2.5, N-3)
+// Empty or whitespace-only name (after trimming) must be rejected 422, and the
+// stored name must be left completely unchanged.
+test("POST update language: 422 when name is empty or whitespace-only, stored name unchanged", async () => {
+  const storage: TestPersistence = (global as any).testStorage;
+  const before = await storage.language({ languageId: 3 });
+
+  const agent = await loggedInAgent();
+
+  const emptyResponse = await agent.post("/api/admin/languages/3").send({ name: "" });
+  expect(emptyResponse.status).toBe(422);
+
+  const whitespaceResponse = await agent.post("/api/admin/languages/3").send({ name: "   " });
+  expect(whitespaceResponse.status).toBe(422);
+
+  const after = await storage.language({ languageId: 3 });
+  expect(after?.name).toBe(before?.name);
+});
+
 // POST /api/admin/languages/:languageId re-point guard — RED
 // (lessons-from-luke-e044.5.5.2, RT-B/RT-F/RT-H). The endpoint still calls
 // storage.updateLanguage directly (no active-source check) — it must route
