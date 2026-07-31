@@ -325,4 +325,67 @@ describe("LanguageView rename flow", () => {
     expect(queryByLabelText("Language Name")).toBeNull();
     expect(getByText(sampleLanguage.name)).toBeTruthy();
   });
+
+  it("does not focus the Edit button on initial render", async () => {
+    const done = jest.fn();
+    const { getByRole } = renderWithProviders(
+      <LanguageView language={sampleLanguage} done={done} />,
+      {
+        syncState: defaultSyncState,
+        languages: { languages: [], adminLanguages: [sampleLanguage] },
+        currentUser: { user: null, locale: "en", loaded: false },
+        lessons: [],
+      }
+    );
+    await act(async () => {});
+
+    const editLink = getByRole("button", { name: /^edit$/i });
+    expect(document.activeElement).not.toBe(editLink);
+  });
+
+  it("moves focus to the name TextInput when Edit is activated", async () => {
+    const done = jest.fn();
+    const { getByRole, getByLabelText } = renderWithProviders(
+      <LanguageView language={sampleLanguage} done={done} />,
+      {
+        syncState: defaultSyncState,
+        languages: { languages: [], adminLanguages: [sampleLanguage] },
+        currentUser: { user: null, locale: "en", loaded: false },
+        lessons: [],
+      }
+    );
+    await act(async () => {});
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+    });
+
+    const nameInput = getByLabelText("Language Name") as HTMLInputElement;
+    expect(document.activeElement).toBe(nameInput);
+  });
+
+  it("returns focus to the Edit button after Cancel", async () => {
+    const done = jest.fn();
+    const { getByRole } = renderWithProviders(
+      <LanguageView language={sampleLanguage} done={done} />,
+      {
+        syncState: defaultSyncState,
+        languages: { languages: [], adminLanguages: [sampleLanguage] },
+        currentUser: { user: null, locale: "en", loaded: false },
+        lessons: [],
+      }
+    );
+    await act(async () => {});
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+    });
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^cancel$/i }));
+    });
+
+    const editLink = getByRole("button", { name: /^edit$/i });
+    expect(document.activeElement).toBe(editLink);
+  });
 });
