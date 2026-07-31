@@ -160,7 +160,7 @@ export default function LanguageView(props: IProps) {
           text={t("Edit")}
           autoFocus={returningFromEditor}
           onClick={() => {
-            setDraft(props.language.name);
+            setDraft(activeLang.name);
             setEditing(true);
           }}
         />
