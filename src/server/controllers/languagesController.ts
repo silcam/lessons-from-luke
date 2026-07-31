@@ -8,6 +8,23 @@ import defaultTranslations from "../actions/defaultTranslations";
 
 // eslint-disable-next-line no-control-regex
 const C0_C1_CONTROL_CHARS = /[\u0000-\u001F\u007F-\u009F]/;
+const PATH_TRAVERSAL_CHARS = /[/\\]|\.\./;
+
+/**
+ * Validates a candidate language name shared by both the create and rename
+ * endpoints. Trims the name and rejects empty, overlong, control-character,
+ * or path-traversal-bearing names. Returns the trimmed name on success, or
+ * throws { status: 422 } on failure.
+ */
+function validateLanguageName(name: unknown): string {
+  if (typeof name !== "string") throw { status: 422 };
+  const trimmed = name.trim();
+  if (trimmed.length === 0) throw { status: 422 };
+  if (trimmed.length > MAX_LANGUAGE_NAME_LENGTH) throw { status: 422 };
+  if (C0_C1_CONTROL_CHARS.test(trimmed)) throw { status: 422 };
+  if (PATH_TRAVERSAL_CHARS.test(trimmed)) throw { status: 422 };
+  return trimmed;
+}
 
 export default function languagesController(app: Express, storage: Persistence) {
   addGetHandler(app, "/api/languages", async (_req) => {
@@ -27,6 +44,7 @@ export default function languagesController(app: Express, storage: Persistence) 
     if (!isNewLanguage(newLanguage)) {
       throw { status: 422 };
     }
+    newLanguage.name = validateLanguageName(newLanguage.name);
     const existing = await storage.languages();
     const duplicate = existing.some(
       (lang) => lang.name.toLowerCase() === newLanguage.name.toLowerCase()
@@ -41,11 +59,7 @@ export default function languagesController(app: Express, storage: Persistence) 
     const languageId = parseInt(req.params.languageId);
     const langUpdate = objFilter(req.body, ["motherTongue", "defaultSrcLang", "name"]);
     if ("name" in langUpdate) {
-      if (typeof langUpdate.name !== "string") throw { status: 422 };
-      const trimmed = langUpdate.name.trim();
-      if (trimmed.length === 0) throw { status: 422 };
-      if (trimmed.length > MAX_LANGUAGE_NAME_LENGTH) throw { status: 422 };
-      if (C0_C1_CONTROL_CHARS.test(trimmed)) throw { status: 422 };
+      const trimmed = validateLanguageName(langUpdate.name);
 
       const target = await storage.language({ languageId });
       if (!target || target.archived) throw { status: 404 };

@@ -28,7 +28,12 @@ async function saveTmp<T>(file: UploadedFile, cb: (filepath: string) => Promise<
 function tmpFilePath(baseName: string) {
   cleanTmpDir();
   const timestamp = new Date().valueOf().toString();
-  const filepath = `${docsTmpPath()}/${timestamp}_${baseName}`;
+  // Defense in depth: strip any directory components from baseName so a
+  // caller passing an unsanitized name (e.g. a language name interpolated by
+  // makeLessonFile) can never escape docsTmpPath() via path separators or
+  // ".." segments.
+  const safeBaseName = path.basename(baseName);
+  const filepath = `${docsTmpPath()}/${timestamp}_${safeBaseName}`;
   return filepath;
 }
 

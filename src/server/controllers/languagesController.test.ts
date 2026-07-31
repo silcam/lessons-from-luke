@@ -311,6 +311,26 @@ test("POST update language: 404 when the target language is archived", async () 
   expect(response.status).toBe(404);
 });
 
+// POST /api/admin/languages/:languageId rename — RED (lessons-from-luke-fm4a.7)
+// A name containing path-traversal segments must be rejected 422 so it can
+// never be interpolated into a filesystem path (makeLessonFile/docStorage).
+test("POST update language: 422 when name contains path traversal segments", async () => {
+  const agent = await loggedInAgent();
+  const response = await agent.post("/api/admin/languages/3").send({ name: "../../../evil" });
+  expect(response.status).toBe(422);
+});
+
+// POST /api/admin/languages create — RED (lessons-from-luke-fm4a.7)
+// Language creation predates the rename endpoint's validation; it must be
+// brought in line so both routes reject path-traversal names identically.
+test("POST /api/languages: 422 when name contains path traversal segments", async () => {
+  const agent = await loggedInAgent();
+  const response = await agent
+    .post("/api/admin/languages")
+    .send({ name: "../../../evil", defaultSrcLang: 2 });
+  expect(response.status).toBe(422);
+});
+
 test("POST usfm", async () => {
   const agent = await loggedInAgent();
   const response = await agent.post("/api/admin/languages/3/usfm").send({ usfm });
