@@ -118,7 +118,17 @@ export default function LanguageView(props: IProps) {
           }}
         >
           <Label text={t("Language_name")}>
-            <TextInput value={draft} setValue={setDraft} autoFocus />
+            <TextInput
+              value={draft}
+              setValue={setDraft}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Escape" && !saving) {
+                  setEditing(false);
+                  setReturningFromEditor(true);
+                }
+              }}
+            />
           </Label>
           <Button type="submit" text={t("Save")} onClick={() => {}} disabled={saving} />
           <Button
