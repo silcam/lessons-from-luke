@@ -132,8 +132,14 @@ export function pushLanguageUpdate(language: Language): Pusher<Language> {
 }
 
 export function pushLanguageRename(languageId: number, name: string): Pusher<Language> {
-  return async () => {
-    throw new Error(`Not implemented: pushLanguageRename(${languageId}, ${name})`);
+  return async (post, dispatch) => {
+    const updatedLanguage = await post(
+      "/api/admin/languages/:languageId",
+      { languageId },
+      { name }
+    );
+    if (updatedLanguage) dispatch(languageSlice.actions.addLanguage(updatedLanguage));
+    return updatedLanguage;
   };
 }
 
