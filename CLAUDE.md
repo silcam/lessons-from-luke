@@ -243,6 +243,9 @@ Use subagents liberally and aggressively to conserve the main context window. Av
 
 ## Active Technologies
 
+- TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + React 16, Redux Toolkit, `react-router-dom` v6, Express, `postgres@1` (016-language-rename)
+- existing PostgreSQL `languages` table — **no schema change, no migration** (016-language-rename)
+
 - TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + React 16 + Redux Toolkit, `react-router-dom` v6, Express, `postgres@1` (domain driver via `Persistence`) (012-language-archive-routing)
 - PostgreSQL `languages` table (domain data → through `Persistence`, Principle VI); new `archived boolean` column via a `migrations/` file (012-language-archive-routing)
 
