@@ -30,22 +30,40 @@ for why none is being added.
 
 **Application invariants** (enforced in `src/server/controllers/languagesController.ts`):
 
-| ID  | Invariant                                                                                                              | Violation response |
-| --- | ---------------------------------------------------------------------------------------------------------------------- | ------------------ |
-| N-1 | The submitted value MUST be a string.                                                                                  | `422`              |
-| N-2 | The value is **trimmed** of leading/trailing whitespace before validation and before persistence (FR-005).             | —                  |
-| N-3 | The trimmed value MUST be non-empty (FR-006).                                                                          | `422`              |
-| N-4 | The trimmed value MUST NOT case-insensitively equal the name of any **other active** language (FR-007).                | `409`              |
-| N-5 | Re-saving the language's **own** current name (with or without surrounding whitespace) is valid and is a no-op change. | —                  |
-| N-6 | The target language MUST itself be active; renaming an archived or deleted language is a not-found condition.          | `404`              |
+| ID  | Invariant                                                                                                                                          | Violation response |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| N-1 | The submitted value MUST be a string.                                                                                                              | `422`              |
+| N-2 | The value is **trimmed** of leading/trailing whitespace before validation and before persistence (FR-005).                                         | —                  |
+| N-3 | The trimmed value MUST be non-empty (FR-006).                                                                                                      | `422`              |
+| N-4 | The trimmed value MUST NOT case-insensitively equal the name of any **other active** language (FR-007).                                            | `409`              |
+| N-5 | Re-saving the language's **own** current name (with or without surrounding whitespace) is valid and is a no-op change.                             | —                  |
+| N-6 | The target language MUST itself be active; renaming an archived or deleted language is a not-found condition.                                      | `404`              |
+| N-7 | The trimmed value MUST be at most **100 characters**.                                                                                              | `422`              |
+| N-8 | The trimmed value MUST NOT contain C0/C1 control characters or Unicode bidi override characters.                                                   | `422`              |
+| N-9 | The presence of `name` is tested with `"name" in update`, not by type. An explicit `null` is a **validation failure**, never a pass-through write. | `422`              |
 
-**Invariant ordering is normative**: N-1 → N-3 → N-6 → N-4. The 404 condition is evaluated _before_
+**Invariant ordering is normative**: N-9 → N-1 → N-3 → N-7 → N-8 → N-6 → N-4. The 404 condition is evaluated _before_
 the duplicate condition so that an archived target with a colliding name reports not-found rather
 than conflict (spec edge case; plan.md D-002).
 
 **Uniqueness scope**: active languages only. Archived languages do not participate, which mirrors
 the create path (`storage.languages()` is `WHERE NOT archived`). Consequence: a rename may reuse an
 archived language's name — accepted, and identical to creation.
+
+**Nullability hazard (N-9)**: the column is nullable and the domain type declares `name: string`, so
+a `null` write is silently accepted by the database while breaking every consumer. `languageCompare`
+(`src/core/models/Language.ts:44`) calls `a.name.localeCompare(b.name)` unconditionally, so a single
+NULL row makes the admin and public language lists throw on load. N-9 exists to make that
+unreachable through the rename path. Corollary: because that crash would already be visible, no
+existing production row can hold a NULL name — contradicting research.md R-001's speculation on that
+point. The rename path's duplicate comparison still uses `(lang.name ?? "").toLowerCase()` as a
+cheap defensive guard, but no data-cleanup migration is warranted.
+
+**Bound rationale (N-7)**: `name` is fanned out into the admin language list, every `SelectInput`
+option, and — via `documentName()` (`src/core/models/Lesson.ts:30`) — the filename of every
+downloaded ODT, where the filesystem ceiling is ~255 bytes. 100 characters leaves headroom for the
+`_Book-Qn-Lnn.odt` suffix and multi-byte UTF-8. Applies to the rename path only; creation is
+unchanged.
 
 **Known limitation (accepted)**: only the _incoming_ value is trimmed. A pre-existing stored name
 with surrounding whitespace (creation does not trim) will not be detected as a collision. See

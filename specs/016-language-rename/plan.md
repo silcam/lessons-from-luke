@@ -103,8 +103,11 @@ post-save propagation; no routing change
 keys already exist in `en.ts`. `AddLanguageForm` _hardcodes_ its English duplicate message
 ("A language with that name already exists."). For FR-007 consistency, add proper keys to
 `src/core/i18n/locales/en.ts` — `Language_name_duplicate` (same wording as the create form's
-string, so the two read identically) and `Language_name_required` — and use `t()` in the new
-editor. Do **not** refactor `AddLanguageForm` in this feature (out of scope; a follow-up may
+string, so the two read identically), `Language_name_required`, and `Language_name_too_long`
+(D-007) — and use `t()` in the new editor. All three 422 sub-cases (non-string, empty, control
+characters) surface `Language_name_required`; only the length case surfaces
+`Language_name_too_long`, because the server returns a bare `422` with no discriminator and the
+client distinguishes them from the **locally known** submitted value, not from the response body. Do **not** refactor `AddLanguageForm` in this feature (out of scope; a follow-up may
 adopt the keys). `fr.ts` is intentionally partial and already omits recently added keys such as
 `Archive_update_failed`; no `fr.ts` change is required (i18n falls back to English).
 
@@ -152,7 +155,7 @@ specs/016-language-rename/
 src/
 ├── core/
 │   ├── interfaces/Api.ts                  # widen POST /api/admin/languages/:languageId body: name?: string
-│   └── i18n/locales/en.ts                 # + Language_name_duplicate, Language_name_required
+│   └── i18n/locales/en.ts                 # + Language_name_duplicate, Language_name_required, Language_name_too_long
 ├── server/
 │   └── controllers/
 │       ├── languagesController.ts         # whitelist "name"; guard + trim + empty(422) + duplicate(409)
@@ -204,7 +207,7 @@ Required implementation ordering in the controller:
    `defaultSrcLang`-only update must not pay for an extra `storage.languages()` read, and must keep
    its current behavior byte-for-byte.
 1. Reject a non-string / empty-after-trim `name` → **422** (shape/validation error, matching
-   `isNewLanguage`'s 422 on the create path).
+   `isNewLanguage`'s 422 on the create path). **The presence test is normative — see D-006.**
 2. Read `const active = await storage.languages()` (active rows only — verified: `PGStorage`
    filters `WHERE NOT archived` at `PGStorage.ts:34`, and `testStorage.languages()` filters
    `!lang.archived` at `testStorage.ts:19`, so absence from this list is a reliable
@@ -232,6 +235,70 @@ to create would require its own tests and a data question about existing rows. T
 the incoming value, which is the bypass vector the spec names. Record this as a known limitation for
 red-team review rather than silently leaving it undocumented.
 
+### D-006 — Presence test must be `"name" in langUpdate`, not `typeof name === "string"`
+
+**This is the highest-severity trap in the feature and is binding.** `objFilter`
+(`src/core/util/objectUtils.ts:30`) copies a whitelisted key using `field in obj`, so it omits keys
+absent from the body but **preserves an explicitly supplied `null`**. A body of `{"name": null}`
+therefore yields `langUpdate === { name: null }`.
+
+The natural — and wrong — way to express D-002 step 0 is:
+
+```ts
+// WRONG. `null` is not a string, so validation is skipped entirely and
+// { name: null } flows into updateLanguageChecked → SET name = NULL.
+if (typeof langUpdate.name === "string") {
+  /* trim / empty / duplicate checks */
+}
+```
+
+That silently NULLs `languages.name` (the column is nullable, `PGStorage.ts:120` builds its column
+list from the update object's keys). The damage is not confined to one row: `setAdminLanguages`
+sorts with `languageCompare`, which calls `a.name.localeCompare(b.name)` unconditionally
+(`Language.ts:44`), so a single NULL name makes the **entire admin languages page throw on load**.
+The public `/api/languages` list sorts the same way. Recovery would require a manual SQL fix.
+
+Required shape:
+
+```ts
+// CORRECT. Presence, then type.
+if ("name" in langUpdate) {
+  if (typeof langUpdate.name !== "string") throw { status: 422 };
+  /* trim / empty / length / duplicate checks; write back the trimmed value */
+}
+```
+
+Corollary: the same presence-then-type discipline applies to `objFilter`'s other whitelisted keys,
+but `motherTongue`/`defaultSrcLang` are out of scope here and keep their current behavior.
+
+**Required RED tests** (`languagesController.test.ts`): `{ name: null }` → 422 and the stored name
+is unchanged; `{ name: 42 }` → 422; `{ motherTongue: true }` with no `name` key → 200 and the name
+is unchanged (proves the key is not emitted when absent).
+
+### D-007 — `name` shape validation: maximum length and control characters
+
+No length or character bound exists anywhere today — `isNewLanguage` (`Language.ts:35`) checks
+`typeof === "string"` only, and the column is unconstrained `text`. Rename makes an unbounded name
+trivially reachable, and the value is fanned out into: every `SelectInput` option in `LanguageView`,
+the admin language list, `Archive_language_dependents` interpolation, and — via
+`documentName(language.name, lesson)` (`Lesson.ts:30`) — the **filename of every downloaded ODT**,
+where filesystems cap at ~255 bytes and an over-long name makes the download fail or be silently
+truncated by the browser.
+
+Required, enforced in the controller alongside the emptiness check (step 1 of D-002):
+
+- **Maximum 100 characters** after trimming → **422**. (100 comfortably exceeds any real language
+  project name and leaves headroom under the 255-byte filename ceiling once the
+  `_Book-Qn-Lnn.odt` suffix and multi-byte UTF-8 are accounted for.)
+- **Reject C0/C1 control characters and Unicode bidi overrides** (`/[�--‎‏‪-‮]/`)
+  → **422**. Trimming strips only leading/trailing whitespace, so an embedded newline or an
+  RTL-override survives today and would corrupt the language list rendering and the download
+  filename.
+
+This is a **rename-path-only** rule. Per D-003's scope reasoning, `POST /api/admin/languages`
+(create) is not changed, so a pre-existing over-long or control-character name remains until
+renamed. Accepted, and recorded rather than left implicit.
+
 ### D-004 — A separate `pushLanguageRename` thunk
 
 `pushLanguageUpdate` always posts `{ motherTongue, defaultSrcLang }`. Widening it would make every
@@ -240,6 +307,25 @@ mother-tongue toggle also submit a name and subject it to rename validation. Add
 `languageSlice.actions.addLanguage(updatedLanguage)`, which merges into `adminLanguages` and
 therefore refreshes both the `LanguageView` heading (it renders `props.language`, selected from the
 store by `LanguagesBox`) and the admin language list — no reload, satisfying FR-004.
+
+**D-004a — the editor MUST read `props.language.name`, never `activeLang`.** `LanguageView` holds
+`const [activeLang, setActiveLang] = useState(props.language)`, initialized **once** and never
+re-synced from props (there is no `useEffect` sync). Today that is harmless because
+`pushLanguageUpdate` posts only `motherTongue`/`defaultSrcLang`. It stops being harmless the moment
+a name lives in that object: after a successful rename, `props.language.name` is the new value
+(`LanguagesBox` derives `selectedLanguage` from `state.languages.adminLanguages`, verified at
+`LanguagesBox.tsx:21,33`) while `activeLang.name` is still the **old** value. An implementer who
+prefills the editor from `activeLang` — the nearer variable — ships a screen where the second rename
+in a session opens prefilled with the stale pre-rename name and silently reverts it on save.
+
+Binding rules:
+
+- Prefill the `TextInput` from `props.language.name`.
+- Re-seed the editor's local draft state whenever the editor is **opened** (set it in the Edit
+  click handler), not from a `useState` initializer that would itself go stale.
+- Do **not** add `name` to `activeLang`, and do **not** widen `pushLanguageUpdate`.
+- Required RED test in `LanguageView.test.tsx`: rename A→B, reopen the editor, assert the input
+  holds **B**.
 
 Error handling uses the `usePush` error-handler channel exactly as `AddLanguageForm` does: handle
 409 (duplicate) and 422 (empty) inline, return `true` to suppress the global error banner; let 404
@@ -252,6 +338,109 @@ and network failures fall through to the banner while the editor stays open with
 already selects `name`. The existing `/api/sync/:timestamp/languages/...` down-sync therefore
 carries a rename to desktop clients like any other language mutation. No `LocalStorage` or
 `downSync` change; the desktop app has no rename UI and needs none.
+
+## Security Considerations
+
+### Input Validation (server is authoritative)
+
+- **Presence-then-type narrowing** on `name`, per D-006. An explicitly-null `name` must be a 422,
+  never a pass-through to the SQL builder. This is the one input path in the feature that can cause
+  persistent, app-breaking damage.
+- **Bounded and character-restricted** per D-007 (≤100 chars trimmed; no C0/C1 control characters or
+  Unicode bidi overrides). Unbounded admin-supplied text that reaches a download filename and every
+  rendered list is worth a bound even with a trusted, single-digit admin population.
+- The client-side `TextInput` may add a `maxLength` for ergonomics, but **all** rules are enforced
+  server-side; the client bound is never the check.
+
+### Access Control (unchanged, re-verified)
+
+Rename adds **no new endpoint and no new route**, so it inherits `/api/admin` gating and the
+admin-only route guard verbatim (FR-008, SC-004). No relaxation is introduced. Explicitly out of
+scope, and unchanged by this feature: CSRF posture and rate limiting on `/api/admin/*` — the
+endpoint already accepted state-changing POSTs before this feature, so rename widens no existing
+surface. Do not add rate limiting here.
+
+### Output Encoding
+
+The name is rendered through React text children only (`Heading text=`, `SelectInput` options,
+`t("Archive_language_dependents", { names })`), which escapes. **No rename-related value may be
+routed through `dangerouslySetInnerHTML`** — the app's only such usage is `DocPreview.tsx:53` for
+document HTML, which this feature must not touch.
+
+## Edge Cases & Error Handling
+
+### Client state
+
+- **Stale `activeLang`** — see D-004a. The single most likely correctness defect in this feature.
+- **In-flight Save**: the Save control MUST be disabled (or the handler guarded) while the push is
+  outstanding. Without it, a double-click or Enter-then-click issues two POSTs; the second races the
+  first and, if the first succeeded, the second re-sends the same name and is accepted as a
+  self-rename no-op (harmless) — but the two `addLanguage` dispatches can land out of order. Cheap
+  to prevent, expensive to diagnose.
+- **Cancel during an in-flight Save**: closing the editor must not leave a pending `addLanguage`
+  dispatch that reopens or overwrites state. Cancel while saving is disallowed (Cancel disabled with
+  Save), which is simpler than unmount-safety plumbing.
+
+### Server-side and cross-session
+
+- **Concurrent duplicate renames** (two admins renaming different languages to the same new name):
+  the check-then-write window is non-transactional by design (D-001, spec Assumptions:
+  last-write-wins). Both may succeed, producing two active languages sharing a name. **Accepted
+  residual**, now recorded explicitly rather than implied. Consequence to remember: a duplicate pair
+  is not self-healing — a later rename of either one is validated against the other and rejected.
+- **Archived-in-another-session target** → 404 before 409, per D-002/the contract. Verified in both
+  implementations: `PGStorage.ts:110` and `testStorage.ts:63` each throw `{ status: 404 }` for a
+  missing-or-archived row, so the D-002 RED test ("archived target → 404 even when the name
+  collides") is satisfiable against `testStorage`.
+- **NULL `name` in the duplicate comparison**: the create path already does
+  `lang.name.toLowerCase()` unguarded, and the rename check copies that shape. Research R-001's
+  point 3 speculates that "production rows may already hold NULLs"; that speculation is
+  **contradicted** by `languageCompare` (`Language.ts:44`), which would already crash the admin list
+  on load for any NULL row. NULLs therefore cannot exist in a working database. Use
+  `(lang.name ?? "").toLowerCase()` anyway as a one-token defensive guard — but do **not** treat
+  this as a real hazard, and do not add a cleanup migration. (Low.)
+- **Trimmed-only-incoming collision gap**: unchanged accepted limitation, D-003.
+
+## Accessibility Requirements
+
+WCAG 2.2 AA. The `role="alert"` region named in the Presentation Design is necessary but not
+sufficient; the toggle-to-edit idiom has three further obligations the plan did not state.
+
+### Focus Management (WCAG 2.4.3 Focus Order, 3.2.1 On Focus)
+
+- Activating **Edit** removes the `Edit` button from the DOM, destroying the user's focus position
+  and dropping focus to `<body>` — a keyboard/screen-reader dead end. Move focus to the `TextInput`
+  on activation (a `ref` + `focus()` in a `useEffect` keyed on the editing flag).
+- On **Save (success)** and on **Cancel**, return focus to the re-rendered **Edit** control.
+- On **Save (validation failure)**, keep focus in the input (the editor stays open with the typed
+  value per D-004) so the error is not announced into a void.
+
+### Live-Region Announcement
+
+The existing `srcLangUpdateFailed` / `archiveUpdateFailed` blocks mount the `role="alert"` container
+and its text **together**. A live region that enters the DOM already populated is unreliably
+announced across screen readers. For the rename error, **render the `role="alert"`
+`aria-live="assertive"` container unconditionally** and toggle only its text content. (Do not
+retrofit the two existing blocks — out of scope.)
+
+### Heading Continuity
+
+The `<h3>` name heading is replaced by the input while editing, so the section temporarily loses its
+heading. Label the input with the existing `Language_name` key via a real `<label>`/`Label`
+association (not a placeholder), and keep the input inside the same container so the region is not
+left unheaded and anonymous.
+
+### Keyboard Parity
+
+The editor MUST support **Enter to submit** and **Escape to cancel**. Implement the editor as a
+`<form onSubmit>` — `AddLanguageForm` is a form, so an Enter press that works on the create screen
+and does nothing on the rename control is an inconsistency users will hit immediately. Both Save and
+Cancel must be reachable and operable by keyboard, in that DOM order.
+
+### Test Coverage
+
+`LanguageView.test.tsx` additions: focus lands on the input after activating Edit; focus returns to
+the Edit control after Cancel; Escape cancels; Enter submits.
 
 ## Acceptance Test Strategy
 
@@ -278,7 +467,9 @@ Existing acceptance specs run to `US14-language-detail-url.txt`, so this feature
 - `src/server/controllers/languagesController.test.ts` — name accepted and persisted trimmed;
   non-string rejected 422; empty/whitespace-only rejected 422; duplicate (case-insensitive)
   rejected 409; own unchanged name accepted; archived target → 404 even when the name collides
-  (D-002); `motherTongue`/`defaultSrcLang` updates unaffected.
+  (D-002); `motherTongue`/`defaultSrcLang` updates unaffected. Plus D-006: `{ name: null }` → 422
+  **and the stored name unchanged**; `{ name: 42 }` → 422; a body with no `name` key leaves the name
+  intact. Plus D-007: 101-character name → 422; name containing `\n` → 422.
 - `src/frontend/web/languages/LanguageView.test.tsx` — Edit link present; editor pre-filled;
   Cancel restores and posts nothing; Save updates the heading; 409/422 render inline feedback and
   keep the editor open with the typed value.
