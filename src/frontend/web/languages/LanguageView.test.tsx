@@ -205,3 +205,34 @@ describe("LanguageView archive flow", () => {
     expect(done).not.toHaveBeenCalled();
   });
 });
+
+describe("LanguageView rename flow", () => {
+  beforeEach(() => {
+    mockPost.mockReset();
+    mockPost.mockResolvedValue(null);
+  });
+
+  it("shows an Edit link that reveals a form with the name pre-filled from props.language.name, plus Save and Cancel controls", async () => {
+    const done = jest.fn();
+    const { getByRole, getByLabelText } = renderWithProviders(
+      <LanguageView language={sampleLanguage} done={done} />,
+      {
+        syncState: defaultSyncState,
+        languages: { languages: [], adminLanguages: [sampleLanguage] },
+        currentUser: { user: null, locale: "en", loaded: false },
+        lessons: [],
+      }
+    );
+    await act(async () => {});
+
+    const editLink = getByRole("button", { name: /^edit$/i });
+    await act(async () => {
+      fireEvent.click(editLink);
+    });
+
+    const nameInput = getByLabelText("Language Name") as HTMLInputElement;
+    expect(nameInput.value).toBe(sampleLanguage.name);
+    expect(getByRole("button", { name: /^save$/i })).toBeTruthy();
+    expect(getByRole("button", { name: /^cancel$/i })).toBeTruthy();
+  });
+});
