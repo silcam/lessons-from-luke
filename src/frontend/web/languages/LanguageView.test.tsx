@@ -364,6 +364,85 @@ describe("LanguageView rename flow", () => {
     expect(document.activeElement).toBe(nameInput);
   });
 
+  it("pressing Escape in the input cancels, restoring the original display and posting zero requests", async () => {
+    const done = jest.fn();
+    const { getByRole, getByLabelText, getByText, queryByLabelText } = renderWithProviders(
+      <LanguageView language={sampleLanguage} done={done} />,
+      {
+        syncState: defaultSyncState,
+        languages: { languages: [], adminLanguages: [sampleLanguage] },
+        currentUser: { user: null, locale: "en", loaded: false },
+        lessons: [],
+      }
+    );
+    await act(async () => {});
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+    });
+
+    const nameInput = getByLabelText("Language Name") as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: "Changed But Not Saved" } });
+
+    await act(async () => {
+      fireEvent.keyDown(nameInput, { key: "Escape", code: "Escape" });
+    });
+
+    expect(mockPost).not.toHaveBeenCalled();
+    expect(queryByLabelText("Language Name")).toBeNull();
+    expect(getByText(sampleLanguage.name)).toBeTruthy();
+  });
+
+  it("ignores Enter and Escape in the input while a save is in flight", async () => {
+    let resolvePush: (value: unknown) => void = () => {};
+    mockPost.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvePush = resolve;
+        })
+    );
+    const done = jest.fn();
+    const { getByRole, getByLabelText } = renderWithProviders(
+      <LanguageView language={sampleLanguage} done={done} />,
+      {
+        syncState: defaultSyncState,
+        languages: { languages: [], adminLanguages: [sampleLanguage] },
+        currentUser: { user: null, locale: "en", loaded: false },
+        lessons: [],
+      }
+    );
+    await act(async () => {});
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+    });
+
+    const nameInput = getByLabelText("Language Name") as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: "In Flight Name" } });
+
+    await act(async () => {
+      fireEvent.submit(nameInput.closest("form") as HTMLFormElement);
+    });
+
+    expect(mockPost).toHaveBeenCalledTimes(1);
+
+    // While saving: a second Enter submit should not trigger another push,
+    // and Escape should not cancel back to the display view.
+    await act(async () => {
+      fireEvent.submit(nameInput.closest("form") as HTMLFormElement);
+    });
+    await act(async () => {
+      fireEvent.keyDown(nameInput, { key: "Escape", code: "Escape" });
+    });
+
+    expect(mockPost).toHaveBeenCalledTimes(1);
+    expect(getByLabelText("Language Name")).toBeTruthy();
+
+    await act(async () => {
+      resolvePush({ ...sampleLanguage, name: "In Flight Name" });
+    });
+  });
+
   it("returns focus to the Edit button after Cancel", async () => {
     const done = jest.fn();
     const { getByRole } = renderWithProviders(
