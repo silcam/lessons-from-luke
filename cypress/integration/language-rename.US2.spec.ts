@@ -7,17 +7,17 @@ describe("Language rename — US2: invalid rename attempts are rejected clearly"
 
     cy.contains("button", "Edit").click();
 
-    cy.get("input").clear().type("   ");
+    cy.get('input[type="text"]').clear().type("   ");
     cy.intercept("POST", "/api/admin/languages/*").as("renameLanguage");
     cy.contains("button", "Save").click();
+    cy.wait("@renameLanguage");
 
-    // No request is sent for a blank/whitespace-only name, and inline
-    // feedback is shown instead.
-    cy.get("@renameLanguage.all").should("have.length", 0);
-    cy.get("[role='alert']").should("exist");
+    // A whitespace-only name reaches the server, is rejected with 422, and
+    // inline feedback is shown.
+    cy.contains("[role='alert']", "Language name is required.").should("exist");
 
     // Original name is retained — no rename was applied.
-    cy.contains("h3", "Batanga").should("exist");
+    cy.contains("h1", "Batanga").should("exist");
   });
 
   it("rejects renaming to a name already used by another language, consistent with the create-language form", () => {
@@ -26,14 +26,14 @@ describe("Language rename — US2: invalid rename attempts are rejected clearly"
 
     cy.contains("button", "Edit").click();
 
-    cy.get("input").clear().type("Français");
+    cy.get('input[type="text"]').clear().type("Français");
     cy.contains("button", "Save").click();
 
     cy.contains("A language with that name already exists.").should("exist");
 
     // Original name is retained — no rename was applied.
-    cy.contains("h3", "Batanga").should("exist");
-    cy.contains("h3", "Français").should("not.exist");
+    cy.contains("h1", "Batanga").should("exist");
+    cy.contains("h1", "Français").should("not.exist");
   });
 
   it("trims leading and trailing whitespace before persisting the new name", () => {
@@ -42,13 +42,13 @@ describe("Language rename — US2: invalid rename attempts are rejected clearly"
 
     cy.contains("button", "Edit").click();
 
-    cy.get("input").clear().type("  Batanga Trimmed  ");
+    cy.get('input[type="text"]').clear().type("  Batanga Trimmed  ");
     cy.intercept("POST", "/api/admin/languages/*").as("renameLanguage");
     cy.contains("button", "Save").click();
     cy.wait("@renameLanguage");
 
-    cy.contains("h3", "Batanga Trimmed").should("exist");
-    cy.contains("h3", "  Batanga Trimmed  ").should("not.exist");
+    cy.contains("h1", "Batanga Trimmed").should("exist");
+    cy.contains("h1", "  Batanga Trimmed  ").should("not.exist");
   });
 
   it("allows re-saving the language's own current name unchanged without a duplicate-name error", () => {
@@ -63,6 +63,6 @@ describe("Language rename — US2: invalid rename attempts are rejected clearly"
     cy.wait("@renameLanguage");
 
     cy.contains("A language with that name already exists.").should("not.exist");
-    cy.contains("h3", "Batanga").should("exist");
+    cy.contains("h1", "Batanga").should("exist");
   });
 });
