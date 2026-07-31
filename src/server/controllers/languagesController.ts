@@ -39,6 +39,7 @@ export default function languagesController(app: Express, storage: Persistence) 
   });
 
   addPostHandler(app, "/api/admin/languages/:languageId", async (req) => {
+    const languageId = parseInt(req.params.languageId);
     const langUpdate = objFilter(req.body, ["motherTongue", "defaultSrcLang", "name"]);
     if ("name" in langUpdate) {
       if (typeof langUpdate.name !== "string") throw { status: 422 };
@@ -46,9 +47,22 @@ export default function languagesController(app: Express, storage: Persistence) 
       if (trimmed.length === 0) throw { status: 422 };
       if (trimmed.length > MAX_LANGUAGE_NAME_LENGTH) throw { status: 422 };
       if (C0_C1_CONTROL_CHARS.test(trimmed)) throw { status: 422 };
+
+      const target = await storage.language({ languageId });
+      if (!target || target.archived) throw { status: 404 };
+
+      const existing = await storage.languages();
+      const duplicate = existing.some(
+        (lang) =>
+          lang.languageId !== languageId &&
+          !lang.archived &&
+          (lang.name ?? "").toLowerCase() === trimmed.toLowerCase()
+      );
+      if (duplicate) throw { status: 409 };
+
       langUpdate.name = trimmed;
     }
-    return storage.updateLanguageChecked(parseInt(req.params.languageId), langUpdate);
+    return storage.updateLanguageChecked(languageId, langUpdate);
   });
 
   addPostHandler(app, "/api/admin/languages/:languageId/usfm", async (req) => {
