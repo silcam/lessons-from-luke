@@ -8,6 +8,28 @@ export const ENGLISH_ID = 1;
 export const FRENCH_ID = 2;
 export const MAX_LANGUAGE_NAME_LENGTH = 100;
 
+// eslint-disable-next-line no-control-regex
+const C0_C1_CONTROL_CHARS = /[\u0000-\u001F\u007F-\u009F]/;
+const PATH_TRAVERSAL_CHARS = /[/\\]|\.\./;
+
+export type LanguageNameError = "empty" | "tooLong" | "invalid";
+
+/**
+ * Classifies why a candidate language name is invalid, or returns undefined
+ * if the (trimmed) name is valid. Single source of truth for the
+ * trim/empty/length/control-char/path-traversal rules shared by the server's
+ * validation and the frontend's inline error messages.
+ */
+export function describeLanguageNameError(name: unknown): LanguageNameError | undefined {
+  if (typeof name !== "string") return "empty";
+  const trimmed = name.trim();
+  if (trimmed.length === 0) return "empty";
+  if (trimmed.length > MAX_LANGUAGE_NAME_LENGTH) return "tooLong";
+  if (C0_C1_CONTROL_CHARS.test(trimmed)) return "invalid";
+  if (PATH_TRAVERSAL_CHARS.test(trimmed)) return "invalid";
+  return undefined;
+}
+
 export interface Language {
   languageId: number;
   name: string;

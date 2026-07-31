@@ -1,29 +1,21 @@
 import { Express } from "express";
 import { addGetHandler, addPostHandler } from "../api/WebAPI";
-import { isNewLanguage, MAX_LANGUAGE_NAME_LENGTH } from "../../core/models/Language";
+import { isNewLanguage, describeLanguageNameError } from "../../core/models/Language";
 import { Persistence } from "../../core/interfaces/Persistence";
 import { unset, objFilter } from "../../core/util/objectUtils";
 import importUsfm from "../usfm/importUsfm";
 import defaultTranslations from "../actions/defaultTranslations";
 
-// eslint-disable-next-line no-control-regex
-const C0_C1_CONTROL_CHARS = /[\u0000-\u001F\u007F-\u009F]/;
-const PATH_TRAVERSAL_CHARS = /[/\\]|\.\./;
-
 /**
  * Validates a candidate language name shared by both the create and rename
- * endpoints. Trims the name and rejects empty, overlong, control-character,
- * or path-traversal-bearing names. Returns the trimmed name on success, or
+ * endpoints, using the core single-source-of-truth classifier. Trims the
+ * name and rejects empty, overlong, control-character, or
+ * path-traversal-bearing names. Returns the trimmed name on success, or
  * throws { status: 422 } on failure.
  */
 function validateLanguageName(name: unknown): string {
-  if (typeof name !== "string") throw { status: 422 };
-  const trimmed = name.trim();
-  if (trimmed.length === 0) throw { status: 422 };
-  if (trimmed.length > MAX_LANGUAGE_NAME_LENGTH) throw { status: 422 };
-  if (C0_C1_CONTROL_CHARS.test(trimmed)) throw { status: 422 };
-  if (PATH_TRAVERSAL_CHARS.test(trimmed)) throw { status: 422 };
-  return trimmed;
+  if (describeLanguageNameError(name) !== undefined) throw { status: 422 };
+  return (name as string).trim();
 }
 
 export default function languagesController(app: Express, storage: Persistence) {

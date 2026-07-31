@@ -579,6 +579,41 @@ describe("LanguageView rename flow", () => {
     expect(alert.textContent).toMatch(/required/i);
   });
 
+  it("shows a distinct invalid-characters message (not required or too-long) on a 422 for a name containing a path separator", async () => {
+    const done = jest.fn();
+    const { getByRole, getByLabelText, findByRole } = renderWithProviders(
+      <LanguageView language={sampleLanguage} done={done} />,
+      {
+        syncState: defaultSyncState,
+        languages: { languages: [], adminLanguages: [sampleLanguage] },
+        currentUser: { user: null, locale: "en", loaded: false },
+        lessons: [],
+      }
+    );
+    await act(async () => {});
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+    });
+
+    const invalidValue = "foo/bar";
+    const nameInput = getByLabelText("Language Name") as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: invalidValue } });
+
+    mockPost.mockRejectedValueOnce({ type: "HTTP", status: 422 });
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^save$/i }));
+    });
+
+    expect(mockPost).toHaveBeenCalledTimes(1);
+
+    const alert = await findByRole("alert");
+    expect(alert.textContent).not.toMatch(/required/i);
+    expect(alert.textContent).not.toMatch(/100 characters/i);
+    expect(alert.textContent).toMatch(/invalid/i);
+  });
+
   it("shows the trimmed value in the heading, and re-seeds the editor from it, after saving a name typed with leading/trailing whitespace", async () => {
     mockPost.mockResolvedValue({ ...sampleLanguage, name: "New Name" });
     const done = jest.fn();
