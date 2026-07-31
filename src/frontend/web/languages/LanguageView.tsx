@@ -79,10 +79,20 @@ export default function LanguageView(props: IProps) {
   };
 
   const [saving, setSaving] = useState(false);
+  const [nameError, setNameError] = useState("");
 
   const save = async () => {
     setSaving(true);
-    const updatedLanguage = await push(pushLanguageRename(activeLang.languageId, draft));
+    setNameError("");
+    const updatedLanguage = await push(pushLanguageRename(activeLang.languageId, draft), (err) => {
+      if (err.type == "HTTP" && err.status == 422) {
+        setNameError(
+          draft.length > 100 ? t("Language_name_too_long") : t("Language_name_required")
+        );
+        return true;
+      }
+      return false;
+    });
     setSaving(false);
     if (updatedLanguage) {
       setActiveLang(updatedLanguage);
@@ -134,6 +144,9 @@ export default function LanguageView(props: IProps) {
               }}
             />
           </Label>
+          <div role="alert" aria-live="assertive">
+            {nameError}
+          </div>
           <Button type="submit" text={t("Save")} onClick={() => {}} disabled={saving} />
           <Button type="button" red text={t("Cancel")} onClick={cancelEditing} disabled={saving} />
         </form>
