@@ -38,7 +38,9 @@ export default function languagesController(app: Express, storage: Persistence) 
     const langUpdate = objFilter(req.body, ["motherTongue", "defaultSrcLang", "name"]);
     if ("name" in langUpdate) {
       if (typeof langUpdate.name !== "string") throw { status: 422 };
-      langUpdate.name = langUpdate.name.trim();
+      const trimmed = langUpdate.name.trim();
+      if (trimmed.length === 0) throw { status: 422 };
+      langUpdate.name = trimmed;
     }
     return storage.updateLanguageChecked(parseInt(req.params.languageId), langUpdate);
   });
