@@ -17,7 +17,11 @@ import { GetDocumentButton } from "../documents/useGetDocument";
 import SelectInput from "../../common/base-components/SelectInput";
 import Label from "../../common/base-components/Label";
 import TextInput from "../../common/base-components/TextInput";
-import { pushLanguageUpdate, pushArchiveLanguage } from "../../common/state/languageSlice";
+import {
+  pushLanguageUpdate,
+  pushArchiveLanguage,
+  pushLanguageRename,
+} from "../../common/state/languageSlice";
 import { usePush } from "../../common/api/useLoad";
 import ConfirmDialog from "../../common/base-components/ConfirmDialog";
 
@@ -73,6 +77,18 @@ export default function LanguageView(props: IProps) {
     await push(pushLanguageUpdate({ ...activeLang, motherTongue: mt }));
   };
 
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    const updatedLanguage = await push(pushLanguageRename(activeLang.languageId, draft));
+    setSaving(false);
+    if (updatedLanguage) {
+      setActiveLang(updatedLanguage);
+      setEditing(false);
+    }
+  };
+
   const handleArchiveConfirm = async () => {
     setConfirmArchive(false);
     setArchiveUpdateFailed(false);
@@ -91,13 +107,18 @@ export default function LanguageView(props: IProps) {
   return (
     <div>
       <Button link text={`< ${t("Languages")}`} onClick={props.done} />
-      <Heading text={props.language.name} level={3} />
+      <Heading text={activeLang.name} level={3} />
       {editing ? (
-        <form>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!saving) save();
+          }}
+        >
           <Label text={t("Language_name")}>
             <TextInput value={draft} setValue={setDraft} />
           </Label>
-          <Button text={t("Save")} onClick={() => {}} />
+          <Button type="submit" text={t("Save")} onClick={() => {}} disabled={saving} />
           <Button text={t("Cancel")} onClick={() => setEditing(false)} />
         </form>
       ) : (
@@ -141,7 +162,13 @@ export default function LanguageView(props: IProps) {
               <SelectInput
                 value={`${activeLang.defaultSrcLang}`}
                 setValue={(v) => handleSrcLangChange(parseInt(v))}
-                options={languages.adminLanguages.map((lng) => [`${lng.languageId}`, lng.name])}
+                options={languages.adminLanguages
+                  .filter(
+                    (lng) =>
+                      lng.languageId != activeLang.languageId ||
+                      lng.languageId == activeLang.defaultSrcLang
+                  )
+                  .map((lng) => [`${lng.languageId}`, lng.name])}
               />
             </Label>
           </Div>
