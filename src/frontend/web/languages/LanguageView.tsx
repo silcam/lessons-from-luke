@@ -16,6 +16,7 @@ import Table from "../../common/base-components/Table";
 import { GetDocumentButton } from "../documents/useGetDocument";
 import SelectInput from "../../common/base-components/SelectInput";
 import Label from "../../common/base-components/Label";
+import TextInput from "../../common/base-components/TextInput";
 import { pushLanguageUpdate, pushArchiveLanguage } from "../../common/state/languageSlice";
 import { usePush } from "../../common/api/useLoad";
 import ConfirmDialog from "../../common/base-components/ConfirmDialog";
@@ -34,6 +35,9 @@ export default function LanguageView(props: IProps) {
   const [uploadDocForm, setUploadDocForm] = useState(false);
 
   const [activeLang, setActiveLang] = useState(props.language);
+
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(props.language.name);
 
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [archiveBlockedDependents, setArchiveBlockedDependents] = useState<string[] | null>(null);
@@ -88,6 +92,24 @@ export default function LanguageView(props: IProps) {
     <div>
       <Button link text={`< ${t("Languages")}`} onClick={props.done} />
       <Heading text={props.language.name} level={3} />
+      {editing ? (
+        <form>
+          <Label text={t("Language_name")}>
+            <TextInput value={draft} setValue={setDraft} />
+          </Label>
+          <Button text={t("Save")} onClick={() => {}} />
+          <Button text={t("Cancel")} onClick={() => setEditing(false)} />
+        </form>
+      ) : (
+        <Button
+          link
+          text={t("Edit")}
+          onClick={() => {
+            setDraft(props.language.name);
+            setEditing(true);
+          }}
+        />
+      )}
       {srcLangUpdateFailed && (
         <div role="alert" aria-live="assertive">
           {t("Source_language_update_failed")}
