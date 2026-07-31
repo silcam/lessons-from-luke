@@ -3,6 +3,7 @@ import languageSlice, {
   loadTranslatingLanguage,
   pushArchiveLanguage,
   pushLanguage,
+  pushLanguageRename,
   pushLanguageUpdate,
   pushUsfm,
 } from "./languageSlice";
@@ -318,6 +319,25 @@ describe("languageSlice thunks", () => {
         "/api/admin/languages/:languageId",
         { languageId: 5 },
         { motherTongue: lang.motherTongue, defaultSrcLang: lang.defaultSrcLang }
+      );
+      expect(dispatch).toHaveBeenCalledWith(languageSlice.actions.addLanguage(updatedLang));
+      expect(result).toEqual(updatedLang);
+    });
+  });
+
+  describe("pushLanguageRename", () => {
+    it("posts { name } only to /api/admin/languages/:languageId and dispatches addLanguage", async () => {
+      const lang = makeLanguage({ languageId: 5, name: "French", code: "fr" });
+      const updatedLang = { ...lang, name: "French Updated" };
+      const post = jest.fn().mockResolvedValue(updatedLang);
+      const dispatch = jest.fn();
+
+      const result = await pushLanguageRename(lang.languageId, "French Updated")(post, dispatch);
+
+      expect(post).toHaveBeenCalledWith(
+        "/api/admin/languages/:languageId",
+        { languageId: 5 },
+        { name: "French Updated" }
       );
       expect(dispatch).toHaveBeenCalledWith(languageSlice.actions.addLanguage(updatedLang));
       expect(result).toEqual(updatedLang);
