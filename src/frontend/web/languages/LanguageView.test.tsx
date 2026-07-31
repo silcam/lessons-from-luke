@@ -467,4 +467,82 @@ describe("LanguageView rename flow", () => {
     const editLink = getByRole("button", { name: /^edit$/i });
     expect(document.activeElement).toBe(editLink);
   });
+
+  it("mounts the alert region empty alongside the editor, never disables Save for an empty draft, and on a 422 shows the required message while keeping the editor open with the empty value", async () => {
+    const done = jest.fn();
+    const { getByRole, getByLabelText, findByRole } = renderWithProviders(
+      <LanguageView language={sampleLanguage} done={done} />,
+      {
+        syncState: defaultSyncState,
+        languages: { languages: [], adminLanguages: [sampleLanguage] },
+        currentUser: { user: null, locale: "en", loaded: false },
+        lessons: [],
+      }
+    );
+    await act(async () => {});
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+    });
+
+    // The alert region must already be mounted, but empty, before any submission.
+    const alertBeforeSubmit = getByRole("alert");
+    expect(alertBeforeSubmit.textContent).toBe("");
+
+    const nameInput = getByLabelText("Language Name") as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: "" } });
+
+    const saveButton = getByRole("button", { name: /^save$/i }) as HTMLButtonElement;
+    expect(saveButton.disabled).toBe(false);
+
+    mockPost.mockRejectedValueOnce({ type: "HTTP", status: 422 });
+
+    await act(async () => {
+      fireEvent.click(saveButton);
+    });
+
+    expect(mockPost).toHaveBeenCalledTimes(1);
+
+    const alert = await findByRole("alert");
+    expect(alert.textContent).toMatch(/required/i);
+
+    // The editor stays open, retaining the (empty) typed value.
+    expect(getByLabelText("Language Name")).toBeTruthy();
+    expect((getByLabelText("Language Name") as HTMLInputElement).value).toBe("");
+  });
+
+  it("shows the too-long message on a 422 when the locally-known draft length exceeds 100 characters", async () => {
+    const done = jest.fn();
+    const { getByRole, getByLabelText, findByRole } = renderWithProviders(
+      <LanguageView language={sampleLanguage} done={done} />,
+      {
+        syncState: defaultSyncState,
+        languages: { languages: [], adminLanguages: [sampleLanguage] },
+        currentUser: { user: null, locale: "en", loaded: false },
+        lessons: [],
+      }
+    );
+    await act(async () => {});
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+    });
+
+    const tooLongValue = "a".repeat(101);
+    const nameInput = getByLabelText("Language Name") as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: tooLongValue } });
+
+    mockPost.mockRejectedValueOnce({ type: "HTTP", status: 422 });
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^save$/i }));
+    });
+
+    expect(mockPost).toHaveBeenCalledTimes(1);
+
+    const alert = await findByRole("alert");
+    expect(alert.textContent).toMatch(/100 characters/i);
+
+    expect((getByLabelText("Language Name") as HTMLInputElement).value).toBe(tooLongValue);
+  });
 });
