@@ -177,6 +177,16 @@ test("POST update language defaultSrcLang", async () => {
   });
 });
 
+// POST /api/admin/languages/:languageId rename — RED (lessons-from-luke-fm4a.5.1.4)
+// The endpoint doesn't accept `name` yet — objFilter doesn't whitelist it.
+test("POST update language: valid trimmed name is accepted and persisted", async () => {
+  const agent = await loggedInAgent();
+  const response = await agent.post("/api/admin/languages/3").send({ name: "  New Name  " });
+  expect(response.status).toBe(200);
+  const language: Language = response.body;
+  expect(language.name).toBe("New Name");
+});
+
 // POST /api/admin/languages/:languageId re-point guard — RED
 // (lessons-from-luke-e044.5.5.2, RT-B/RT-F/RT-H). The endpoint still calls
 // storage.updateLanguage directly (no active-source check) — it must route
