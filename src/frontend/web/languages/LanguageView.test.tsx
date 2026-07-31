@@ -293,4 +293,36 @@ describe("LanguageView rename flow", () => {
     expect(mockPost).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(getByText("Enter Name")).toBeTruthy());
   });
+
+  it("clicking Cancel restores the original display and posts zero requests, even if the draft was changed", async () => {
+    const done = jest.fn();
+    const { getByRole, getByLabelText, getByText, queryByLabelText } = renderWithProviders(
+      <LanguageView language={sampleLanguage} done={done} />,
+      {
+        syncState: defaultSyncState,
+        languages: { languages: [], adminLanguages: [sampleLanguage] },
+        currentUser: { user: null, locale: "en", loaded: false },
+        lessons: [],
+      }
+    );
+    await act(async () => {});
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+    });
+
+    const nameInput = getByLabelText("Language Name") as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: "Changed But Not Saved" } });
+
+    const cancelButton = getByRole("button", { name: /^cancel$/i });
+    expect(cancelButton.getAttribute("type")).toBe("button");
+
+    await act(async () => {
+      fireEvent.click(cancelButton);
+    });
+
+    expect(mockPost).not.toHaveBeenCalled();
+    expect(queryByLabelText("Language Name")).toBeNull();
+    expect(getByText(sampleLanguage.name)).toBeTruthy();
+  });
 });
