@@ -298,9 +298,23 @@ truncated by the browser.
 
 Required, enforced in the controller alongside the emptiness check (step 1 of D-002):
 
-- **Maximum 100 characters** after trimming → **422**. (100 comfortably exceeds any real language
-  project name and leaves headroom under the 255-byte filename ceiling once the
-  `_Book-Qn-Lnn.odt` suffix and multi-byte UTF-8 are accounted for.)
+- **Maximum 100 characters** after trimming → **422**. This is a **display/sanity bound only**.
+
+  **Correction — the bound does not deliver filename safety, and must not be described as if it
+  does.** An earlier draft claimed 100 characters "leaves headroom under the 255-byte filename
+  ceiling once the `_Book-Qn-Lnn.odt` suffix and multi-byte UTF-8 are accounted for". That is
+  arithmetically false for exactly this app's target scripts: `documentName()` appends ~16 ASCII
+  bytes, and 100 characters of a 3-byte-per-character script (Devanagari, Ge'ez, CJK, and most
+  non-Latin scripts a minority-language translation tool serves) is ~300 bytes, giving ~316 bytes —
+  well over the ~255-byte ceiling.
+
+  **Do not add a byte-length bound to fix this.** A `Buffer.byteLength(trimmed, "utf8")` check would
+  reject legitimate names — a 70-character Devanagari project name is comfortably under the
+  character bound and over any workable byte bound — which is a worse outcome than a long filename
+  in a tool built for non-Latin languages. Keep the 100-**character** bound, honestly labelled:
+  filename safety for multi-byte names is **not** achieved and is out of scope here. Recorded, not
+  actioned.
+
 - **Reject C0/C1 control characters** -> **422**. Trimming strips only leading/trailing whitespace,
   so an embedded newline, tab or NUL survives today and corrupts both the language-list rendering
   and the download filename (`documentName()` composes the name straight into the filename string).
@@ -324,6 +338,19 @@ Required, enforced in the controller alongside the emptiness check (step 1 of D-
   and the admin population is trusted and single-digit. Settling Unicode policy is out of scope
   here. If it is ever taken up, it belongs on the **create** path too, and therefore in its own
   feature. Do not silently reintroduce a bidi character class into `FORBIDDEN_NAME_CHARS`.
+
+- **Filename-hostile characters are deliberately NOT rejected (Low, recorded not actioned).** The
+  control-character rule above cites the download filename as its driver, which invites the question
+  "why not `/`, `\`, `:`, `*`, `?`, `"`, `<`, `>`, `|` too?" — characters far likelier to appear than
+  a NUL and illegal in filenames on Windows. Answer: `Kaqchikel/Guatemala` is a plausible language
+  project name, and making it unrenameable is a worse defect than a browser-sanitized download
+  filename. **There is no security dimension to close here** — evidence, as of 2026-07-31: a
+  repo-wide search for `content-disposition`, `res.download` and `attachment;` across `src/` returns
+  **zero** matches, and the sole consumer of `documentName()` is client-side —
+  `saveAs(new Blob(...), documentName(language.name, lesson))` at
+  `src/frontend/web/documents/useGetDocument.tsx:21`. The name never reaches an HTTP response header,
+  so there is no header-injection / response-splitting vector, and the residual is a cosmetically
+  wrong filename only. Do not reopen this without first re-checking that evidence.
 
 This is a **rename-path-only** rule. Per D-003's scope reasoning, `POST /api/admin/languages`
 (create) is not changed, so a pre-existing over-long or control-character name remains until
@@ -532,9 +559,59 @@ same scope creep rejected under Focus Management.
 ### Keyboard Parity
 
 The editor MUST support **Enter to submit** and **Escape to cancel**. Implement the editor as a
-`<form onSubmit>` — `AddLanguageForm` is a form, so an Enter press that works on the create screen
-and does nothing on the rename control is an inconsistency users will hit immediately. Both Save and
-Cancel must be reachable and operable by keyboard, in that DOM order.
+`<form onSubmit>`. Both Save and Cancel must be reachable and operable by keyboard, in that DOM
+order.
+
+**Correction — there is no local form precedent.** An earlier draft of this section justified the
+form with "`AddLanguageForm` is a form, so an Enter press that works on the create screen and does
+nothing on the rename control is an inconsistency". That premise is **false and must not be
+repeated**: `AddLanguageForm` is a `<Div>` whose Save is a plain `Button onClick`, and a repo-wide
+search for `<form` / `onSubmit` / `type="submit"` / `type="button"` across `src/frontend` returns
+**zero** matches. Enter does nothing on the create screen today. Enter-to-submit is still required —
+it stands on its own WCAG/keyboard-parity merit — but the rename editor will be the **first `<form>`
+in the codebase**, so there is nothing to copy and the button contract below must be stated
+explicitly rather than inferred.
+
+#### Form and button contract (binding)
+
+`Button` (`base-components/Button.tsx`) destructures `{ text, link, ...sbProps }` and spreads the
+rest onto a `<button>` **without ever setting `type`**. Inside a `<form>`, an unqualified `<button>`
+defaults to `type="submit"`. Two concrete defects follow, neither of which exists anywhere in the
+app today because the app has no forms:
+
+- **Cancel would save.** A `Cancel` `Button` inside the form is a submit button: clicking it fires
+  its `onClick` **and** submits the form, so the rename is persisted. This violates FR-003 and US1
+  acceptance scenario 4 ("Cancel → nothing is saved") directly.
+- **Save would post twice.** `Button`'s `onClick` prop is **required** (non-optional in `IProps`), so
+  `<Button type="submit" onClick={save}>` fires `save()` from the click handler and again from the
+  native submit, in the same tick. **The in-flight guard cannot stop this**: the second invocation
+  reads the pre-render value of the `useState` flag, which is still `false`. The explicit `type`
+  props below are therefore the _only_ thing preventing a double POST — they are not a tidiness
+  preference.
+
+Required shape:
+
+```tsx
+<form
+  onSubmit={(e) => {
+    e.preventDefault(); // no local example to copy; without it the form navigates
+    if (!saving) save();
+  }}
+>
+  <Label text={t("Language_name")}>
+    <TextInput autoFocus value={draft} setValue={...} />
+  </Label>
+  {/* role="alert" region — see Live-Region Announcement */}
+  <Button type="submit" onClick={() => {}} disabled={saving} text={t("Save")} />
+  <Button type="button" red onClick={cancel} disabled={saving} text={t("Cancel")} />
+</form>
+```
+
+- `onSubmit` is the **single** save path; the Save button contributes no behavior of its own.
+- Save's `onClick={() => {}}` is a deliberate no-op, forced by `Button`'s required `onClick` prop.
+- Do **not** make `onClick` optional on `Button`, and do **not** otherwise modify `Button` — same
+  shared-base-component scope-creep argument that already forbids adding `forwardRef` under Focus
+  Management. `SBProps extends React.ButtonHTMLAttributes`, so `type` passes through unchanged.
 
 **The keyboard paths MUST honour the in-flight guard** (see Edge Cases → In-flight Save). Disabling
 the Save and Cancel _buttons_ while a push is outstanding leaves both keyboard affordances wide
@@ -548,6 +625,10 @@ the guard; the `disabled` attributes are only its visible expression.
 `LanguageView.test.tsx` additions: focus lands on the input after activating Edit; focus returns to
 the Edit control after Cancel; the Edit control does **not** hold focus on first render (guards the
 `returningFromEditor` seed); Escape cancels; Enter submits.
+
+Plus, guarding the Form and Button Contract above: **clicking Cancel with a changed draft issues no
+POST** (guards `type="button"` on Cancel), and **clicking Save issues exactly one POST** (guards
+Save's no-op `onClick`; assert on the call count, not merely that a request occurred).
 
 ## Acceptance Test Strategy
 
@@ -578,7 +659,8 @@ Existing acceptance specs run to `US14-language-detail-url.txt`, so this feature
   **and the stored name unchanged**; `{ name: 42 }` → 422; a body with no `name` key leaves the name
   intact. Plus D-007: 101-character name → 422; name containing `\n` → 422.
 - `src/frontend/web/languages/LanguageView.test.tsx` — Edit link present; editor pre-filled;
-  Cancel restores and posts nothing; Save updates the heading; 409/422 render inline feedback and
+  Cancel restores and posts nothing (**assert zero POSTs** — this is the `type="button"` guard from
+  the Form and Button Contract); Save posts exactly once; Save updates the heading; 409/422 render inline feedback and
   keep the editor open with the typed value. Plus: **clearing the field and pressing Save posts and
   renders the `Language_name_required` feedback** — this test is what keeps the Save button from
   being disabled on empty content (see Edge Cases).

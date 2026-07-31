@@ -63,8 +63,12 @@ cheap defensive guard, but no data-cleanup migration is warranted.
 
 **Bound rationale (N-7)**: `name` is fanned out into the admin language list, every `SelectInput`
 option, and — via `documentName()` (`src/core/models/Lesson.ts:30`) — the filename of every
-downloaded ODT, where the filesystem ceiling is ~255 bytes. 100 characters leaves headroom for the
-`_Book-Qn-Lnn.odt` suffix and multi-byte UTF-8. Applies to the rename path only; creation is
+downloaded ODT. N-7 is a **display/sanity bound only**. It does **not** guarantee a filesystem-safe
+filename: `documentName()` appends ~16 ASCII bytes, so 100 characters of a 3-byte-per-character
+script (Devanagari, Ge'ez, CJK — the scripts this app exists to serve) yields ~316 bytes against a
+~255-byte ceiling. A UTF-8 **byte** bound is deliberately rejected, because it would reject
+legitimate non-Latin names well under the character bound. Over-long filenames for multi-byte names
+are an accepted, out-of-scope residual (plan.md D-007). Applies to the rename path only; creation is
 unchanged.
 
 **Known limitation (accepted)**: only the _incoming_ value is trimmed. A pre-existing stored name
