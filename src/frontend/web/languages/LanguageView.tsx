@@ -42,6 +42,7 @@ export default function LanguageView(props: IProps) {
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(props.language.name);
+  const [returningFromEditor, setReturningFromEditor] = useState(false);
 
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [archiveBlockedDependents, setArchiveBlockedDependents] = useState<string[] | null>(null);
@@ -86,6 +87,7 @@ export default function LanguageView(props: IProps) {
     if (updatedLanguage) {
       setActiveLang(updatedLanguage);
       setEditing(false);
+      setReturningFromEditor(true);
     }
   };
 
@@ -116,14 +118,17 @@ export default function LanguageView(props: IProps) {
           }}
         >
           <Label text={t("Language_name")}>
-            <TextInput value={draft} setValue={setDraft} />
+            <TextInput value={draft} setValue={setDraft} autoFocus />
           </Label>
           <Button type="submit" text={t("Save")} onClick={() => {}} disabled={saving} />
           <Button
             type="button"
             red
             text={t("Cancel")}
-            onClick={() => setEditing(false)}
+            onClick={() => {
+              setEditing(false);
+              setReturningFromEditor(true);
+            }}
             disabled={saving}
           />
         </form>
@@ -131,6 +136,7 @@ export default function LanguageView(props: IProps) {
         <Button
           link
           text={t("Edit")}
+          autoFocus={returningFromEditor}
           onClick={() => {
             setDraft(props.language.name);
             setEditing(true);
