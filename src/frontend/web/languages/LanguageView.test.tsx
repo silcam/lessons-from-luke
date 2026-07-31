@@ -235,4 +235,62 @@ describe("LanguageView rename flow", () => {
     expect(getByRole("button", { name: /^save$/i })).toBeTruthy();
     expect(getByRole("button", { name: /^cancel$/i })).toBeTruthy();
   });
+
+  it("submits the renamed value exactly once via the Save button click and updates the heading", async () => {
+    mockPost.mockResolvedValue({ ...sampleLanguage, name: "New Name" });
+    const done = jest.fn();
+    const { getByRole, getByLabelText, getByText } = renderWithProviders(
+      <LanguageView language={sampleLanguage} done={done} />,
+      {
+        syncState: defaultSyncState,
+        languages: { languages: [], adminLanguages: [sampleLanguage] },
+        currentUser: { user: null, locale: "en", loaded: false },
+        lessons: [],
+      }
+    );
+    await act(async () => {});
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+    });
+
+    const nameInput = getByLabelText("Language Name") as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: "New Name" } });
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^save$/i }));
+    });
+
+    expect(mockPost).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(getByText("New Name")).toBeTruthy());
+  });
+
+  it("submits the renamed value exactly once when Enter is pressed in the input and updates the heading", async () => {
+    mockPost.mockResolvedValue({ ...sampleLanguage, name: "Enter Name" });
+    const done = jest.fn();
+    const { getByRole, getByLabelText, getByText } = renderWithProviders(
+      <LanguageView language={sampleLanguage} done={done} />,
+      {
+        syncState: defaultSyncState,
+        languages: { languages: [], adminLanguages: [sampleLanguage] },
+        currentUser: { user: null, locale: "en", loaded: false },
+        lessons: [],
+      }
+    );
+    await act(async () => {});
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+    });
+
+    const nameInput = getByLabelText("Language Name") as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: "Enter Name" } });
+
+    await act(async () => {
+      fireEvent.submit(nameInput.closest("form") as HTMLFormElement);
+    });
+
+    expect(mockPost).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(getByText("Enter Name")).toBeTruthy());
+  });
 });
