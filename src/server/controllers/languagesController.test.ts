@@ -225,6 +225,33 @@ test("POST update language: 422 when name is empty or whitespace-only, stored na
   expect(after?.name).toBe(before?.name);
 });
 
+// POST /api/admin/languages/:languageId rename — RED (lessons-from-luke-fm4a.5.2.8, N-7/N-8)
+// A trimmed name longer than 100 characters, or containing a C0/C1 control
+// character, must be rejected 422. This rule applies to the rename path only
+// (language creation is untouched). A 100-character name (boundary) must
+// still succeed.
+test("POST update language: 422 when trimmed name exceeds 100 characters", async () => {
+  const agent = await loggedInAgent();
+  const tooLong = "A".repeat(101);
+  const response = await agent.post("/api/admin/languages/3").send({ name: tooLong });
+  expect(response.status).toBe(422);
+});
+
+test("POST update language: 422 when name contains a control character", async () => {
+  const agent = await loggedInAgent();
+  const response = await agent.post("/api/admin/languages/3").send({ name: "A\nB" });
+  expect(response.status).toBe(422);
+});
+
+test("POST update language: 200 when trimmed name is exactly 100 characters", async () => {
+  const agent = await loggedInAgent();
+  const boundary = "A".repeat(100);
+  const response = await agent.post("/api/admin/languages/3").send({ name: boundary });
+  expect(response.status).toBe(200);
+  const language: Language = response.body;
+  expect(language.name).toBe(boundary);
+});
+
 // POST /api/admin/languages/:languageId re-point guard — RED
 // (lessons-from-luke-e044.5.5.2, RT-B/RT-F/RT-H). The endpoint still calls
 // storage.updateLanguage directly (no active-source check) — it must route
