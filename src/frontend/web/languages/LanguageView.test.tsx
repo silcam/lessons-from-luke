@@ -545,4 +545,40 @@ describe("LanguageView rename flow", () => {
 
     expect((getByLabelText("Language Name") as HTMLInputElement).value).toBe(tooLongValue);
   });
+
+  it("shows the duplicate-name message on a 409, keeps the editor open with the typed value, and leaves the heading unchanged", async () => {
+    const done = jest.fn();
+    const { getByRole, getByLabelText, getByText, findByRole } = renderWithProviders(
+      <LanguageView language={sampleLanguage} done={done} />,
+      {
+        syncState: defaultSyncState,
+        languages: { languages: [], adminLanguages: [sampleLanguage] },
+        currentUser: { user: null, locale: "en", loaded: false },
+        lessons: [],
+      }
+    );
+    await act(async () => {});
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+    });
+
+    const nameInput = getByLabelText("Language Name") as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: "Duplicate Name" } });
+
+    mockPost.mockRejectedValueOnce({ type: "HTTP", status: 409 });
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^save$/i }));
+    });
+
+    expect(mockPost).toHaveBeenCalledTimes(1);
+
+    const alert = await findByRole("alert");
+    expect(alert.textContent).toMatch(/already exists/i);
+
+    // The editor stays open, retaining the typed value; no rename applied.
+    expect((getByLabelText("Language Name") as HTMLInputElement).value).toBe("Duplicate Name");
+    expect(getByText(sampleLanguage.name)).toBeTruthy();
+  });
 });
