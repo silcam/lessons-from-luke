@@ -280,6 +280,17 @@ test("POST update language: 409 when new name case-insensitively collides with a
   expect(response.status).toBe(409);
 });
 
+// POST /api/admin/languages/:languageId rename — RED (lessons-from-luke-fm4a.5.2.11, D-002)
+// The not-found check MUST run and win BEFORE the duplicate-name check: a
+// rename against a nonexistent languageId returns 404 even when the
+// submitted name collides with an existing active language's name.
+test("POST update language: 404 for nonexistent languageId, even when the new name collides with an active language", async () => {
+  const agent = await loggedInAgent();
+  // Fixture language 2 is "Français" (active); languageId 99999 does not exist.
+  const response = await agent.post("/api/admin/languages/99999").send({ name: "Français" });
+  expect(response.status).toBe(404);
+});
+
 test("POST update language: 200 when new name matches an archived language's name", async () => {
   const storage: TestPersistence = (global as any).testStorage;
   await storage.updateLanguage(2, { archived: true });
