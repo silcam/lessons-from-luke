@@ -267,6 +267,30 @@ test("POST update language: 422 when defaultSrcLang re-points to an archived lan
   expect(response.status).toBe(422);
 });
 
+// POST /api/admin/languages/:languageId rename — RED (lessons-from-luke-fm4a.5.2.14, N-4)
+// A rename to a name that case-insensitively matches another ACTIVE
+// language's name (not the target's own row) is rejected 409, matching the
+// create endpoint's duplicate semantics; archived languages' names do not
+// count as collisions.
+test("POST update language: 409 when new name case-insensitively collides with another active language", async () => {
+  const agent = await loggedInAgent();
+  // Fixture language 2 is "Français" (active); rename language 3 (Batanga)
+  // to a different-case match of it.
+  const response = await agent.post("/api/admin/languages/3").send({ name: "français" });
+  expect(response.status).toBe(409);
+});
+
+test("POST update language: 200 when new name matches an archived language's name", async () => {
+  const storage: TestPersistence = (global as any).testStorage;
+  await storage.updateLanguage(2, { archived: true });
+
+  const agent = await loggedInAgent();
+  const response = await agent.post("/api/admin/languages/3").send({ name: "Français" });
+  expect(response.status).toBe(200);
+  const language: Language = response.body;
+  expect(language.name).toBe("Français");
+});
+
 test("POST update language: 404 when the target language is archived", async () => {
   const storage: TestPersistence = (global as any).testStorage;
   await storage.updateLanguage(3, { archived: true });
