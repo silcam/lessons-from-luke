@@ -35,7 +35,11 @@ export default function languagesController(app: Express, storage: Persistence) 
   });
 
   addPostHandler(app, "/api/admin/languages/:languageId", async (req) => {
-    const langUpdate = objFilter(req.body, ["motherTongue", "defaultSrcLang"]);
+    const langUpdate = objFilter(req.body, ["motherTongue", "defaultSrcLang", "name"]);
+    if ("name" in langUpdate) {
+      if (typeof langUpdate.name !== "string") throw { status: 422 };
+      langUpdate.name = langUpdate.name.trim();
+    }
     return storage.updateLanguageChecked(parseInt(req.params.languageId), langUpdate);
   });
 
