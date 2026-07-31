@@ -180,6 +180,11 @@ const en = {
   Source_language_update_failed:
     "That source language is no longer available. Please choose another.",
   Archive_update_failed: "The language could not be archived. Please try again.",
+
+  // Language rename (US1 — language-project-rename)
+  Language_name_duplicate: "A language with that name already exists.",
+  Language_name_required: "Language name is required.",
+  Language_name_too_long: "Language name must be 100 characters or fewer.",
 };
 
 export type I18nStrings = typeof en;
