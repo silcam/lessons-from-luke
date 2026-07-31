@@ -293,19 +293,29 @@ Required, enforced in the controller alongside the emptiness check (step 1 of D-
 - **Maximum 100 characters** after trimming → **422**. (100 comfortably exceeds any real language
   project name and leaves headroom under the 255-byte filename ceiling once the
   `_Book-Qn-Lnn.odt` suffix and multi-byte UTF-8 are accounted for.)
-- **Reject C0/C1 control characters and Unicode bidi overrides** -> **422**. Trimming strips only
-  leading/trailing whitespace, so an embedded newline or an RTL/LRO override survives today and
-  would corrupt the language-list rendering and the download filename. Write the predicate with
-  **escape sequences only** -- never literal control characters in the source file (this plan
-  originally embedded them literally and had to be corrected):
+- **Reject C0/C1 control characters** -> **422**. Trimming strips only leading/trailing whitespace,
+  so an embedded newline, tab or NUL survives today and corrupts both the language-list rendering
+  and the download filename (`documentName()` composes the name straight into the filename string).
+  Write the predicate with **escape sequences only** -- never literal control characters in the
+  source file (this plan originally embedded them literally and had to be corrected):
 
   ```ts
   // eslint-disable-next-line no-control-regex
-  const FORBIDDEN_NAME_CHARS = /[\u0000-\u001F\u007F-\u009F\u200E\u200F\u202A-\u202E]/;
+  const FORBIDDEN_NAME_CHARS = /[\u0000-\u001F\u007F-\u009F]/;
   ```
 
   `no-control-regex` is ESLint-recommended, so the targeted disable comment is required; per
-  Constitution V a commented, single-line suppression is preferred to relaxing the rule project-wide.
+  Constitution V a commented, single-line suppression is preferred to relaxing the rule
+  project-wide.
+
+- **Unicode bidi characters are deliberately NOT rejected (Low, recorded not actioned).** An earlier
+  draft of this decision proposed banning `U+200E/200F` and `U+202A-202E`. That set was both
+  over-broad (it includes `U+202C POP DIRECTIONAL FORMATTING`, a legitimate terminator) and
+  under-inclusive (it omits the `U+2066-2069` isolates, the actual modern spoofing vector), and no
+  concrete harm was demonstrated for this feature -- names render as escaped React text children,
+  and the admin population is trusted and single-digit. Settling Unicode policy is out of scope
+  here. If it is ever taken up, it belongs on the **create** path too, and therefore in its own
+  feature. Do not silently reintroduce a bidi character class into `FORBIDDEN_NAME_CHARS`.
 
 This is a **rename-path-only** rule. Per D-003's scope reasoning, `POST /api/admin/languages`
 (create) is not changed, so a pre-existing over-long or control-character name remains until

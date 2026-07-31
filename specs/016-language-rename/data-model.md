@@ -39,10 +39,12 @@ for why none is being added.
 | N-5 | Re-saving the language's **own** current name (with or without surrounding whitespace) is valid and is a no-op change.                                                                                                 | —                  |
 | N-6 | The target language MUST itself be active; renaming an archived or deleted language is a not-found condition.                                                                                                          | `404`              |
 | N-7 | The trimmed value MUST be at most **100 characters**.                                                                                                                                                                  | `422`              |
-| N-8 | The trimmed value MUST NOT contain C0/C1 control characters or Unicode bidi override characters.                                                                                                                       | `422`              |
+| N-8 | The trimmed value MUST NOT contain C0/C1 control characters. (Unicode bidi characters are **not** restricted — plan.md D-007.)                                                                                         | `422`              |
 | N-9 | The presence of `name` is tested with `"name" in update`, not by type. An explicit `null` is a **validation failure**, never a pass-through write.                                                                     | `422`              |
 
-**Invariant ordering is normative**: N-9 → N-1 → N-3 → N-7 → N-8 → N-6 → N-4. The 404 condition is evaluated _before_
+**Invariant ordering is normative**: N-9 → N-1 → **N-2** → N-3 → N-7 → N-8 → N-6 → N-4.
+N-2 is a transformation rather than a check, but its position matters: N-3, N-7, N-8 and N-4 are all
+defined on the _trimmed_ value. The 404 condition is evaluated _before_
 the duplicate condition so that an archived target with a colliding name reports not-found rather
 than conflict (spec edge case; plan.md D-002).
 

@@ -76,7 +76,7 @@ Evaluated strictly in this order. The first matching row wins.
 | 1   | `name` key **present** and not a string (includes explicit `null`)                            | `422`  | Inline "name required" feedback; editor stays open          |
 | 2   | `name.trim()` is empty                                                                        | `422`  | Inline "name required" feedback; editor stays open          |
 | 2b  | `name.trim().length > 100`                                                                    | `422`  | Inline "name too long" feedback; editor stays open          |
-| 2c  | `name.trim()` contains a C0/C1 control character or a Unicode bidi override                   | `422`  | Inline "name required" feedback; editor stays open          |
+| 2c  | `name.trim()` contains a C0/C1 control character (`U+0000-U+001F`, `U+007F-U+009F`)           | `422`  | Inline "name required" feedback; editor stays open          |
 | 3   | Target `languageId` is not among the **active** languages (archived or deleted)               | `404`  | Global error banner; editor stays open with the typed value |
 | 4   | Trimmed `name` case-insensitively equals another **active** language's name (`languageId !=`) | `409`  | Inline duplicate feedback; editor stays open                |
 | —   | Otherwise                                                                                     | `200`  | Dispatch `addLanguage`; close the editor                    |
