@@ -40,6 +40,10 @@ export default function languagesController(app: Express, storage: Persistence) 
       if (typeof langUpdate.name !== "string") throw { status: 422 };
       const trimmed = langUpdate.name.trim();
       if (trimmed.length === 0) throw { status: 422 };
+      if (trimmed.length > 100) throw { status: 422 };
+      // eslint-disable-next-line no-control-regex
+      const FORBIDDEN_NAME_CHARS = /[\u0000-\u001F\u007F-\u009F]/;
+      if (FORBIDDEN_NAME_CHARS.test(trimmed)) throw { status: 422 };
       langUpdate.name = trimmed;
     }
     return storage.updateLanguageChecked(parseInt(req.params.languageId), langUpdate);
