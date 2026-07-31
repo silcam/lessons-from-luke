@@ -91,6 +91,10 @@ export default function LanguageView(props: IProps) {
         );
         return true;
       }
+      if (err.type == "HTTP" && err.status == 409) {
+        setNameError(t("Language_name_duplicate"));
+        return true;
+      }
       return false;
     });
     setSaving(false);
