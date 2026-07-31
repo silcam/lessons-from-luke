@@ -36,8 +36,16 @@ Technical approach, smallest change that satisfies the spec:
 **Testing**: Jest (`*.test.ts(x)`, `--runInBand`) for unit/integration; Cypress for the web E2E flow
 **Target Platform**: Web (Express + React admin UI). Desktop/Electron untouched.
 **Project Type**: Web — isomorphic four-layer (`core` / `server` / `frontend` / `desktop`)
-**Performance Goals**: N/A — one extra `storage.languages()` read per rename request, single-digit
-admin concurrency
+**Performance Goals**: N/A at this scale. Note for accuracy (Constitution Principle 0): the added
+cost of the rename path itself is one extra `storage.languages()` read, but the request as a whole
+is dominated by `updateLanguageChecked`, which calls `updateProgress()`
+(`PGStorage.ts:368`) after **every** update — a full recompute that reads all languages, all
+lessons, per-lesson `lessonStrings` and per-language `tStrings`, then issues one
+`UPDATE languages SET progress=…` per language. This is **pre-existing, shared with the
+`motherTongue`/`defaultSrcLang` paths, and explicitly not to be optimized in this feature**. It is
+recorded because it (a) makes the in-flight Save guard below a real safeguard rather than a
+nicety, and (b) means Save latency is visibly non-instant on a populated database — do not design
+the UI around an instantaneous response.
 **Constraints**:
 
 - Admin-only; no new access control (existing `/api/admin` gating + admin route gating suffice)
@@ -411,6 +419,19 @@ document HTML, which this feature must not touch.
 ### Client state
 
 - **Stale `activeLang`** — see D-004a. The single most likely correctness defect in this feature.
+- **Save is disabled for in-flight state only, never for content validity (binding).**
+  `AddLanguageForm` computes `formValid = name.length > 0` and passes `disabled={!formValid}` to its
+  Save button. Copying that line into the rename editor — the natural move, since the Presentation
+  Design says to style the editor after `AddLanguageForm` — **breaks US2 scenario 1 and FR-006**:
+  an admin who clears the field gets a dead button and _no feedback at all_, where the spec requires
+  the rename to be "rejected, feedback shown inline". It also renders the server's empty-name `422`
+  branch and the `Language_name_required` message unreachable from the UI, so the component test for
+  them tests nothing. Note the failure is specific to the _truly empty_ case: a whitespace-only
+  value passes `length > 0`, reaches the server, and is rejected correctly — which is exactly why
+  the gap survives casual manual testing. This is the same argument the Security Considerations
+  section already makes against a client-side `maxLength`, applied to the lower bound: the client
+  must never make a server validation branch unreachable. The rule: **the only condition that
+  disables Save is an outstanding push.**
 - **In-flight Save**: the Save control MUST be disabled (or the handler guarded) while the push is
   outstanding. Without it, a double-click or Enter-then-click issues two POSTs; the second races the
   first and, if the first succeeded, the second re-sends the same name and is accepted as a
@@ -445,14 +466,41 @@ document HTML, which this feature must not touch.
 WCAG 2.2 AA. The `role="alert"` region named in the Presentation Design is necessary but not
 sufficient; the toggle-to-edit idiom has three further obligations the plan did not state.
 
-### Focus Management (WCAG 2.4.3 Focus Order, 3.2.1 On Focus)
+### Focus Management (WCAG 2.4.3 Focus Order)
+
+Required behavior:
 
 - Activating **Edit** removes the `Edit` button from the DOM, destroying the user's focus position
-  and dropping focus to `<body>` — a keyboard/screen-reader dead end. Move focus to the `TextInput`
-  on activation (a `ref` + `focus()` in a `useEffect` keyed on the editing flag).
-- On **Save (success)** and on **Cancel**, return focus to the re-rendered **Edit** control.
+  and dropping focus to `<body>` — a keyboard/screen-reader dead end. Focus must move to the
+  `TextInput` on activation.
+- On **Save (success)** and on **Cancel**, focus must return to the re-rendered **Edit** control.
 - On **Save (validation failure)**, keep focus in the input (the editor stays open with the typed
   value per D-004) so the error is not announced into a void.
+
+**Mechanism is binding — a `ref` will not work.** An earlier draft of this section prescribed
+"a `ref` + `focus()` in a `useEffect` keyed on the editing flag". That is **unimplementable against
+the existing base components** and must not be attempted: `Button`
+(`base-components/Button.tsx`) and `TextInput` (`base-components/TextInput.tsx`) are plain React 16
+function components with no `forwardRef` wrapper, so a `ref` prop is a type error and, at runtime,
+a "Function components cannot be given refs" warning with `ref.current === null`. An implementer who
+discovers this mid-task will improvise (`document.getElementById`, a wrapper-div
+`querySelector`, or silently dropping the requirement). Use this instead:
+
+- **Focus the input**: pass **`autoFocus`** to the `TextInput`. `TextInput` spreads its remaining
+  props onto the underlying `<input>` and already declares `autoFocus?: boolean`. The input mounts
+  exactly when Edit is activated, so mount-time autofocus _is_ activation-time focus. No ref, no
+  effect.
+- **Return focus to Edit**: pass **`autoFocus={returningFromEditor}`** to the Edit `Button`.
+  `Button` spreads `...sbProps` (typed as `React.ButtonHTMLAttributes`, which includes `autoFocus`)
+  onto the styled `<button>`, and the Edit button re-mounts when the editor closes.
+- **`returningFromEditor` MUST NOT be true on first render.** Seed it `false` and set it `true` only
+  in the Save-success and Cancel handlers. An unconditional `autoFocus` on the Edit button — or the
+  equivalent effect keyed on `[editing]`, which also runs on mount — steals focus from wherever the
+  admin actually is when the Languages page first renders, and scrolls the page to the name row.
+  This is the same class of defect as D-004a: the shortest expression of the rule is the wrong one.
+- Do **not** add `forwardRef` to `Button` or `TextInput` for this feature. Those are shared base
+  components used across the app; widening them is scope creep with a far larger blast radius than
+  the two `autoFocus` props above.
 
 ### Live-Region Announcement
 
@@ -475,6 +523,12 @@ heading. Label the input with the existing `Language_name` key via a real `<labe
 association (not a placeholder), and keep the input inside the same container so the region is not
 left unheaded and anonymous.
 
+`Label` (`base-components/Label.tsx`) renders a real `<label>` that **associates implicitly by
+wrapping its children** — it emits no `htmlFor` and the components take no `id`. So the `TextInput`
+MUST be rendered as a **child of `Label`** (as `AddLanguageForm` does for its `SelectInput`). Do not
+attempt `htmlFor`/`id` pairing; that prop does not exist on these components and adding it is the
+same scope creep rejected under Focus Management.
+
 ### Keyboard Parity
 
 The editor MUST support **Enter to submit** and **Escape to cancel**. Implement the editor as a
@@ -482,10 +536,18 @@ The editor MUST support **Enter to submit** and **Escape to cancel**. Implement 
 and does nothing on the rename control is an inconsistency users will hit immediately. Both Save and
 Cancel must be reachable and operable by keyboard, in that DOM order.
 
+**The keyboard paths MUST honour the in-flight guard** (see Edge Cases → In-flight Save). Disabling
+the Save and Cancel _buttons_ while a push is outstanding leaves both keyboard affordances wide
+open: `Enter` fires the `<form onSubmit>` handler regardless of any button's `disabled` state, and
+an `Escape` key handler is ordinary code with no `disabled` semantics at all. Gate the submit
+handler and the Escape handler on the same in-flight flag that disables the buttons — the flag is
+the guard; the `disabled` attributes are only its visible expression.
+
 ### Test Coverage
 
 `LanguageView.test.tsx` additions: focus lands on the input after activating Edit; focus returns to
-the Edit control after Cancel; Escape cancels; Enter submits.
+the Edit control after Cancel; the Edit control does **not** hold focus on first render (guards the
+`returningFromEditor` seed); Escape cancels; Enter submits.
 
 ## Acceptance Test Strategy
 
@@ -517,9 +579,16 @@ Existing acceptance specs run to `US14-language-detail-url.txt`, so this feature
   intact. Plus D-007: 101-character name → 422; name containing `\n` → 422.
 - `src/frontend/web/languages/LanguageView.test.tsx` — Edit link present; editor pre-filled;
   Cancel restores and posts nothing; Save updates the heading; 409/422 render inline feedback and
-  keep the editor open with the typed value.
+  keep the editor open with the typed value. Plus: **clearing the field and pressing Save posts and
+  renders the `Language_name_required` feedback** — this test is what keeps the Save button from
+  being disabled on empty content (see Edge Cases).
 - `cypress/integration/language-rename.US1.spec.ts` — admin renames a language and sees the new
   name in the heading and the language list without a reload; a duplicate rename is rejected inline.
+  **Assert on list content, not list position.** `addLanguage` merges via
+  `modelListMerge(…, languageCompare)` (`languageSlice.ts:39`), and `languageCompare` sorts by
+  `name`, so a rename generally moves the entry within the admin language list. An assertion keyed
+  to an index or `:nth-child` is fixture-dependent and will break on an unrelated fixture change.
+  The reorder itself is correct behavior, not a defect.
 
 ## Complexity Tracking
 
