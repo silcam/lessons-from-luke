@@ -546,6 +546,42 @@ describe("LanguageView rename flow", () => {
     expect((getByLabelText("Language Name") as HTMLInputElement).value).toBe(tooLongValue);
   });
 
+  it("shows the trimmed value in the heading, and re-seeds the editor from it, after saving a name typed with leading/trailing whitespace", async () => {
+    mockPost.mockResolvedValue({ ...sampleLanguage, name: "New Name" });
+    const done = jest.fn();
+    const { getByRole, getByLabelText, getByText } = renderWithProviders(
+      <LanguageView language={sampleLanguage} done={done} />,
+      {
+        syncState: defaultSyncState,
+        languages: { languages: [], adminLanguages: [sampleLanguage] },
+        currentUser: { user: null, locale: "en", loaded: false },
+        lessons: [],
+      }
+    );
+    await act(async () => {});
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+    });
+
+    const nameInput = getByLabelText("Language Name") as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: "  New Name  " } });
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^save$/i }));
+    });
+
+    expect(mockPost).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(getByText("New Name")).toBeTruthy());
+
+    // Re-opening the editor after a successful trimmed rename must seed the
+    // draft from the persisted (trimmed) value, not the stale props.language.name.
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+    });
+    expect((getByLabelText("Language Name") as HTMLInputElement).value).toBe("New Name");
+  });
+
   it("shows the duplicate-name message on a 409, keeps the editor open with the typed value, and leaves the heading unchanged", async () => {
     const done = jest.fn();
     const { getByRole, getByLabelText, getByText, findByRole } = renderWithProviders(
