@@ -164,7 +164,7 @@ src/
         └── LanguageView.test.tsx          # RED-first component tests (file exists)
 
 cypress/integration/
-└── language-rename.US15.spec.ts           # E2E happy path + duplicate rejection
+└── language-rename.US1.spec.ts           # E2E happy path + duplicate rejection
 
 migrations/                                # UNCHANGED — no migration in this feature
 ```
@@ -200,13 +200,19 @@ name collides — a wrong and confusing signal.
 
 Required implementation ordering in the controller:
 
+0. Steps 2–4 run **only when `name` is present** in the filtered body. A `motherTongue`-only or
+   `defaultSrcLang`-only update must not pay for an extra `storage.languages()` read, and must keep
+   its current behavior byte-for-byte.
 1. Reject a non-string / empty-after-trim `name` → **422** (shape/validation error, matching
    `isNewLanguage`'s 422 on the create path).
-2. Read `const active = await storage.languages()` (active rows only).
-3. Locate the target by `languageId` in `active`. **If absent** (archived or deleted), skip the
-   duplicate check entirely and fall through to `updateLanguageChecked`, which throws
-   `{ status: 404 }`.
-4. **If present**, compare the trimmed, lower-cased name against the _other_ entries only
+2. Read `const active = await storage.languages()` (active rows only — verified: `PGStorage`
+   filters `WHERE NOT archived` at `PGStorage.ts:34`, and `testStorage.languages()` filters
+   `!lang.archived` at `testStorage.ts:19`, so absence from this list is a reliable
+   archived-or-deleted signal in both implementations).
+3. Locate the target by `languageId` in `active`. **If absent, or present with `archived` true**
+   (belt-and-braces, so the rule does not depend on the filter above), skip the duplicate check
+   entirely and fall through to `updateLanguageChecked`, which throws `{ status: 404 }`.
+4. **If present and active**, compare the trimmed, lower-cased name against the _other_ entries only
    (`lang.languageId !== id`). Any match → **409**. Renaming to the language's own current name is
    therefore always allowed (FR-007, US2 scenario 4).
 5. Pass the **trimmed** name to `updateLanguageChecked` (FR-005, US2 scenario 3).
@@ -276,7 +282,7 @@ Existing acceptance specs run to `US14-language-detail-url.txt`, so this feature
 - `src/frontend/web/languages/LanguageView.test.tsx` — Edit link present; editor pre-filled;
   Cancel restores and posts nothing; Save updates the heading; 409/422 render inline feedback and
   keep the editor open with the typed value.
-- `cypress/integration/language-rename.US15.spec.ts` — admin renames a language and sees the new
+- `cypress/integration/language-rename.US1.spec.ts` — admin renames a language and sees the new
   name in the heading and the language list without a reload; a duplicate rename is rejected inline.
 
 ## Complexity Tracking

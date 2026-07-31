@@ -71,17 +71,17 @@ NODE_ENV=test npx jest src/server/controllers/languagesController.test.ts --runI
 NODE_ENV=test npx jest src/frontend/web/languages/LanguageView.test.tsx --runInBand
 
 # E2E
-yarn test-e2e            # includes cypress/integration/language-rename.US15.spec.ts
+yarn test-e2e            # includes cypress/integration/language-rename.US1.spec.ts
 ```
 
 ## Files this feature touches
 
-| File                                               | Change                                                 |
-| -------------------------------------------------- | ------------------------------------------------------ |
-| `src/core/interfaces/Api.ts`                       | `name?: string` on the update endpoint's request body  |
-| `src/core/i18n/locales/en.ts`                      | `Language_name_duplicate`, `Language_name_required`    |
-| `src/server/controllers/languagesController.ts`    | whitelist `name`; guard/trim/empty(422)/404-before-409 |
-| `src/frontend/common/state/languageSlice.ts`       | `pushLanguageRename` thunk                             |
-| `src/frontend/web/languages/LanguageView.tsx`      | Edit link → inline editor + inline error feedback      |
-| `cypress/integration/language-rename.US15.spec.ts` | new E2E spec                                           |
-| `migrations/`                                      | **unchanged — no migration**                           |
+| File                                              | Change                                                 |
+| ------------------------------------------------- | ------------------------------------------------------ |
+| `src/core/interfaces/Api.ts`                      | `name?: string` on the update endpoint's request body  |
+| `src/core/i18n/locales/en.ts`                     | `Language_name_duplicate`, `Language_name_required`    |
+| `src/server/controllers/languagesController.ts`   | whitelist `name`; guard/trim/empty(422)/404-before-409 |
+| `src/frontend/common/state/languageSlice.ts`      | `pushLanguageRename` thunk                             |
+| `src/frontend/web/languages/LanguageView.tsx`     | Edit link → inline editor + inline error feedback      |
+| `cypress/integration/language-rename.US1.spec.ts` | new E2E spec                                           |
+| `migrations/`                                     | **unchanged — no migration**                           |
