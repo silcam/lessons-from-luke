@@ -11,7 +11,8 @@ language name becomes mutable post-creation while `languageId` and `code` stay i
 Technical approach, smallest change that satisfies the spec:
 
 1. **Server** — widen the `objFilter` whitelist on `POST /api/admin/languages/:languageId` to
-   accept `name`, and validate it in the controller (type guard → trim → non-empty → duplicate
+   accept `name`, and validate it in the controller (**presence test → type guard** (D-006) → trim →
+   non-empty → length + character bounds (D-007) → write the trimmed value back (D-008) → duplicate
    check), mirroring the create endpoint's validation site and semantics. **No `Persistence`
    interface change and no storage-implementation change**: `updateLanguageChecked` already takes
    `Partial<Language>`, already sets `modified`, and already 404s for missing/archived targets.
@@ -206,8 +207,10 @@ Required implementation ordering in the controller:
 0. Steps 2–4 run **only when `name` is present** in the filtered body. A `motherTongue`-only or
    `defaultSrcLang`-only update must not pay for an extra `storage.languages()` read, and must keep
    its current behavior byte-for-byte.
-1. Reject a non-string / empty-after-trim `name` → **422** (shape/validation error, matching
-   `isNewLanguage`'s 422 on the create path). **The presence test is normative — see D-006.**
+1. Reject a non-string / empty-after-trim / over-100-character / control-character `name` → **422**
+   (shape/validation error, matching `isNewLanguage`'s 422 on the create path). **The presence test
+   is normative — see D-006; the length and character bounds are D-007.** Then **write the trimmed
+   value back into the update object — see D-008.**
 2. Read `const active = await storage.languages()` (active rows only — verified: `PGStorage`
    filters `WHERE NOT archived` at `PGStorage.ts:34`, and `testStorage.languages()` filters
    `!lang.archived` at `testStorage.ts:19`, so absence from this list is a reliable
@@ -290,14 +293,37 @@ Required, enforced in the controller alongside the emptiness check (step 1 of D-
 - **Maximum 100 characters** after trimming → **422**. (100 comfortably exceeds any real language
   project name and leaves headroom under the 255-byte filename ceiling once the
   `_Book-Qn-Lnn.odt` suffix and multi-byte UTF-8 are accounted for.)
-- **Reject C0/C1 control characters and Unicode bidi overrides** (`/[�--‎‏‪-‮]/`)
-  → **422**. Trimming strips only leading/trailing whitespace, so an embedded newline or an
-  RTL-override survives today and would corrupt the language list rendering and the download
-  filename.
+- **Reject C0/C1 control characters and Unicode bidi overrides** -> **422**. Trimming strips only
+  leading/trailing whitespace, so an embedded newline or an RTL/LRO override survives today and
+  would corrupt the language-list rendering and the download filename. Write the predicate with
+  **escape sequences only** -- never literal control characters in the source file (this plan
+  originally embedded them literally and had to be corrected):
+
+  ```ts
+  // eslint-disable-next-line no-control-regex
+  const FORBIDDEN_NAME_CHARS = /[\u0000-\u001F\u007F-\u009F\u200E\u200F\u202A-\u202E]/;
+  ```
+
+  `no-control-regex` is ESLint-recommended, so the targeted disable comment is required; per
+  Constitution V a commented, single-line suppression is preferred to relaxing the rule project-wide.
 
 This is a **rename-path-only** rule. Per D-003's scope reasoning, `POST /api/admin/languages`
 (create) is not changed, so a pre-existing over-long or control-character name remains until
 renamed. Accepted, and recorded rather than left implicit.
+
+### D-008 — The trimmed value must be written back, not merely compared
+
+D-002 step 5 says "pass the **trimmed** name to `updateLanguageChecked`", which is easy to satisfy
+_by accident of phrasing_ and easy to violate in code. The natural implementation computes
+`const trimmed = langUpdate.name.trim()` for the emptiness, length and duplicate checks and then
+passes `langUpdate` — still holding the **untrimmed** value — to `updateLanguageChecked`. Every
+validation test still passes; only FR-005 / US2 scenario 3 fail, and only for an input nobody types
+by hand.
+
+Binding: after validation, assign the trimmed value back (`langUpdate.name = trimmed`) — or build
+the update object from `trimmed` — before the storage call. The RED test named in the Acceptance
+Test Strategy ("name accepted and persisted trimmed") must assert on the **stored/returned** value,
+not on the response status.
 
 ### D-004 — A separate `pushLanguageRename` thunk
 
@@ -349,8 +375,11 @@ carries a rename to desktop clients like any other language mutation. No `LocalS
 - **Bounded and character-restricted** per D-007 (≤100 chars trimmed; no C0/C1 control characters or
   Unicode bidi overrides). Unbounded admin-supplied text that reaches a download filename and every
   rendered list is worth a bound even with a trusted, single-digit admin population.
-- The client-side `TextInput` may add a `maxLength` for ergonomics, but **all** rules are enforced
-  server-side; the client bound is never the check.
+- The client-side `TextInput` **must not** set a hard `maxLength` at the same 100-character bound.
+  A truncating `maxLength` makes the over-length branch unreachable from the UI, so the
+  `Language_name_too_long` message and its component test become dead code, and the admin silently
+  loses characters instead of being told. Let the input accept the over-long value and surface the
+  server's `422` inline. All rules are enforced server-side; the client bound is never the check.
 
 ### Access Control (unchanged, re-verified)
 
@@ -422,6 +451,12 @@ and its text **together**. A live region that enters the DOM already populated i
 announced across screen readers. For the rename error, **render the `role="alert"`
 `aria-live="assertive"` container unconditionally** and toggle only its text content. (Do not
 retrofit the two existing blocks — out of scope.)
+
+"Unconditionally" means **for the lifetime of the editor**, not for the lifetime of the screen: the
+empty `role="alert"` container mounts together with the editor when Edit is activated and unmounts
+with it. That is sufficient — the region exists and is empty before any error text is inserted,
+which is the condition assistive technology needs. Do **not** place it outside the editor's
+conditional block, where it would be an always-present empty region on a screen that has no editor.
 
 ### Heading Continuity
 

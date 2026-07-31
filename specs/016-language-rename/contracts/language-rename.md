@@ -39,8 +39,9 @@ to:
 Server-side, the `objFilter` whitelist in `languagesController` gains `"name"`. All fields remain
 optional and independently submittable; the rename client sends `{ name }` alone.
 
-Because `req.body` is untyped at the boundary, the handler MUST narrow with an explicit
-`typeof name === "string"` guard rather than trusting the declared type.
+Because `req.body` is untyped at the boundary, the handler MUST narrow with an explicit runtime
+guard rather than trusting the declared type. That guard is **two-step** — see immediately below; a
+bare `typeof name === "string"` test is not sufficient on its own.
 
 **Presence is not the same as validity (normative).** `objFilter` copies a whitelisted key with
 `field in obj`, so it omits `name` when the key is absent but **preserves an explicit `null`**. The
@@ -63,7 +64,8 @@ current behavior byte-for-byte and pay for no extra `storage.languages()` read.
 ### Response
 
 `200` with the full updated `Language` (unchanged shape). The returned `name` is the **trimmed**
-value.
+value — which requires the trimmed string to be written back into the update object before the
+storage call, not merely used for comparison (plan.md D-008).
 
 ### Error precedence (normative)
 
