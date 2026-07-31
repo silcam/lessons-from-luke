@@ -119,7 +119,13 @@ export default function LanguageView(props: IProps) {
             <TextInput value={draft} setValue={setDraft} />
           </Label>
           <Button type="submit" text={t("Save")} onClick={() => {}} disabled={saving} />
-          <Button text={t("Cancel")} onClick={() => setEditing(false)} />
+          <Button
+            type="button"
+            red
+            text={t("Cancel")}
+            onClick={() => setEditing(false)}
+            disabled={saving}
+          />
         </form>
       ) : (
         <Button
