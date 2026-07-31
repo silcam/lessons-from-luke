@@ -177,6 +177,25 @@ test("POST update language defaultSrcLang", async () => {
   });
 });
 
+// POST /api/admin/languages/:languageId name-absent regression lock
+// (lessons-from-luke-fm4a.5.1.7/8/9). A body with no `name` key must leave
+// the stored name untouched and must not add a second, name-driven
+// storage.languages() read on top of the one updateProgress() already makes
+// on every update — the rename feature's duplicate-name lookup (US2) is
+// scoped to name-present requests only.
+test("POST update language: name-absent updates (motherTongue/defaultSrcLang only) are unaffected", async () => {
+  const storage: TestPersistence = (global as any).testStorage;
+  const languagesSpy = jest.spyOn(storage, "languages");
+  const agent = await loggedInAgent();
+  const response = await agent
+    .post("/api/admin/languages/3")
+    .send({ motherTongue: true, defaultSrcLang: 2 });
+  expect(response.status).toBe(200);
+  expect(response.body.name).toBe("Batanga");
+  expect(languagesSpy).toHaveBeenCalledTimes(1);
+  languagesSpy.mockRestore();
+});
+
 // POST /api/admin/languages/:languageId rename — RED (lessons-from-luke-fm4a.5.1.4)
 // The endpoint doesn't accept `name` yet — objFilter doesn't whitelist it.
 test("POST update language: valid trimmed name is accepted and persisted", async () => {
