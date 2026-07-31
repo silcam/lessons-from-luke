@@ -294,7 +294,8 @@ trivially reachable, and the value is fanned out into: every `SelectInput` optio
 the admin language list, `Archive_language_dependents` interpolation, and — via
 `documentName(language.name, lesson)` (`Lesson.ts:30`) — the **filename of every downloaded ODT**,
 where filesystems cap at ~255 bytes and an over-long name makes the download fail or be silently
-truncated by the browser.
+truncated by the browser — which motivates _a_ bound, though not a byte-safe one; see the
+max-length bullet below.
 
 Required, enforced in the controller alongside the emptiness check (step 1 of D-002):
 
@@ -417,8 +418,9 @@ carries a rename to desktop clients like any other language mutation. No `LocalS
 - **Presence-then-type narrowing** on `name`, per D-006. An explicitly-null `name` must be a 422,
   never a pass-through to the SQL builder. This is the one input path in the feature that can cause
   persistent, app-breaking damage.
-- **Bounded and character-restricted** per D-007 (≤100 chars trimmed; no C0/C1 control characters or
-  Unicode bidi overrides). Unbounded admin-supplied text that reaches a download filename and every
+- **Bounded and character-restricted** per D-007 (≤100 chars trimmed; no C0/C1 control characters —
+  **Unicode bidi characters are explicitly NOT restricted; see D-007** and do not add them here).
+  Unbounded admin-supplied text that reaches a download filename and every
   rendered list is worth a bound even with a trusted, single-digit admin population.
 - The client-side `TextInput` **must not** set a hard `maxLength` at the same 100-character bound.
   A truncating `maxLength` makes the over-length branch unreachable from the UI, so the
