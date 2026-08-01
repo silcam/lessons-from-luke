@@ -281,10 +281,22 @@ test("POST update language: 409 when new name case-insensitively collides with a
 });
 
 // POST /api/admin/languages/:languageId rename TOCTOU close — lessons-from-luke-fm4a.9
-// Two concurrent renames targeting the same new name must not both commit:
-// the duplicate-name check now runs FOR UPDATE inside updateLanguageChecked's
-// own transaction, so exactly one request succeeds (200) and the other is
-// rejected (409) — never two 200s.
+// Two concurrent renames targeting the same new name must not both commit.
+// NOTE (lessons-from-luke-fm4a.11): both requests here share ONE physical
+// connection — the jest harness (TransactionalTestStorage, see
+// jestSetupAfterEnv.ts) wraps the whole test in one transaction over a
+// postgres({ max: 1 }) pool. That serializes the two agent.post() calls at
+// the database level: the first request's SAVEPOINT (including its UPDATE)
+// fully completes before the second request's begins, so the second
+// request's own duplicate-name SELECT ... FOR UPDATE finds the first rename
+// already committed and rejects it as an ordinary duplicate hit via the
+// app-level check. This test still proves the endpoint contract (never two
+// 200s) but does NOT exercise the zero-row race window or the
+// languages_name_active_lower_idx unique-index backstop / 23505->409
+// mapping fm4a.9 added for that window — see
+// src/server/storage/languageRenameRace.test.ts, which uses two real
+// independent database connections to force and verify that race
+// deterministically.
 test("POST update language: concurrent renames to the same name yield exactly one 200 and one 409", async () => {
   const agentA = await loggedInAgent();
   const agentB = await loggedInAgent();
