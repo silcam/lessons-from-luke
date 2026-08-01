@@ -217,9 +217,11 @@ test("POST update language: 422 when name is empty or whitespace-only, stored na
 
   const emptyResponse = await agent.post("/api/admin/languages/3").send({ name: "" });
   expect(emptyResponse.status).toBe(422);
+  expect(emptyResponse.body.reason).toBe("empty");
 
   const whitespaceResponse = await agent.post("/api/admin/languages/3").send({ name: "   " });
   expect(whitespaceResponse.status).toBe(422);
+  expect(whitespaceResponse.body.reason).toBe("empty");
 
   const after = await storage.language({ languageId: 3 });
   expect(after?.name).toBe(before?.name);
@@ -235,12 +237,14 @@ test("POST update language: 422 when trimmed name exceeds 100 characters", async
   const tooLong = "A".repeat(101);
   const response = await agent.post("/api/admin/languages/3").send({ name: tooLong });
   expect(response.status).toBe(422);
+  expect(response.body.reason).toBe("tooLong");
 });
 
 test("POST update language: 422 when name contains a control character", async () => {
   const agent = await loggedInAgent();
   const response = await agent.post("/api/admin/languages/3").send({ name: "A\nB" });
   expect(response.status).toBe(422);
+  expect(response.body.reason).toBe("invalid");
 });
 
 test("POST update language: 200 when trimmed name is exactly 100 characters", async () => {
@@ -348,6 +352,7 @@ test("POST update language: 422 when name contains path traversal segments", asy
   const agent = await loggedInAgent();
   const response = await agent.post("/api/admin/languages/3").send({ name: "../../../evil" });
   expect(response.status).toBe(422);
+  expect(response.body.reason).toBe("invalid");
 });
 
 // POST /api/admin/languages create — RED (lessons-from-luke-fm4a.7)

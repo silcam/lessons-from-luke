@@ -495,7 +495,7 @@ describe("LanguageView rename flow", () => {
     const saveButton = getByRole("button", { name: /^save$/i }) as HTMLButtonElement;
     expect(saveButton.disabled).toBe(false);
 
-    mockPost.mockRejectedValueOnce({ type: "HTTP", status: 422 });
+    mockPost.mockRejectedValueOnce({ type: "HTTP", status: 422, body: { reason: "empty" } });
 
     await act(async () => {
       fireEvent.click(saveButton);
@@ -532,7 +532,7 @@ describe("LanguageView rename flow", () => {
     const nameInput = getByLabelText("Language Name") as HTMLInputElement;
     fireEvent.change(nameInput, { target: { value: tooLongValue } });
 
-    mockPost.mockRejectedValueOnce({ type: "HTTP", status: 422 });
+    mockPost.mockRejectedValueOnce({ type: "HTTP", status: 422, body: { reason: "tooLong" } });
 
     await act(async () => {
       fireEvent.click(getByRole("button", { name: /^save$/i }));
@@ -567,7 +567,7 @@ describe("LanguageView rename flow", () => {
     const nameInput = getByLabelText("Language Name") as HTMLInputElement;
     fireEvent.change(nameInput, { target: { value: spacesValue } });
 
-    mockPost.mockRejectedValueOnce({ type: "HTTP", status: 422 });
+    mockPost.mockRejectedValueOnce({ type: "HTTP", status: 422, body: { reason: "empty" } });
 
     await act(async () => {
       fireEvent.click(getByRole("button", { name: /^save$/i }));
@@ -577,6 +577,77 @@ describe("LanguageView rename flow", () => {
 
     const alert = await findByRole("alert");
     expect(alert.textContent).toMatch(/required/i);
+  });
+
+  it("shows the too-long message driven by the server's reason, even when the locally-known draft looks valid", async () => {
+    const done = jest.fn();
+    const { getByRole, getByLabelText, findByRole } = renderWithProviders(
+      <LanguageView language={sampleLanguage} done={done} />,
+      {
+        syncState: defaultSyncState,
+        languages: { languages: [], adminLanguages: [sampleLanguage] },
+        currentUser: { user: null, locale: "en", loaded: false },
+        lessons: [],
+      }
+    );
+    await act(async () => {});
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+    });
+
+    // A locally-valid-looking draft: the client's own classifier would say
+    // this name is fine, so a fallback that re-derives the reason locally
+    // would show the wrong (or a misleadingly generic) message. The server
+    // is the source of truth here.
+    const nameInput = getByLabelText("Language Name") as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: "Valid Looking Name" } });
+
+    mockPost.mockRejectedValueOnce({ type: "HTTP", status: 422, body: { reason: "tooLong" } });
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^save$/i }));
+    });
+
+    expect(mockPost).toHaveBeenCalledTimes(1);
+
+    const alert = await findByRole("alert");
+    expect(alert.textContent).toMatch(/100 characters/i);
+  });
+
+  it("shows a generic error message on a 422 with no recognized reason in the response body, not a specific fallback guess", async () => {
+    const done = jest.fn();
+    const { getByRole, getByLabelText, findByRole } = renderWithProviders(
+      <LanguageView language={sampleLanguage} done={done} />,
+      {
+        syncState: defaultSyncState,
+        languages: { languages: [], adminLanguages: [sampleLanguage] },
+        currentUser: { user: null, locale: "en", loaded: false },
+        lessons: [],
+      }
+    );
+    await act(async () => {});
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+    });
+
+    const nameInput = getByLabelText("Language Name") as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: "Some Name" } });
+
+    mockPost.mockRejectedValueOnce({ type: "HTTP", status: 422 });
+
+    await act(async () => {
+      fireEvent.click(getByRole("button", { name: /^save$/i }));
+    });
+
+    expect(mockPost).toHaveBeenCalledTimes(1);
+
+    const alert = await findByRole("alert");
+    expect(alert.textContent).not.toMatch(/required/i);
+    expect(alert.textContent).not.toMatch(/100 characters/i);
+    expect(alert.textContent).not.toMatch(/invalid characters/i);
+    expect(alert.textContent.length).toBeGreaterThan(0);
   });
 
   it("shows a distinct invalid-characters message (not required or too-long) on a 422 for a name containing a path separator", async () => {
@@ -600,7 +671,7 @@ describe("LanguageView rename flow", () => {
     const nameInput = getByLabelText("Language Name") as HTMLInputElement;
     fireEvent.change(nameInput, { target: { value: invalidValue } });
 
-    mockPost.mockRejectedValueOnce({ type: "HTTP", status: 422 });
+    mockPost.mockRejectedValueOnce({ type: "HTTP", status: 422, body: { reason: "invalid" } });
 
     await act(async () => {
       fireEvent.click(getByRole("button", { name: /^save$/i }));

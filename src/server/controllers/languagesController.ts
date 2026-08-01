@@ -11,10 +11,13 @@ import defaultTranslations from "../actions/defaultTranslations";
  * endpoints, using the core single-source-of-truth classifier. Trims the
  * name and rejects empty, overlong, control-character, or
  * path-traversal-bearing names. Returns the trimmed name on success, or
- * throws { status: 422 } on failure.
+ * throws { status: 422, body: { reason } } on failure, where `reason` is the
+ * classifier's machine-readable rejection code, so callers can surface the
+ * actual reason without re-deriving it client-side.
  */
 function validateLanguageName(name: unknown): string {
-  if (describeLanguageNameError(name) !== undefined) throw { status: 422 };
+  const reason = describeLanguageNameError(name);
+  if (reason !== undefined) throw { status: 422, body: { reason } };
   return (name as string).trim();
 }
 

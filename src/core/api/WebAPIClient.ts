@@ -61,7 +61,10 @@ function throwAppError(err: any): never {
   let error: AppError;
   if (err.request && !err.response) error = { type: "No Connection" };
   else if (err.response && err.response.status)
-    error = { type: "HTTP", status: err.response.status };
+    error =
+      err.response.data !== undefined
+        ? { type: "HTTP", status: err.response.status, body: err.response.data }
+        : { type: "HTTP", status: err.response.status };
   else error = { type: "Unknown" };
   error.log = `${err}`;
   throw error;

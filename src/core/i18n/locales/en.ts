@@ -186,6 +186,7 @@ const en = {
   Language_name_required: "Language name is required.",
   Language_name_too_long: "Language name must be %{max} characters or fewer.",
   Language_name_invalid: "Language name contains invalid characters.",
+  Language_name_error_generic: "Language name could not be saved. Please try again.",
 };
 
 export type I18nStrings = typeof en;

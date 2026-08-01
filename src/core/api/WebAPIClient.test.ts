@@ -131,6 +131,17 @@ describe("webPost", () => {
     );
   });
 
+  test("attaches the response body to the AppError when the server sends one", async () => {
+    mockedAxios.post.mockRejectedValueOnce({
+      request: {},
+      response: { status: 422, data: { reason: "tooLong" } },
+    });
+
+    await expect(webPost("/api/tStrings", {}, { code: "ABC", tStrings: [] })).rejects.toMatchObject(
+      { type: "HTTP", status: 422, body: { reason: "tooLong" } }
+    );
+  });
+
   test("throws AppError with type 'Unknown' for unexpected errors", async () => {
     mockedAxios.post.mockRejectedValueOnce(new Error("network failure"));
 

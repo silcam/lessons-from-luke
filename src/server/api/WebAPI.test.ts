@@ -5,11 +5,16 @@ import { handleErrors } from "./WebAPI";
 function mockRes() {
   return {
     _status: 200,
+    _body: undefined as any,
     status(code: number) {
       this._status = code;
       return this;
     },
     send() {
+      return this;
+    },
+    json(body: any) {
+      this._body = body;
       return this;
     },
   } as any;
@@ -27,6 +32,26 @@ test("handleErrors: error with status field — sends that status", async () => 
     throw { status: 422 };
   });
   expect(res._status).toBe(422);
+});
+
+test("handleErrors: error with status and body fields — sends status and forwards the body as JSON", async () => {
+  const res = mockRes();
+  await handleErrors(res, async () => {
+    throw { status: 422, body: { reason: "tooLong" } };
+  });
+  expect(res._status).toBe(422);
+  expect(res._body).toEqual({ reason: "tooLong" });
+});
+
+test("handleErrors: error with a body field but a 500 status — does not forward the body", async () => {
+  const res = mockRes();
+  const spy = jest.spyOn(console, "error").mockImplementation(() => {});
+  await handleErrors(res, async () => {
+    throw { status: 500, body: { secret: "internal detail" } };
+  });
+  expect(res._status).toBe(500);
+  expect(res._body).toBeUndefined();
+  spy.mockRestore();
 });
 
 test("handleErrors: error without status field — defaults to 500 and logs", async () => {
