@@ -14,6 +14,30 @@ const dbConnect = makeDbConnect();
 // ones, matching the existing "rename to an archived name" 200 behavior.
 module.exports.up = async () => {
   await dbConnect(async (sql) => {
+    console.log(
+      "Checking for pre-existing case-insensitive name collisions among active languages..."
+    );
+    const collisions = await sql`
+      SELECT lower(name) AS lowername, array_agg(languageid) AS languageids, array_agg(name) AS names
+      FROM languages
+      WHERE NOT archived
+      GROUP BY lower(name)
+      HAVING count(*) > 1
+    `;
+    if (collisions.length > 0) {
+      const details = collisions
+        .map(
+          (row) =>
+            `  "${row.lowername}": languageid(s) ${row.languageids.join(", ")} (names: ${row.names.join(", ")})`
+        )
+        .join("\n");
+      throw new Error(
+        "Cannot add unique index languages_name_active_lower_idx: found existing active languages " +
+          "whose names collide case-insensitively. Rename or archive one language in each colliding " +
+          `group below, then re-run this migration:\n${details}`
+      );
+    }
+
     console.log("Adding unique index...");
     await sql`
       CREATE UNIQUE INDEX languages_name_active_lower_idx
