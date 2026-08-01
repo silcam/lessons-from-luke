@@ -280,6 +280,24 @@ test("POST update language: 409 when new name case-insensitively collides with a
   expect(response.status).toBe(409);
 });
 
+// POST /api/admin/languages/:languageId rename TOCTOU close — lessons-from-luke-fm4a.9
+// Two concurrent renames targeting the same new name must not both commit:
+// the duplicate-name check now runs FOR UPDATE inside updateLanguageChecked's
+// own transaction, so exactly one request succeeds (200) and the other is
+// rejected (409) — never two 200s.
+test("POST update language: concurrent renames to the same name yield exactly one 200 and one 409", async () => {
+  const agentA = await loggedInAgent();
+  const agentB = await loggedInAgent();
+
+  const [responseA, responseB] = await Promise.all([
+    agentA.post("/api/admin/languages/2").send({ name: "Racer Language" }),
+    agentB.post("/api/admin/languages/3").send({ name: "Racer Language" }),
+  ]);
+
+  const statuses = [responseA.status, responseB.status].sort();
+  expect(statuses).toEqual([200, 409]);
+});
+
 // POST /api/admin/languages/:languageId rename — RED (lessons-from-luke-fm4a.5.2.11, D-002)
 // The not-found check MUST run and win BEFORE the duplicate-name check: a
 // rename against a nonexistent languageId returns 404 even when the

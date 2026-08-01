@@ -51,22 +51,13 @@ export default function languagesController(app: Express, storage: Persistence) 
     const languageId = parseInt(req.params.languageId);
     const langUpdate = objFilter(req.body, ["motherTongue", "defaultSrcLang", "name"]);
     if ("name" in langUpdate) {
-      const trimmed = validateLanguageName(langUpdate.name);
-
-      const target = await storage.language({ languageId });
-      if (!target || target.archived) throw { status: 404 };
-
-      const existing = await storage.languages();
-      const duplicate = existing.some(
-        (lang) =>
-          lang.languageId !== languageId &&
-          !lang.archived &&
-          (lang.name ?? "").toLowerCase() === trimmed.toLowerCase()
-      );
-      if (duplicate) throw { status: 409 };
-
-      langUpdate.name = trimmed;
+      langUpdate.name = validateLanguageName(langUpdate.name);
     }
+    // The 404 (nonexistent/archived target) and 409 (case-insensitive name
+    // collision) checks both happen inside updateLanguageChecked's own
+    // transaction, under FOR UPDATE row locks — see its comment for why
+    // that's required to close the TOCTOU window between the check and the
+    // write (lessons-from-luke-fm4a.9).
     return storage.updateLanguageChecked(languageId, langUpdate);
   });
 
