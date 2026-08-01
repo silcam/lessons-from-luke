@@ -135,23 +135,26 @@ describe("updateLanguageChecked: real cross-connection race toward a brand-new n
     // unique index dropped.
     const deadline = Date.now() + POLL_TIMEOUT_MS;
     let observedBlocked = false;
-    while (Date.now() < deadline) {
-      const [row] = await monitor`
-        SELECT wait_event_type FROM pg_stat_activity WHERE pid = ${storagePid}
-      `;
-      if (row?.wait_event_type === "Lock") {
-        observedBlocked = true;
-        break;
+    try {
+      while (Date.now() < deadline) {
+        const [row] = await monitor`
+          SELECT wait_event_type FROM pg_stat_activity WHERE pid = ${storagePid}
+        `;
+        if (row?.wait_event_type === "Lock") {
+          observedBlocked = true;
+          break;
+        }
+        await sleep(POLL_INTERVAL_MS);
       }
-      await sleep(POLL_INTERVAL_MS);
+      expect(observedBlocked).toBe(true);
+    } finally {
+      // Release R regardless of whether the block was observed -- otherwise
+      // a failed assertion above would leave R's transaction open forever
+      // on the single-connection `raw` pool, and afterEach's cleanup UPDATE
+      // would queue behind it and hang the jest worker.
+      releaseHolder();
+      await held;
     }
-    expect(observedBlocked).toBe(true);
-
-    // Release R: it commits its rename of language 3 to the race name. S's
-    // blocked UPDATE now resolves -- as a unique violation, since R got
-    // there first.
-    releaseHolder();
-    await held;
 
     await expect(updatePromise).rejects.toMatchObject({ status: 409 });
 
