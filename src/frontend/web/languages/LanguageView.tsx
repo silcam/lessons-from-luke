@@ -184,38 +184,23 @@ export default function LanguageView(props: IProps) {
                   <td>
                     {t("Download")}
                     {":  "}
-                    {isCoverLesson(lesson.lesson) ? (
-                      <GetDocumentButton
-                        language={props.language}
-                        lesson={lesson}
-                        text={lessonName(lesson, t)}
-                        majorityLanguageId={
-                          props.language.motherTongue
-                            ? props.language.defaultSrcLang
-                            : props.language.languageId
-                        }
-                      />
-                    ) : (
-                      <React.Fragment>
-                        <GetDocumentButton
-                          language={props.language}
-                          lesson={lesson}
-                          text="Bilingual"
-                          majorityLanguageId={
-                            props.language.motherTongue
-                              ? props.language.defaultSrcLang
-                              : props.language.languageId
-                          }
-                        />
-                        {" | "}
-                        <GetDocumentButton
-                          language={props.language}
-                          lesson={lesson}
-                          text="Single-Language"
-                          majorityLanguageId={0}
-                        />
-                      </React.Fragment>
-                    )}
+                    <GetDocumentButton
+                      language={props.language}
+                      lesson={lesson}
+                      text="Bilingual"
+                      majorityLanguageId={
+                        props.language.motherTongue
+                          ? props.language.defaultSrcLang
+                          : props.language.languageId
+                      }
+                    />
+                    {" | "}
+                    <GetDocumentButton
+                      language={props.language}
+                      lesson={lesson}
+                      text="Single-Language"
+                      majorityLanguageId={0}
+                    />
                   </td>
                 </tr>
               );

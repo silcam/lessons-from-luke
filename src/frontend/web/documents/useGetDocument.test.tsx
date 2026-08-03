@@ -3,7 +3,9 @@
 /**
  * Guard test for FR-010: `useGetDocument` names the saved file via
  * `documentName` from `core/models/Lesson`, so a cover lesson (A4/A3)
- * downloads as `<Language>_<Book>-Q<series>-Cover-<A4|A3>.odt`.
+ * downloads as `<Language>_<Book>-Q<series>-Cover-<A4|A3>-<mode>.odt`,
+ * where mode is `bilingual` (majorityLanguageId != 0) or `monolingual`
+ * (majorityLanguageId = 0). Non-cover lessons carry no mode suffix.
  *
  * Spec: specs/008-covers-in-platform/spec.md §FR-010
  * Plan: specs/008-covers-in-platform/plan.md contracts/covers-surface.md §2
@@ -76,7 +78,7 @@ beforeEach(() => {
 });
 
 describe("useGetDocument", () => {
-  it("downloads an A4 cover with the documentName filename convention", async () => {
+  it("downloads a bilingual A4 cover with the mode-suffixed documentName filename", async () => {
     mockedAxios.get.mockResolvedValue({ data: new ArrayBuffer(8) });
 
     const { result } = renderHook(() => useGetDocument(), { wrapper });
@@ -90,10 +92,13 @@ describe("useGetDocument", () => {
       `/api/languages/${language.languageId}/lessons/${coverLessonA4.lessonId}/document?majorityLanguageId=2`,
       { responseType: "blob" }
     );
-    expect(mockedSaveAs).toHaveBeenCalledWith(expect.any(Blob), "Espanol_Luke-Q1-Cover-A4.odt");
+    expect(mockedSaveAs).toHaveBeenCalledWith(
+      expect.any(Blob),
+      "Espanol_Luke-Q1-Cover-A4-bilingual.odt"
+    );
   });
 
-  it("downloads an A3 cover with the documentName filename convention", async () => {
+  it("downloads a bilingual A3 cover with the mode-suffixed documentName filename", async () => {
     mockedAxios.get.mockResolvedValue({ data: new ArrayBuffer(8) });
 
     const { result } = renderHook(() => useGetDocument(), { wrapper });
@@ -103,6 +108,49 @@ describe("useGetDocument", () => {
       await Promise.resolve();
     });
 
-    expect(mockedSaveAs).toHaveBeenCalledWith(expect.any(Blob), "Espanol_Luke-Q1-Cover-A3.odt");
+    expect(mockedSaveAs).toHaveBeenCalledWith(
+      expect.any(Blob),
+      "Espanol_Luke-Q1-Cover-A3-bilingual.odt"
+    );
+  });
+
+  it("downloads a monolingual cover (majorityLanguageId = 0) with the monolingual suffix", async () => {
+    mockedAxios.get.mockResolvedValue({ data: new ArrayBuffer(8) });
+
+    const { result } = renderHook(() => useGetDocument(), { wrapper });
+
+    await act(async () => {
+      result.current.getDocument(language, coverLessonA4, 0);
+      await Promise.resolve();
+    });
+
+    expect(mockedAxios.get).toHaveBeenCalledWith(
+      `/api/languages/${language.languageId}/lessons/${coverLessonA4.lessonId}/document?majorityLanguageId=0`,
+      { responseType: "blob" }
+    );
+    expect(mockedSaveAs).toHaveBeenCalledWith(
+      expect.any(Blob),
+      "Espanol_Luke-Q1-Cover-A4-monolingual.odt"
+    );
+  });
+
+  it("keeps non-cover lesson filenames unsuffixed regardless of mode", async () => {
+    mockedAxios.get.mockResolvedValue({ data: new ArrayBuffer(8) });
+    const ordinaryLesson: BaseLesson = {
+      lessonId: 5,
+      book: "Luke",
+      series: 1,
+      lesson: 5,
+      version: 1,
+    };
+
+    const { result } = renderHook(() => useGetDocument(), { wrapper });
+
+    await act(async () => {
+      result.current.getDocument(language, ordinaryLesson, 0);
+      await Promise.resolve();
+    });
+
+    expect(mockedSaveAs).toHaveBeenCalledWith(expect.any(Blob), "Espanol_Luke-Q1-L05.odt");
   });
 });

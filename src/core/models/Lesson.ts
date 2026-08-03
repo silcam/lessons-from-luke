@@ -40,10 +40,12 @@ export function lessonName(lesson: BaseLesson | undefined | null, t: TFunc = (s:
     : `${t(lesson.book)} ${lesson.series}-${lesson.lesson}`;
 }
 
-export function documentName(languageName: string, lesson: BaseLesson) {
+export type CoverDownloadMode = "bilingual" | "monolingual";
+
+export function documentName(languageName: string, lesson: BaseLesson, mode?: CoverDownloadMode) {
   const format = coverFormat(lesson.lesson);
   const suffix = format
-    ? `Cover-${format}.odt`
+    ? `Cover-${format}${mode ? `-${mode}` : ""}.odt`
     : isTOCLesson(lesson)
       ? "TOC.odt"
       : `L${zeroPad(lesson.lesson, 2)}.odt`;

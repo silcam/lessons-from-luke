@@ -1,31 +1,40 @@
 /// <reference types="jest" />
 
 /**
- * makeLessonFile.cover.test.ts — FR-008 guard test (US15).
+ * makeLessonFile.cover.test.ts — FR-008 guard test (US15), updated
+ * 2026-08-03 for the real BILINGUAL cover masters (see
+ * specs/brainstorms/2026-08-03-bilingual-cover-masters-requirements.md).
  *
- * plan.md's Summary explicitly states "Bilingual/monolingual output
- * (FR-008) requires no code — makeLessonFile handles covers as ordinary
- * lessons." This test does not re-litigate the `motherTongue` pairing rule
- * pinned by `coverExtraction.integration.test.ts` (US13 R2) — it confirms
- * the DOWNLOAD ENDPOINT's engine, `makeLessonFile`, round-trips a REAL
- * cover-master fixture correctly in both of its output modes:
+ * Round-trips the real committed A4 bilingual cover-master fixture through
+ * `makeLessonFile` -> `mergeXml` -> re-extract in both output modes and pins
+ * the new invariants:
  *
- *  - bilingual  (majorityLangId = a real, distinct language id)
- *  - monolingal (majorityLangId = 0)
+ *  - bilingual (majorityLangId = a real, distinct language id): every
+ *    mother-tongue template field carries the mother-tongue translation AND
+ *    the two source-language repetition paragraphs are present, populated
+ *    from the majority language.
+ *  - monolingual (majorityLangId = 0): no paragraph referencing a repetition
+ *    style (directly or through an automatic-style parent) survives — the
+ *    derived monolingual cover is "the bilingual version saved without the
+ *    repetitions" — while every mother-tongue translation is still present.
  *
- * Every bare cover style extracts `motherTongue: true` (US13 finding), so
- * this test's own oracle is: every extracted string is present, translated,
- * and untouched by `singleLanguageize`'s suppress-queue in BOTH modes — the
- * "never blanked" invariant the US13 R2 gate pins directly on
- * `singleLanguageize`, now observed end-to-end through the real
- * `makeLessonFile` -> `mergeXml` -> re-parse round trip.
+ * The masterId assignment below mirrors `addOrFindMasterStrings`
+ * (PGStorage): exact, case-sensitive text dedup within the upload. That
+ * gives the title repetition ("Lessons from Luke") the SAME masterId as its
+ * M.T. sibling, but the subtitle repetition ("Teacher’s guide") a DIFFERENT
+ * masterId than the M.T. field ("Teacher’s Guide") — the case mismatch that
+ * defeats `singleLanguageize`'s suppress-queue and motivates the
+ * style-driven removal (coverRepetitions.ts).
  */
 
 import fs from "fs";
 import os from "os";
 import path from "path";
+import libxmljs2, { Element } from "libxmljs2";
 import { unzip, unlinkRecursive } from "../../core/util/fsUtils";
 import parse from "../xml/parse";
+import { extractNamespaces } from "../xml/mergeXml";
+import { COVER_REPETITION_PARAGRAPH_STYLES } from "../xml/coverRepetitions";
 import makeLessonFile from "./makeLessonFile";
 import { Persistence } from "../../core/interfaces/Persistence";
 import { Language, ENGLISH_ID } from "../../core/models/Language";
@@ -59,7 +68,7 @@ function coverLesson(): Lesson {
   };
 }
 
-/** Real extracted, non-empty cover strings from the committed A4 cover-master fixture. */
+/** Real extracted, non-empty cover strings from the committed A4 bilingual cover-master fixture. */
 function extractRealCoverDocStrings(): DocString[] {
   const fixturePath = path.join(SERVER_DOCS_DIR, "Luke-1-97v01.odt");
   const extractDir = fs.mkdtempSync(path.join(os.tmpdir(), "cover-lessonfile-fixture-"));
@@ -82,57 +91,103 @@ function extractContentXmlText(odtPath: string): string {
   }
 }
 
-describe("makeLessonFile — FR-008 bilingual/monolingual cover round trip (real fixture)", () => {
+/** All text:p elements rendering in a cover repetition style, directly or via automatic-style parents. */
+function repetitionParagraphs(contentXml: string) {
+  const xmlDoc = libxmljs2.parseXml(contentXml);
+  const namespaces = extractNamespaces(xmlDoc);
+  const styleNames: string[] = [];
+  for (const base of COVER_REPETITION_PARAGRAPH_STYLES) {
+    styleNames.push(base);
+    xmlDoc
+      .find<Element>(`//style:style[@style:parent-style-name='${base}']`, namespaces)
+      .forEach((style) => {
+        const name = style.attr("name")?.value();
+        if (name) styleNames.push(name);
+      });
+  }
+  return styleNames.flatMap((name) =>
+    xmlDoc.find<Element>(`//text:p[@text:style-name='${name}']`, namespaces)
+  );
+}
+
+describe("makeLessonFile — FR-008 bilingual/monolingual cover round trip (real bilingual fixture)", () => {
   const realDocStrings = extractRealCoverDocStrings();
-  // Guard the fixture assumption this test's oracle depends on: every
-  // extracted bare cover style is motherTongue: true (US13 R2 finding).
-  // If a future fixture/parse change breaks this, this test should fail
-  // loudly here rather than produce a confusing downstream assertion.
   expect(realDocStrings.length).toBeGreaterThan(0);
-  expect(realDocStrings.every((docStr) => docStr.motherTongue)).toBe(true);
+  // Fixture guard: the real bilingual master carries exactly two
+  // motherTongue: false repetition strings (title + subtitle).
+  const repetitionStrings = realDocStrings.filter((docStr) => !docStr.motherTongue);
+  expect(repetitionStrings.map((docStr) => docStr.text).sort()).toEqual(
+    ["Lessons from Luke", "Teacher’s guide"].sort()
+  );
 
-  const lessonStrings: LessonString[] = realDocStrings.map((docStr, i) => ({
-    lessonStringId: i + 1,
-    masterId: i + 1,
-    lessonId: 97,
-    lessonVersion: 1,
-    type: docStr.type,
-    xpath: docStr.xpath,
-    motherTongue: docStr.motherTongue,
-  }));
+  // masterId assignment mirroring addOrFindMasterStrings: exact-text dedup.
+  const masterIdByText = new Map<string, number>();
+  const lessonStrings: LessonString[] = realDocStrings.map((docStr, i) => {
+    if (!masterIdByText.has(docStr.text)) masterIdByText.set(docStr.text, masterIdByText.size + 1);
+    return {
+      lessonStringId: i + 1,
+      masterId: masterIdByText.get(docStr.text)!,
+      lessonId: 97,
+      lessonVersion: 1,
+      type: docStr.type,
+      xpath: docStr.xpath,
+      motherTongue: docStr.motherTongue,
+    };
+  });
+  // Dedup guard: the title repetition shares its M.T. sibling's masterId
+  // (identical text), the subtitle repetition does not (case mismatch).
+  expect(masterIdByText.has("Teacher’s Guide")).toBe(true);
+  expect(masterIdByText.has("Teacher’s guide")).toBe(true);
+  expect(masterIdByText.get("Teacher’s Guide")).not.toBe(masterIdByText.get("Teacher’s guide"));
 
-  const translatedTStrings: TString[] = lessonStrings.map((lStr) => ({
-    masterId: lStr.masterId,
-    languageId: MOTHER_TONGUE_ID,
-    text: `translated-${lStr.masterId}`,
-    history: [],
-  }));
+  const allMasterIds = [...new Set(lessonStrings.map((lStr) => lStr.masterId))];
+  const tStringsFor = (languageId: number, prefix: string): TString[] =>
+    allMasterIds.map((masterId) => ({
+      masterId,
+      languageId,
+      text: `${prefix}-${masterId}`,
+      history: [],
+    }));
 
+  /** languageId-aware stub: mother-tongue and majority languages return distinct texts. */
   function storageStub(): Persistence {
     return {
-      tStrings: jest.fn().mockResolvedValue(translatedTStrings),
+      tStrings: jest.fn().mockImplementation(({ languageId }: { languageId: number }) => {
+        if (languageId === MOTHER_TONGUE_ID) return Promise.resolve(tStringsFor(languageId, "mt"));
+        return Promise.resolve(tStringsFor(languageId, "maj"));
+      }),
     } as unknown as Persistence;
   }
 
-  test("bilingual mode (majorityLangId != 0) writes every translated string into the real cover ODT", async () => {
+  const mtLessonStrings = lessonStrings.filter((lStr) => lStr.motherTongue);
+  const repetitionLessonStrings = lessonStrings.filter((lStr) => !lStr.motherTongue);
+
+  test("bilingual mode (majorityLangId != 0) keeps the repetition paragraphs, populated from the majority language", async () => {
     const lesson = { ...coverLesson(), lessonStrings };
     const filepath = await makeLessonFile(storageStub(), lesson, motherLang, MAJORITY_LANG_ID);
 
     expect(fs.existsSync(filepath)).toBe(true);
     const contentXml = extractContentXmlText(filepath);
-    for (const tStr of translatedTStrings) {
-      expect(contentXml).toContain(tStr.text);
+    for (const lStr of mtLessonStrings) {
+      expect(contentXml).toContain(`mt-${lStr.masterId}`);
+    }
+    const repetitions = repetitionParagraphs(contentXml);
+    expect(repetitions).toHaveLength(2);
+    const repetitionTexts = repetitions.map((p) => p.text());
+    for (const lStr of repetitionLessonStrings) {
+      expect(repetitionTexts).toContain(`maj-${lStr.masterId}`);
     }
   });
 
-  test("monolingual mode (majorityLangId = 0) also writes every translated string, never suppressed", async () => {
+  test("monolingual mode (majorityLangId = 0) removes every repetition paragraph while keeping all mother-tongue strings", async () => {
     const lesson = { ...coverLesson(), lessonStrings };
     const filepath = await makeLessonFile(storageStub(), lesson, motherLang, 0);
 
     expect(fs.existsSync(filepath)).toBe(true);
     const contentXml = extractContentXmlText(filepath);
-    for (const tStr of translatedTStrings) {
-      expect(contentXml).toContain(tStr.text);
+    for (const lStr of mtLessonStrings) {
+      expect(contentXml).toContain(`mt-${lStr.masterId}`);
     }
+    expect(repetitionParagraphs(contentXml)).toHaveLength(0);
   });
 });

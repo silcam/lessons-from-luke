@@ -78,6 +78,19 @@ describe("metaFromFilename", () => {
       expect(meta.series).toEqual(1);
       expect(meta.lesson).toEqual(6);
     });
+
+    // The owner's real bilingual masters carry a `-bilingual` suffix; the
+    // suffix must not confuse the format/series/lesson recognition.
+    it.each([
+      ["English-Luke-Q1-Cover-A4-bilingual.odt", "Luke", 1, COVER_A4_LESSON],
+      ["English-Luke-Q1-Cover-A3-bilingual.odt", "Luke", 1, COVER_A3_LESSON],
+      ["English-Luke-Q4-Cover-A4-bilingual.odt", "Luke", 4, COVER_A4_LESSON],
+    ])("recognizes suffixed bilingual master %s", (filename, book, series, lesson) => {
+      const meta = metaFromFilename(filename);
+      expect(meta.book).toEqual(book);
+      expect(meta.series).toEqual(series);
+      expect(meta.lesson).toEqual(lesson);
+    });
   });
 });
 

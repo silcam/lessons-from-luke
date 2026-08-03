@@ -145,28 +145,27 @@ describe("LanguageView — cover rows in the download table (US15)", () => {
     });
   }
 
-  it("renders a 'Luke 1-Cover (A4)' row for lesson 97 with a single Cover download button", () => {
+  it("renders a 'Luke 1-Cover (A4)' row for lesson 97 with a Bilingual | Single-Language download pair", () => {
     const { getAllByText } = renderWithCover();
 
     // The cover row is labelled via lessonName, same as ordinary lesson rows.
-    // There are two occurrences: the row label cell and the download button.
-    expect(getAllByText("Luke 1-Cover (A4)")).toHaveLength(2);
+    // Exactly one occurrence: the row label cell (downloads are the same
+    // Bilingual/Single-Language pair ordinary lesson rows get).
+    expect(getAllByText("Luke 1-Cover (A4)")).toHaveLength(1);
 
     const coverRow = getAllByText("Luke 1-Cover (A4)")[0].closest("tr");
     expect(coverRow).not.toBeNull();
 
-    // Ordinary lesson rows (3) still each get a Bilingual/Single-Language
-    // download pair, on top of the 2 per-quarter assemble control pairs from
-    // US1/US2. The cover row does not add to these counts — it exposes a
-    // single Cover-labeled button instead.
-    expect(getAllByText("Bilingual")).toHaveLength(3 + 2);
-    expect(getAllByText("Single-Language")).toHaveLength(3 + 2);
+    // Ordinary lesson rows (3) plus the cover row each get a
+    // Bilingual/Single-Language download pair, on top of the 2 per-quarter
+    // assemble control pairs from US1/US2.
+    expect(getAllByText("Bilingual")).toHaveLength(3 + 1 + 2);
+    expect(getAllByText("Single-Language")).toHaveLength(3 + 1 + 2);
 
-    // The cover row itself must carry the single Cover download button, not
-    // separate Bilingual/Single-Language links.
+    // The cover row itself carries both download links.
     expect(coverRow?.textContent).toContain("Luke 1-Cover (A4)");
-    expect(coverRow?.textContent).not.toContain("Bilingual");
-    expect(coverRow?.textContent).not.toContain("Single-Language");
+    expect(coverRow?.textContent).toContain("Bilingual");
+    expect(coverRow?.textContent).toContain("Single-Language");
   });
 
   it("still renders the cover download row when the cover is untranslated (0% progress)", () => {
@@ -190,24 +189,48 @@ describe("LanguageView — cover rows in the download table (US15)", () => {
       }
     );
 
-    // Even at 0% progress, the cover row (and its download button) must
+    // Even at 0% progress, the cover row (and its download links) must
     // still render — progress-based hiding should not apply to covers.
-    expect(getAllByText("Luke 1-Cover (A4)")).toHaveLength(2);
+    expect(getAllByText("Luke 1-Cover (A4)")).toHaveLength(1);
   });
 
-  it("exposes the cover download as a single button labeled 'Luke 1-Cover (A4)' that downloads with the majorityLanguageId used by ordinary Bilingual links", async () => {
+  it("downloads the cover with the same majorityLanguageId ordinary Bilingual links use when its Bilingual link is clicked", async () => {
     mockedAxios.get.mockResolvedValue({ data: new Blob() });
 
-    const { getByRole } = renderWithCover();
+    const { getAllByText } = renderWithCover();
 
-    const coverButton = getByRole("button", { name: "Luke 1-Cover (A4)" });
-    expect(coverButton).toBeTruthy();
+    const coverRow = getAllByText("Luke 1-Cover (A4)")[0].closest("tr")!;
+    const bilingualButton = Array.from(coverRow.querySelectorAll("button")).find(
+      (button) => button.textContent === "Bilingual"
+    )!;
+    expect(bilingualButton).toBeTruthy();
 
-    fireEvent.click(coverButton);
+    fireEvent.click(bilingualButton);
 
     await waitFor(() => {
       expect(mockedAxios.get).toHaveBeenCalledWith(
         "/api/languages/42/lessons/97/document?majorityLanguageId=42",
+        { responseType: "blob" }
+      );
+    });
+  });
+
+  it("downloads the cover with majorityLanguageId=0 when its Single-Language link is clicked", async () => {
+    mockedAxios.get.mockResolvedValue({ data: new Blob() });
+
+    const { getAllByText } = renderWithCover();
+
+    const coverRow = getAllByText("Luke 1-Cover (A4)")[0].closest("tr")!;
+    const monoButton = Array.from(coverRow.querySelectorAll("button")).find(
+      (button) => button.textContent === "Single-Language"
+    )!;
+    expect(monoButton).toBeTruthy();
+
+    fireEvent.click(monoButton);
+
+    await waitFor(() => {
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        "/api/languages/42/lessons/97/document?majorityLanguageId=0",
         { responseType: "blob" }
       );
     });

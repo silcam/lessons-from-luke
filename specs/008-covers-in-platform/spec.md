@@ -205,13 +205,22 @@ confirm identical assembly output and identical completeness reporting.
 - **FR-007**: Cover-only strings (copyright line, publisher address lines) MUST be
   translatable once per language in the normal translation UI and MUST remain
   editable afterward as ordinary strings.
-- **FR-008**: Both bilingual and monolingual cover output MUST be supported, with
-  identical semantics to lesson output.
+- **FR-008**: Both bilingual and monolingual cover output MUST be supported.
+  _Amended 2026-08-03_ (see
+  `specs/brainstorms/2026-08-03-bilingual-cover-masters-requirements.md`): cover
+  masters are **bilingual-only uploads**; the monolingual variant is **derived**
+  by removing the two source-language repetition paragraphs (title style
+  `English translation - Cover Title ` — trailing space included — and subtitle
+  style `English translation - Cover subtitle`) rather than by
+  `singleLanguageize`'s text-dedup masterId pairing, which the masters' title
+  case mismatch defeats. The language page offers both Bilingual and
+  Single-Language cover downloads, like lessons.
 - **FR-009**: Translated covers MUST be downloadable per (language, book, quarter,
   format) from the language page.
-- **FR-010**: Downloaded cover filenames MUST follow the SOP §11 output convention:
-  `<Language>_<Book>-Q<quarter>-Cover-<format>.odt` (e.g.
-  `Espanol_Luke-Q1-Cover-A4.odt`).
+- **FR-010**: Downloaded cover filenames MUST follow the SOP §11 output convention
+  plus a download-mode suffix (_amended 2026-08-03_):
+  `<Language>_<Book>-Q<quarter>-Cover-<format>-<mode>.odt` with mode `bilingual`
+  or `monolingual` (e.g. `Espanol_Luke-Q1-Cover-A4-bilingual.odt`).
 - **FR-011**: Covers MUST display with human-readable names (e.g. "Cover (A4)",
   "Cover (A3)") in all lists, download links, and generated filenames — never as a
   bare reserved lesson number.

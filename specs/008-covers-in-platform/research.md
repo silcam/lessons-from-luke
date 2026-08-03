@@ -53,6 +53,18 @@ appears, only whether its flag is `true`. Therefore adding `Copyright_20_text` /
 to `knownStyleNames` will deterministically classify them `motherTongue: true`. This is settled by
 code reading, not by the fixture.
 
+> **Correction (2026-08-03)**: the US13 spike's conclusion "every extracted bare cover style
+> classifies `motherTongue: true`" was drawn from masters mislabeled bilingual but actually
+> monolingual. It remains correct **only for the fill-in template fields** (title, subtitle,
+> copyright header, address lines). The owner's real bilingual masters additionally carry two
+> source-language **repetition** paragraphs (styles `English translation - Cover Title ` —
+> trailing space real — and `English translation - Cover subtitle`), which are deliberately NOT
+> in `knownStyleNames` and extract `motherTongue: false`. Monolingual output is derived by
+> style-driven removal of those paragraphs (`src/server/xml/coverRepetitions.ts`), not by the
+> `singleLanguageize` suppress-queue, whose exact-text dedup the masters defeat ("Teacher's
+> Guide" M.T. vs "Teacher's guide" repetition). See
+> `specs/brainstorms/2026-08-03-bilingual-cover-masters-requirements.md`.
+
 **What genuinely still needs the real fixture** (the residual OPEN part): (a) the **exact
 style-name spelling/hyphenation** in the real masters, and (b) whether `motherTongue: true` is the
 **semantically correct** pairing for the copyright/address fields, i.e. should they be paired

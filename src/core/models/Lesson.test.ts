@@ -140,6 +140,25 @@ describe("documentName", () => {
     const lesson = makeLesson({ book: "Acts", series: 3, lesson: COVER_A4_LESSON });
     expect(documentName("Swahili", lesson)).toBe("Swahili_Acts-Q3-Cover-A4.odt");
   });
+
+  test("appends the bilingual mode suffix to cover document names", () => {
+    const lesson = makeLesson({ book: "Luke", series: 1, lesson: COVER_A4_LESSON });
+    expect(documentName("Hausa", lesson, "bilingual")).toBe("Hausa_Luke-Q1-Cover-A4-bilingual.odt");
+  });
+
+  test("appends the monolingual mode suffix to cover document names", () => {
+    const lesson = makeLesson({ book: "Luke", series: 1, lesson: COVER_A3_LESSON });
+    expect(documentName("Hausa", lesson, "monolingual")).toBe(
+      "Hausa_Luke-Q1-Cover-A3-monolingual.odt"
+    );
+  });
+
+  test("ignores the mode for non-cover lessons", () => {
+    const lesson = makeLesson({ book: "Luke", series: 2, lesson: 5 });
+    expect(documentName("Hausa", lesson, "monolingual")).toBe("Hausa_Luke-Q2-L05.odt");
+    const toc = makeLesson({ book: "Luke", series: 1, lesson: TOC_LESSON });
+    expect(documentName("Hausa", toc, "bilingual")).toBe("Hausa_Luke-Q1-TOC.odt");
+  });
 });
 
 describe("lessonStringsFromLesson", () => {

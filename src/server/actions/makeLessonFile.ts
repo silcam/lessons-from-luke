@@ -1,5 +1,5 @@
 import { Language, ENGLISH_ID } from "../../core/models/Language";
-import { Lesson, lessonName } from "../../core/models/Lesson";
+import { Lesson, lessonName, isCoverLesson } from "../../core/models/Lesson";
 import docStorage from "../storage/docStorage";
 import { Persistence } from "../../core/interfaces/Persistence";
 import { makeDocStrings, singleLanguageize } from "../../core/models/DocString";
@@ -34,6 +34,9 @@ export default async function makeLessonFile(
   const filepath = docStorage.tmpFilePath(`${motherLang.name}_${lessonName(lesson)}.odt`);
   mergeXml(engFilePath, filepath, docStrings, {
     clearEmptyParagraphs: singleLangDoc,
+    // Cover masters are bilingual-only uploads; the monolingual variant is
+    // derived by dropping the source-language repetition paragraphs.
+    removeCoverRepetitions: singleLangDoc && isCoverLesson(lesson.lesson),
   });
   return filepath;
 }
