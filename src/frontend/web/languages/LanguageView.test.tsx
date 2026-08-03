@@ -225,7 +225,7 @@ describe("LanguageView rename flow", () => {
     );
     await act(async () => {});
 
-    const editLink = getByRole("button", { name: /^edit$/i });
+    const editLink = getByRole("button", { name: /^edit name$/i });
     await act(async () => {
       fireEvent.click(editLink);
     });
@@ -251,7 +251,7 @@ describe("LanguageView rename flow", () => {
     await act(async () => {});
 
     await act(async () => {
-      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+      fireEvent.click(getByRole("button", { name: /^edit name$/i }));
     });
 
     const nameInput = getByLabelText("Language Name") as HTMLInputElement;
@@ -280,7 +280,7 @@ describe("LanguageView rename flow", () => {
     await act(async () => {});
 
     await act(async () => {
-      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+      fireEvent.click(getByRole("button", { name: /^edit name$/i }));
     });
 
     const nameInput = getByLabelText("Language Name") as HTMLInputElement;
@@ -308,7 +308,7 @@ describe("LanguageView rename flow", () => {
     await act(async () => {});
 
     await act(async () => {
-      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+      fireEvent.click(getByRole("button", { name: /^edit name$/i }));
     });
 
     const nameInput = getByLabelText("Language Name") as HTMLInputElement;
@@ -339,7 +339,7 @@ describe("LanguageView rename flow", () => {
     );
     await act(async () => {});
 
-    const editLink = getByRole("button", { name: /^edit$/i });
+    const editLink = getByRole("button", { name: /^edit name$/i });
     expect(document.activeElement).not.toBe(editLink);
   });
 
@@ -357,7 +357,7 @@ describe("LanguageView rename flow", () => {
     await act(async () => {});
 
     await act(async () => {
-      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+      fireEvent.click(getByRole("button", { name: /^edit name$/i }));
     });
 
     const nameInput = getByLabelText("Language Name") as HTMLInputElement;
@@ -378,7 +378,7 @@ describe("LanguageView rename flow", () => {
     await act(async () => {});
 
     await act(async () => {
-      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+      fireEvent.click(getByRole("button", { name: /^edit name$/i }));
     });
 
     const nameInput = getByLabelText("Language Name") as HTMLInputElement;
@@ -414,7 +414,7 @@ describe("LanguageView rename flow", () => {
     await act(async () => {});
 
     await act(async () => {
-      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+      fireEvent.click(getByRole("button", { name: /^edit name$/i }));
     });
 
     const nameInput = getByLabelText("Language Name") as HTMLInputElement;
@@ -457,14 +457,14 @@ describe("LanguageView rename flow", () => {
     await act(async () => {});
 
     await act(async () => {
-      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+      fireEvent.click(getByRole("button", { name: /^edit name$/i }));
     });
 
     await act(async () => {
       fireEvent.click(getByRole("button", { name: /^cancel$/i }));
     });
 
-    const editLink = getByRole("button", { name: /^edit$/i });
+    const editLink = getByRole("button", { name: /^edit name$/i });
     expect(document.activeElement).toBe(editLink);
   });
 
@@ -482,7 +482,7 @@ describe("LanguageView rename flow", () => {
     await act(async () => {});
 
     await act(async () => {
-      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+      fireEvent.click(getByRole("button", { name: /^edit name$/i }));
     });
 
     // The alert region must already be mounted, but empty, before any submission.
@@ -525,7 +525,7 @@ describe("LanguageView rename flow", () => {
     await act(async () => {});
 
     await act(async () => {
-      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+      fireEvent.click(getByRole("button", { name: /^edit name$/i }));
     });
 
     const tooLongValue = "a".repeat(101);
@@ -560,7 +560,7 @@ describe("LanguageView rename flow", () => {
     await act(async () => {});
 
     await act(async () => {
-      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+      fireEvent.click(getByRole("button", { name: /^edit name$/i }));
     });
 
     const spacesValue = " ".repeat(101);
@@ -593,7 +593,7 @@ describe("LanguageView rename flow", () => {
     await act(async () => {});
 
     await act(async () => {
-      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+      fireEvent.click(getByRole("button", { name: /^edit name$/i }));
     });
 
     // A locally-valid-looking draft: the client's own classifier would say
@@ -629,7 +629,7 @@ describe("LanguageView rename flow", () => {
     await act(async () => {});
 
     await act(async () => {
-      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+      fireEvent.click(getByRole("button", { name: /^edit name$/i }));
     });
 
     const nameInput = getByLabelText("Language Name") as HTMLInputElement;
@@ -664,7 +664,7 @@ describe("LanguageView rename flow", () => {
     await act(async () => {});
 
     await act(async () => {
-      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+      fireEvent.click(getByRole("button", { name: /^edit name$/i }));
     });
 
     const invalidValue = "foo/bar";
@@ -700,7 +700,7 @@ describe("LanguageView rename flow", () => {
     await act(async () => {});
 
     await act(async () => {
-      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+      fireEvent.click(getByRole("button", { name: /^edit name$/i }));
     });
 
     const nameInput = getByLabelText("Language Name") as HTMLInputElement;
@@ -716,7 +716,7 @@ describe("LanguageView rename flow", () => {
     // Re-opening the editor after a successful trimmed rename must seed the
     // draft from the persisted (trimmed) value, not the stale props.language.name.
     await act(async () => {
-      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+      fireEvent.click(getByRole("button", { name: /^edit name$/i }));
     });
     expect((getByLabelText("Language Name") as HTMLInputElement).value).toBe("New Name");
   });
@@ -735,7 +735,7 @@ describe("LanguageView rename flow", () => {
     await act(async () => {});
 
     await act(async () => {
-      fireEvent.click(getByRole("button", { name: /^edit$/i }));
+      fireEvent.click(getByRole("button", { name: /^edit name$/i }));
     });
 
     const nameInput = getByLabelText("Language Name") as HTMLInputElement;

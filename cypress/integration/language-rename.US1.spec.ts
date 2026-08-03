@@ -7,7 +7,7 @@ describe("Language rename — US1: admin renames a language project", () => {
 
     cy.contains("h1", "Batanga").should("exist");
 
-    cy.contains("button", "Edit").click();
+    cy.contains("button", "Edit name").click();
 
     cy.get('input[type="text"]').clear().type("Batanga Renamed");
     cy.intercept("POST", "/api/admin/languages/*").as("renameLanguage");

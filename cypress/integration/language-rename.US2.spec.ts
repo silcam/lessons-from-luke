@@ -5,7 +5,7 @@ describe("Language rename — US2: invalid rename attempts are rejected clearly"
     cy.visit("/");
     cy.contains("button", "Batanga").click();
 
-    cy.contains("button", "Edit").click();
+    cy.contains("button", "Edit name").click();
 
     cy.get('input[type="text"]').clear().type("   ");
     cy.intercept("POST", "/api/admin/languages/*").as("renameLanguage");
@@ -24,7 +24,7 @@ describe("Language rename — US2: invalid rename attempts are rejected clearly"
     cy.visit("/");
     cy.contains("button", "Batanga").click();
 
-    cy.contains("button", "Edit").click();
+    cy.contains("button", "Edit name").click();
 
     cy.get('input[type="text"]').clear().type("Français");
     cy.contains("button", "Save").click();
@@ -40,7 +40,7 @@ describe("Language rename — US2: invalid rename attempts are rejected clearly"
     cy.visit("/");
     cy.contains("button", "Batanga").click();
 
-    cy.contains("button", "Edit").click();
+    cy.contains("button", "Edit name").click();
 
     cy.get('input[type="text"]').clear().type("  Batanga Trimmed  ");
     cy.intercept("POST", "/api/admin/languages/*").as("renameLanguage");
@@ -55,7 +55,7 @@ describe("Language rename — US2: invalid rename attempts are rejected clearly"
     cy.visit("/");
     cy.contains("button", "Batanga").click();
 
-    cy.contains("button", "Edit").click();
+    cy.contains("button", "Edit name").click();
 
     // Save without changing the draft — it should equal the current name.
     cy.intercept("POST", "/api/admin/languages/*").as("renameLanguage");

@@ -212,7 +212,9 @@ describe("LanguagesBox — route-driven selection", () => {
     // Query by role (not getByText) because the source-language <select>
     // also renders an <option> with the same text — getByText would match
     // both nodes when there's exactly one admin language in the fixture.
-    expect(getByRole("heading", { name: sampleLanguage.name })).toBeTruthy();
+    // Substring match: the heading's accessible name also includes the
+    // inline "Edit name" control.
+    expect(getByRole("heading", { name: new RegExp(sampleLanguage.name) })).toBeTruthy();
     expect(getByText(/< ?Languages/i)).toBeTruthy();
     // The folded "N Languages" count summary must not be showing.
     expect(queryByText(`${1} Languages`)).toBeFalsy();

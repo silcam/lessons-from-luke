@@ -138,8 +138,22 @@ export default function LanguageView(props: IProps) {
   return (
     <div>
       <Button link text={`< ${t("Languages")}`} onClick={props.done} />
-      <Heading text={activeLang.name} level={3} />
-      {editing ? (
+      <Heading text={activeLang.name} level={3}>
+        {!editing && (
+          <span style={{ fontSize: "0.6em", fontWeight: "normal", marginLeft: "0.75em" }}>
+            <Button
+              link
+              text={t("Edit_name")}
+              autoFocus={returningFromEditor}
+              onClick={() => {
+                setDraft(activeLang.name);
+                setEditing(true);
+              }}
+            />
+          </span>
+        )}
+      </Heading>
+      {editing && (
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -164,16 +178,6 @@ export default function LanguageView(props: IProps) {
           <Button type="submit" text={t("Save")} onClick={() => {}} disabled={saving} />
           <Button type="button" red text={t("Cancel")} onClick={cancelEditing} disabled={saving} />
         </form>
-      ) : (
-        <Button
-          link
-          text={t("Edit")}
-          autoFocus={returningFromEditor}
-          onClick={() => {
-            setDraft(activeLang.name);
-            setEditing(true);
-          }}
-        />
       )}
       {srcLangUpdateFailed && (
         <div role="alert" aria-live="assertive">
