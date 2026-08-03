@@ -158,9 +158,10 @@ describe("LanguageView — cover rows in the download table (US15)", () => {
 
     // Ordinary lesson rows (3) plus the cover row each get a
     // Bilingual/Single-Language download pair, on top of the 2 per-quarter
-    // assemble control pairs from US1/US2.
-    expect(getAllByText("Bilingual")).toHaveLength(3 + 1 + 2);
-    expect(getAllByText("Single-Language")).toHaveLength(3 + 1 + 2);
+    // assemble control pairs from US1/US2 and the cover download pair in
+    // the Luke 1 quarter row.
+    expect(getAllByText("Bilingual")).toHaveLength(3 + 1 + 2 + 1);
+    expect(getAllByText("Single-Language")).toHaveLength(3 + 1 + 2 + 1);
 
     // The cover row itself carries both download links.
     expect(coverRow?.textContent).toContain("Luke 1-Cover (A4)");
@@ -234,6 +235,122 @@ describe("LanguageView — cover rows in the download table (US15)", () => {
         { responseType: "blob" }
       );
     });
+  });
+});
+
+describe("LanguageView — cover downloads in the quarter assembly table", () => {
+  const coverLessons = [
+    ...lessons,
+    { lessonId: 97, book: "Luke" as const, series: 1, lesson: 97, version: 1, lessonStrings: [] },
+  ];
+
+  const coverLanguage = {
+    ...sampleLanguage,
+    progress: [
+      { lessonId: 1, progress: 50 },
+      { lessonId: 2, progress: 50 },
+      { lessonId: 3, progress: 50 },
+      { lessonId: 97, progress: 50 },
+    ],
+  };
+
+  function renderWithCover(lessonsFixture = coverLessons) {
+    return renderWithProviders(<LanguageView language={coverLanguage} done={() => {}} />, {
+      syncState: defaultSyncState,
+      languages: { languages: [], adminLanguages: [] },
+      currentUser: { user: null, locale: "en", loaded: false },
+      lessons: lessonsFixture,
+    });
+  }
+
+  function quarterRow(getAllByText: ReturnType<typeof renderWithCover>["getAllByText"]) {
+    return getAllByText((_content, element) =>
+      (element?.textContent ?? "").startsWith("Assemble Quarter")
+    ).map((el) => el.closest("tr")!);
+  }
+
+  it("offers a Cover (A4) Bilingual | Single-Language download pair in the quarter row", () => {
+    const { getAllByText } = renderWithCover();
+
+    const luke1Row = quarterRow(getAllByText)[0];
+    expect(luke1Row.textContent).toContain("Cover (A4)");
+    expect(luke1Row.textContent).toContain("Bilingual");
+    expect(luke1Row.textContent).toContain("Single-Language");
+
+    // 2 assemble buttons + 2 cover download buttons in the Luke 1 row.
+    const buttons = Array.from(luke1Row.querySelectorAll("button"));
+    expect(buttons.filter((b) => b.textContent === "Bilingual")).toHaveLength(2);
+    expect(buttons.filter((b) => b.textContent === "Single-Language")).toHaveLength(2);
+  });
+
+  it("renders no cover downloads in a quarter row whose quarter has no cover lessons", () => {
+    const { getAllByText } = renderWithCover();
+
+    // Luke series 2 has no cover lesson — its quarter row stays cover-free.
+    const luke2Row = quarterRow(getAllByText)[1];
+    expect(luke2Row.textContent).not.toContain("Cover");
+  });
+
+  it("downloads the cover with the bilingual majorityLanguageId when the quarter-row Bilingual cover link is clicked", async () => {
+    mockedAxios.get.mockResolvedValue({ data: new Blob() });
+
+    const { getAllByText } = renderWithCover();
+
+    const luke1Row = quarterRow(getAllByText)[0];
+    // The first two buttons are the assemble pair; the cover pair follows.
+    const bilingualButtons = Array.from(luke1Row.querySelectorAll("button")).filter(
+      (button) => button.textContent === "Bilingual"
+    );
+    fireEvent.click(bilingualButtons[1]);
+
+    await waitFor(() => {
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        "/api/languages/42/lessons/97/document?majorityLanguageId=42",
+        { responseType: "blob" }
+      );
+    });
+  });
+
+  it("downloads the cover with majorityLanguageId=0 when the quarter-row Single-Language cover link is clicked", async () => {
+    mockedAxios.get.mockResolvedValue({ data: new Blob() });
+
+    const { getAllByText } = renderWithCover();
+
+    const luke1Row = quarterRow(getAllByText)[0];
+    const monoButtons = Array.from(luke1Row.querySelectorAll("button")).filter(
+      (button) => button.textContent === "Single-Language"
+    );
+    fireEvent.click(monoButtons[1]);
+
+    await waitFor(() => {
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        "/api/languages/42/lessons/97/document?majorityLanguageId=0",
+        { responseType: "blob" }
+      );
+    });
+  });
+
+  it("lists Cover (A4) before Cover (A3) when the quarter has both covers", () => {
+    const bothCovers = [
+      ...coverLessons,
+      { lessonId: 98, book: "Luke" as const, series: 1, lesson: 98, version: 1, lessonStrings: [] },
+    ];
+
+    const { getAllByText } = renderWithCover(bothCovers);
+
+    const luke1Row = quarterRow(getAllByText)[0];
+    const text = luke1Row.textContent ?? "";
+    expect(text).toContain("Cover (A4)");
+    expect(text).toContain("Cover (A3)");
+    expect(text.indexOf("Cover (A4)")).toBeLessThan(text.indexOf("Cover (A3)"));
+  });
+
+  it("keeps the lessons-table cover row (quarter-row covers are additive)", () => {
+    const { getAllByText } = renderWithCover();
+
+    // The full lessonName label appears only in the lessons table; the
+    // quarter row uses the short "Cover (A4)" label.
+    expect(getAllByText("Luke 1-Cover (A4)")).toHaveLength(1);
   });
 });
 

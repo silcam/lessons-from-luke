@@ -285,14 +285,16 @@ describe("US15: Download translated covers from the language page", () => {
   }
 
   // GIVEN a language with translated cover strings WHEN the operator
-  // downloads the A4 cover for Luke quarter 1 THEN the file is named
-  // <Language>_Luke-Q1-Cover-A4.odt.
+  // downloads the A4 cover for Luke quarter 1 in bilingual mode THEN the
+  // file is named <Language>_Luke-Q1-Cover-A4-bilingual.odt (FR-008/FR-010:
+  // dual-mode Bilingual | Single-Language downloads with mode-suffixed
+  // filenames).
   //
   // The odt-content assertions (translated text fields present,
   // bilingual/mono paragraph pairing) are covered by the R2 integration
   // test gate already exercised in US13 behavior 4 (makeLessonFile is
   // shared, unmodified, between lessons and covers) — not duplicated here.
-  it("downloads a translated A4 cover named <Language>_Luke-Q1-Cover-A4.odt via a link labeled 'Cover (A4)'", () => {
+  it("downloads a translated A4 cover named <Language>_Luke-Q1-Cover-A4-bilingual.odt via the cover row's Bilingual link", () => {
     uploadCover("English-Luke-Q1-Cover-A4.odt", "A4");
 
     // GIVEN: the cover's title string is translated into Français.
@@ -318,16 +320,18 @@ describe("US15: Download translated covers from the language page", () => {
     });
 
     // WHEN: the operator downloads the A4 cover from the Français language
-    // page THEN the download link reads "Cover (A4)" (a human-readable
-    // cover name, never a bare lesson number) and the saved file follows
-    // the SOP filename convention.
+    // page THEN the cover row is labelled with a human-readable cover name
+    // (never a bare lesson number) and the saved file follows the SOP
+    // filename convention with the mode suffix. Français is not a
+    // mother-tongue language, so Bilingual pairs with the language itself
+    // (majorityLanguageId=2) — a "bilingual"-suffixed filename.
     cy.visit("/");
     cy.contains("Français").click();
     cy.contains("a", "97").should("not.exist");
-    cy.contains("button", "Cover (A4)").should("exist").click();
-    cy.readFile("cypress/downloads/Français_Luke-Q1-Cover-A4.odt", { timeout: 20000 }).should(
-      "exist"
-    );
+    cy.contains("tr", "Luke 1-Cover (A4)").contains("button", "Bilingual").click();
+    cy.readFile("cypress/downloads/Français_Luke-Q1-Cover-A4-bilingual.odt", {
+      timeout: 20000,
+    }).should("exist");
   });
 
   // GIVEN a bilingual (mother-tongue) language configuration WHEN a cover
@@ -337,29 +341,31 @@ describe("US15: Download translated covers from the language page", () => {
   it("requests a bilingual cover download the same way a bilingual lesson download does", () => {
     uploadCover("English-Luke-Q1-Cover-A3.odt", "A3");
 
+    // Batanga is a mother-tongue language, so the Bilingual link pairs the
+    // translation with its source language (defaultSrcLang=1).
     cy.visit("/");
     cy.contains("Batanga").click();
-    cy.contains("button", "Cover (A3)").should("exist");
-
     cy.intercept("GET", /\/api\/languages\/3\/lessons\/\d+\/document.*/).as("downloadCover");
-    cy.contains("button", "Cover (A3)").click();
+    cy.contains("tr", "Luke 1-Cover (A3)").contains("button", "Bilingual").click();
     cy.wait("@downloadCover").its("request.url").should("include", "majorityLanguageId=1");
   });
 
-  // GIVEN a monolingual (non-mother-tongue) language configuration WHEN a
-  // cover is downloaded THEN the output request carries the language's own
-  // id as majorityLanguageId — the same way a monolingual lesson download
-  // does.
-  it("requests a monolingual cover download the same way a monolingual lesson download does", () => {
+  // GIVEN a non-mother-tongue language configuration WHEN a cover is
+  // downloaded THEN the two modes behave like lesson downloads: Bilingual
+  // carries the language's own id as majorityLanguageId, Single-Language
+  // carries 0.
+  it("requests dual-mode cover downloads the same way lesson downloads do for a non-mother-tongue language", () => {
     uploadCover("English-Luke-Q1-Cover-A3.odt", "A3");
 
     cy.visit("/");
     cy.contains("Français").click();
-    cy.contains("button", "Cover (A3)").should("exist");
 
     cy.intercept("GET", /\/api\/languages\/2\/lessons\/\d+\/document.*/).as("downloadCover");
-    cy.contains("button", "Cover (A3)").click();
+    cy.contains("tr", "Luke 1-Cover (A3)").contains("button", "Bilingual").click();
     cy.wait("@downloadCover").its("request.url").should("include", "majorityLanguageId=2");
+
+    cy.contains("tr", "Luke 1-Cover (A3)").contains("button", "Single-Language").click();
+    cy.wait("@downloadCover").its("request.url").should("include", "majorityLanguageId=0");
   });
 
   // GIVEN a language page listing downloadable documents WHEN covers are
@@ -371,8 +377,10 @@ describe("US15: Download translated covers from the language page", () => {
 
     cy.visit("/");
     cy.contains("Français").click();
-    cy.contains("button", "Cover (A4)").should("exist");
-    cy.contains("button", "Cover (A3)").should("exist");
+    cy.contains("Cover (A4)").should("exist");
+    cy.contains("Cover (A3)").should("exist");
+    // The quarter assembly row also offers the cover downloads.
+    cy.contains("tr", "Assemble Quarter").contains("Cover (A4)").should("exist");
     cy.contains("97").should("not.exist");
     cy.contains("98").should("not.exist");
   });
