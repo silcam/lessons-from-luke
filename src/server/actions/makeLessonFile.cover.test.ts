@@ -68,14 +68,24 @@ function coverLesson(): Lesson {
   };
 }
 
-/** Real extracted, non-empty cover strings from the committed A4 bilingual cover-master fixture. */
+/**
+ * Real extracted, non-empty cover strings from the committed A4 bilingual
+ * cover-master fixture — content AND meta, like a real upload. The meta
+ * strings matter: meta.xml never declares the text:/style: namespace
+ * prefixes, so the repetition removal must not run against it (regression:
+ * "XPath error : Undefined namespace prefix" -> 500 on every monolingual
+ * cover download).
+ */
 function extractRealCoverDocStrings(): DocString[] {
   const fixturePath = path.join(SERVER_DOCS_DIR, "Luke-1-97v01.odt");
   const extractDir = fs.mkdtempSync(path.join(os.tmpdir(), "cover-lessonfile-fixture-"));
   try {
     unzip(fixturePath, extractDir);
     const contentXml = fs.readFileSync(path.join(extractDir, "content.xml"), "utf-8");
-    return parse(contentXml, "content").filter((docStr) => docStr.text.trim() !== "");
+    const metaXml = fs.readFileSync(path.join(extractDir, "meta.xml"), "utf-8");
+    return [...parse(contentXml, "content"), ...parse(metaXml, "meta")].filter(
+      (docStr) => docStr.text.trim() !== ""
+    );
   } finally {
     unlinkRecursive(extractDir);
   }
@@ -114,11 +124,15 @@ describe("makeLessonFile — FR-008 bilingual/monolingual cover round trip (real
   const realDocStrings = extractRealCoverDocStrings();
   expect(realDocStrings.length).toBeGreaterThan(0);
   // Fixture guard: the real bilingual master carries exactly two
-  // motherTongue: false repetition strings (title + subtitle).
-  const repetitionStrings = realDocStrings.filter((docStr) => !docStr.motherTongue);
+  // motherTongue: false CONTENT repetition strings (title + subtitle) plus
+  // at least one meta string (dc:title), which is always motherTongue: false.
+  const repetitionStrings = realDocStrings.filter(
+    (docStr) => !docStr.motherTongue && docStr.type === "content"
+  );
   expect(repetitionStrings.map((docStr) => docStr.text).sort()).toEqual(
     ["Lessons from Luke", "Teacher’s guide"].sort()
   );
+  expect(realDocStrings.some((docStr) => docStr.type === "meta")).toBe(true);
 
   // masterId assignment mirroring addOrFindMasterStrings: exact-text dedup.
   const masterIdByText = new Map<string, number>();
@@ -160,7 +174,9 @@ describe("makeLessonFile — FR-008 bilingual/monolingual cover round trip (real
   }
 
   const mtLessonStrings = lessonStrings.filter((lStr) => lStr.motherTongue);
-  const repetitionLessonStrings = lessonStrings.filter((lStr) => !lStr.motherTongue);
+  const repetitionLessonStrings = lessonStrings.filter(
+    (lStr) => !lStr.motherTongue && lStr.type === "content"
+  );
 
   test("bilingual mode (majorityLangId != 0) keeps the repetition paragraphs, populated from the majority language", async () => {
     const lesson = { ...coverLesson(), lessonStrings };

@@ -30,7 +30,11 @@ export function removeCoverRepetitionParagraphs(doc: XmlDocument, namespaces: Na
   for (const baseStyle of COVER_REPETITION_PARAGRAPH_STYLES) {
     const styleNames = [baseStyle, ...stylesDerivedFrom(doc, namespaces, baseStyle)];
     for (const styleName of styleNames) {
-      doc.find<Element>(`//text:p[@text:style-name='${styleName}']`, namespaces).forEach((p) => {
+      // libxmljs2 returns undefined (not []) when the XPath itself errors,
+      // e.g. a document that never declares the text: prefix.
+      const paragraphs =
+        doc.find<Element>(`//text:p[@text:style-name='${styleName}']`, namespaces) ?? [];
+      paragraphs.forEach((p) => {
         p.text("");
         removeParagraph(p);
       });
@@ -47,15 +51,15 @@ function stylesDerivedFrom(doc: XmlDocument, namespaces: Namespaces, base: strin
   const queue = [base];
   while (queue.length > 0) {
     const parent = queue.shift()!;
-    doc
-      .find<Element>(`//style:style[@style:parent-style-name='${parent}']`, namespaces)
-      .forEach((style) => {
-        const name = style.attr("name")?.value();
-        if (name && !derived.includes(name)) {
-          derived.push(name);
-          queue.push(name);
-        }
-      });
+    const styles =
+      doc.find<Element>(`//style:style[@style:parent-style-name='${parent}']`, namespaces) ?? [];
+    styles.forEach((style) => {
+      const name = style.attr("name")?.value();
+      if (name && !derived.includes(name)) {
+        derived.push(name);
+        queue.push(name);
+      }
+    });
   }
   return derived;
 }

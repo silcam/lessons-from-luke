@@ -30,7 +30,11 @@ export default function mergeXml(
     xmlTypes.forEach((xmlType) => {
       if (sortedDocStrings[xmlType].length > 0) {
         const xmlPath = `${extractDirPath}/${xmlType}.xml`;
-        mergeTranslations(xmlPath, sortedDocStrings[xmlType], opts);
+        // Repetition paragraphs live only in content.xml; meta.xml does not
+        // even declare the text:/style: namespace prefixes the removal's
+        // XPaths need, so the option must not leak to the other xml types.
+        const removeCoverRepetitions = opts.removeCoverRepetitions && xmlType === "content";
+        mergeTranslations(xmlPath, sortedDocStrings[xmlType], { ...opts, removeCoverRepetitions });
       }
     });
 
