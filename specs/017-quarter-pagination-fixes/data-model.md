@@ -56,8 +56,10 @@ The arabic-numbered run from lesson 1's first page to the end of the book.
   coloring page also consumes a number silently. Any oracle assuming one suppression per lesson
   computes the wrong expected value for every page after lesson 1's coloring page.
 - INV-5 (FR-016): absolute values hold at known positions, not merely relative increments. The
-  "known positions" are derived from the rendered page inventory (which master each page rode),
-  never from page-count arithmetic that assumes a fixed number of suppressions per lesson.
+  "known positions" are derived from the rendered page inventory — built from the observable
+  footer signatures in contract §3's page-classification table, since which master a page rode is
+  **not** recoverable from `pdftotext` — never from page-count arithmetic that assumes a fixed
+  number of suppressions per lesson.
 
 ### Blank filler page
 
@@ -124,9 +126,12 @@ Lives only for the duration of one assembly job; nothing persists it.
   counter or a sum of constituent page counts.
 - INV-12: measurement runs on the finalized-but-filler-free document, because inserting the
   filler changes the document being measured.
-- INV-14: `lessonOnePageIndex` is the index of the first **lesson-title-class** page (no footer
-  at all) whose successor is lesson 1 by whole-token marker match and whose predecessor is
-  absent or of front-matter / table-of-contents class — or the pass throws. It is never a
+- INV-14: `lessonOnePageIndex` is the index of the **unique** page satisfying the whole
+  conjunction — lesson-title class (no footer at all), successor belonging to lesson 1 by
+  whole-token marker match, predecessor absent or of front-matter / table-of-contents class — or
+  the pass throws. The conjunction is scanned, never checked after a first lesson-title-class
+  match: the book's own page 1 is lesson-title class too (FR-002 makes it footer-less), so a
+  first-then-check rule would throw on every job. Two matches also throw. It is never a
   guessed or defaulted value. Page class is observed from the footer signature, not inferred
   from marker adjacency: [static-confirmed during red-team] the `Coloring_20_Page` footer
   carries the same `Quarter <Q> … Lesson <N>` marker as `Lesson_20_Content` and prints no page

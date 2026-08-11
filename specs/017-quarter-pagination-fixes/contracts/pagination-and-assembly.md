@@ -225,8 +225,15 @@ distinct extractable footer signature, so class is observed rather than inferred
 | Front matter        | absent                     | present    | `Teacher's Guide`    |
 | Table of contents   | absent                     | present    | book title + subject |
 
-**Rule**: `lessonOnePageIndex` is the index of the **first page in the book of lesson-title
-class** (no footer at all). Marker adjacency is not used, because the `Coloring_20_Page` footer
+**Rule**: `lessonOnePageIndex` is the index of the **first page satisfying the whole conjunction
+below** — lesson-title class _and_ both confirmations. It is emphatically **not** "the first
+lesson-title-class page, then check the confirmations": the book's own physical page 1 is also
+lesson-title class, because FR-002 requires it to print no page number and the master carrying it
+is therefore footer-less. A first-then-check rule selects page 1, fails confirmation A, and throws
+on **every** job. The scan continues past non-matching candidates and throws only when the whole
+book is exhausted.
+
+Marker adjacency is not used, because the `Coloring_20_Page` footer
 carries the same `Quarter <Q> … Lesson <N>` marker as `Lesson_20_Content` and prints no page
 number — so both "first marker page" and "predecessor prints no number" are satisfiable by a
 coloring page.
@@ -236,8 +243,10 @@ coloring page.
   a strict prefix of `Quarter <S> Lesson 10`..`13`; `String.includes` is not sufficient).
 - Confirmation B: the page **before** the candidate is absent, or of front-matter or
   table-of-contents class.
-- Any candidate outside `1..renderedPageCount`, no lesson-title-class page found, or either
-  confirmation failing → throw the curated reason. Never a guessed or defaulted index.
+- **Exactly one** page in the book satisfies the conjunction. If a second matching page is
+  found, the classification is wrong and the pass throws rather than taking the first.
+- No page satisfying the conjunction, or a match outside `1..renderedPageCount` → throw the
+  curated reason. Never a guessed or defaulted index.
 - **Spike validation (FR-015, R5)**: the four signatures are confirmed against real rendered
   output in **both** modes before this locator ships — including whether the coloring and
   content footers' `Quarter`/`Lesson` runs collapse to byte-identical strings under

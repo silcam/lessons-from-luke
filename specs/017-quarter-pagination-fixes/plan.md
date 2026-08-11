@@ -22,8 +22,10 @@ pages already hold by construction in the assets — verified statically during 
 FR-001/FR-002/FR-007 are regression guards rather than new work.
 
 The recto guarantee (FR-008–FR-010) adds a new render-and-measure pass: finalize without a
-filler, render the book to PDF, locate lesson 1's first page by its live footer marker, and
-re-finalize with one blank paragraph if that index is even. PDF page indices _are_ physical
+filler, render the book to PDF, locate lesson 1's first page by classifying each rendered page
+from its footer signature (see Edge Cases — marker adjacency is unsafe, because coloring pages
+carry the same lesson marker and print no number), and re-finalize with one blank paragraph if
+that index is even. PDF page indices _are_ physical
 sheet positions, which is what makes this immune to feature 007's counted-but-unrendered
 phantom page without root-causing it.
 
@@ -362,11 +364,18 @@ absorb:
   | Front matter        | absent                     | present    | `Teacher's Guide`    |
   | Table of contents   | absent                     | present    | book title + subject |
 
-  Lesson 1's title page is then the **first page in the book carrying no footer at all**, with
-  two confirmations that must both hold or the pass throws: the page after it belongs to lesson 1
-  (coloring or content class, marker matched on a whole-token boundary so `Lesson 1` cannot match
-  `Lesson 10`..`13`), and the page before it is absent or of front-matter or table-of-contents
-  class. This makes the locator independent of where a coloring page falls inside a lesson.
+  Lesson 1's title page is the first page satisfying the **whole conjunction**: it carries no
+  footer at all, the page after it belongs to lesson 1 (coloring or content class, marker matched
+  on a whole-token boundary so `Lesson 1` cannot match `Lesson 10`..`13`), and the page before it
+  is absent or of front-matter or table-of-contents class. This makes the locator independent of
+  where a coloring page falls inside a lesson.
+
+  **The conjunction is scanned, not checked after a first match.** The book's own physical page 1
+  is _also_ lesson-title class — FR-002 requires it to print no page number, so its master is
+  footer-less too. A rule reading "the first page with no footer, then confirm" selects page 1,
+  fails the successor confirmation, and throws on every job. Exactly one page in the book
+  satisfies the full conjunction; finding a second means the classification is wrong, and that
+  throws rather than silently taking the first.
 
   The spike confirms the four signatures against real rendered output in both modes before this
   ships — including whether the coloring and content footers' `Quarter`/`Lesson` runs collapse to
