@@ -77,6 +77,17 @@ Executed inside the existing content pass, after `normalizeLessonOpeningMasterPa
   so no other paragraph inherits the restart.
 - **Later lessons (FR-006, FR-007)**: unchanged — they keep `style:page-number="auto"` and
   their footer-less `First_20_Page` master, which consumes a number and prints none.
+- **Front-matter anchor (FR-002, FR-003) — CONDITIONAL**: the spec's phantom-page strategy is
+  to pin _each_ sequence to an explicit start value, which for front matter means
+  `<style:paragraph-properties style:page-number="1"/>` on the first body paragraph of
+  `office:text` (after `removeLeadingBlankParagraphs`), so `i` is anchored rather than
+  inherited. Whether this is **necessary** is empirically open: front matter starts at 1
+  implicitly today, and the drift's point of origin is unknown until the spike's
+  "offsets zeroed" variant is read. **Decision criterion**: if that variant shows physical
+  page 2 printing `ii` with offsets removed and nothing else, the anchor is redundant and is
+  NOT added (Principle VII); if front matter still drifts, the anchor is added here under the
+  same clone-and-repoint discipline as the body restart. Either way the invariant asserted is
+  the same — physical page 2 prints `ii`.
 - **Filler page (FR-009), only when `insertRectoFiller` is true**: insert exactly one empty
   `<text:p>` immediately before lesson 1's opening heading, referencing a fresh automatic
   style whose `style:master-page-name` is the footer-less `First_20_Page` master and which

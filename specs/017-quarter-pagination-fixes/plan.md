@@ -76,12 +76,12 @@ case
   parallel (research R5: 18 vs 16 master pages, no `Table_20_of_20_Contents` in
   monolingual, and different offsets `-1` vs `-2`).
 - **Two memory-verse copies stay** (FR-014). No deduplication.
-- **NEEDS CLARIFICATION (production dependency)**: `pdftotext`/`pdfinfo` are required by the
+- **Open — gated on spike evidence (R3), production dependency**: `pdftotext`/`pdfinfo` are required by the
   test suite but are **not** established as present on the deploy host. If the measurement
   pass ships as-is, they become production dependencies; the alternative is moving the
   page-index query into the UNO macro. Decided by research R3's open item before the FR-010
   task closes.
-- **NEEDS CLARIFICATION (fix location)**: whether the coloring-page fix lands pre-merge in
+- **Open — gated on spike evidence (R2), fix location**: whether the coloring-page fix lands pre-merge in
   `prepareConstituentForAssembly` or post-merge in `finalizeAssembledQuarter` is gated on
   the headless discriminating check (research R2). Resolved by evidence, in the spike,
   before any implementation task for US2 starts.
@@ -166,7 +166,7 @@ _GATE: passed before Phase 0 research; re-checked after Phase 1 design — see b
 
 **Post-Phase-1 re-check**: no new violations. The design added no new module boundaries
 beyond `measureLessonOneParity`, no new persistence, and no new external surface. The
-`NEEDS CLARIFICATION` items above are both scheduled to be resolved by evidence _before_ the
+two spike-gated open items above are both scheduled to be resolved by evidence _before_ the
 implementation tasks they gate, which is the constitution's Zeroth Principle rather than a
 gate failure.
 

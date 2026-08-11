@@ -17,12 +17,12 @@ constitution Principle VI's persistence mandate is not engaged.
 The roman-numbered run from the start of the assembled book up to and including any blank
 filler page.
 
-| Property            | Value                                                            | Where it lives                                                              |
-| ------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Number format       | lowercase roman (`style:num-format="i"`)                         | `Front_20_matter` / `Table_20_of_20_Contents` page layouts, template assets |
-| Start value         | `1` (renders as `i`)                                             | implicit at document start; pinned explicitly by finalize                   |
-| Offset              | **none** (invariant: no `text:page-adjust` anywhere in the book) | footer page-number field, template assets                                   |
-| First page printing | nothing (its master carries no page-number footer)               | master-page structure                                                       |
+| Property            | Value                                                            | Where it lives                                                                                                                                     |
+| ------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Number format       | lowercase roman (`style:num-format="i"`)                         | `Front_20_matter` / `Table_20_of_20_Contents` page layouts, template assets                                                                        |
+| Start value         | `1` (renders as `i`)                                             | implicit at document start; explicitly anchored by finalize only if the spike shows front matter still drifts with offsets removed (contract §2.2) |
+| Offset              | **none** (invariant: no `text:page-adjust` anywhere in the book) | footer page-number field, template assets                                                                                                          |
+| First page printing | nothing (its master carries no page-number footer)               | master-page structure                                                                                                                              |
 
 **Invariants**
 
