@@ -48,6 +48,11 @@ Spec: specs/012-language-archive-routing/spec.md
 Keywords: quarter template overwrite, all style families, page styles, master pages, frame styles, list styles, numbering styles, first page footer, CC footer, Creative Commons footer, license footer, footer removal, lesson title spacing, lesson number graphic spacing, lesson opening layout, chapterized footers, pagination regression, load styles overwrite, supersedes 009 FR-003, assembled quarter styling, Chris Jackson feedback, stand-alone template vs quarter template, print-ready book
 Spec: specs/013-quarter-template-full-styles/spec.md
 
+## Quarter Pagination and Coloring-Page Style Fixes
+
+Keywords: page numbering, page numbers wrong, pagination, roman numerals, front matter, arabic restart, page number offset, text:page-adjust, page-adjust -1, page-adjust -2, page number field, footer page number, first page suppression, recto, verso, right-hand page, odd page start, duplex printing, blank page, filler page, phantom page, counted but not rendered, supersedes 007 FR-003, coloring page, memory verse, duplicate memory verse, wrong paragraph style, M.T. Coloring Page - Memory Verse, automatic style collision, P12 name collision, style name dedupe, insertDocumentFromURL merge, soffice assembly, client feedback 2026-08-11
+Spec: specs/017-quarter-pagination-fixes/spec.md
+
 ## How to Update This File
 
 - Add one entry per feature spec, before this section.
