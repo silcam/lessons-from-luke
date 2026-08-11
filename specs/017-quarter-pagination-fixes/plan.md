@@ -221,10 +221,10 @@ src/server/
 │   ├── measureLessonOneParity.test.ts       # NEW
 │   └── prepareConstituentForAssembly.ts     # CHANGED only if research R2 direction (a) wins
 └── assembly/
-    ├── sofficeAssemble.ts                   # CHANGED — profile teardown moves to job scope
-    ├── sweepAssemblyWork.ts                  # CHANGED — now owns per-job profile teardown
-    ├── reapOrphanedSoffice.ts                # CHANGED — must not reap the live render
-    ├── assemblyBudget.ts                    # CHANGED — render timeout folded into the sum
+    ├── sofficeAssemble.ts                   # UNCHANGED — verified: owns no profile teardown
+    ├── sweepAssemblyWork.ts                  # UNCHANGED — startup-only; MUST NOT be reused per job
+    ├── reapOrphanedSoffice.ts                # UNCHANGED — startup-only; render reapable by construction
+    ├── assemblyBudget.ts                    # CHANGED — render + exit-poll terms folded into the sum
     ├── assemblyBudget.test.ts               # CHANGED — invariant still structural
     └── quarterStylesTemplate.test.ts        # CHANGED — assert no offsets in either asset
 
@@ -672,6 +672,24 @@ inside the runner can wedge the concurrency-1 slot for the life of the process; 
 cap; on expiry, fail the job with the curated reason rather than starting a second `soffice`
 alongside a live one.
 
+**The cap needs a term in the budget sum, or the invariant it protects is unfunded.** Contract
+§4 gives the poll "its own budget slot", but contract §5's sum is
+`DEFAULT_TIMEOUT_MS + 2 × ASSEMBLY_RENDER_TIMEOUT_MS + ASSEMBLY_NON_SOFFICE_BUDGET_MS` — no poll
+term exists in it. There are up to **three** polls per job (before render 1, before the
+re-finalize, before the confirmation render), plus a second full unzip/patch/rezip of a ~100-page
+book, all of which today would have to fit inside `ASSEMBLY_NON_SOFFICE_BUDGET_MS`
+[static-confirmed during red-team, `assemblyBudget.ts:29`] — a flat 2 min sized for the pre-017
+flow and asserted only `>= 60_000`. If they do not fit, the registry timeout fires while a poll
+is legitimately still waiting on a live LibreOffice group, freeing the concurrency-1 slot with a
+process alive: exactly the OOM shape on the 2 vCPU / 2 GB swapless box that the
+soffice-self-kills-first invariant exists to prevent.
+
+**Requirement**: name the cap as a constant (`ASSEMBLY_EXIT_POLL_CAP_MS`) and fold
+`3 × ASSEMBLY_EXIT_POLL_CAP_MS` into `ASSEMBLY_TIMEOUT_MS`'s derived sum, carried
+unconditionally like the render terms so the invariant stays structural rather than
+branch-dependent. `assemblyBudget.test.ts` asserts the sum contains it, in the same style as
+the existing derivation assertions.
+
 ### The confirmation render inherits the merge's preconditions, and must not read a stale PDF
 
 Making the confirmation render mandatory turns a two-invocation sequence into a three-invocation
@@ -737,23 +755,53 @@ implementation detail:
 - **A forgotten flip must be visible.** If the only signal is one log line, books ship without
   the recto guarantee and the next client complaint arrives with no trace of why. The warning
   names FR-008 explicitly and is emitted once per job, not once per process.
+- **The failure that most needs the switch must point at it.** The confirmation render fails the
+  job when the post-insertion index is still even (contract §4), and that failure is
+  **deterministic, not flaky**: a corpus whose parity does not flip by exactly one page fails
+  every retry identically, hard-blocking delivery of US1 and US2 — the two defects the client
+  actually reported — behind a P3 enhancement. The kill-switch is the intended remedy, but an
+  operator only reaches it if something names it. So the **server-side log line** accompanying a
+  measurement or confirmation-render failure names `ASSEMBLY_RECTO_FILLER` and the effect of
+  switching it off (delivery without the recto guarantee). The **coordinator-facing** curated
+  reason is unchanged — fixed-vocabulary and path-free, per the reason-hygiene contract; the
+  remedy is an operator concern, not a client-visible one.
 - **Accepted cost**: with the switch off, `ASSEMBLY_TIMEOUT_MS` still carries the render
   allowance, so a wedged job is marked failed later than strictly necessary. Documented and
   accepted rather than deriving the budget from the switch, which would make the
   soffice-self-kills-first invariant conditional instead of structural.
 
-### The render depends on state `sofficeAssemble` used to own
+### The render's dependency on the merge's profile already holds — the three "changed" cleanup modules are not changed
 
 Reusing the merge's warmed per-job profile (Security Considerations above) creates an ordering
-dependency that did not exist before: the render runs **after** `sofficeAssemble` returns, so
-the profile directory must outlive that return.
+dependency: the render runs **after** `sofficeAssemble` returns, so the profile directory must
+outlive that return. Earlier passes assumed satisfying that meant moving teardown out of
+`sofficeAssemble` and into `sweepAssemblyWork`, and re-tuning `reapOrphanedSoffice`. All three
+claims are wrong against the code, and the `sweepAssemblyWork` one is actively dangerous — left
+standing, `/sp:05-tasks` generates a task to route per-job teardown through a whole-root wipe.
 
-- Profile teardown is pinned to **job** lifetime (the job's `finally` / `sweepAssemblyWork`),
-  not to the merge call's completion. If `sofficeAssemble` currently reaps
-  `profileDirFor(workRoot, jobId)` on its own way out, that reap moves.
-- `reapOrphanedSoffice` must not kill the live render. It sweeps LibreOffice processes that
-  look abandoned; a second, legitimately long-running `soffice` in the same job is exactly the
-  shape it targets. Its criteria are re-verified against the render before this ships.
+- **`sofficeAssemble` owns no profile teardown, so nothing moves.**
+  [static-confirmed during red-team, `sofficeAssemble.ts`] Its only `rmSync` is the stale
+  `.lock` removal in `injectMacro`. `profileDirFor` returns `<workRoot>/<jobId>/profile`, which
+  sits **inside** the `jobDir` that `assembleQuarter`'s own `finally` already `rm -rf`s
+  (`assembleQuarter.ts`, "Working-dir lifecycle"). Profile lifetime is already job-scoped by
+  construction. The requirement stands as a **regression guard**, not as new work: no task may
+  introduce a merge-scoped profile reap, and the render must run before that `finally`.
+- **`sweepAssemblyWork` is startup-only and must not be reused per job.**
+  [static-confirmed during red-team] It has exactly one call site — `serverApp.ts:194`, at
+  registry init — and its body `rm -rf`s **every** entry under `workRoot` after calling
+  `reapOrphanedSoffice`, which SIGKILLs matching process groups. Its own doc comment pins it as
+  safe "ONLY … before any new job can write under `workRoot`". Calling it at job end would
+  delete other jobs' working dirs and kill live LibreOffice groups. It is unchanged, and the
+  plan's prior "now owns per-job profile teardown" line is struck.
+- **`reapOrphanedSoffice` cannot kill a live render, and the property to verify is the
+  inverse.** [static-confirmed during red-team] It runs only inside that startup sweep, so no
+  render is ever live when it runs. The real requirement is that a render **orphaned** by an
+  abrupt Node death (a Capistrano `restart_passenger` mid-render) is still reapable — and
+  `matchesAssemblyJob` already satisfies it, because the render carries the same
+  `-env:UserInstallation=…/<jobId>/…` argument the reaper matches on and §3 mandates it reuse.
+  Verified property, no code change. Corollary: the render MUST NOT be spawned against the
+  shared default profile, or an orphaned render becomes unreapable — which is the same
+  constraint Security Considerations already imposes, now with a second reason.
 
 ## Complexity Tracking
 

@@ -389,16 +389,37 @@ There is exactly one alternative behaviour — the pre-017 flow.
   filler, numbering assertions still passing.
 - The warning names FR-008 explicitly and is emitted once per job, so a forgotten flip leaves
   a trace when the next complaint arrives.
+- **The failures the switch remedies point at it.** A measurement failure, and in particular a
+  confirmation render still reporting an even index, is **deterministic** — the same corpus
+  fails every retry identically, hard-blocking US1 and US2 (the client-reported defects) behind
+  P3. The **server-side log line** for those failures names `ASSEMBLY_RECTO_FILLER` and what
+  switching it off does (delivery without the recto guarantee). The **coordinator-facing**
+  curated reason stays fixed-vocabulary and path-free — the remedy is an operator concern, not
+  a client-visible one.
 
-**Profile and process lifetime.** Because the render reuses the merge's warmed per-job profile
-(§3), `profileDirFor(workRoot, jobId)` must outlive `sofficeAssemble`'s return — teardown is
-pinned to **job** lifetime (the job's `finally` / `sweepAssemblyWork`), not to the merge call.
-`reapOrphanedSoffice`'s criteria are re-verified against the live render, which is exactly the
-shape (a second, long-running `soffice` in the same job) that it targets.
+**Profile and process lifetime — already satisfied; these three modules are NOT touched.**
+The render reuses the merge's warmed per-job profile (§3), so `profileDirFor(workRoot, jobId)`
+must outlive `sofficeAssemble`'s return. It already does, and the three cleanup modules an
+earlier revision listed as CHANGED are unchanged [all static-confirmed during red-team]:
 
-This makes `sofficeAssemble.ts`, `sweepAssemblyWork.ts`, and `reapOrphanedSoffice.ts` touched
-modules — the merge behaviour itself is unchanged, but teardown ownership and reap criteria are
-not, so they carry their own tasks rather than riding along with `measureLessonOneParity`.
+- `sofficeAssemble.ts` owns **no** profile teardown — its only `rmSync` is the stale `.lock`
+  removal. `profileDirFor` is `<workRoot>/<jobId>/profile`, inside the `jobDir` that
+  `assembleQuarter`'s own `finally` already `rm -rf`s. Profile lifetime is job-scoped by
+  construction; the contract here is a **regression guard** (no merge-scoped profile reap may be
+  introduced, and the renders run before that `finally`), not new work.
+- `sweepAssemblyWork.ts` is **startup-only** — one call site (`serverApp.ts:194`), and its body
+  `rm -rf`s every entry under `workRoot` after `reapOrphanedSoffice` SIGKILLs matching process
+  groups. Its doc comment pins it as safe only before any new job writes under `workRoot`.
+  Routing per-job teardown through it would delete other jobs' dirs and kill live LibreOffice
+  groups. It MUST NOT be called per job.
+- `reapOrphanedSoffice.ts` runs only inside that startup sweep, so it can never kill a live
+  render. The property to hold is the **inverse**: a render orphaned by an abrupt Node death
+  (Capistrano `restart_passenger` mid-render) must stay reapable — which `matchesAssemblyJob`
+  already satisfies, because the render carries the same `-env:UserInstallation=…/<jobId>/…`
+  argument §3 requires it to reuse. Corollary: spawning the render against the shared default
+  profile would make an orphaned render unreapable, a second reason for §3's profile rule.
+
+No task is generated for these three beyond the regression guard above.
 
 **Bounded wait.** The "previous process group has exited" precondition in §3 — applied before the
 first render, before the re-finalize, and before the confirmation render — is a **capped**
@@ -442,13 +463,24 @@ because only relative assertions ran on one path.
 The render is a **second** `soffice` invocation, and the mandatory post-insertion confirmation
 render (§4) is a possible **third**, so:
 
-- a new `ASSEMBLY_RENDER_TIMEOUT_MS` (each render's own self-kill) is defined, and
-- `ASSEMBLY_TIMEOUT_MS = DEFAULT_TIMEOUT_MS + 2 × ASSEMBLY_RENDER_TIMEOUT_MS + ASSEMBLY_NON_SOFFICE_BUDGET_MS`.
+- a new `ASSEMBLY_RENDER_TIMEOUT_MS` (each render's own self-kill) is defined,
+- a new `ASSEMBLY_EXIT_POLL_CAP_MS` (the §4 bounded exit-poll's cap) is defined, and
+- `ASSEMBLY_TIMEOUT_MS = DEFAULT_TIMEOUT_MS + 2 × ASSEMBLY_RENDER_TIMEOUT_MS + 3 × ASSEMBLY_EXIT_POLL_CAP_MS + ASSEMBLY_NON_SOFFICE_BUDGET_MS`.
 
 The factor of two is the worst case (a filler-inserting job), carried unconditionally for the
 same reason the kill-switch's allowance is carried unconditionally: deriving the budget from a
 runtime branch would make the soffice-self-kills-first invariant conditional instead of
 structural.
+
+**The poll term is required, not decorative.** §4 gives the bounded wait "its own budget slot";
+without a term here it has none, and the three polls per job (before render 1, before the
+re-finalize, before the confirmation render) plus a second full unzip/patch/rezip would have to
+fit inside `ASSEMBLY_NON_SOFFICE_BUDGET_MS` — [static-confirmed during red-team,
+`assemblyBudget.ts:29`] a flat 2 min sized for the pre-017 flow and asserted only `>= 60_000`.
+If they do not, the registry timeout fires while a poll is legitimately waiting on a live
+LibreOffice group and frees the concurrency-1 slot with a process alive — the exact failure the
+invariant below exists to prevent. The factor of three is the worst case, carried
+unconditionally for the same structural reason as the render terms.
 
 **Invariant preserved (asserted in `assemblyBudget.test.ts`)**: the registry timeout may
 fire only after every `soffice` has self-killed, so the concurrency-1 slot is never freed
