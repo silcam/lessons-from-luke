@@ -17,12 +17,12 @@ constitution Principle VI's persistence mandate is not engaged.
 The roman-numbered run from the start of the assembled book up to and including any blank
 filler page.
 
-| Property            | Value                                                            | Where it lives                                                                                                                                                                                                     |
-| ------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Number format       | lowercase roman (`style:num-format="i"`)                         | `Front_20_matter` / `Table_20_of_20_Contents` page layouts, template assets                                                                                                                                        |
-| Start value         | `1` (renders as `i`)                                             | implicit at document start; explicitly anchored by finalize only if the spike shows front matter still drifts with offsets removed (contract §2.2)                                                                 |
-| Offset              | **none** (invariant: no `text:page-adjust` anywhere in the book) | footer page-number field, `Front_20_matter` master only — the sole occurrence in each asset (`-1` bilingual, `-2` monolingual); `Table_20_of_20_Contents` carries none, so front matter numbers on two bases today |
-| First page printing | nothing (its master carries no page-number footer)               | master-page structure                                                                                                                                                                                              |
+| Property            | Value                                                                                                                                                                                                                  | Where it lives                                                                                                                                                                                                     |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Number format       | lowercase roman (`style:num-format="i"`)                                                                                                                                                                               | `Front_20_matter` / `Table_20_of_20_Contents` page layouts, template assets                                                                                                                                        |
+| Start value         | `1` (renders as `i`)                                                                                                                                                                                                   | implicit at document start; explicitly anchored by finalize only if the spike shows front matter still drifts with offsets removed (contract §2.2)                                                                 |
+| Offset              | **none** (invariant: no `text:page-adjust` anywhere in the book)                                                                                                                                                       | footer page-number field, `Front_20_matter` master only — the sole occurrence in each asset (`-1` bilingual, `-2` monolingual); `Table_20_of_20_Contents` carries none, so front matter numbers on two bases today |
+| First page printing | nothing (the master carrying it renders no footer — its page layout has no `<style:footer-style>`; several masters do carry a page-number field that never renders, so "no page-number footer" is the wrong predicate) | master-page + page-layout structure                                                                                                                                                                                |
 
 **Invariants**
 
@@ -40,13 +40,13 @@ filler page.
 
 The arabic-numbered run from lesson 1's first page to the end of the book.
 
-| Property           | Value                                                    | Where it lives                                                                                                                       |
-| ------------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Number format      | arabic (`style:num-format="1"`)                          | `First_20_Page` / `Lesson_20_Content` page layouts                                                                                   |
-| Start value        | `1`, pinned explicitly                                   | `style:page-number="1"` on lesson 1's opening heading automatic style, `content.xml`, written by finalize                            |
-| Continuation       | `style:page-number="auto"` on every later lesson opening | `content.xml`                                                                                                                        |
-| Lesson first pages | consume a number, print none                             | footer-less `First_20_Page` master                                                                                                   |
-| Coloring pages     | consume a number, print none                             | `Coloring_20_Page` master — footer renders `Lessons from Luke  Quarter <Q>  Lesson <N>` twice with **no** `Page <n>`, in both assets |
+| Property           | Value                                                    | Where it lives                                                                                                                                                            |
+| ------------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Number format      | arabic (`style:num-format="1"`)                          | `First_20_Page` / `Lesson_20_Content` page layouts                                                                                                                        |
+| Start value        | `1`, pinned explicitly                                   | `style:page-number="1"` on lesson 1's opening heading automatic style, `content.xml`, written by finalize                                                                 |
+| Continuation       | `style:page-number="auto"` on every later lesson opening | `content.xml`                                                                                                                                                             |
+| Lesson first pages | consume a number, print none                             | `First_20_Page` master, whose layout `Mpm2` carries no `<style:footer-style>` — its dormant `<style:footer>` renders only if a constituent layout wins the merge (INV-6b) |
+| Coloring pages     | consume a number, print none                             | `Coloring_20_Page` master — footer renders `Lessons from Luke  Quarter <Q>  Lesson <N>` twice with **no** `Page <n>`, in both assets                                      |
 
 **Invariants**
 
@@ -69,7 +69,12 @@ The arabic-numbered run from lesson 1's first page to the end of the book.
   "known positions" are derived from the rendered page inventory — built from the observable
   footer signatures in contract §3's page-classification table, since which master a page rode is
   **not** recoverable from `pdftotext` — never from page-count arithmetic that assumes a fixed
-  number of suppressions per lesson.
+  number of suppressions per lesson. The inventory accounts for **every** rendered page, blank
+  pages included, and it must not assume the front-matter and table-of-contents signatures are
+  distinguishable: [static-confirmed during red-team] both footers render `Lessons from Luke` and
+  `Teacher's Guide`, separated only by `Front_20_matter`'s `– Quarter <Q>` run. The lesson marker
+  is tested on `Quarter <Q>` **and** `Lesson <N>` together, because `Front_20_matter`'s footer
+  carries `Quarter <Q>` on its own.
 
 ### Blank filler page
 

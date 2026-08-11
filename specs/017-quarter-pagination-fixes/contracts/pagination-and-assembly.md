@@ -345,16 +345,42 @@ and two kinds of blank page occur here: the filler this feature inserts (FR-009)
 LibreOffice inserts on its own — [static-confirmed during red-team, both assets] `Inside_20_cover`
 uses a `style:page-usage="left"` layout (`Mpm13`), and the Luke-2 TOC constituent pins a paragraph
 to that master, so LibreOffice forces it verso and inserts an implicit blank when parity requires
-one. Without the blank class, confirmation B below rejects a blank predecessor and the locator
-throws on **every** filler-carrying book.
+one. Its justification is **no longer** "confirmation B would reject a blank predecessor" — B is
+now a denial and accepts any predecessor without the first lesson's marker, blank included. The
+blank class earns its place for two other reasons: INV-5's page inventory must account for every
+rendered page, and the filler's own presence must be observable in the confirmation render so an
+insertion that silently vanished (`removeLeadingBlankParagraphs`, §2.4) is caught rather than
+mistaken for a parity that happened to be right.
+
+**The signature strings are exact, and partial matching misclassifies** [static-confirmed during
+red-team, both assets, rendered footer text extracted from the masters]:
+
+| Master                    | Rendered footer text                                        |
+| ------------------------- | ----------------------------------------------------------- |
+| `Coloring_20_Page`        | `Lessons from Luke  Quarter <Q>  Lesson <N>` — **twice**    |
+| `Lesson_20_Content`       | `Quarter <Q>  Lesson <N>  <lesson title>  Page <n>`         |
+| `Front_20_matter`         | `Lessons from Luke  Teacher's Guide – Quarter <Q> Page <n>` |
+| `Table_20_of_20_Contents` | `Lessons from Luke: Teacher's Guide  Page <n>`              |
+
+Three consequences the classifier must honour:
+
+- **The lesson marker requires both tokens.** `Front_20_matter`'s footer carries `Quarter <Q>` and
+  `Lessons from Luke`, so a discriminator keyed on either alone classifies **every front-matter
+  page** as coloring-page class. The marker test is `Quarter <Q>` **and** `Lesson <N>`, both on
+  whole-token boundaries.
+- **The coloring page's doubled marker is confirmed, not spike-pending** — the master's footer
+  literally contains the run twice, once per printed half-sheet.
+- **Front-matter and table-of-contents footers are near-identical**; only the `– Quarter <Q>` run
+  separates them. Confirmation B no longer needs them separated (it is a denial), but INV-5's page
+  inventory must not assume they are distinguishable by `Teacher's Guide` or `Lessons from Luke`.
 
 **Rule**: `lessonOnePageIndex` is the index of the **first page satisfying the whole conjunction
 below** — lesson-title class _and_ both confirmations. It is emphatically **not** "the first
 lesson-title-class page, then check the confirmations": the book's own physical page 1 is also
-lesson-title class, because FR-002 requires it to print no page number and the master carrying it
-is therefore footer-less. A first-then-check rule selects page 1, fails confirmation A, and throws
-on **every** job. The scan continues past non-matching candidates and throws only when the whole
-book is exhausted.
+lesson-title class, because the master carrying it renders no footer (its layout carries no
+`<style:footer-style>` — note that "prints no page number" alone would _not_ imply this; see §2.5).
+A first-then-check rule selects page 1, fails confirmation A, and throws on **every** job. The scan
+continues past non-matching candidates and throws only when the whole book is exhausted.
 
 Marker adjacency is not used, because the `Coloring_20_Page` footer
 carries the same `Quarter <Q> … Lesson <N>` marker as `Lesson_20_Content` and prints no page

@@ -20,8 +20,11 @@ sequence restarts are **finalize-only** — ODF expresses "restart numbering her
 `style:page-number` on the paragraph that opens the page, which exists only in the merged
 `content.xml`; `finalizeAssembledQuarter` already patches exactly this shape when it pins
 lesson-opening headings to `First_20_Page`. Roman front matter and footer-less lesson first
-pages already hold by construction in the assets — verified statically during planning, so
-FR-001/FR-002/FR-007 are regression guards rather than new work.
+pages already hold in the assets — verified statically during planning, so FR-001/FR-002/FR-007
+are regression guards rather than new work. **Not "by construction", though**: the constituents
+all re-enable the footer on their own `First_20_Page`, so FR-007 holds only because the merge's
+template style load overwrites their page layouts. That guard is therefore asserted on the merged
+output, alongside FR-004's (see Edge Cases, INV-6b).
 
 The recto guarantee (FR-008–FR-010) adds a new render-and-measure pass: finalize without a
 filler, render the book to PDF, locate lesson 1's first page by classifying each rendered page
@@ -385,14 +388,22 @@ absorb:
   adversarial body text, not just footers. And the "absent footer" rows are not master-exclusive
   (see the predecessor rule below).
 
-  | Page class          | `Quarter <Q> … Lesson <N>` | `Page <n>` | Other signature                        |
-  | ------------------- | -------------------------- | ---------- | -------------------------------------- |
-  | Lesson title page   | absent                     | absent     | no footer, but the lesson's title text |
-  | Blank page          | absent                     | absent     | **no extractable text at all**         |
-  | Coloring page       | present (twice)            | absent     | `Lessons from Luke`                    |
-  | Lesson content page | present                    | present    | —                                      |
-  | Front matter        | absent                     | present    | `Teacher's Guide`                      |
-  | Table of contents   | absent                     | present    | book title + subject                   |
+  | Page class          | `Quarter <Q>` **and** `Lesson <N>` | `Page <n>` | Other signature                             |
+  | ------------------- | ---------------------------------- | ---------- | ------------------------------------------- |
+  | Lesson title page   | absent                             | absent     | no rendered footer, but the page's own text |
+  | Blank page          | absent                             | absent     | **no extractable text at all**              |
+  | Coloring page       | present **twice**                  | absent     | `Lessons from Luke`                         |
+  | Lesson content page | present                            | present    | the lesson title                            |
+  | Front matter        | absent (`Quarter <Q>` alone)       | present    | `Lessons from Luke` + `Teacher's Guide`     |
+  | Table of contents   | absent                             | present    | `Lessons from Luke` + `Teacher's Guide`     |
+
+  [static-confirmed during red-team, both assets, rendered footer text extracted from the masters]
+  The first column requires **both** tokens: `Front_20_matter`'s footer is
+  `Lessons from Luke  Teacher's Guide – Quarter <Q> Page <n>`, so a discriminator keyed on
+  `Quarter <Q>` or on `Lessons from Luke` alone classifies every front-matter page as a coloring
+  page. The coloring page's doubled marker is confirmed rather than spike-pending. Front matter and
+  the table of contents share a signature apart from the `– Quarter <Q>` run — the locator does not
+  need them separated (confirmation B is a denial), but INV-5's inventory must not assume they are.
 
   The first lesson's title page is the first page satisfying the **whole conjunction**: it is
   lesson-title class (no footer, but body text), the page after it belongs to the first lesson
@@ -460,14 +471,17 @@ absorb:
 
 ### Blank pages are their own page class — starting with the one this feature inserts
 
-The classification above had no blank-page row, and the filler branch is **deterministically**
-broken without one. After insertion, the page immediately before the first lesson's title page is
-the filler: contentless and footer-less. Under the five-class table it reads as lesson-title
-class, confirmation B ("predecessor is absent or of front-matter / table-of-contents class")
-fails, and the locator throws — on **every** filler-inserted book. That breaks two things the
-design already promises: the post-insertion confirmation render (contract §4 calls it
-assertion-only; as specified it fails the job instead), and the filler-branch FR-016 integration
-assertions, which must locate the first lesson in a rendered filler-carrying book.
+The classification needs a blank-page row. Its original justification — that confirmation B's
+allow-list would reject a blank predecessor and throw on every filler-inserted book — is
+**superseded**: B is now stated as a denial (predecessor absent, or not carrying the first
+lesson's marker), which accepts a blank predecessor without enumerating it. Two justifications
+survive and are the ones to build against:
+
+- **INV-5's page inventory must account for every rendered page**, so an unclassifiable page is a
+  hole in the FR-016 oracle rather than a locator problem.
+- **The filler's presence must be observable in the confirmation render.** An insertion silently
+  deleted by `removeLeadingBlankParagraphs` (contract §2.4) would otherwise be indistinguishable
+  from a parity that happened to come out right — the passes-while-wrong shape again.
 
 Blank and lesson-title classes are distinguishable in `pdftotext` output — a lesson title page
 carries the lesson's title text with no footer; a blank page carries no extractable text at all —
