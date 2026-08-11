@@ -245,6 +245,111 @@ rendered PDF, so the acceptance tests bottom out in the same `soffice` +
 style resolution are additionally assertable on the assembled `content.xml` without a
 render, which makes them the fastest feedback in the feature.
 
+## Security Considerations
+
+Server-side only, no HTTP or persistence surface, so the exposure is confined to how the new
+render pass invokes external binaries and what it reports.
+
+### Subprocess invocation discipline (new `soffice`, `pdftotext`, `pdfinfo` calls)
+
+`measureLessonOneParity` MUST follow `sofficeAssemble.ts`'s invocation discipline, **not**
+`webifyLesson.ts`'s. `webifyLesson.ts:20` is the in-repo anti-pattern: a shell `exec` with an
+interpolated path and no profile isolation. Concretely, the render pass MUST:
+
+- Spawn via `execFile`-style **array arguments** (`spawn`/`execFile`), never a shell string.
+  `odtPath`, `workDir`, and the PDF output path are derived from job-scoped paths; a shell
+  string breaks on spaces and turns any future path component into an injection surface.
+  This applies equally to the `pdftotext` / `pdfinfo` calls (the integration test already uses
+  `execFileSync` with array args — match it).
+- Pass `-env:UserInstallation=file://<profileDir>` using the **same per-job profile directory**
+  the merge already warmed (`profileDirFor(workRoot, jobId)`). The two invocations are strictly
+  sequential within one job, so profile reuse is safe and avoids a second warm; what is not
+  safe is falling back to LibreOffice's shared default profile, which is single-instance and
+  would let the render collide with a concurrent `webifyLesson` or a lingering merge.
+- Confirm the merge's `soffice` process group has fully exited before the render starts. A
+  render launched against a profile whose `.lock` is still held either attaches to the running
+  instance or wedges until its own timeout.
+- Spawn `detached` (own process group) and kill with `process.kill(-pid, "SIGKILL")` on
+  timeout or `AbortSignal`, so `reapOrphanedSoffice` is not the only thing standing between a
+  hung render and a wedged concurrency-1 slot.
+
+### Log and error hygiene
+
+The measurement pass reads the **rendered text of unpublished translation content**. Curated
+errors and diagnostics MUST NOT include extracted page text, and MUST NOT include absolute
+filesystem paths — extending the existing path-free curated-reason rule
+(`"assembly failed to finalize the merged book"`) to the new failure modes. Recording the
+numeric `lessonOnePageIndex` / `renderedPageCount` (see Edge Cases below) is fine; recording
+the page text that produced them is not.
+
+## Edge Cases & Error Handling
+
+### The recto pass must not be able to block delivery of the two reported defects
+
+US3 (recto placement) is P3 and product-owner-originated; US1 and US2 are the client-reported
+defects. As designed, US3 introduces a **new, unproven external dependency** (a second
+`soffice` render, plus `pdftotext`/`pdfinfo` whose production availability is still open) into
+the critical path of every assembly job, and contract §4 fails the whole job when it errors.
+That is defensible as a correctness default and stays the default — but it means a flaky render
+on the deploy box would block delivering the two fixes the client actually asked for.
+
+**Mitigation**: the measure-and-re-finalize pass is gated by an explicit server-side
+configuration switch, default **on**. When switched off, assembly skips the measurement,
+delivers without the recto guarantee, and logs a single warning naming the skipped requirement
+(FR-008). This is an operational kill-switch, not a fallback path with its own logic: there is
+exactly one alternative behaviour (do not measure, do not insert a filler), so it adds no
+untested branch beyond the pre-017 behaviour.
+
+### Locating lesson 1's first page is an inference, and must fail loudly rather than guess
+
+`measureLessonOneParity` derives lesson 1's first physical page as "the page before the first
+page carrying lesson 1's live footer marker". Every step of that inference has a failure mode
+that would silently produce the _wrong_ parity — and a wrong parity inserts a filler that makes
+the delivered book worse than doing nothing:
+
+- **Prefix collision**: the marker `Quarter <S> Lesson 1` is a strict prefix of
+  `Quarter <S> Lesson 10`..`13`. Match on a whole-token/anchored boundary, not
+  `String.includes`.
+- **Marker absent**: a lesson 1 short enough to have no numbered page after its footer-less
+  title page produces no marker at all. Throw the curated reason; do not fall back to a
+  positional guess.
+- **Implausible index**: a first-marker page at physical index 1 leaves no predecessor, and any
+  index outside `2..renderedPageCount` is a parse failure. Both throw.
+- **Cross-check the located page**: the candidate page must carry **no** page-number footer
+  (lesson title pages are footer-less by construction, R1). If it carries one, the inference is
+  wrong and the pass throws rather than returning a number.
+- **Monolingual footer marker**: R5 established the two assets are not structurally parallel.
+  The spike MUST confirm the same `Quarter <S> Lesson <N>` footer marker is present in
+  monolingual output before this locator ships; if it is absent, every monolingual job throws
+  and the mode needs its own anchor.
+
+### The filler must survive the second finalize pass
+
+Contract §2.4 covers not double-inserting. The stronger requirement is that the filler — an
+**empty** `<text:p>` — survives every _other_ pass that re-runs on the second finalize,
+specifically `removeLeadingBlankParagraphs` and any normalization that treats contentless
+paragraphs as noise. Guard with a fixed-point test: `finalize(finalize(doc))` is byte-identical
+to `finalize(doc)` for both `insertRectoFiller` values, asserted on the merged `content.xml`.
+
+### Fallback if the filler's master page misbehaves
+
+Research R3 leaves open whether two consecutive `First_20_Page` pages, with an explicit
+`style:page-number="1"` restart on the second, behave as intended. If the spike shows it does
+not, the fallback is to pin the filler to the **front-matter** master instead: FR-009 places
+the filler in the front-matter (roman) sequence, while `First_20_Page` is an arabic-format
+master (R1). The filler prints nothing either way, so the choice is invisible to the reader and
+is decided purely by which one lets lesson 1's restart take effect. Naming the fallback now
+keeps the spike from re-deriving it.
+
+### Both parity branches must be verified, and the measurement recorded
+
+- The integration test MUST cover the **filler-inserted** branch, not only the no-filler happy
+  path, with the same FR-016 absolute assertions. This is FR-016's own reasoning applied to
+  US3: the delivered defect shipped because only relative assertions ran on one path.
+- `lessonOnePageIndex` and `renderedPageCount` are recorded in the job's diagnostics, so the
+  next pagination complaint can be answered from a record rather than from a re-run. Per-job
+  confirmation rendering after insertion stays optional (contract §4).
+
 ## Complexity Tracking
 
 | Violation                                                                     | Why Needed                                                                                                                                                         | Simpler Alternative Rejected Because                                                                                                                                                                                                        |

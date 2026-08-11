@@ -108,6 +108,25 @@ Running finalize twice on the same document must not double-insert a filler or d
 a restart — required by the two-pass flow in §4. The filler insertion checks for an existing
 filler paragraph; the restart is an attribute set, naturally idempotent.
 
+Stronger requirement: **finalize is a fixed point.** `finalize(finalize(doc))` produces a
+`content.xml` byte-identical to `finalize(doc)`, for both `insertRectoFiller` values. This
+covers not only double-insertion but every _other_ pass that re-runs on the second finalize —
+in particular `removeLeadingBlankParagraphs` and any normalization that treats a contentless
+paragraph as noise, either of which would silently delete the filler. Asserted as a unit test.
+
+### 2.5 Filler master page and its fallback
+
+The filler pins `style:master-page-name` to the footer-less `First_20_Page` master (research
+R3, D3). Research R3 leaves open whether two consecutive `First_20_Page` pages, with the
+explicit `style:page-number="1"` restart on the second, behave as intended.
+
+**Fallback, if the spike shows it does not**: pin the filler to the **front-matter** master
+instead. FR-009 places the filler in the front-matter (roman) sequence, whereas `First_20_Page`
+is an arabic-format master (R1) — so the front-matter master is the more faithful reading of
+the requirement, and `First_20_Page` is preferred only for geometry continuity. The filler
+prints nothing under either master, so the choice is invisible to the reader and is decided
+solely by which one lets lesson 1's restart take effect.
+
 ---
 
 ## 3. `measureLessonOneParity` (NEW)
@@ -145,6 +164,35 @@ export function measureLessonOneParity(options: {
 - Throws a curated, path-free reason on render failure or on a document where lesson 1's
   marker cannot be found.
 
+**Invocation discipline** — follows `sofficeAssemble.ts`, not `webifyLesson.ts` (whose shell
+`exec` with an interpolated path and shared default profile is the in-repo anti-pattern):
+
+- `soffice`, `pdftotext`, and `pdfinfo` are spawned with **array arguments** (`spawn` /
+  `execFile`), never a shell string.
+- `-env:UserInstallation=file://<profileDir>` reuses the **same per-job profile directory**
+  the merge already warmed (`profileDirFor(workRoot, jobId)`); the shared default profile is
+  never used.
+- The merge's `soffice` process group must be confirmed exited before the render starts.
+- The render is spawned `detached` and killed as a process group
+  (`process.kill(-pid, "SIGKILL")`) on timeout or abort.
+
+**Locator robustness** — every one of these fails loudly rather than returning a guessed
+index, because a wrong parity inserts a filler that makes the delivered book worse:
+
+- Whole-token / anchored marker match. `Quarter <S> Lesson 1` is a strict prefix of
+  `Quarter <S> Lesson 10`..`13`; `String.includes` is not sufficient.
+- Marker absent (a lesson 1 with no numbered page after its footer-less title page) → throw.
+- First-marker page at physical index 1, or any index outside `2..renderedPageCount` → throw.
+- The candidate page must carry **no** page-number footer (lesson title pages are footer-less
+  by construction, R1); if it carries one, the inference is wrong → throw.
+- **Mode check (FR-015, R5)**: the spike must confirm the same footer marker exists in
+  monolingual output before this locator ships. If it does not, monolingual needs its own
+  anchor, or every monolingual job throws.
+
+**Diagnostics**: `lessonOnePageIndex` and `renderedPageCount` are recorded in the job's
+diagnostics. Extracted page text is **never** logged (it is unpublished translation content),
+and no absolute path appears in any curated reason or diagnostic.
+
 ---
 
 ## 4. `assembleQuarter` orchestration
@@ -164,6 +212,21 @@ be made on measured cost; if it is, it is assertion-only and must not change the
 
 Failure of the measurement pass fails the job with a curated reason — a book delivered with
 unknown parity is worse than a failed job the coordinator can retry.
+
+**Operational kill-switch.** The measure + conditional re-finalize pass is gated by a
+server-side configuration switch, default **on**. US3 (recto placement) is P3, while US1 and
+US2 are the client-reported defects; without the switch, a P3 enhancement's unproven external
+dependency (a second `soffice` render, plus `pdftotext`/`pdfinfo`, whose production
+availability is still open in research R3) sits in the critical path of every delivery. When
+switched off, `assembleQuarter` skips both the measurement and the re-finalize, delivers
+without the recto guarantee, and logs one warning naming the skipped requirement (FR-008).
+There is exactly one alternative behaviour — the pre-017 flow — so this adds no untested
+branch.
+
+**Both branches verified.** `assembleQuarter.integration.test.ts` covers the
+**filler-inserted** branch as well as the no-filler branch, with the same FR-016 absolute
+page-number assertions. FR-016's own reasoning applies here: the delivered defect shipped
+because only relative assertions ran on one path.
 
 ---
 
