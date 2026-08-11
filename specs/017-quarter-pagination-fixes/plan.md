@@ -448,6 +448,53 @@ place. Naming the fallback now keeps the spike from re-deriving it.
 invisible on a blank page. So the fallback introduces no mid-book sheet-size change in a duplex
 print, and no new master needs cloning.
 
+### The offsets are not asset-only on the input side — the constituents carry their own
+
+[static-confirmed during red-team, whole `test/docs/serverDocs/` corpus] Research R1's
+"the offsets are asset-only" is accurate about the two committed assets and **inaccurate about
+the inputs**. Scanning every committed lesson master finds 30 `text:page-adjust` occurrences
+outside the assets:
+
+| Master carrying the offset | Value | Occurrences                    | Present in both template assets? |
+| -------------------------- | ----- | ------------------------------ | -------------------------------- |
+| `Front_20_matter`          | `-3`  | 27                             | yes                              |
+| `HTML`                     | `-1`  | 2 (the `-99` TOC constituents) | yes                              |
+| `Body_20_Pages`            | `-3`  | 1                              | yes                              |
+
+This matters because the **entire corpus `assembleQuarter.integration.test.ts` assembles**
+(`Luke-2-{14..26,99}v01.odt`) is offset-carrying: 13 lesson constituents at `-3` plus a TOC
+constituent at `-1`, against a template at `-1`. Three competing values enter one merge.
+
+**Why the delivered book is probably still correct after the asset edit, and why that is not
+enough.** `Module1.xba` merges into a blank base, then calls
+`loadStylesFromURL(OverwriteStyles=True, LoadPageStyles=True)` from the template — the mechanism
+whose whole purpose is that "the template's page styles win over whatever the constituents
+brought in" (the macro's own comment, and why the footer-less `First_20_Page` master wins today).
+All three offset-bearing master names above exist in **both** assets, so all three are expected to
+be overwritten by offset-free definitions once the assets are fixed. FR-004/SC-005 then holds —
+**by a dependency the plan never states and never asserts**, on a style-load call whose family
+list and overwrite flag are one edit away from changing, and on the accident that no constituent
+introduces a master name absent from the template. A client-created page style, or a future
+narrowing of the load, silently reintroduces an offset into a delivered book.
+
+Two consequences, both cheap:
+
+- **INV-1 is verified on the merged output, not only on the assets.** The planned validation
+  (`quarterStylesTemplate.test.ts` asserting no offset in either asset) cannot see a
+  constituent-borne offset at all. `assembleQuarter.integration.test.ts` additionally asserts
+  **zero** `text:page-adjust` occurrences in the assembled book's `styles.xml` and `content.xml`,
+  in **both** modes. This is the assertion that actually corresponds to SC-005 (the client
+  inspects the delivered book, not the asset), and it runs on the offset-carrying corpus above,
+  so it is a real test rather than a tautology.
+- **If that assertion fails, strip rather than re-tune.** The fix is an unconditional removal of
+  every `text:page-adjust` attribute in the merged `styles.xml`, added to the existing
+  `finalizeAssembledQuarter` styles pass — post-merge, so it is source-agnostic and makes INV-1
+  true by construction regardless of what a constituent carries. Stripping per-constituent in
+  `prepareConstituentForAssembly` (which already rewrites each constituent's `styles.xml` in
+  place) is the weaker alternative: it is correct only for offsets the pipeline sees, and it
+  edits 14 documents to fix one. Neither is added speculatively — the merged-output assertion
+  decides, and the spike already produces an assembled book to run it against as a `grep`.
+
 ### The two front-matter masters do not number on the same basis today
 
 [static-confirmed during red-team] In the bilingual asset the offset is not uniform across front

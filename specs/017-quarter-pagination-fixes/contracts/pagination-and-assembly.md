@@ -49,8 +49,33 @@ one** `text:page-adjust` occurrence, on the `Front_20_matter` master's footer pa
 previous asset, so the change is reviewable as a diff of intent rather than as an opaque
 4 MB binary delta.
 
-**Validation**: `quarterStylesTemplate.test.ts` gains an assertion that neither asset
-carries a page-number offset, so a future asset refresh cannot silently reintroduce one.
+**The inputs are not offset-free** [static-confirmed during red-team, whole
+`test/docs/serverDocs/` corpus]. R1's "offsets are asset-only" describes the assets, not the
+constituents: 30 `text:page-adjust` occurrences live in committed lesson masters —
+`Front_20_matter` at `-3` (27×), `HTML` at `-1` (the two `-99` TOC constituents), and
+`Body_20_Pages` at `-3` (1×). The corpus `assembleQuarter.integration.test.ts` assembles
+(`Luke-2-{14..26,99}v01.odt`) is entirely offset-carrying. All three master names exist in **both**
+assets, so `Module1.xba`'s `loadStylesFromURL(OverwriteStyles=True, LoadPageStyles=True)` is
+expected to overwrite them with the fixed, offset-free definitions — but that is an **unstated
+dependency** on the style-load's family list and on no constituent ever introducing a master name
+absent from the template. Asset-only validation cannot observe it.
+
+**Validation** (two assertions, both required):
+
+- `quarterStylesTemplate.test.ts` asserts neither **asset** carries a page-number offset, so a
+  future asset refresh cannot silently reintroduce one.
+- `assembleQuarter.integration.test.ts` asserts **zero** `text:page-adjust` occurrences in the
+  **assembled book's** `styles.xml` and `content.xml`, in **both** modes. This is the assertion
+  corresponding to SC-005 — the client inspects the delivered book, not the asset — and it runs on
+  the offset-carrying corpus above, so it is a real test rather than a tautology.
+
+**If the merged-output assertion fails**: strip, do not re-tune. Add an unconditional removal of
+every `text:page-adjust` attribute in the merged `styles.xml` to the existing
+`finalizeAssembledQuarter` styles pass — post-merge and therefore source-agnostic, making INV-1
+true by construction. Per-constituent stripping in `prepareConstituentForAssembly` is the weaker
+alternative (correct only for offsets the pipeline sees, and it edits 14 documents to fix one).
+Neither ships speculatively; the assertion decides, and the spike's assembled book answers it as a
+`grep`.
 
 ---
 

@@ -27,7 +27,12 @@ filler page.
 **Invariants**
 
 - INV-1 (FR-004, SC-005): no `text:page-adjust` attribute exists in the assembled book's
-  `styles.xml` or `content.xml`.
+  `styles.xml` or `content.xml`. **Asserted on the merged output, not only on the assets**
+  (`assembleQuarter.integration.test.ts`, both modes) — [static-confirmed during red-team] the
+  constituents carry offsets of their own (`Front_20_matter` `-3` ×27, `HTML` `-1` ×2,
+  `Body_20_Pages` `-3` ×1 across `test/docs/serverDocs/`), so removing them from the two assets
+  makes INV-1 hold only via `Module1.xba`'s template style load overwriting those same-named
+  masters. An asset-only assertion cannot observe a constituent-borne offset (contract §1).
 - INV-2 (FR-002, FR-003): physical page 1 prints nothing and counts as `i`; physical page 2
   prints `ii`.
 
