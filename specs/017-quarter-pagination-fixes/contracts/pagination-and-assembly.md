@@ -8,10 +8,12 @@ shape, status codes, and payloads. What changes is inside the assembly pipeline:
 assembleQuarter
   ├─ makeLessonFile            (unchanged)
   ├─ prepareConstituentForAssembly   (CHANGED — only if research R2 fix direction (a) wins)
-  ├─ sofficeAssemble → Module1.xba   (CHANGED — merge itself unchanged; per-job profile
-  │                                    teardown moves out to job scope, see §4)
+  ├─ sofficeAssemble → Module1.xba   (unchanged — profile lifetime is already job-scoped,
+  │                                    see §4; regression guard only)
   ├─ finalizeAssembledQuarter        (CHANGED — sequence restarts, filler page)
   ├─ measureLessonOneParity          (NEW — render + measure, FR-010)
+  ├─ finalizeAssembledQuarter        (CHANGED — re-run with the filler, needsFiller branch only)
+  ├─ measureLessonOneParity          (NEW — mandatory confirmation render, same branch, §4)
   └─ move to docStorage               (unchanged)
 ```
 

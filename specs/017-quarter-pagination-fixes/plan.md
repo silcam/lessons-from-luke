@@ -76,8 +76,9 @@ sizing case
   `assemblyBudget.test.ts`): the registry timeout may fire only after every `soffice` has
   self-killed, so the concurrency-1 slot is never freed with a LibreOffice process alive.
   Adding render invocations means adding their budget into `ASSEMBLY_TIMEOUT_MS`
-  structurally, not numerically — two render terms, the worst case (a filler-inserting job),
-  carried unconditionally so the invariant stays structural rather than branch-dependent.
+  structurally, not numerically — two render terms plus three bounded-exit-poll terms, the
+  worst case (a filler-inserting job), carried unconditionally so the invariant stays
+  structural rather than branch-dependent (contract §5).
 - **Both modes verified separately** (FR-015) — the two assets are not structurally
   parallel (research R5: 18 vs 16 master pages, no `Table_20_of_20_Contents` in
   monolingual, and different offsets `-1` vs `-2`).
@@ -291,8 +292,11 @@ interpolated path and no profile isolation. Concretely, the render pass MUST:
   render launched against a profile whose `.lock` is still held either attaches to the running
   instance or wedges until its own timeout.
 - Spawn `detached` (own process group) and kill with `process.kill(-pid, "SIGKILL")` on
-  timeout or `AbortSignal`, so `reapOrphanedSoffice` is not the only thing standing between a
-  hung render and a wedged concurrency-1 slot.
+  timeout or `AbortSignal`. This is the **only** runtime protection against a hung render
+  wedging the concurrency-1 slot: `reapOrphanedSoffice` is not a backstop for it, because
+  [static-confirmed during red-team] it runs only inside the startup sweep
+  (`serverApp.ts:194`) and therefore never sees a live render. Treating it as a safety net
+  would leave the render's own self-kill unbuilt and the wedge unguarded.
 
 ### Log and error hygiene
 
