@@ -660,6 +660,28 @@ inside the runner can wedge the concurrency-1 slot for the life of the process; 
 cap; on expiry, fail the job with the curated reason rather than starting a second `soffice`
 alongside a live one.
 
+### The confirmation render inherits the merge's preconditions, and must not read a stale PDF
+
+Making the confirmation render mandatory turns a two-invocation sequence into a three-invocation
+one, and two of the existing safeguards were written for the merge → render pair only.
+
+- **The bounded exit-poll applies before _every_ render, not just the first.** The precondition
+  "the previous `soffice` process group has fully exited" (Security Considerations) exists because
+  the shared per-job profile is single-instance and its `.lock` wedges a second instance. Between
+  render 1 and render 2 there is also a **re-finalize that rewrites the ODT in place** — unzip,
+  patch, re-zip over the same path — while render 1's process may still hold the file open. The
+  same capped poll (never an open await) runs before the re-finalize and before the confirmation
+  render, failing the job with the curated reason on expiry.
+- **Each render writes to its own output path, and the parse checks freshness.** If both renders
+  target the same PDF path, a confirmation render that fails _after_ the file exists — or that
+  fails to overwrite it — leaves the pre-filler PDF in place. Parsing that stale artifact reports
+  the pre-filler index, which on the filler branch was **even**, so the check fails loudly; but the
+  reverse ordering (a re-run, a retry, a job that reuses a work dir) can just as easily leave an
+  odd stale index and _silently confirm a guarantee that was never verified_ — the exact
+  passes-while-wrong failure this feature exists to correct. So: distinct, pass-tagged output paths
+  per render, and the parse asserts the file it reads was produced by the invocation that just ran
+  (path did not exist beforehand, or is unlinked before the render).
+
 ### Both parity branches must be verified, and the measurement recorded
 
 - The integration test MUST cover the **filler-inserted** branch, not only the no-filler happy

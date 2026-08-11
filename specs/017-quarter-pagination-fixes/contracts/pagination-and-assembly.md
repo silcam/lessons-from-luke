@@ -255,7 +255,14 @@ export function measureLessonOneParity(options: {
 - `-env:UserInstallation=file://<profileDir>` reuses the **same per-job profile directory**
   the merge already warmed (`profileDirFor(workRoot, jobId)`); the shared default profile is
   never used.
-- The merge's `soffice` process group must be confirmed exited before the render starts.
+- The **previous** `soffice` process group — the merge before the first render, the first render
+  before the re-finalize and the confirmation render — must be confirmed exited first, via the
+  capped poll of §4, never an open await. The re-finalize rewrites the ODT in place over the same
+  path a live render may still hold open.
+- **Each render writes its own output path** (pass-tagged), and the parse asserts the PDF it reads
+  was produced by the invocation that just ran — the path is unlinked beforehand, or asserted
+  absent. A stale PDF from a prior pass parsed as the current one can silently confirm a recto
+  guarantee that was never verified.
 - The render is spawned `detached` and killed as a process group
   (`process.kill(-pid, "SIGKILL")`) on timeout or abort.
 
@@ -384,7 +391,8 @@ This makes `sofficeAssemble.ts`, `sweepAssemblyWork.ts`, and `reapOrphanedSoffic
 modules — the merge behaviour itself is unchanged, but teardown ownership and reap criteria are
 not, so they carry their own tasks rather than riding along with `measureLessonOneParity`.
 
-**Bounded wait.** The "merge's process group has exited" precondition in §3 is a **capped**
+**Bounded wait.** The "previous process group has exited" precondition in §3 — applied before the
+first render, before the re-finalize, and before the confirmation render — is a **capped**
 poll with its own budget slot, never an open await — `assemblyBudget.ts`'s `ASSEMBLY_ABANDON_MS`
 rationale is that unbounded awaits in the runner wedge the concurrency-1 slot for the life of
 the process, and LibreOffice's `oosplash` → `soffice.bin` re-parenting is why the group-kill
