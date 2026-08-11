@@ -187,15 +187,17 @@ export function measureLessonOneParity(options: {
 
 - Renders `odtPath` to PDF with headless `soffice`, into `workDir` (inside the per-job
   working directory, so the existing `finally` cleanup reaps it).
-- Locates lesson 1's first page as the page immediately preceding the first page carrying
-  lesson 1's live footer marker (`Quarter <series> Lesson <firstLessonNumber>`), the same
-  marker the integration test already keys on.
+- Locates lesson 1's first page **by observable page class**, not by marker adjacency (see
+  "Locator robustness" below). Marker adjacency is unsafe: [static-confirmed during red-team]
+  the `Coloring_20_Page` footer carries the same `Quarter <Q> … Lesson <N>` marker as
+  `Lesson_20_Content` and prints no page number, so "the page before the first marker page" can
+  resolve to an ordinary content page.
 - **FR-010**: every returned value derives from the rendered PDF. No ODF page counter and no
   sum of constituent page counts may participate.
 - Honours `signal` (kill the render's process group on abort) and self-kills at its own
   timeout, preserving the registry invariant in §5.
 - Throws a curated, path-free reason on render failure or on a document where lesson 1's
-  marker cannot be found.
+  first page cannot be classified.
 
 **Invocation discipline** — follows `sofficeAssemble.ts`, not `webifyLesson.ts` (whose shell
 `exec` with an interpolated path and shared default profile is the in-repo anti-pattern):
@@ -212,27 +214,36 @@ export function measureLessonOneParity(options: {
 **Locator robustness** — every one of these fails loudly rather than returning a guessed
 index, because a wrong parity inserts a filler that makes the delivered book worse:
 
-- Whole-token / anchored marker match. `Quarter <S> Lesson 1` is a strict prefix of
-  `Quarter <S> Lesson 10`..`13`; `String.includes` is not sufficient.
-- Marker absent (a lesson 1 with no numbered page after its footer-less title page) → throw.
-- First-marker page at physical index 1, or any index outside `2..renderedPageCount` → throw.
-- The candidate page must carry **no** page-number footer (lesson title pages are footer-less
-  by construction, R1); if it carries one, the inference is wrong → throw.
-- **The footer-less check alone is not discriminating — identify the candidate positively.**
-  [static-confirmed during red-team] Every lesson master pins a paragraph to the
-  `Coloring_20_Page` master, and that master's footer carries no `<text:page-number>` field in
-  either asset. A coloring page therefore passes the footer-less check. If lesson 1's coloring
-  page sits between its title page and its first numbered content page, the predecessor of the
-  first marker page **is** the coloring page and the locator returns an index one too high —
-  inverting the filler decision, which is precisely the wrong-parity outcome INV-14 claims is
-  impossible. So the candidate must additionally be confirmed to carry lesson 1's own title
-  content (the level-1 heading text finalize pins to `First_20_Page`), and the page before it
-  must be absent or carry a **front-matter** footer. Any failure of either confirmation → throw.
-  The spike records where the coloring page actually falls within a lesson, so the guard is
-  validated against real rendered output rather than assumed.
-- **Mode check (FR-015, R5)**: the spike must confirm the same footer marker exists in
-  monolingual output before this locator ships. If it does not, monolingual needs its own
-  anchor, or every monolingual job throws.
+**Page classification** [static-confirmed during red-team, both assets]. Each master leaves a
+distinct extractable footer signature, so class is observed rather than inferred:
+
+| Page class          | `Quarter <Q> … Lesson <N>` | `Page <n>` | Other signature      |
+| ------------------- | -------------------------- | ---------- | -------------------- |
+| Lesson title page   | absent                     | absent     | no footer at all     |
+| Coloring page       | present (twice)            | absent     | `Lessons from Luke`  |
+| Lesson content page | present                    | present    | —                    |
+| Front matter        | absent                     | present    | `Teacher's Guide`    |
+| Table of contents   | absent                     | present    | book title + subject |
+
+**Rule**: `lessonOnePageIndex` is the index of the **first page in the book of lesson-title
+class** (no footer at all). Marker adjacency is not used, because the `Coloring_20_Page` footer
+carries the same `Quarter <Q> … Lesson <N>` marker as `Lesson_20_Content` and prints no page
+number — so both "first marker page" and "predecessor prints no number" are satisfiable by a
+coloring page.
+
+- Confirmation A: the page **after** the candidate belongs to lesson 1 — coloring or
+  content class, marker matched on a whole-token / anchored boundary (`Quarter <S> Lesson 1` is
+  a strict prefix of `Quarter <S> Lesson 10`..`13`; `String.includes` is not sufficient).
+- Confirmation B: the page **before** the candidate is absent, or of front-matter or
+  table-of-contents class.
+- Any candidate outside `1..renderedPageCount`, no lesson-title-class page found, or either
+  confirmation failing → throw the curated reason. Never a guessed or defaulted index.
+- **Spike validation (FR-015, R5)**: the four signatures are confirmed against real rendered
+  output in **both** modes before this locator ships — including whether the coloring and
+  content footers' `Quarter`/`Lesson` runs collapse to byte-identical strings under
+  `pdftotext -layout`, and where a coloring page actually falls within a lesson. The rule above
+  must be correct either way; the spike settles which discriminator is cheapest, and whether
+  monolingual output carries the same signatures at all.
 
 **Diagnostics**: `lessonOnePageIndex` and `renderedPageCount` are recorded in the job's
 diagnostics. Extracted page text is **never** logged (it is unpublished translation content),
@@ -304,6 +315,14 @@ machinery exists. On expiry the job fails with the curated reason; it never star
 diagnostics. They are **not** added to the assembly job status-poll payload, whose shape §7
 holds unchanged; storing them on the `AssemblyJobRegistry` entry is acceptable only if the
 entry's serialized shape is unchanged.
+
+**Existing FR-003 assertion re-derived.** `assembleQuarter.integration.test.ts` currently
+locates each lesson's first numbered content page with
+`pages.findIndex((p) => p.includes(marker))` and asserts its predecessor prints no number. A
+coloring page carries the marker and prints no number, so for any lesson whose coloring page
+precedes its first content page that lookup lands on the coloring page and the assertion checks
+the wrong pair — while still passing. Re-derive it under the page classification above as part of
+the FR-016 work; the existing green is not evidence.
 
 **Both branches verified.** `assembleQuarter.integration.test.ts` covers the
 **filler-inserted** branch as well as the no-filler branch, with the same FR-016 absolute

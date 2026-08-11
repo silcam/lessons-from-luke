@@ -340,23 +340,53 @@ the delivered book worse than doing nothing:
 while consuming a number, exactly like a lesson title page. Two consequences the design must
 absorb:
 
-- **The lesson-1 locator's footer-less cross-check is not discriminating.** Contract §3 locates
-  lesson 1's first page as the predecessor of the first page carrying lesson 1's footer marker,
-  and cross-checks only that the candidate carries no page-number footer. A coloring page
-  satisfies that check. If lesson 1's coloring page falls between its title page and its first
-  numbered content page, the locator silently returns an index one too high, inverting the
-  filler decision — the precise "wrong parity is worse than no filler" failure INV-14 claims is
-  impossible. The candidate must be identified **positively**, not by the absence of a footer:
-  require that the candidate page carries lesson 1's own title content (the same level-1
-  heading text finalize pins to `First_20_Page`), and additionally that the page before the
-  candidate is either absent (candidate is page 1 of the body run) or carries a **front-matter**
-  footer. The spike records where the coloring page actually falls within a lesson so the guard
-  is validated against real output rather than assumed.
+- **The lesson-1 locator's anchor is ambiguous, not merely its cross-check.**
+  [static-confirmed during red-team] The `Coloring_20_Page` footer renders
+  `Lessons from Luke  Quarter <Q>  Lesson <N>` — twice, once per printed half-sheet — and carries
+  **no** `Page <n>`. The `Lesson_20_Content` footer renders `Quarter <Q>  Lesson <N>` followed by
+  `Page <n>`. So a coloring page carries the _same_ lesson marker the locator anchors on, and
+  also satisfies the footer-less cross-check. Both halves of contract §3's inference fail on the
+  same page: "the first page carrying lesson 1's marker" can be a coloring page, and the
+  predecessor returned as lesson 1's title page can then be an ordinary numbered content page.
+  The result is a silently wrong parity — the failure INV-14 claims is impossible.
+
+  **Locate by observable page class rather than by marker adjacency.** Each master leaves a
+  distinct extractable footer signature, so page class is directly observable from `pdftotext`
+  output instead of inferred from position:
+
+  | Page class          | `Quarter <Q> … Lesson <N>` | `Page <n>` | Other signature      |
+  | ------------------- | -------------------------- | ---------- | -------------------- |
+  | Lesson title page   | absent                     | absent     | no footer at all     |
+  | Coloring page       | present (twice)            | absent     | `Lessons from Luke`  |
+  | Lesson content page | present                    | present    | —                    |
+  | Front matter        | absent                     | present    | `Teacher's Guide`    |
+  | Table of contents   | absent                     | present    | book title + subject |
+
+  Lesson 1's title page is then the **first page in the book carrying no footer at all**, with
+  two confirmations that must both hold or the pass throws: the page after it belongs to lesson 1
+  (coloring or content class, marker matched on a whole-token boundary so `Lesson 1` cannot match
+  `Lesson 10`..`13`), and the page before it is absent or of front-matter or table-of-contents
+  class. This makes the locator independent of where a coloring page falls inside a lesson.
+
+  The spike confirms the four signatures against real rendered output in both modes before this
+  ships — including whether the coloring and content footers' `Quarter`/`Lesson` runs collapse to
+  byte-identical strings under `pdftotext -layout`. The locator must be correct either way; the
+  spike only settles which discriminator is cheapest.
+
 - **FR-016's "known positions" must be chosen with coloring pages counted.** An oracle that
   assumes only lesson title pages are suppressed will compute the wrong expected absolute
   number for every page after lesson 1's coloring page. The absolute assertions anchor on
-  positions derived from the rendered page inventory (which master each page rode), not from a
-  page-count arithmetic that assumes one suppression per lesson.
+  positions derived from the rendered page inventory, not from page-count arithmetic that assumes
+  one suppression per lesson. "Which master each page rode" is **not** recoverable from
+  `pdftotext`; the inventory is built from the observable footer signatures in the table above,
+  which is what makes it assertable at all.
+- **The existing FR-003 integration assertion may be passing for the wrong reason.**
+  `assembleQuarter.integration.test.ts` locates each lesson's first numbered content page as
+  `pages.findIndex((p) => p.includes(marker))` and then asserts its predecessor prints no number.
+  A coloring page carries the marker and prints no number, so for any lesson whose coloring page
+  precedes its first content page, that `findIndex` lands on the coloring page and the assertion
+  checks the wrong pair — while still passing. Re-derive it under the page-class classification
+  as part of the FR-016 work rather than treating the existing green as evidence.
 
 ### The filler must survive the second finalize pass
 

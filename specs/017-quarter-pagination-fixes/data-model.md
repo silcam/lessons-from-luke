@@ -35,13 +35,13 @@ filler page.
 
 The arabic-numbered run from lesson 1's first page to the end of the book.
 
-| Property           | Value                                                    | Where it lives                                                                                            |
-| ------------------ | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| Number format      | arabic (`style:num-format="1"`)                          | `First_20_Page` / `Lesson_20_Content` page layouts                                                        |
-| Start value        | `1`, pinned explicitly                                   | `style:page-number="1"` on lesson 1's opening heading automatic style, `content.xml`, written by finalize |
-| Continuation       | `style:page-number="auto"` on every later lesson opening | `content.xml`                                                                                             |
-| Lesson first pages | consume a number, print none                             | footer-less `First_20_Page` master                                                                        |
-| Coloring pages     | consume a number, print none                             | `Coloring_20_Page` master — branding footer, **no** `<text:page-number>` field, in both assets            |
+| Property           | Value                                                    | Where it lives                                                                                                                       |
+| ------------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Number format      | arabic (`style:num-format="1"`)                          | `First_20_Page` / `Lesson_20_Content` page layouts                                                                                   |
+| Start value        | `1`, pinned explicitly                                   | `style:page-number="1"` on lesson 1's opening heading automatic style, `content.xml`, written by finalize                            |
+| Continuation       | `style:page-number="auto"` on every later lesson opening | `content.xml`                                                                                                                        |
+| Lesson first pages | consume a number, print none                             | footer-less `First_20_Page` master                                                                                                   |
+| Coloring pages     | consume a number, print none                             | `Coloring_20_Page` master — footer renders `Lessons from Luke  Quarter <Q>  Lesson <N>` twice with **no** `Page <n>`, in both assets |
 
 **Invariants**
 
@@ -124,12 +124,14 @@ Lives only for the duration of one assembly job; nothing persists it.
   counter or a sum of constituent page counts.
 - INV-12: measurement runs on the finalized-but-filler-free document, because inserting the
   filler changes the document being measured.
-- INV-14: `lessonOnePageIndex` is either a value the locator's guards all accept
-  (whole-token marker match, `2..renderedPageCount`, candidate page footer-less, **candidate
-  page positively confirmed to carry lesson 1's own title content, and its predecessor absent
-  or front-matter-footered**) or the pass throws. The positive confirmation is load-bearing:
-  a coloring page passes the footer-less check, so absence of a page number alone cannot
-  distinguish lesson 1's title page from a coloring page one position later (contract §3). It is never a guessed or defaulted value — a wrong parity inserts a filler that
+- INV-14: `lessonOnePageIndex` is the index of the first **lesson-title-class** page (no footer
+  at all) whose successor is lesson 1 by whole-token marker match and whose predecessor is
+  absent or of front-matter / table-of-contents class — or the pass throws. It is never a
+  guessed or defaulted value. Page class is observed from the footer signature, not inferred
+  from marker adjacency: [static-confirmed during red-team] the `Coloring_20_Page` footer
+  carries the same `Quarter <Q> … Lesson <N>` marker as `Lesson_20_Content` and prints no page
+  number, so both "first marker page" and "predecessor prints no number" are satisfiable by a
+  coloring page (contract §3). It is never a guessed or defaulted value — a wrong parity inserts a filler that
   makes the delivered book worse than inserting none (contract §3).
 - INV-15: both fields are recorded in the job's diagnostics; the extracted page text that
   produced them is never logged, and no absolute path appears in any diagnostic or curated
