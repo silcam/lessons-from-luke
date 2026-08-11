@@ -196,17 +196,51 @@ explicit `style:page-number="1"` restart on the second, behave as intended.
 
 **Fallback, if the spike shows it does not**: pin the filler to **`Standard`**.
 
-**Hard constraint**: the filler's master MUST carry **no `<style:footer>` at all**, not merely
-no page-number field. [static-confirmed during red-team, both assets] R1's "only `First_20_Page`
-and `Standard` are page-number-less" is too weak a criterion: only `Front_20_matter`,
-`Table_20_of_20_Contents` (bilingual only), and `Lesson_20_Content` carry a page-number field, so
-most masters are page-number-less — including `Coloring_20_Page`, which carries a branding footer
-(`Lessons from Luke … Quarter <n> Lesson <n>`) and would print visible text on a page FR-009 says
-prints nothing. `First_20_Page` and `Standard` are the only masters that are both reachable in the
-assembled page flow and carry no footer element at all, which is what makes them the safe choices.
-The filler's membership in the front-matter sequence is a claim about
-which number it consumes, **not** a licence to pin it to the front-matter master, which would
-print a roman numeral on a page that must print nothing.
+**Hard constraint**: the filler's master MUST **render no footer**, not merely no page number.
+
+**The criterion is a page-layout property, and earlier passes stated it against the wrong
+element.** [static-confirmed during red-team, both assets, layout-level probe — supersedes the
+element-level claims of earlier passes] Footer rendering is governed by the presence of
+`<style:footer-style>` in the **page layout**, not by `<style:footer>` in the master. No
+`style:display` attribute appears on any footer element in either asset, so layout-level absence is
+the entire suppression mechanism. Two consequences:
+
+- "`First_20_Page` and `Standard` carry no footer element at all" is **false**. Both carry a full
+  branding footer (`Lessons from Luke … Quarter <n> Lesson <n>`), byte-identical to
+  `Coloring_20_Page`'s. It is dormant: their layouts (`Mpm2`, `Mpm1`) carry no
+  `<style:footer-style>`. A definition of done written from the old wording — "assert the filler's
+  master carries no `<style:footer>`" — **fails on both the chosen master and its named fallback**,
+  and MUST NOT be generated.
+- "Exactly three masters carry a page-number field" is **false**. Six do in the bilingual asset
+  (`Lesson_20_Content`, `Front_20_matter`, `Table_20_of_20_Contents`, `Inside_20_cover`,
+  `Body_20_Pages`, `Cover_20_pages`) and two in the monolingual; only three (two monolingual)
+  **render** one.
+
+**Corrected predicate**, binding everywhere "footer-less" appears in this contract: a master is
+safe for the filler when the page layout it references carries **no `<style:footer-style>`**.
+`First_20_Page` (`Mpm2`) and `Standard` (`Mpm1`) both satisfy it, so the design's choice and its
+fallback stand — only the stated evidence was wrong. `Coloring_20_Page` (`Mpm10`) does not, and
+would print branding text on a page FR-009 says prints nothing. The filler's membership in the
+front-matter sequence is a claim about which number it consumes, **not** a licence to pin it to the
+front-matter master, which would print a roman numeral on that page.
+
+**Merged-output guard (new, mirrors §1's INV-1 assertion).** The template's suppression is not a
+property of the delivered book; it is one the merge must win. [static-confirmed during red-team,
+`test/docs/serverDocs/`] Every constituent sampled (`Luke-2-14v01`, `Luke-2-99v01`,
+`Luke-1-01v03`) defines a `First_20_Page` whose layout **does** carry `<style:footer-style>`, and
+`Luke-1-01v03` carries one on `Standard` too — so the assembled book's title pages are footer-less
+only because `loadStylesFromURL(OverwriteStyles=True, LoadPageStyles=True)` overwrites them. This
+is the same unstated dependency as INV-1, and it is load-bearing for FR-007, FR-009, and the whole
+§3 page-class table. `assembleQuarter.integration.test.ts` therefore asserts that in the
+**assembled** `styles.xml` the layouts referenced by `First_20_Page` and `Standard` carry no
+`<style:footer-style>`, in **both** modes.
+
+**`Mpm<n>` is a template-local name.** Automatic page-layout names are only locally unique — the
+same weakness R2 documents for automatic paragraph styles. In `Luke-2-99v01`, `Mpm13` is
+`Coloring_20_Page`'s layout while in the template it is `Inside_20_cover`'s. Masters are matched by
+master **name** at load, so the merge is unaffected; but every `Mpm<n>` in this contract names a
+**template** layout, and any check against a constituent or the merged output resolves the layout
+through its master name, never by literal `Mpm<n>`.
 
 `Standard` is also the better fallback mechanically: it makes lesson 1's heading a genuine
 master-page transition rather than a same-master repeat, which is the most likely reason the
@@ -281,7 +315,21 @@ export function measureLessonOneParity(options: {
 index, because a wrong parity inserts a filler that makes the delivered book worse:
 
 **Page classification** [static-confirmed during red-team, both assets]. Each master leaves a
-distinct extractable footer signature, so class is observed rather than inferred:
+distinct extractable footer signature, so class is observed rather than inferred. Two limits on the
+table, both load-bearing: `pdftotext` extracts **whole-page text**, not footers specifically, so
+body text containing a signature string can forge a footer signature (a title page plausibly prints
+"Lessons from Luke" and "Quarter <n>" in its body) — the spike's signature-confirmation item covers
+adversarial body text, not only footers. And the two "absent footer" rows are **not**
+master-exclusive: [layout-level probe] nine masters render no footer — besides `First_20_Page` and
+`Standard`, also `Inside_20_cover`, `Body_20_Pages`, `Cover_20_pages`, `HTML`, `Index`,
+`Left_20_Page`, `Right_20_Page` — and `Inside_20_cover` is demonstrably reachable (the TOC
+constituent `Luke-2-99v01` pins a paragraph to it). Such a page carries body text and no footer and
+so reads as lesson-title class. Confirmation B below is stated as a denial for exactly this reason.
+
+Note that the title-vs-coloring discriminator itself **does** hold, but for a mechanism the earlier
+wording got wrong: `Coloring_20_Page`'s layout `Mpm10` carries `<style:footer-style>` and
+`First_20_Page`'s `Mpm2` does not, so the coloring page renders the branding line and the title page
+renders nothing — not because the title page's master lacks a footer element (it has one, dormant).
 
 | Page class          | `Quarter <Q> … Lesson <N>` | `Page <n>` | Other signature                        |
 | ------------------- | -------------------------- | ---------- | -------------------------------------- |
@@ -322,8 +370,14 @@ coloring page.
   finds nothing and throws on every real job. Whole-token matching is required at every value,
   not only at `1` — `Lesson 1` is a strict prefix of `Lesson 14`, `Lesson 2` of `Lesson 26`;
   `String.includes` is not sufficient.
-- Confirmation B: the page **before** the candidate is absent, or of blank, front-matter, or
-  table-of-contents class.
+- Confirmation B (**a denial, not an allow-list**): the page **before** the candidate is absent,
+  **or** does not carry the first lesson's marker. An allow-list phrasing ("absent, blank,
+  front-matter, or table-of-contents class") rejects an ordinary footer-less-but-texted page — an
+  `Inside_20_cover` page as the last front-matter page is the concrete case — and makes the locator
+  **throw on every job for that corpus shape**: deterministic, and it hard-blocks US1 and US2
+  behind P3. Stated as a denial it needs no enumeration of footer-less masters, cannot be
+  invalidated by a master the table omits, and still excludes the only thing that matters — a
+  candidate sitting _inside_ the first lesson rather than at its start.
 - **Exactly one** page in the book satisfies the conjunction. If a second matching page is
   found, the classification is wrong and the pass throws rather than taking the first.
 - No page satisfying the conjunction, or a match outside `1..renderedPageCount` → throw the

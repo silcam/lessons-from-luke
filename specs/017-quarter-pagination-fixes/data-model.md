@@ -75,12 +75,12 @@ The arabic-numbered run from lesson 1's first page to the end of the book.
 
 Inserted only when parity requires it (FR-008, FR-009).
 
-| Property            | Value                                                                                                                                                                                                                 |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Representation      | one empty `<text:p>` immediately before lesson 1's opening heading                                                                                                                                                    |
-| Master page         | footer-less `First_20_Page` — prints no number, consumes one. **Fallback**: `Standard`, the other footer-less master, if the spike shows the restart does not take effect (contract §2.5)                             |
-| Sequence membership | front matter (it precedes the body restart). A claim about which number the filler consumes, **not** about its master — the front-matter master carries a page-number footer and would violate FR-009 (contract §2.5) |
-| Cardinality         | 0 or 1 per book — never more                                                                                                                                                                                          |
+| Property            | Value                                                                                                                                                                                                                                                                   |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Representation      | one empty `<text:p>` immediately before lesson 1's opening heading                                                                                                                                                                                                      |
+| Master page         | `First_20_Page` — renders no footer, so prints nothing, and consumes one number. **Fallback**: `Standard`, likewise (contract §2.5). "Renders no footer" means **its page layout carries no `<style:footer-style>`** — both masters do carry a dormant `<style:footer>` |
+| Sequence membership | front matter (it precedes the body restart). A claim about which number the filler consumes, **not** about its master — the front-matter master carries a page-number footer and would violate FR-009 (contract §2.5)                                                   |
+| Cardinality         | 0 or 1 per book — never more                                                                                                                                                                                                                                            |
 
 **Invariants**
 
@@ -90,6 +90,15 @@ Inserted only when parity requires it (FR-008, FR-009).
   own. Blank pages are therefore a page class in the rendered inventory (contract §3), not an
   artifact of this feature, and INV-6's cardinality is a claim about the **filler paragraph** in
   `content.xml`, not about blank pages in the render.
+- INV-6b (FR-007, FR-009): in the **assembled** `styles.xml`, the page layouts referenced by
+  `First_20_Page` and `Standard` carry no `<style:footer-style>`, in both modes. [static-confirmed
+  during red-team] Both masters carry a dormant branding `<style:footer>` — byte-identical to
+  `Coloring_20_Page`'s — that renders only when the layout enables it, and **every** sampled
+  constituent (`Luke-2-14v01`, `Luke-2-99v01`, `Luke-1-01v03`) does enable it on its own
+  `First_20_Page`. The assembled book is footer-less there only because `Module1.xba`'s
+  `loadStylesFromURL(OverwriteStyles=True, LoadPageStyles=True)` overwrites the layout — the same
+  unstated dependency as INV-1, and load-bearing for FR-007, FR-009, and the contract §3 page
+  classification. Asserted on the merged output; asset-only validation cannot observe it.
 - INV-6 (FR-009): at most one filler paragraph exists, it contains no text, and it does not
   shift the body sequence (the body restart is explicit, so the filler cannot perturb it).
 - INV-7 (FR-008): after insertion, lesson 1's first page falls at an odd physical index in
@@ -155,8 +164,12 @@ Lives only for the duration of one assembly job; nothing persists it.
 - INV-14: `lessonOnePageIndex` is the index of the **unique** page satisfying the whole
   conjunction — lesson-title class (no footer, but body text), successor belonging to the
   quarter's first lesson by whole-token match of the marker built from `firstLessonNumber` (never
-  the literal `Lesson 1`; the Luke-2 corpus's first lesson is `14`), predecessor absent or of
-  **blank**, front-matter, or table-of-contents class — or
+  the literal `Lesson 1`; the Luke-2 corpus's first lesson is `14`), predecessor absent **or not
+  carrying the first lesson's marker** — a denial, not an allow-list, because "footer-less but
+  texted" is not exclusive to lesson title pages: nine masters render no footer, and
+  `Inside_20_cover` is reachable (pinned by the TOC constituent `Luke-2-99v01`), so an allow-list
+  of blank / front-matter / table-of-contents predecessors throws on every job for that corpus
+  shape (contract §3) — or
   the pass throws. The conjunction is scanned, never checked after a first lesson-title-class
   match: the book's own page 1 is lesson-title class too (FR-002 makes it footer-less), so a
   first-then-check rule would throw on every job. Two matches also throw. It is never a
@@ -178,6 +191,13 @@ Lives only for the duration of one assembly job; nothing persists it.
 ## Mode coverage
 
 Every invariant above is asserted for **both** assembly modes (FR-015). The two template
-assets are not structurally parallel (research R5 — the monolingual template has no
-`Table_20_of_20_Contents` master and carried a different offset), so bilingual results do
-not transfer to monolingual by inspection.
+assets are not structurally parallel, and the asymmetry is wider than research R5 records:
+[static-confirmed during red-team, layout-level probe] **19 masters / 18 layouts bilingual vs
+15 / 15 monolingual** (R5's "18 vs 16" is wrong on both sides; `Footnote` and `Endnote` share
+`Mpm6`). Monolingual lacks `Table_20_of_20_Contents`, `Front_20_cover`, and `Back_20_cover`, and
+carries `-2` where bilingual carries `-1`. `Inside_20_cover`, `Body_20_Pages`, and
+`Cover_20_pages` carry a page-number footer in the bilingual asset and **no footer element at
+all** in the monolingual one — none of them renders a footer either way (no
+`<style:footer-style>` on their layouts in either asset), so the classification is stable, but
+stable for a different reason per mode. Bilingual results do not transfer to monolingual by
+inspection.
