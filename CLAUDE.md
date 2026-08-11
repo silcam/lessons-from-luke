@@ -243,6 +243,9 @@ Use subagents liberally and aggressively to conserve the main context window. Av
 
 ## Active Technologies
 
+- TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + Express (server), libxmljs2 (ODF XML parse/patch), LibreOffice (017-quarter-pagination-fixes)
+- No persistent storage change: no tables, columns, migrations, or `Persistence` contract change; two committed template assets change instead (017-quarter-pagination-fixes)
+
 - TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + Express (server), the existing `makeLessonFile` / `mergeXml` / (008-covers-in-platform)
 - No new persistent storage, **no migration**, no `Persistence` contract change. (008-covers-in-platform)
 

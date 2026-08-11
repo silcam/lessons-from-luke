@@ -1,0 +1,205 @@
+# Contract: Assembled-Quarter Pagination and Coloring-Page Style (017)
+
+This feature adds **no HTTP surface** and **no database surface**. The 007 assembly REST
+endpoints (`POST /api/assembly/quarter`, the status poll, the download) are unchanged in
+shape, status codes, and payloads. What changes is inside the assembly pipeline:
+
+```
+assembleQuarter
+  ├─ makeLessonFile            (unchanged)
+  ├─ prepareConstituentForAssembly   (CHANGED — only if research R2 fix direction (a) wins)
+  ├─ sofficeAssemble → Module1.xba   (unchanged)
+  ├─ finalizeAssembledQuarter        (CHANGED — sequence restarts, filler page)
+  ├─ measureLessonOneParity          (NEW — render + measure, FR-010)
+  └─ move to docStorage               (unchanged)
+```
+
+Plus two edits to committed binary assets. This document supersedes
+`specs/007-assembled-quarter-download/spec.md` FR-003 on page-number offsets and odd-page
+lesson starts (that requirement already carries a superseded banner pointing at 017).
+
+---
+
+## 1. Template assets (`assets/quarter-styles-template*.odt`)
+
+**Change**: remove the `text:page-adjust` attribute from the `Front_20_matter` master's
+footer page-number field in **both** assets (`-1` bilingual, `-2` monolingual).
+
+**Invariant after the change (FR-004, SC-005)**:
+
+- Neither asset contains the string `text:page-adjust` anywhere.
+- No other byte of either asset changes. Master-page set, page layouts, `style:num-format`
+  values, footers, and every named style are untouched.
+- Both assets remain valid ODF packages with `mimetype` stored **first and uncompressed**
+  (use `rezipWithMimetypeFirst`, or an in-place `zip` update of the single `styles.xml`
+  entry — the technique `assembleQuarter.integration.test.ts` already uses for fixtures).
+
+**Reproducibility requirement**: the edit ships with a committed script under
+`specs/017-quarter-pagination-fixes/spike/` (or `scripts/`) that performs it from the
+previous asset, so the change is reviewable as a diff of intent rather than as an opaque
+4 MB binary delta.
+
+**Validation**: `quarterStylesTemplate.test.ts` gains an assertion that neither asset
+carries a page-number offset, so a future asset refresh cannot silently reintroduce one.
+
+---
+
+## 2. `finalizeAssembledQuarter` (`src/server/actions/finalizeAssembledQuarter.ts`)
+
+### 2.1 Signature
+
+```ts
+export interface FinalizeAssembledQuarterOptions {
+  odtPath: string;
+  series: number;
+  firstLessonNumber: number;
+  title: string;
+  subject: string;
+  singleLanguage?: boolean;
+  /** NEW — insert the blank recto filler paragraph before lesson 1 (FR-009). Default false. */
+  insertRectoFiller?: boolean;
+}
+```
+
+Adding an optional flag keeps every existing call site valid and makes the two-pass flow
+(§4) expressible without a second entry point. Return type stays `void`; the function still
+mutates `odtPath` in place and re-zips mimetype-first.
+
+### 2.2 New behaviour, `content.xml`
+
+Executed inside the existing content pass, after `normalizeLessonOpeningMasterPages`:
+
+- **Body restart (FR-005)**: on the automatic style of the **first** lesson-opening
+  heading — the first visible level-1 `text:h`, in document order — set
+  `<style:paragraph-properties style:page-number="1"/>` alongside the existing
+  `style:master-page-name="First_20_Page"`. Where the automatic style is shared with other
+  content, clone-and-repoint exactly as `normalizeLessonOpeningMasterPages` already does,
+  so no other paragraph inherits the restart.
+- **Later lessons (FR-006, FR-007)**: unchanged — they keep `style:page-number="auto"` and
+  their footer-less `First_20_Page` master, which consumes a number and prints none.
+- **Filler page (FR-009), only when `insertRectoFiller` is true**: insert exactly one empty
+  `<text:p>` immediately before lesson 1's opening heading, referencing a fresh automatic
+  style whose `style:master-page-name` is the footer-less `First_20_Page` master and which
+  carries **no** `style:page-number` (so the front-matter count simply continues).
+
+### 2.3 Errors
+
+Failures continue to surface as the existing curated, path-free reason
+(`"assembly failed to finalize the merged book"`). Two new fail-loud conditions, following
+the `patchOutlineNumbering` precedent of throwing on a structurally impossible document:
+
+- no visible level-1 heading found when one is required (nothing to restart at);
+- `insertRectoFiller` requested but the insertion point cannot be located.
+
+### 2.4 Idempotence
+
+Running finalize twice on the same document must not double-insert a filler or double-apply
+a restart — required by the two-pass flow in §4. The filler insertion checks for an existing
+filler paragraph; the restart is an attribute set, naturally idempotent.
+
+---
+
+## 3. `measureLessonOneParity` (NEW)
+
+```ts
+export interface LessonOneParity {
+  /** 1-based physical index of lesson 1's first page in the rendered PDF. */
+  lessonOnePageIndex: number;
+  /** True when lessonOnePageIndex is even — lesson 1 would open verso. */
+  needsFiller: boolean;
+  /** Total rendered pages, recorded for diagnostics. */
+  renderedPageCount: number;
+}
+
+export function measureLessonOneParity(options: {
+  odtPath: string;
+  workDir: string;
+  series: number;
+  firstLessonNumber: number;
+  signal?: AbortSignal;
+}): Promise<LessonOneParity>;
+```
+
+**Contract**
+
+- Renders `odtPath` to PDF with headless `soffice`, into `workDir` (inside the per-job
+  working directory, so the existing `finally` cleanup reaps it).
+- Locates lesson 1's first page as the page immediately preceding the first page carrying
+  lesson 1's live footer marker (`Quarter <series> Lesson <firstLessonNumber>`), the same
+  marker the integration test already keys on.
+- **FR-010**: every returned value derives from the rendered PDF. No ODF page counter and no
+  sum of constituent page counts may participate.
+- Honours `signal` (kill the render's process group on abort) and self-kills at its own
+  timeout, preserving the registry invariant in §5.
+- Throws a curated, path-free reason on render failure or on a document where lesson 1's
+  marker cannot be found.
+
+---
+
+## 4. `assembleQuarter` orchestration
+
+```
+sofficeAssemble
+  → finalizeAssembledQuarter({ ..., insertRectoFiller: false })
+  → measureLessonOneParity(...)
+  → if (needsFiller) finalizeAssembledQuarter({ ..., insertRectoFiller: true })
+  → move to docStorage
+```
+
+The measurement runs on the finalized-but-filler-free document because inserting the filler
+changes the document being measured. The re-finalize is XML-only (no second merge). Whether
+a second render is run to _confirm_ parity after insertion is an implementation decision to
+be made on measured cost; if it is, it is assertion-only and must not change the output.
+
+Failure of the measurement pass fails the job with a curated reason — a book delivered with
+unknown parity is worse than a failed job the coordinator can retry.
+
+---
+
+## 5. Timeout budget (`src/server/assembly/assemblyBudget.ts`)
+
+The render is a **second** `soffice` invocation, so:
+
+- a new `ASSEMBLY_RENDER_TIMEOUT_MS` (the render's own self-kill) is defined, and
+- `ASSEMBLY_TIMEOUT_MS = DEFAULT_TIMEOUT_MS + ASSEMBLY_RENDER_TIMEOUT_MS + ASSEMBLY_NON_SOFFICE_BUDGET_MS`.
+
+**Invariant preserved (asserted in `assemblyBudget.test.ts`)**: the registry timeout may
+fire only after every `soffice` has self-killed, so the concurrency-1 slot is never freed
+while a LibreOffice process is still alive. Deriving the sum rather than hardcoding it is
+what keeps the invariant structural.
+
+The two `soffice` invocations are strictly sequential within one job, so the "never two
+LibreOffice processes" guarantee is unaffected.
+
+---
+
+## 6. Coloring-page memory verse
+
+The fix location is **conditional on research R2's headless discriminating check** and is
+therefore specified as a contract on the _outcome_, not yet on the module:
+
+- **Outcome (FR-011, FR-012, FR-013)**: in the assembled book, both memory-verse paragraphs
+  on every coloring page resolve to the memory-verse paragraph style, directly or through
+  their automatic style's parent, for both style-naming families and both modes.
+- **Outcome (FR-014)**: the number of paragraphs on a coloring page is unchanged by
+  assembly.
+- **If fix direction (a)** — per-constituent automatic-style namespacing in
+  `prepareConstituentForAssembly` — then that function's existing contract (in-place
+  mutation of `odtPath`, returned `ConstituentMeta`, curated errors) is unchanged in shape;
+  only the automatic-style names inside the constituent copy change, and the 007
+  footer/master-page machinery that also rides automatic styles must be re-verified by the
+  existing integration assertions.
+- **If fix direction (b)** — post-merge repointing in `finalizeAssembledQuarter` — then it
+  is a further content pass under the same options object, with the same curated error.
+
+---
+
+## 7. What does not change
+
+- The HTTP API (routes, status shape, download semantics, error vocabulary).
+- `Persistence` and every domain type. No migration.
+- `resolveTemplatePath` / `validateTemplateAsset` / `TEMPLATE_ASSET_MISSING_MESSAGE`.
+- `Module1.xba` and the embedded `module1Xba.ts` constant (unless the R3 "no `pdftotext` in
+  production" branch forces the page-index query into UNO — flagged open in research.md).
+- Desktop, the isomorphic `core`, and the frontend. This is a server-side assembly change
+  with no UI surface.
