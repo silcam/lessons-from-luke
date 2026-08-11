@@ -404,6 +404,10 @@ implementation detail:
 - **A forgotten flip must be visible.** If the only signal is one log line, books ship without
   the recto guarantee and the next client complaint arrives with no trace of why. The warning
   names FR-008 explicitly and is emitted once per job, not once per process.
+- **Accepted cost**: with the switch off, `ASSEMBLY_TIMEOUT_MS` still carries the render
+  allowance, so a wedged job is marked failed later than strictly necessary. Documented and
+  accepted rather than deriving the budget from the switch, which would make the
+  soffice-self-kills-first invariant conditional instead of structural.
 
 ### The render depends on state `sofficeAssemble` used to own
 
