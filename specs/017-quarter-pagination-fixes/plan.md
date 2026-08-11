@@ -63,8 +63,9 @@ the spike only
 macOS. Desktop and web frontends are untouched
 **Project Type**: Web (server-side assembly change; no frontend or desktop surface)
 **Performance Goals**: The new render pass adds one sequential `soffice` invocation per
-assembly job. Cost to be measured on a ~100-page book; the 2 vCPU deploy box is the sizing
-case
+assembly job, and a **second** one on jobs that insert a filler (the mandatory confirmation
+render — see Edge Cases). Cost to be measured on a ~100-page book; the 2 vCPU deploy box is the
+sizing case
 **Constraints**:
 
 - **No page-number field offset may survive anywhere** (FR-004) — the client inspects the
@@ -74,8 +75,9 @@ case
 - **The soffice-self-kills-first invariant** (`assemblyBudget.ts`, asserted in
   `assemblyBudget.test.ts`): the registry timeout may fire only after every `soffice` has
   self-killed, so the concurrency-1 slot is never freed with a LibreOffice process alive.
-  Adding a second `soffice` invocation means adding its budget into `ASSEMBLY_TIMEOUT_MS`
-  structurally, not numerically.
+  Adding render invocations means adding their budget into `ASSEMBLY_TIMEOUT_MS`
+  structurally, not numerically — two render terms, the worst case (a filler-inserting job),
+  carried unconditionally so the invariant stays structural rather than branch-dependent.
 - **Both modes verified separately** (FR-015) — the two assets are not structurally
   parallel (research R5: 18 vs 16 master pages, no `Table_20_of_20_Contents` in
   monolingual, and different offsets `-1` vs `-2`).
@@ -156,17 +158,17 @@ or ODF style resolution, so no prevention tips apply to this plan.
 
 _GATE: passed before Phase 0 research; re-checked after Phase 1 design — see below._
 
-| Principle                                | Assessment                                                                                                                                                                                                                                                                                                  |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **0. Fidelity to reality**               | ✅ The whole feature is a correction of a book that passed its tests while being wrong for the reader. The plan refuses to assert the coloring-page mechanism from memory (research R2) and refuses to trust an internal page counter over the rendered document (FR-010). Both are this principle applied. |
-| **I. Test-First (application code)**     | ✅ New Node logic (`measureLessonOneParity`, the finalize additions, the budget change) is unit-testable with fixture XML and a mocked render, and follows red-green-refactor.                                                                                                                              |
-| **I. Document processing / multi-layer** | ✅ ODF round-trip behaviour is verified by `assembleQuarter.integration.test.ts` against real `soffice`, extended with the FR-016 absolute assertions in both modes. The human PDF round trip is a spike instrument, not a substitute for the automated layer.                                              |
-| **II. Type safety**                      | ✅ Explicit return types, no `any`; `LessonOneParity` is a named interface, not an inline tuple.                                                                                                                                                                                                            |
-| **III. Code quality**                    | ✅ JSDoc on every new export, matching the density of the surrounding assembly modules. Naming follows the existing vocabulary (`finalizeAssembledQuarter`, `prepareConstituentForAssembly`).                                                                                                               |
-| **IV. Pre-commit gates**                 | ✅ `yarn typecheck` + lint-staged; conventional commits; never `--no-verify`.                                                                                                                                                                                                                               |
-| **V. Warnings**                          | ✅ No deferred warnings introduced.                                                                                                                                                                                                                                                                         |
-| **VI. Layered architecture**             | ✅ Server-only. `src/core` untouched, no domain data touched, no `Persistence` change, desktop and frontend untouched.                                                                                                                                                                                      |
-| **VII. Simplicity**                      | ⚠️ One added complexity — a second `soffice` invocation per job — justified in Complexity Tracking below. Otherwise the plan reuses existing mechanisms (footer-less masters for suppression, the existing clone-and-repoint pattern, the existing marker-based page location).                             |
+| Principle                                | Assessment                                                                                                                                                                                                                                                                                                                       |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **0. Fidelity to reality**               | ✅ The whole feature is a correction of a book that passed its tests while being wrong for the reader. The plan refuses to assert the coloring-page mechanism from memory (research R2) and refuses to trust an internal page counter over the rendered document (FR-010). Both are this principle applied.                      |
+| **I. Test-First (application code)**     | ✅ New Node logic (`measureLessonOneParity`, the finalize additions, the budget change) is unit-testable with fixture XML and a mocked render, and follows red-green-refactor.                                                                                                                                                   |
+| **I. Document processing / multi-layer** | ✅ ODF round-trip behaviour is verified by `assembleQuarter.integration.test.ts` against real `soffice`, extended with the FR-016 absolute assertions in both modes. The human PDF round trip is a spike instrument, not a substitute for the automated layer.                                                                   |
+| **II. Type safety**                      | ✅ Explicit return types, no `any`; `LessonOneParity` is a named interface, not an inline tuple.                                                                                                                                                                                                                                 |
+| **III. Code quality**                    | ✅ JSDoc on every new export, matching the density of the surrounding assembly modules. Naming follows the existing vocabulary (`finalizeAssembledQuarter`, `prepareConstituentForAssembly`).                                                                                                                                    |
+| **IV. Pre-commit gates**                 | ✅ `yarn typecheck` + lint-staged; conventional commits; never `--no-verify`.                                                                                                                                                                                                                                                    |
+| **V. Warnings**                          | ✅ No deferred warnings introduced.                                                                                                                                                                                                                                                                                              |
+| **VI. Layered architecture**             | ✅ Server-only. `src/core` untouched, no domain data touched, no `Persistence` change, desktop and frontend untouched.                                                                                                                                                                                                           |
+| **VII. Simplicity**                      | ⚠️ One added complexity — a render `soffice` invocation per job, plus a confirmation render on the filler branch — justified in Complexity Tracking below. Otherwise the plan reuses existing mechanisms (footer-less masters for suppression, the existing clone-and-repoint pattern, the existing marker-based page location). |
 
 **Post-Phase-1 re-check**: no new violations. The design added no new module boundaries
 beyond `measureLessonOneParity`, no new persistence, and no new external surface. The
@@ -663,6 +665,20 @@ alongside a live one.
 - The integration test MUST cover the **filler-inserted** branch, not only the no-filler happy
   path, with the same FR-016 absolute assertions. This is FR-016's own reasoning applied to
   US3: the delivered defect shipped because only relative assertions ran on one path.
+- **How that branch is induced is a design decision, not an implementation detail**, because
+  the mandatory confirmation render closes the obvious shortcut. The golden corpus lands the
+  first lesson at one fixed parity; whichever it is, one branch is unreachable without a change.
+  Forcing `insertRectoFiller: true` through `assembleQuarter` on a corpus that does not need a
+  filler now makes the confirmation render report an **even** index and **fail the job** by
+  design — so that route tests nothing. Two admissible routes, chosen once the spike reports the
+  corpus's actual parity:
+  - **Parity-flipped fixture** (preferred): assemble a constituent set whose front matter is one
+    page longer or shorter than the golden corpus's, so the filler branch is entered for the real
+    reason and the confirmation render is exercised as production runs it.
+  - **Finalize-level assertion**: call `finalizeAssembledQuarter({ insertRectoFiller: true })`
+    directly and assert on the resulting `content.xml` plus a standalone render, below
+    `assembleQuarter`'s confirmation gate. Cheaper, but it does not exercise the orchestration,
+    so it is a supplement rather than the coverage FR-016 asks for.
 - `lessonOnePageIndex` and `renderedPageCount` are recorded in the job's diagnostics, so the
   next pagination complaint can be answered from a record rather than from a re-run. Per-job
   confirmation rendering after insertion stays optional (contract §4).
@@ -707,8 +723,9 @@ the profile directory must outlive that return.
 
 ## Complexity Tracking
 
-| Violation                                                                     | Why Needed                                                                                                                                                         | Simpler Alternative Rejected Because                                                                                                                                                                                                        |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A second `soffice` invocation per assembly job (render-and-measure)           | FR-010 makes recto placement depend on the _rendered_ page count, and Clarifications (2026-08-11) explicitly chose the rendered document over any internal counter | Counting the front-matter constituent alone is one cheaper render but measures a **different document** than the one delivered — the exact trust error FR-010 forbids. Trusting the ODF page counter is what produced the delivered defect. |
-| A two-pass finalize (measure, then conditionally re-finalize with the filler) | Inserting the filler changes the document whose parity was measured; the measurement must run on a filler-free document                                            | A single pass would have to predict parity before rendering, which is the counter-trusting approach FR-010 rules out. The second pass is XML-only — no second merge.                                                                        |
-| An optional `insertRectoFiller` flag on `finalizeAssembledQuarter`            | Expresses the two-pass flow without a second entry point or a duplicated finalize                                                                                  | A separate `insertRectoFiller()` module would duplicate the unzip/patch/rezip cycle and risk the two passes diverging.                                                                                                                      |
+| Violation                                                                     | Why Needed                                                                                                                                                                                                                  | Simpler Alternative Rejected Because                                                                                                                                                                                                        |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A second `soffice` invocation per assembly job (render-and-measure)           | FR-010 makes recto placement depend on the _rendered_ page count, and Clarifications (2026-08-11) explicitly chose the rendered document over any internal counter                                                          | Counting the front-matter constituent alone is one cheaper render but measures a **different document** than the one delivered — the exact trust error FR-010 forbids. Trusting the ODF page counter is what produced the delivered defect. |
+| A third `soffice` invocation on the filler branch (confirmation render)       | The pre-insertion measurement predicts the parity of a document that is not the delivered one, and inserting a blank can make LibreOffice add or drop an implicit `page-usage="left"` blank, so "+1 page" is not guaranteed | Trusting the prediction is the same class of error as trusting the ODF counter, one level up. Only filler-inserting jobs pay it, and it never inserts a second filler — an even index on re-measure fails the job.                          |
+| A two-pass finalize (measure, then conditionally re-finalize with the filler) | Inserting the filler changes the document whose parity was measured; the measurement must run on a filler-free document                                                                                                     | A single pass would have to predict parity before rendering, which is the counter-trusting approach FR-010 rules out. The second pass is XML-only — no second merge.                                                                        |
+| An optional `insertRectoFiller` flag on `finalizeAssembledQuarter`            | Expresses the two-pass flow without a second entry point or a duplicated finalize                                                                                                                                           | A separate `insertRectoFiller()` module would duplicate the unzip/patch/rezip cycle and risk the two passes diverging.                                                                                                                      |

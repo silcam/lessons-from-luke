@@ -404,6 +404,15 @@ precedes its first content page that lookup lands on the coloring page and the a
 the wrong pair — while still passing. Re-derive it under the page classification above as part of
 the FR-016 work; the existing green is not evidence.
 
+**Inducing the filler branch.** Forcing `insertRectoFiller: true` through `assembleQuarter` on a
+corpus that does not need a filler is **not** a valid way to exercise the branch: the mandatory
+confirmation render above then reports an even index and fails the job by design. The branch is
+entered either by a **parity-flipped fixture** (a constituent set whose front matter differs by
+one page from the golden corpus, so the branch is entered for the real reason) or, as a
+supplement only, by calling `finalizeAssembledQuarter({ insertRectoFiller: true })` directly and
+asserting below the confirmation gate. Which is used is decided once the spike reports the golden
+corpus's actual parity.
+
 **Both branches verified.** `assembleQuarter.integration.test.ts` covers the
 **filler-inserted** branch as well as the no-filler branch, with the same FR-016 absolute
 page-number assertions. FR-016's own reasoning applies here: the delivered defect shipped
