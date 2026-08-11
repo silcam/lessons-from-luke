@@ -115,10 +115,12 @@ Executed inside the existing content pass, after `normalizeLessonOpeningMasterPa
   heading rides a common **named** style (no automatic style to patch) and when the automatic
   style **already carries** a `style:master-page-name` ("existing values are trusted"). Both
   skips are wrong for the restart and both fail silently: the first means FR-005 never happens,
-  the second writes the restart onto a possibly-shared style and restarts numbering wherever
-  else it is used, violating INV-3. So, before setting the attribute, the pass guarantees the
-  heading references an automatic style whose **only** referencers are that heading —
-  cloning and repointing where it is not, regardless of any master already present.
+  the second writes the restart onto a style that is not exclusively the heading's own — an
+  automatic style shared across multiple headings, still legal ODF even though LibreOffice's
+  own export never produces one — and restarts numbering everywhere else that shared style is
+  used, violating INV-3. So, before setting the attribute, the pass guarantees the heading
+  references an automatic style whose **only** referencers are that heading — cloning and
+  repointing where it is not, regardless of any master already present.
 
   **The clone's name is deterministic** (derived from the heading's style name, or an existing
   restart clone detected and reused), never minted by probing for the next free `_QA` suffix:
