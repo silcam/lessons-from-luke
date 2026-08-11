@@ -139,8 +139,10 @@ Lives only for the duration of one assembly job; nothing persists it.
 **Invariants**
 
 - INV-11 (FR-010): every field is derived from the rendered PDF, never from an ODF page
-  counter or a sum of constituent page counts — and from the PDF **the current invocation
-  produced**. Each render pass writes its own pass-tagged output path and the parse asserts
+  counter or a sum of constituent page counts — from a PDF export **pinned to include
+  automatically inserted blank pages** (otherwise the render omits LibreOffice's implicit
+  `page-usage="left"` blanks and the index is not a physical sheet position), and from the PDF
+  **the current invocation produced**. Each render pass writes its own pass-tagged output path and the parse asserts
   freshness, so a stale PDF from an earlier pass cannot silently confirm a parity that was never
   measured on the delivered document (contract §3).
 - INV-12: measurement runs on the finalized-but-filler-free document, because inserting the

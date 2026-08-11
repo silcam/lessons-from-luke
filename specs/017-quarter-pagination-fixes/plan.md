@@ -446,6 +446,18 @@ so this is an added row, not an ambiguity.
   `removeLeadingBlankParagraphs`' own doc comment records for the Q1 TOC (100 → 99 pages once the
   leading empty paragraph was deleted). Implicit blanks are in the rendered book today, unmodelled
   by this plan, and one landing immediately before the first lesson would throw pre-insertion too.
+- **The PDF export must be pinned to include automatically inserted blank pages.** "PDF page
+  indices _are_ physical sheet positions" (Summary, and the whole basis of FR-010's
+  phantom-immunity) holds only if the export emits LibreOffice's own implicit blanks. The Writer
+  PDF filter has an explicit option for this (`IsSkipEmptyPages`, the UI's "Export automatically
+  inserted blank pages"); which way it defaults is **not** established here, and it must not be
+  relied on either way. The render pins the filter option explicitly in its `--convert-to`
+  arguments. If implicit blanks were dropped, the rendered PDF would be shorter than the printed
+  book on exactly the books that contain one — the Luke-2 corpus among them — and the measured
+  parity would be silently wrong: the passes-while-wrong class this feature exists to kill. The
+  spike verifies the rendered page count against a book known to contain an implicit blank, which
+  also gives research R4 (headless vs interactive equivalence) a concrete failure mode to test
+  instead of an open equivalence question.
 - **The "+1 page" assumption behind the filler is not safe, so the confirmation render is
   mandatory on the `needsFiller` branch.** Inserting one blank flips the parity of every page
   after it, which can make LibreOffice add or drop an implicit page-usage blank upstream of the

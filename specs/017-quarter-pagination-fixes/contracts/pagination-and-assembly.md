@@ -235,6 +235,13 @@ export function measureLessonOneParity(options: {
 
 - Renders `odtPath` to PDF with headless `soffice`, into `workDir` (inside the per-job
   working directory, so the existing `finally` cleanup reaps it).
+- **The export is pinned to include automatically inserted blank pages** — the Writer PDF
+  filter's `IsSkipEmptyPages` option ("Export automatically inserted blank pages"), set
+  explicitly in the `--convert-to` filter arguments and never left to the default. FR-010's
+  premise is that PDF indices are physical sheet positions; an export that drops LibreOffice's
+  implicit `page-usage="left"` blanks (§3's blank class) makes the PDF shorter than the printed
+  book on exactly the books that contain one, and the measured parity silently wrong. The spike
+  verifies the rendered page count against a book known to carry an implicit blank.
 - Locates lesson 1's first page **by observable page class**, not by marker adjacency (see
   "Locator robustness" below). Marker adjacency is unsafe: [static-confirmed during red-team]
   the `Coloring_20_Page` footer carries the same `Quarter <Q> … Lesson <N>` marker as
