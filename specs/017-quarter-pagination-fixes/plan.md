@@ -195,6 +195,12 @@ Spike artifacts land in `specs/017-quarter-pagination-fixes/spike/`, mirroring t
 precedent (`specs/007-assembled-quarter-download/spike/`). Decided explicitly so the
 implement phase does not guess.
 
+The spike's variants are deliberately _wrong_ documents — first-page suppression disabled so
+drift onset is visible, offsets zeroed or not per variant. Every spike script therefore builds
+its variants into a scratch directory from the committed assets and **never** edits
+`assets/quarter-styles-template*.odt` in place, so a suppression-disabled or half-edited asset
+cannot reach a delivered book through an interrupted spike run.
+
 ### Source Code (repository root)
 
 ```text
@@ -359,19 +365,30 @@ absorb:
   distinct extractable footer signature, so page class is directly observable from `pdftotext`
   output instead of inferred from position:
 
-  | Page class          | `Quarter <Q> … Lesson <N>` | `Page <n>` | Other signature      |
-  | ------------------- | -------------------------- | ---------- | -------------------- |
-  | Lesson title page   | absent                     | absent     | no footer at all     |
-  | Coloring page       | present (twice)            | absent     | `Lessons from Luke`  |
-  | Lesson content page | present                    | present    | —                    |
-  | Front matter        | absent                     | present    | `Teacher's Guide`    |
-  | Table of contents   | absent                     | present    | book title + subject |
+  | Page class          | `Quarter <Q> … Lesson <N>` | `Page <n>` | Other signature                        |
+  | ------------------- | -------------------------- | ---------- | -------------------------------------- |
+  | Lesson title page   | absent                     | absent     | no footer, but the lesson's title text |
+  | Blank page          | absent                     | absent     | **no extractable text at all**         |
+  | Coloring page       | present (twice)            | absent     | `Lessons from Luke`                    |
+  | Lesson content page | present                    | present    | —                                      |
+  | Front matter        | absent                     | present    | `Teacher's Guide`                      |
+  | Table of contents   | absent                     | present    | book title + subject                   |
 
-  Lesson 1's title page is the first page satisfying the **whole conjunction**: it carries no
-  footer at all, the page after it belongs to lesson 1 (coloring or content class, marker matched
-  on a whole-token boundary so `Lesson 1` cannot match `Lesson 10`..`13`), and the page before it
-  is absent or of front-matter or table-of-contents class. This makes the locator independent of
-  where a coloring page falls inside a lesson.
+  The first lesson's title page is the first page satisfying the **whole conjunction**: it is
+  lesson-title class (no footer, but body text), the page after it belongs to the first lesson
+  (coloring or content class, marker built from `firstLessonNumber` and matched on a whole-token
+  boundary), and the page before it is absent, blank class, or of front-matter or
+  table-of-contents class. This makes the locator independent of where a coloring page falls
+  inside a lesson.
+
+  **"Lesson 1" means the quarter's _first_ lesson, not the literal number 1.** The footer marker
+  is `Quarter <series> Lesson <firstLessonNumber>`, and `firstLessonNumber` is
+  `(series - 1) * 13 + 1` — `14` for the Luke-2 corpus
+  `assembleQuarter.integration.test.ts` assembles (lessons 14..26), and already a parameter of
+  both `finalizeAssembledQuarter` and `measureLessonOneParity`. A locator that matches the
+  literal string `Lesson 1` finds nothing and throws on every real job. Whole-token matching is
+  required at every value, not only at `1`: `Lesson 1` is a prefix of `Lesson 14`, and `Lesson 2`
+  of `Lesson 26`.
 
   **The conjunction is scanned, not checked after a first match.** The book's own physical page 1
   is _also_ lesson-title class — FR-002 requires it to print no page number, so its master is
@@ -400,6 +417,48 @@ absorb:
   checks the wrong pair — while still passing. Re-derive it under the page-class classification
   as part of the FR-016 work rather than treating the existing green as evidence.
 
+### Blank pages are their own page class — starting with the one this feature inserts
+
+The classification above had no blank-page row, and the filler branch is **deterministically**
+broken without one. After insertion, the page immediately before the first lesson's title page is
+the filler: contentless and footer-less. Under the five-class table it reads as lesson-title
+class, confirmation B ("predecessor is absent or of front-matter / table-of-contents class")
+fails, and the locator throws — on **every** filler-inserted book. That breaks two things the
+design already promises: the post-insertion confirmation render (contract §4 calls it
+assertion-only; as specified it fails the job instead), and the filler-branch FR-016 integration
+assertions, which must locate the first lesson in a rendered filler-carrying book.
+
+Blank and lesson-title classes are distinguishable in `pdftotext` output — a lesson title page
+carries the lesson's title text with no footer; a blank page carries no extractable text at all —
+so this is an added row, not an ambiguity.
+
+**Consequences, all specified rather than left to implementation:**
+
+- The classification gains a **blank** class (no extractable text), and confirmation B accepts a
+  blank-class predecessor.
+- **LibreOffice inserts blank pages of its own, before this feature inserts any.**
+  [static-confirmed during red-team, both assets] `Inside_20_cover` uses a page layout with
+  `style:page-usage="left"` (`Mpm13` in both assets), and the Luke-2 TOC constituent
+  (`Luke-2-99v01.odt`) pins a paragraph to that master. LibreOffice therefore forces that content
+  onto a verso page, inserting an implicit blank when parity requires it — the same mechanism
+  `removeLeadingBlankParagraphs`' own doc comment records for the Q1 TOC (100 → 99 pages once the
+  leading empty paragraph was deleted). Implicit blanks are in the rendered book today, unmodelled
+  by this plan, and one landing immediately before the first lesson would throw pre-insertion too.
+- **The "+1 page" assumption behind the filler is not safe, so the confirmation render is
+  mandatory on the `needsFiller` branch.** Inserting one blank flips the parity of every page
+  after it, which can make LibreOffice add or drop an implicit page-usage blank upstream of the
+  measurement point — so lesson 1 does not necessarily move by exactly one. FR-010's own logic
+  settles this without a cost argument: the pre-insertion measurement is a _prediction_ about a
+  document that is not the delivered one. The delivered document is the filler-carrying one, so
+  its parity is re-measured on it. Only jobs that actually insert a filler pay the extra render;
+  the rest still pay one. If the re-measurement still reports an even index, the job fails with
+  the curated reason rather than delivering a book whose recto guarantee is unverified — a second
+  filler is never inserted.
+- **Budget**: that makes a third possible `soffice` invocation, so `ASSEMBLY_TIMEOUT_MS`'s
+  structural sum (contract §5) gains a second `ASSEMBLY_RENDER_TIMEOUT_MS` term. All invocations
+  stay strictly sequential, so the "never two LibreOffice processes" guarantee and the
+  soffice-self-kills-first invariant are unchanged in kind.
+
 ### The filler must survive the second finalize pass
 
 Contract §2.4 covers not double-inserting. The stronger requirement is that the filler — an
@@ -418,6 +477,39 @@ runs unconditionally on every finalize call, so it does not know it already ran 
 document. Add the mixed assertion
 explicitly — `finalize(finalize(doc, false), true)` yields a `content.xml` identical to
 `finalize(doc, true)` — because it is the only sequence production actually executes.
+
+### The body restart cannot inherit `normalizeLessonOpeningMasterPages`' skip conditions
+
+Contract §2.2 says the restart uses clone-and-repoint "exactly as `normalizeLessonOpeningMasterPages`
+already does". Read literally that is wrong in both directions, and both failure modes are silent
+— the class of defect this feature exists to fix. [static-confirmed during red-team,
+`finalizeAssembledQuarter.ts:192-240`] That function `continue`s — does nothing — in two cases the
+restart cannot skip:
+
+- **The heading rides a common _named_ style** (`if (!autoStyle) continue`). There is then no
+  automatic style to carry `style:page-number="1"`, and patching the named style would restart
+  numbering for every user of it. Skipping means FR-005 silently does not happen and the body
+  sequence keeps whatever value it inherited — precisely the delivered defect.
+- **The automatic style already carries a `style:master-page-name`** ("existing values are
+  trusted"). No clone is made, so writing the restart onto that style writes it onto a style that
+  may be shared with other paragraphs, restarting numbering wherever else it is used and violating
+  INV-3 ("exactly one paragraph carries an explicit restart").
+
+**Requirement**: the restart owns its isolation. Before setting `style:page-number="1"`, the pass
+guarantees the target heading references an automatic style whose only referencers are that
+heading — cloning and repointing where it is not, regardless of whether the style already carries
+a master. Where isolation cannot be achieved (named style with no automatic style, and no
+clone-and-repoint possible), it **throws** the curated reason rather than skipping. "Visible" is
+the existing predicate: level-1 `text:h` whose automatic style does not carry
+`style:text-properties/@text:display="none"` (the injected hidden heading).
+
+**Clone naming must be deterministic, or the fixed points break.** The existing pass mints
+`<name>_QA`, `<name>_QA_QA`, … by probing for a free name; a restart clone minted the same way
+takes a _different_ name on the second finalize pass, and `finalize(finalize(doc, false), true)`
+is then no longer byte-identical to `finalize(doc, true)` — INV-13a fails on the production path.
+Either derive the restart clone's name deterministically from the heading's style name, or detect
+an existing restart clone and reuse it. Asserted by the existing fixed-point tests, which is why
+they must run against the restart, not only against the filler.
 
 ### Fallback if the filler's master page misbehaves
 

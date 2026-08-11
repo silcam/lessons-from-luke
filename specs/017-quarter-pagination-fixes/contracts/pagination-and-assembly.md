@@ -105,11 +105,26 @@ mutates `odtPath` in place and re-zips mimetype-first.
 Executed inside the existing content pass, after `normalizeLessonOpeningMasterPages`:
 
 - **Body restart (FR-005)**: on the automatic style of the **first** lesson-opening
-  heading — the first visible level-1 `text:h`, in document order — set
-  `<style:paragraph-properties style:page-number="1"/>` alongside the existing
-  `style:master-page-name="First_20_Page"`. Where the automatic style is shared with other
-  content, clone-and-repoint exactly as `normalizeLessonOpeningMasterPages` already does,
-  so no other paragraph inherits the restart.
+  heading — the first visible level-1 `text:h`, in document order, "visible" meaning its
+  automatic style does not carry `style:text-properties/@text:display="none"` (the injected
+  hidden heading) — set `<style:paragraph-properties style:page-number="1"/>` alongside the
+  existing `style:master-page-name="First_20_Page"`.
+
+  **The restart owns its style isolation; it does not inherit
+  `normalizeLessonOpeningMasterPages`' skip conditions.** That function `continue`s when the
+  heading rides a common **named** style (no automatic style to patch) and when the automatic
+  style **already carries** a `style:master-page-name` ("existing values are trusted"). Both
+  skips are wrong for the restart and both fail silently: the first means FR-005 never happens,
+  the second writes the restart onto a possibly-shared style and restarts numbering wherever
+  else it is used, violating INV-3. So, before setting the attribute, the pass guarantees the
+  heading references an automatic style whose **only** referencers are that heading —
+  cloning and repointing where it is not, regardless of any master already present.
+
+  **The clone's name is deterministic** (derived from the heading's style name, or an existing
+  restart clone detected and reused), never minted by probing for the next free `_QA` suffix:
+  a name that differs between passes breaks the §2.4 mixed-mode fixed point on the production
+  path.
+
 - **Later lessons (FR-006, FR-007)**: unchanged — they keep `style:page-number="auto"` and
   their footer-less `First_20_Page` master, which consumes a number and prints none.
 - **Front-matter anchor (FR-002, FR-003) — CONDITIONAL**: the spec's phantom-page strategy is
@@ -140,6 +155,9 @@ Failures continue to surface as the existing curated, path-free reason
 the `patchOutlineNumbering` precedent of throwing on a structurally impossible document:
 
 - no visible level-1 heading found when one is required (nothing to restart at);
+- the restart target cannot be isolated to its own automatic style (a heading on a common named
+  style with no automatic style to clone) — throw rather than skip, because skipping leaves
+  FR-005 silently unmet;
 - `insertRectoFiller` requested but the insertion point cannot be located.
 
 ### 2.4 Idempotence
@@ -174,10 +192,15 @@ explicit `style:page-number="1"` restart on the second, behave as intended.
 
 **Fallback, if the spike shows it does not**: pin the filler to **`Standard`**.
 
-**Hard constraint**: the filler's master MUST be footer-less. FR-009 requires the filler to
-print no page number, and only `First_20_Page` and `Standard` satisfy that in either asset
-(R1 — `Front_20_matter`, `Table_20_of_20_Contents`, and `Lesson_20_Content` all carry a
-page-number footer). The filler's membership in the front-matter sequence is a claim about
+**Hard constraint**: the filler's master MUST carry **no `<style:footer>` at all**, not merely
+no page-number field. [static-confirmed during red-team, both assets] R1's "only `First_20_Page`
+and `Standard` are page-number-less" is too weak a criterion: only `Front_20_matter`,
+`Table_20_of_20_Contents` (bilingual only), and `Lesson_20_Content` carry a page-number field, so
+most masters are page-number-less — including `Coloring_20_Page`, which carries a branding footer
+(`Lessons from Luke … Quarter <n> Lesson <n>`) and would print visible text on a page FR-009 says
+prints nothing. `First_20_Page` and `Standard` are the only masters that are both reachable in the
+assembled page flow and carry no footer element at all, which is what makes them the safe choices.
+The filler's membership in the front-matter sequence is a claim about
 which number it consumes, **not** a licence to pin it to the front-matter master, which would
 print a roman numeral on a page that must print nothing.
 
@@ -242,13 +265,22 @@ index, because a wrong parity inserts a filler that makes the delivered book wor
 **Page classification** [static-confirmed during red-team, both assets]. Each master leaves a
 distinct extractable footer signature, so class is observed rather than inferred:
 
-| Page class          | `Quarter <Q> … Lesson <N>` | `Page <n>` | Other signature      |
-| ------------------- | -------------------------- | ---------- | -------------------- |
-| Lesson title page   | absent                     | absent     | no footer at all     |
-| Coloring page       | present (twice)            | absent     | `Lessons from Luke`  |
-| Lesson content page | present                    | present    | —                    |
-| Front matter        | absent                     | present    | `Teacher's Guide`    |
-| Table of contents   | absent                     | present    | book title + subject |
+| Page class          | `Quarter <Q> … Lesson <N>` | `Page <n>` | Other signature                        |
+| ------------------- | -------------------------- | ---------- | -------------------------------------- |
+| Lesson title page   | absent                     | absent     | no footer, but the lesson's title text |
+| Blank page          | absent                     | absent     | **no extractable text at all**         |
+| Coloring page       | present (twice)            | absent     | `Lessons from Luke`                    |
+| Lesson content page | present                    | present    | —                                      |
+| Front matter        | absent                     | present    | `Teacher's Guide`                      |
+| Table of contents   | absent                     | present    | book title + subject                   |
+
+**The blank class is required, not defensive.** A page with no text is not a lesson title page,
+and two kinds of blank page occur here: the filler this feature inserts (FR-009), and blanks
+LibreOffice inserts on its own — [static-confirmed during red-team, both assets] `Inside_20_cover`
+uses a `style:page-usage="left"` layout (`Mpm13`), and the Luke-2 TOC constituent pins a paragraph
+to that master, so LibreOffice forces it verso and inserts an implicit blank when parity requires
+one. Without the blank class, confirmation B below rejects a blank predecessor and the locator
+throws on **every** filler-carrying book.
 
 **Rule**: `lessonOnePageIndex` is the index of the **first page satisfying the whole conjunction
 below** — lesson-title class _and_ both confirmations. It is emphatically **not** "the first
@@ -263,10 +295,16 @@ carries the same `Quarter <Q> … Lesson <N>` marker as `Lesson_20_Content` and 
 number — so both "first marker page" and "predecessor prints no number" are satisfiable by a
 coloring page.
 
-- Confirmation A: the page **after** the candidate belongs to lesson 1 — coloring or
-  content class, marker matched on a whole-token / anchored boundary (`Quarter <S> Lesson 1` is
-  a strict prefix of `Quarter <S> Lesson 10`..`13`; `String.includes` is not sufficient).
-- Confirmation B: the page **before** the candidate is absent, or of front-matter or
+- Confirmation A: the page **after** the candidate belongs to the quarter's first lesson —
+  coloring or content class, marker matched on a whole-token / anchored boundary.
+  **The marker is built from `firstLessonNumber`**, i.e. `Quarter <series> Lesson
+<firstLessonNumber>`, never the literal string `Lesson 1`: `firstLessonNumber` is
+  `(series - 1) * 13 + 1`, so it is `14` for the Luke-2 corpus
+  `assembleQuarter.integration.test.ts` assembles (lessons 14..26), and a literal-`1` locator
+  finds nothing and throws on every real job. Whole-token matching is required at every value,
+  not only at `1` — `Lesson 1` is a strict prefix of `Lesson 14`, `Lesson 2` of `Lesson 26`;
+  `String.includes` is not sufficient.
+- Confirmation B: the page **before** the candidate is absent, or of blank, front-matter, or
   table-of-contents class.
 - **Exactly one** page in the book satisfies the conjunction. If a second matching page is
   found, the classification is wrong and the pass throws rather than taking the first.
@@ -296,9 +334,17 @@ sofficeAssemble
 ```
 
 The measurement runs on the finalized-but-filler-free document because inserting the filler
-changes the document being measured. The re-finalize is XML-only (no second merge). Whether
-a second render is run to _confirm_ parity after insertion is an implementation decision to
-be made on measured cost; if it is, it is assertion-only and must not change the output.
+changes the document being measured. The re-finalize is XML-only (no second merge).
+
+**Confirmation render, MANDATORY on the `needsFiller` branch.** After inserting the filler,
+`measureLessonOneParity` runs again on the re-finalized document, and the job fails with the
+curated reason if the index is still even. This is FR-010 applied to itself rather than a cost
+decision: the pre-insertion measurement is a _prediction_ about a document that is not the one
+delivered, and the "+1 page" assumption behind it is not safe — inserting a blank flips downstream
+parity, which can make LibreOffice add or drop an implicit `style:page-usage="left"` blank
+(`Inside_20_cover`, §3), so the first lesson does not necessarily move by exactly one page. A
+second filler is **never** inserted; the failure is loud. Jobs that need no filler still pay
+exactly one render.
 
 Failure of the measurement pass fails the job with a curated reason — a book delivered with
 unknown parity is worse than a failed job the coordinator can retry.
@@ -367,18 +413,24 @@ because only relative assertions ran on one path.
 
 ## 5. Timeout budget (`src/server/assembly/assemblyBudget.ts`)
 
-The render is a **second** `soffice` invocation, so:
+The render is a **second** `soffice` invocation, and the mandatory post-insertion confirmation
+render (§4) is a possible **third**, so:
 
-- a new `ASSEMBLY_RENDER_TIMEOUT_MS` (the render's own self-kill) is defined, and
-- `ASSEMBLY_TIMEOUT_MS = DEFAULT_TIMEOUT_MS + ASSEMBLY_RENDER_TIMEOUT_MS + ASSEMBLY_NON_SOFFICE_BUDGET_MS`.
+- a new `ASSEMBLY_RENDER_TIMEOUT_MS` (each render's own self-kill) is defined, and
+- `ASSEMBLY_TIMEOUT_MS = DEFAULT_TIMEOUT_MS + 2 × ASSEMBLY_RENDER_TIMEOUT_MS + ASSEMBLY_NON_SOFFICE_BUDGET_MS`.
+
+The factor of two is the worst case (a filler-inserting job), carried unconditionally for the
+same reason the kill-switch's allowance is carried unconditionally: deriving the budget from a
+runtime branch would make the soffice-self-kills-first invariant conditional instead of
+structural.
 
 **Invariant preserved (asserted in `assemblyBudget.test.ts`)**: the registry timeout may
 fire only after every `soffice` has self-killed, so the concurrency-1 slot is never freed
 while a LibreOffice process is still alive. Deriving the sum rather than hardcoding it is
 what keeps the invariant structural.
 
-The two `soffice` invocations are strictly sequential within one job, so the "never two
-LibreOffice processes" guarantee is unaffected.
+All `soffice` invocations (merge, render, confirmation render) are strictly sequential within
+one job, so the "never two LibreOffice processes" guarantee is unaffected.
 
 ---
 

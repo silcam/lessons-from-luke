@@ -51,8 +51,13 @@ The arabic-numbered run from lesson 1's first page to the end of the book.
 **Invariants**
 
 - INV-3 (FR-005): exactly one paragraph in the book carries an explicit
-  `style:page-number="1"` restart into an arabic master, and it is lesson 1's opening
-  heading.
+  `style:page-number="1"` restart into an arabic master, and it is the first lesson's opening
+  heading. The automatic style carrying the restart has that heading as its **only** referencer
+  — cloned and repointed where it did not, regardless of any `style:master-page-name` already
+  present, since `normalizeLessonOpeningMasterPages` trusts (and therefore does not clone)
+  already-pinned styles. Where isolation is impossible (a heading on a common named style),
+  finalize throws rather than skipping — a skipped restart leaves FR-005 silently unmet
+  (contract §2.2/§2.3). The clone's name is deterministic, so INV-13a survives.
 - INV-4 (FR-006, FR-007): for every pair of physically adjacent pages that both print a
   number, the second is the first plus one; each suppressed page between two printed numbers
   accounts for exactly one skipped value. **Suppressed pages are not only lesson title pages**
@@ -79,6 +84,12 @@ Inserted only when parity requires it (FR-008, FR-009).
 
 **Invariants**
 
+- INV-6a: the inserted filler is not the only blank page in the book. [static-confirmed during
+  red-team, both assets] `Inside_20_cover` uses a `style:page-usage="left"` layout (`Mpm13`) and
+  the Luke-2 TOC constituent pins a paragraph to it, so LibreOffice inserts implicit blanks of its
+  own. Blank pages are therefore a page class in the rendered inventory (contract §3), not an
+  artifact of this feature, and INV-6's cardinality is a claim about the **filler paragraph** in
+  `content.xml`, not about blank pages in the render.
 - INV-6 (FR-009): at most one filler paragraph exists, it contains no text, and it does not
   shift the body sequence (the body restart is explicit, so the filler cannot perturb it).
 - INV-7 (FR-008): after insertion, lesson 1's first page falls at an odd physical index in
@@ -130,10 +141,17 @@ Lives only for the duration of one assembly job; nothing persists it.
 - INV-11 (FR-010): every field is derived from the rendered PDF, never from an ODF page
   counter or a sum of constituent page counts.
 - INV-12: measurement runs on the finalized-but-filler-free document, because inserting the
-  filler changes the document being measured.
+  filler changes the document being measured. When a filler **is** inserted, the parity is
+  re-measured on the filler-carrying document and an even index fails the job — the delivered
+  book is the filler-carrying one, and inserting a blank can make LibreOffice add or drop an
+  implicit `style:page-usage="left"` blank (`Inside_20_cover`, present in both assets and pinned
+  by the Luke-2 TOC constituent), so the first lesson does not necessarily move by exactly one
+  page. A second filler is never inserted (contract §4).
 - INV-14: `lessonOnePageIndex` is the index of the **unique** page satisfying the whole
-  conjunction — lesson-title class (no footer at all), successor belonging to lesson 1 by
-  whole-token marker match, predecessor absent or of front-matter / table-of-contents class — or
+  conjunction — lesson-title class (no footer, but body text), successor belonging to the
+  quarter's first lesson by whole-token match of the marker built from `firstLessonNumber` (never
+  the literal `Lesson 1`; the Luke-2 corpus's first lesson is `14`), predecessor absent or of
+  **blank**, front-matter, or table-of-contents class — or
   the pass throws. The conjunction is scanned, never checked after a first lesson-title-class
   match: the book's own page 1 is lesson-title class too (FR-002 makes it footer-less), so a
   first-then-check rule would throw on every job. Two matches also throw. It is never a
