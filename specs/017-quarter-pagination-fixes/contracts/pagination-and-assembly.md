@@ -8,7 +8,8 @@ shape, status codes, and payloads. What changes is inside the assembly pipeline:
 assembleQuarter
   ├─ makeLessonFile            (unchanged)
   ├─ prepareConstituentForAssembly   (CHANGED — only if research R2 fix direction (a) wins)
-  ├─ sofficeAssemble → Module1.xba   (unchanged)
+  ├─ sofficeAssemble → Module1.xba   (CHANGED — merge itself unchanged; per-job profile
+  │                                    teardown moves out to job scope, see §4)
   ├─ finalizeAssembledQuarter        (CHANGED — sequence restarts, filler page)
   ├─ measureLessonOneParity          (NEW — render + measure, FR-010)
   └─ move to docStorage               (unchanged)
@@ -243,6 +244,17 @@ There is exactly one alternative behaviour — the pre-017 flow.
 pinned to **job** lifetime (the job's `finally` / `sweepAssemblyWork`), not to the merge call.
 `reapOrphanedSoffice`'s criteria are re-verified against the live render, which is exactly the
 shape (a second, long-running `soffice` in the same job) that it targets.
+
+This makes `sofficeAssemble.ts`, `sweepAssemblyWork.ts`, and `reapOrphanedSoffice.ts` touched
+modules — the merge behaviour itself is unchanged, but teardown ownership and reap criteria are
+not, so they carry their own tasks rather than riding along with `measureLessonOneParity`.
+
+**Bounded wait.** The "merge's process group has exited" precondition in §3 is a **capped**
+poll with its own budget slot, never an open await — `assemblyBudget.ts`'s `ASSEMBLY_ABANDON_MS`
+rationale is that unbounded awaits in the runner wedge the concurrency-1 slot for the life of
+the process, and LibreOffice's `oosplash` → `soffice.bin` re-parenting is why the group-kill
+machinery exists. On expiry the job fails with the curated reason; it never starts a second
+`soffice` beside a live one.
 
 **Diagnostics placement.** `lessonOnePageIndex` and `renderedPageCount` are server-side log
 diagnostics. They are **not** added to the assembly job status-poll payload, whose shape §7

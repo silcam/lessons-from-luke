@@ -208,6 +208,9 @@ src/server/
 │   ├── measureLessonOneParity.test.ts       # NEW
 │   └── prepareConstituentForAssembly.ts     # CHANGED only if research R2 direction (a) wins
 └── assembly/
+    ├── sofficeAssemble.ts                   # CHANGED — profile teardown moves to job scope
+    ├── sweepAssemblyWork.ts                  # CHANGED — now owns per-job profile teardown
+    ├── reapOrphanedSoffice.ts                # CHANGED — must not reap the live render
     ├── assemblyBudget.ts                    # CHANGED — render timeout folded into the sum
     ├── assemblyBudget.test.ts               # CHANGED — invariant still structural
     └── quarterStylesTemplate.test.ts        # CHANGED — assert no offsets in either asset
@@ -235,6 +238,11 @@ which is what keeps constitution Principle VI trivially satisfied.
 
 Numbering continues from the existing `specs/acceptance-specs/` sequence (US23 is the
 highest present), so these are US24–US26 rather than US1–US3.
+
+US26's scenarios exercise the recto guarantee, which the kill-switch above can disable. They
+must therefore run against the switch's **on** default explicitly rather than inheriting
+whatever the environment carries, so a switched-off environment fails them loudly instead of
+skipping the requirement silently.
 
 **Pipeline**: `specs/acceptance-specs/*.txt` → `acceptance/parse-specs.ts` →
 `acceptance/generate-tests.ts` → `generated-acceptance-tests/*.spec.ts`
@@ -349,6 +357,23 @@ front-matter master, which would print a roman numeral on a page FR-009 says pri
 master-page _transition_ rather than a same-master repeat, which is the most likely reason the
 `First_20_Page`-on-`First_20_Page` arrangement would fail to honour the restart in the first
 place. Naming the fallback now keeps the spike from re-deriving it.
+
+**Sheet geometry checked, not assumed** [static-confirmed during red-team]: `Standard`'s layout
+`Mpm1` and `First_20_Page`'s `Mpm2` declare identical `fo:page-width` (21.001 cm) and
+`fo:page-height` (29.7 cm); they differ only in vertical margins (1.499 cm vs 1 cm), which is
+invisible on a blank page. So the fallback introduces no mid-book sheet-size change in a duplex
+print, and no new master needs cloning.
+
+### Bounding the wait for the merge to exit
+
+Security Considerations requires the merge's `soffice` process group to have exited before the
+render starts. That check must be a **bounded** poll with its own budget slot, not an open
+await. `assemblyBudget.ts`'s own rationale for `ASSEMBLY_ABANDON_MS` is that unbounded awaits
+inside the runner can wedge the concurrency-1 slot for the life of the process; a naive
+"wait until the group is gone" is exactly that shape, and LibreOffice's `oosplash` →
+`soffice.bin` re-parenting is why the group-kill machinery exists at all. Poll the group with a
+cap; on expiry, fail the job with the curated reason rather than starting a second `soffice`
+alongside a live one.
 
 ### Both parity branches must be verified, and the measurement recorded
 
