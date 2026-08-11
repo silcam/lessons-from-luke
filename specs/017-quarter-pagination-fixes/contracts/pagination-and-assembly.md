@@ -120,12 +120,18 @@ The filler pins `style:master-page-name` to the footer-less `First_20_Page` mast
 R3, D3). Research R3 leaves open whether two consecutive `First_20_Page` pages, with the
 explicit `style:page-number="1"` restart on the second, behave as intended.
 
-**Fallback, if the spike shows it does not**: pin the filler to the **front-matter** master
-instead. FR-009 places the filler in the front-matter (roman) sequence, whereas `First_20_Page`
-is an arabic-format master (R1) — so the front-matter master is the more faithful reading of
-the requirement, and `First_20_Page` is preferred only for geometry continuity. The filler
-prints nothing under either master, so the choice is invisible to the reader and is decided
-solely by which one lets lesson 1's restart take effect.
+**Fallback, if the spike shows it does not**: pin the filler to **`Standard`**.
+
+**Hard constraint**: the filler's master MUST be footer-less. FR-009 requires the filler to
+print no page number, and only `First_20_Page` and `Standard` satisfy that in either asset
+(R1 — `Front_20_matter`, `Table_20_of_20_Contents`, and `Lesson_20_Content` all carry a
+page-number footer). The filler's membership in the front-matter sequence is a claim about
+which number it consumes, **not** a licence to pin it to the front-matter master, which would
+print a roman numeral on a page that must print nothing.
+
+`Standard` is also the better fallback mechanically: it makes lesson 1's heading a genuine
+master-page transition rather than a same-master repeat, which is the most likely reason the
+`First_20_Page`-on-`First_20_Page` arrangement would fail to honour the restart.
 
 ---
 
@@ -220,8 +226,28 @@ dependency (a second `soffice` render, plus `pdftotext`/`pdfinfo`, whose product
 availability is still open in research R3) sits in the critical path of every delivery. When
 switched off, `assembleQuarter` skips both the measurement and the re-finalize, delivers
 without the recto guarantee, and logs one warning naming the skipped requirement (FR-008).
-There is exactly one alternative behaviour — the pre-017 flow — so this adds no untested
-branch.
+There is exactly one alternative behaviour — the pre-017 flow.
+
+**Switch shape** (it is a config surface, so its shape is contractual):
+
+- Server-side configuration only. **Never** a request parameter — §7 holds the HTTP API
+  unchanged, and a per-request override would let any caller opt out of FR-008.
+- Default **on**.
+- The off path is a real branch and carries its own integration assertion: a book with no
+  filler, numbering assertions still passing.
+- The warning names FR-008 explicitly and is emitted once per job, so a forgotten flip leaves
+  a trace when the next complaint arrives.
+
+**Profile and process lifetime.** Because the render reuses the merge's warmed per-job profile
+(§3), `profileDirFor(workRoot, jobId)` must outlive `sofficeAssemble`'s return — teardown is
+pinned to **job** lifetime (the job's `finally` / `sweepAssemblyWork`), not to the merge call.
+`reapOrphanedSoffice`'s criteria are re-verified against the live render, which is exactly the
+shape (a second, long-running `soffice` in the same job) that it targets.
+
+**Diagnostics placement.** `lessonOnePageIndex` and `renderedPageCount` are server-side log
+diagnostics. They are **not** added to the assembly job status-poll payload, whose shape §7
+holds unchanged; storing them on the `AssemblyJobRegistry` entry is acceptable only if the
+entry's serialized shape is unchanged.
 
 **Both branches verified.** `assembleQuarter.integration.test.ts` covers the
 **filler-inserted** branch as well as the no-filler branch, with the same FR-016 absolute

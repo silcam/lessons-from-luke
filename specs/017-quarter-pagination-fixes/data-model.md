@@ -56,12 +56,12 @@ The arabic-numbered run from lesson 1's first page to the end of the book.
 
 Inserted only when parity requires it (FR-008, FR-009).
 
-| Property            | Value                                                                                                                                                                             |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Representation      | one empty `<text:p>` immediately before lesson 1's opening heading                                                                                                                |
-| Master page         | footer-less `First_20_Page` — prints no number, consumes one. **Fallback**: the front-matter master, if the spike shows the restart does not take effect (contract §2.5)          |
-| Sequence membership | front matter (it precedes the body restart). Note `First_20_Page` is arabic-format (R1); the filler prints nothing either way, so membership is a requirement claim, not a render |
-| Cardinality         | 0 or 1 per book — never more                                                                                                                                                      |
+| Property            | Value                                                                                                                                                                                                                 |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Representation      | one empty `<text:p>` immediately before lesson 1's opening heading                                                                                                                                                    |
+| Master page         | footer-less `First_20_Page` — prints no number, consumes one. **Fallback**: `Standard`, the other footer-less master, if the spike shows the restart does not take effect (contract §2.5)                             |
+| Sequence membership | front matter (it precedes the body restart). A claim about which number the filler consumes, **not** about its master — the front-matter master carries a page-number footer and would violate FR-009 (contract §2.5) |
+| Cardinality         | 0 or 1 per book — never more                                                                                                                                                                                          |
 
 **Invariants**
 
@@ -120,6 +120,9 @@ Lives only for the duration of one assembly job; nothing persists it.
 - INV-15: both fields are recorded in the job's diagnostics; the extracted page text that
   produced them is never logged, and no absolute path appears in any diagnostic or curated
   reason.
+- INV-16: neither field appears in the assembly job status-poll payload, whose shape is held
+  unchanged (contract §7). They are server-side log diagnostics; storing them on the
+  `AssemblyJobRegistry` entry requires the entry's serialized shape to be unchanged.
 
 ---
 

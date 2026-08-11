@@ -335,11 +335,20 @@ to `finalize(doc)` for both `insertRectoFiller` values, asserted on the merged `
 
 Research R3 leaves open whether two consecutive `First_20_Page` pages, with an explicit
 `style:page-number="1"` restart on the second, behave as intended. If the spike shows it does
-not, the fallback is to pin the filler to the **front-matter** master instead: FR-009 places
-the filler in the front-matter (roman) sequence, while `First_20_Page` is an arabic-format
-master (R1). The filler prints nothing either way, so the choice is invisible to the reader and
-is decided purely by which one lets lesson 1's restart take effect. Naming the fallback now
-keeps the spike from re-deriving it.
+not, the fallback is to pin the filler to **`Standard`** — the other footer-less master, present
+in both assets (R1).
+
+The fallback master MUST be footer-less. FR-009 requires the filler to print **no** page number,
+and the only two masters satisfying that are `First_20_Page` and `Standard` (R1's table:
+`Front_20_matter`, `Table_20_of_20_Contents`, and `Lesson_20_Content` all carry a footer with a
+page-number field). Sequence membership — the spec calls the filler part of the front-matter
+run — is a requirement claim about which number it consumes, **not** a licence to pin it to the
+front-matter master, which would print a roman numeral on a page FR-009 says prints nothing.
+
+`Standard` is also the better fallback on the mechanism: it makes lesson 1's heading a genuine
+master-page _transition_ rather than a same-master repeat, which is the most likely reason the
+`First_20_Page`-on-`First_20_Page` arrangement would fail to honour the restart in the first
+place. Naming the fallback now keeps the spike from re-deriving it.
 
 ### Both parity branches must be verified, and the measurement recorded
 
@@ -349,6 +358,40 @@ keeps the spike from re-deriving it.
 - `lessonOnePageIndex` and `renderedPageCount` are recorded in the job's diagnostics, so the
   next pagination complaint can be answered from a record rather than from a re-run. Per-job
   confirmation rendering after insertion stays optional (contract §4).
+- **Where those diagnostics live**: server-side logging only. Contract §7 holds the assembly
+  job status payload unchanged in shape, and the coordinator has no use for a page index, so
+  these values must not be added to the status-poll response. Recording them in the
+  `AssemblyJobRegistry` entry is acceptable **only** if the entry's serialized shape is
+  unchanged.
+
+### The kill-switch is a config surface, and needs pinning
+
+The switch added above is new configuration, so its shape is a design decision rather than an
+implementation detail:
+
+- **Server-side configuration only** — never a request parameter. Contract §7 holds the HTTP
+  API unchanged; a per-request override would add a caller-visible field and let any client
+  opt out of a requirement.
+- **Default on.** Off is the operator's deliberate choice under a failing render.
+- **The off path is a branch, and is tested.** Claiming it "adds no untested branch" is only
+  true once an integration test asserts the switched-off flow produces a book with no filler,
+  with the numbering assertions still passing.
+- **A forgotten flip must be visible.** If the only signal is one log line, books ship without
+  the recto guarantee and the next client complaint arrives with no trace of why. The warning
+  names FR-008 explicitly and is emitted once per job, not once per process.
+
+### The render depends on state `sofficeAssemble` used to own
+
+Reusing the merge's warmed per-job profile (Security Considerations above) creates an ordering
+dependency that did not exist before: the render runs **after** `sofficeAssemble` returns, so
+the profile directory must outlive that return.
+
+- Profile teardown is pinned to **job** lifetime (the job's `finally` / `sweepAssemblyWork`),
+  not to the merge call's completion. If `sofficeAssemble` currently reaps
+  `profileDirFor(workRoot, jobId)` on its own way out, that reap moves.
+- `reapOrphanedSoffice` must not kill the live render. It sweeps LibreOffice processes that
+  look abandoned; a second, legitimately long-running `soffice` in the same job is exactly the
+  shape it targets. Its criteria are re-verified against the render before this ships.
 
 ## Complexity Tracking
 
