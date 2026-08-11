@@ -26,11 +26,20 @@ lesson starts (that requirement already carries a superseded banner pointing at 
 **Change**: remove the `text:page-adjust` attribute from the `Front_20_matter` master's
 footer page-number field in **both** assets (`-1` bilingual, `-2` monolingual).
 
+**Verified starting state** [static-confirmed during red-team]: each asset contains **exactly
+one** `text:page-adjust` occurrence, on the `Front_20_matter` master's footer page-number field
+(`-1` bilingual, `-2` monolingual). No other master in either asset carries an offset.
+
 **Invariant after the change (FR-004, SC-005)**:
 
 - Neither asset contains the string `text:page-adjust` anywhere.
-- No other byte of either asset changes. Master-page set, page layouts, `style:num-format`
-  values, footers, and every named style are untouched.
+- The change is **semantically** confined to that one attribute removal. Byte-identity of the
+  rest of the archive is **not** the invariant and must not be asserted: `rezipWithMimetypeFirst`
+  (and an in-place `zip` update) rewrites compressed streams and central-directory metadata, so a
+  byte-diff DoD would be unsatisfiable. Verify instead by comparing the **extracted entries**
+  before and after — the entry name list is unchanged, every entry other than `styles.xml` is
+  byte-identical, and `styles.xml` differs only by the removed attribute. Master-page set, page
+  layouts, `style:num-format` values, footers, and every named style are untouched.
 - Both assets remain valid ODF packages with `mimetype` stored **first and uncompressed**
   (use `rezipWithMimetypeFirst`, or an in-place `zip` update of the single `styles.xml`
   entry — the technique `assembleQuarter.integration.test.ts` already uses for fixtures).
@@ -84,11 +93,16 @@ Executed inside the existing content pass, after `normalizeLessonOpeningMasterPa
   `office:text` (after `removeLeadingBlankParagraphs`), so `i` is anchored rather than
   inherited. Whether this is **necessary** is empirically open: front matter starts at 1
   implicitly today, and the drift's point of origin is unknown until the spike's
-  "offsets zeroed" variant is read. **Decision criterion**: if that variant shows physical
-  page 2 printing `ii` with offsets removed and nothing else, the anchor is redundant and is
-  NOT added (Principle VII); if front matter still drifts, the anchor is added here under the
-  same clone-and-repoint discipline as the body restart. Either way the invariant asserted is
-  the same — physical page 2 prints `ii`.
+  "offsets zeroed" variant is read. **Decision criterion (two checks, both required)**: (a)
+  physical page 2 prints `ii`; **and** (b) the sequence is continuous across the
+  `Front_20_matter` → `Table_20_of_20_Contents` master transition, with no repeated or skipped
+  value. Check (b) is not redundant: the two front-matter masters do not number on the same basis
+  today — `Front_20_matter` carries the offset while `Table_20_of_20_Contents` (also roman,
+  layout `Mpm16`) carries none — so page 2, which rides `Front_20_matter`, says nothing about the
+  boundary. The monolingual asset has no `Table_20_of_20_Contents` master (R5), so check (b)
+  applies to bilingual only. If both checks pass, the anchor is redundant and is NOT added
+  (Principle VII); if either fails, the anchor is added here under the same clone-and-repoint
+  discipline as the body restart.
 - **Filler page (FR-009), only when `insertRectoFiller` is true**: insert exactly one empty
   `<text:p>` immediately before lesson 1's opening heading, referencing a fresh automatic
   style whose `style:master-page-name` is the footer-less `First_20_Page` master and which
@@ -114,6 +128,18 @@ Stronger requirement: **finalize is a fixed point.** `finalize(finalize(doc))` p
 covers not only double-insertion but every _other_ pass that re-runs on the second finalize —
 in particular `removeLeadingBlankParagraphs` and any normalization that treats a contentless
 paragraph as noise, either of which would silently delete the filler. Asserted as a unit test.
+
+**Mixed-mode requirement (the production path).** The flag-constant fixed point above never
+exercises the sequence §4 actually runs: `finalize(doc, false)` followed by
+`finalize(·, true)`. The second call sees an already-restarted, already-repointed tree, so its
+"first visible level-1 `text:h`" lookup and its clone-and-repoint run against different input
+than a single `finalize(doc, true)` would. Assert it directly:
+
+```
+finalize(finalize(doc, false), true).content.xml  ≡  finalize(doc, true).content.xml
+```
+
+Both assertions ship; the mixed one is the load-bearing one.
 
 ### 2.5 Filler master page and its fallback
 
@@ -192,6 +218,18 @@ index, because a wrong parity inserts a filler that makes the delivered book wor
 - First-marker page at physical index 1, or any index outside `2..renderedPageCount` → throw.
 - The candidate page must carry **no** page-number footer (lesson title pages are footer-less
   by construction, R1); if it carries one, the inference is wrong → throw.
+- **The footer-less check alone is not discriminating — identify the candidate positively.**
+  [static-confirmed during red-team] Every lesson master pins a paragraph to the
+  `Coloring_20_Page` master, and that master's footer carries no `<text:page-number>` field in
+  either asset. A coloring page therefore passes the footer-less check. If lesson 1's coloring
+  page sits between its title page and its first numbered content page, the predecessor of the
+  first marker page **is** the coloring page and the locator returns an index one too high —
+  inverting the filler decision, which is precisely the wrong-parity outcome INV-14 claims is
+  impossible. So the candidate must additionally be confirmed to carry lesson 1's own title
+  content (the level-1 heading text finalize pins to `First_20_Page`), and the page before it
+  must be absent or carry a **front-matter** footer. Any failure of either confirmation → throw.
+  The spike records where the coloring page actually falls within a lesson, so the guard is
+  validated against real rendered output rather than assumed.
 - **Mode check (FR-015, R5)**: the spike must confirm the same footer marker exists in
   monolingual output before this locator ships. If it does not, monolingual needs its own
   anchor, or every monolingual job throws.
@@ -233,7 +271,13 @@ There is exactly one alternative behaviour — the pre-017 flow.
 
 - Server-side configuration only. **Never** a request parameter — §7 holds the HTTP API
   unchanged, and a per-request override would let any caller opt out of FR-008.
-- Default **on**.
+- **Mechanism: the environment variable `ASSEMBLY_RECTO_FILLER`**, read through a single
+  exported predicate colocated with the module it gates (`measureLessonOneParity.ts`) and
+  evaluated **per call**, so both branches are testable without module-cache manipulation. An
+  env var rather than `secrets.json`: this is a deploy-host operational toggle, not a
+  credential, and `secrets.json` is credential-shaped and regenerated from `defaultSecrets`.
+- Default **on**: only an explicit `off` / `false` / `0` disables it. Unset, empty, or
+  unrecognized values keep the guarantee, so a typo cannot silently ship books without it.
 - The off path is a real branch and carries its own integration assertion: a book with no
   filler, numbering assertions still passing.
 - The warning names FR-008 explicitly and is emitted once per job, so a forgotten flip leaves
@@ -298,9 +342,18 @@ therefore specified as a contract on the _outcome_, not yet on the module:
 - **If fix direction (a)** — per-constituent automatic-style namespacing in
   `prepareConstituentForAssembly` — then that function's existing contract (in-place
   mutation of `odtPath`, returned `ConstituentMeta`, curated errors) is unchanged in shape;
-  only the automatic-style names inside the constituent copy change, and the 007
-  footer/master-page machinery that also rides automatic styles must be re-verified by the
-  existing integration assertions.
+  only the automatic-style names inside the constituent copy change. Two constraints on that
+  rename, because a dangling reference degrades silently to default formatting — the same class
+  of defect this feature exists to fix:
+  - **Every referencing attribute is rewritten, not just `text:style-name`**:
+    `text:cond-style-name`, `draw:style-name`, `draw:text-style-name`, `table:style-name`,
+    `table:default-cell-style-name`, `text:list-style-name`, and `style:parent-style-name`
+    where one automatic style parents another. A renamed style with an unrewritten referrer is
+    a defect, and the pass asserts no reference to a non-existent style name survives.
+  - **The 007/009/013 machinery rides automatic styles by name** —
+    `normalizeLessonOpeningMasterPages` clones and repoints them to pin `First_20_Page`, and
+    template application keys on them. Direction (a) re-runs the existing template-application
+    and footer/master-page integration assertions as part of its own definition of done.
 - **If fix direction (b)** — post-merge repointing in `finalizeAssembledQuarter` — then it
   is a further content pass under the same options object, with the same curated error.
 

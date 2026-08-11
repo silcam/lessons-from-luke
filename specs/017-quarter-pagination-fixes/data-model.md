@@ -17,12 +17,12 @@ constitution Principle VI's persistence mandate is not engaged.
 The roman-numbered run from the start of the assembled book up to and including any blank
 filler page.
 
-| Property            | Value                                                            | Where it lives                                                                                                                                     |
-| ------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Number format       | lowercase roman (`style:num-format="i"`)                         | `Front_20_matter` / `Table_20_of_20_Contents` page layouts, template assets                                                                        |
-| Start value         | `1` (renders as `i`)                                             | implicit at document start; explicitly anchored by finalize only if the spike shows front matter still drifts with offsets removed (contract §2.2) |
-| Offset              | **none** (invariant: no `text:page-adjust` anywhere in the book) | footer page-number field, template assets                                                                                                          |
-| First page printing | nothing (its master carries no page-number footer)               | master-page structure                                                                                                                              |
+| Property            | Value                                                            | Where it lives                                                                                                                                                                                                     |
+| ------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Number format       | lowercase roman (`style:num-format="i"`)                         | `Front_20_matter` / `Table_20_of_20_Contents` page layouts, template assets                                                                                                                                        |
+| Start value         | `1` (renders as `i`)                                             | implicit at document start; explicitly anchored by finalize only if the spike shows front matter still drifts with offsets removed (contract §2.2)                                                                 |
+| Offset              | **none** (invariant: no `text:page-adjust` anywhere in the book) | footer page-number field, `Front_20_matter` master only — the sole occurrence in each asset (`-1` bilingual, `-2` monolingual); `Table_20_of_20_Contents` carries none, so front matter numbers on two bases today |
+| First page printing | nothing (its master carries no page-number footer)               | master-page structure                                                                                                                                                                                              |
 
 **Invariants**
 
@@ -41,6 +41,7 @@ The arabic-numbered run from lesson 1's first page to the end of the book.
 | Start value        | `1`, pinned explicitly                                   | `style:page-number="1"` on lesson 1's opening heading automatic style, `content.xml`, written by finalize |
 | Continuation       | `style:page-number="auto"` on every later lesson opening | `content.xml`                                                                                             |
 | Lesson first pages | consume a number, print none                             | footer-less `First_20_Page` master                                                                        |
+| Coloring pages     | consume a number, print none                             | `Coloring_20_Page` master — branding footer, **no** `<text:page-number>` field, in both assets            |
 
 **Invariants**
 
@@ -48,9 +49,15 @@ The arabic-numbered run from lesson 1's first page to the end of the book.
   `style:page-number="1"` restart into an arabic master, and it is lesson 1's opening
   heading.
 - INV-4 (FR-006, FR-007): for every pair of physically adjacent pages that both print a
-  number, the second is the first plus one; a suppressed page between two printed numbers
-  accounts for exactly one skipped value.
-- INV-5 (FR-016): absolute values hold at known positions, not merely relative increments.
+  number, the second is the first plus one; each suppressed page between two printed numbers
+  accounts for exactly one skipped value. **Suppressed pages are not only lesson title pages**
+  — [static-confirmed during red-team] every lesson master pins a paragraph to
+  `Coloring_20_Page`, whose footer carries no page-number field in either asset, so each
+  coloring page also consumes a number silently. Any oracle assuming one suppression per lesson
+  computes the wrong expected value for every page after lesson 1's coloring page.
+- INV-5 (FR-016): absolute values hold at known positions, not merely relative increments. The
+  "known positions" are derived from the rendered page inventory (which master each page rode),
+  never from page-count arithmetic that assumes a fixed number of suppressions per lesson.
 
 ### Blank filler page
 
@@ -73,6 +80,10 @@ Inserted only when parity requires it (FR-008, FR-009).
   yields a `content.xml` byte-identical to `finalize(doc)` for both `insertRectoFiller`
   values. An empty `<text:p>` is exactly the shape `removeLeadingBlankParagraphs` and any
   contentless-paragraph normalization would delete (contract §2.4).
+- INV-13a (the production path): `finalize(finalize(doc, false), true)` yields a `content.xml`
+  identical to `finalize(doc, true)`. INV-13 holds the flag constant and so never exercises the
+  mixed sequence contract §4 actually runs, where the second pass sees an already-restarted,
+  already-repointed tree.
 
 ### Coloring-page memory-verse paragraph pair
 
@@ -114,8 +125,11 @@ Lives only for the duration of one assembly job; nothing persists it.
 - INV-12: measurement runs on the finalized-but-filler-free document, because inserting the
   filler changes the document being measured.
 - INV-14: `lessonOnePageIndex` is either a value the locator's guards all accept
-  (whole-token marker match, `2..renderedPageCount`, candidate page footer-less) or the pass
-  throws. It is never a guessed or defaulted value — a wrong parity inserts a filler that
+  (whole-token marker match, `2..renderedPageCount`, candidate page footer-less, **candidate
+  page positively confirmed to carry lesson 1's own title content, and its predecessor absent
+  or front-matter-footered**) or the pass throws. The positive confirmation is load-bearing:
+  a coloring page passes the footer-less check, so absence of a page number alone cannot
+  distinguish lesson 1's title page from a coloring page one position later (contract §3). It is never a guessed or defaulted value — a wrong parity inserts a filler that
   makes the delivered book worse than inserting none (contract §3).
 - INV-15: both fields are recorded in the job's diagnostics; the extracted page text that
   produced them is never logged, and no absolute path appears in any diagnostic or curated

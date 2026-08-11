@@ -331,6 +331,33 @@ the delivered book worse than doing nothing:
   monolingual output before this locator ships; if it is absent, every monolingual job throws
   and the mode needs its own anchor.
 
+### Lesson title pages are not the only unnumbered body pages — coloring pages are too
+
+[static-confirmed during red-team, both assets] Every lesson master pins a paragraph to the
+`Coloring_20_Page` master (`style:master-page-name="Coloring_20_Page"` appears in each of
+`Luke-1-01v03`, `-02v03`, `-04v03`), and that master's footer carries **no**
+`<text:page-number>` field in either template asset. So every coloring page prints nothing
+while consuming a number, exactly like a lesson title page. Two consequences the design must
+absorb:
+
+- **The lesson-1 locator's footer-less cross-check is not discriminating.** Contract §3 locates
+  lesson 1's first page as the predecessor of the first page carrying lesson 1's footer marker,
+  and cross-checks only that the candidate carries no page-number footer. A coloring page
+  satisfies that check. If lesson 1's coloring page falls between its title page and its first
+  numbered content page, the locator silently returns an index one too high, inverting the
+  filler decision — the precise "wrong parity is worse than no filler" failure INV-14 claims is
+  impossible. The candidate must be identified **positively**, not by the absence of a footer:
+  require that the candidate page carries lesson 1's own title content (the same level-1
+  heading text finalize pins to `First_20_Page`), and additionally that the page before the
+  candidate is either absent (candidate is page 1 of the body run) or carries a **front-matter**
+  footer. The spike records where the coloring page actually falls within a lesson so the guard
+  is validated against real output rather than assumed.
+- **FR-016's "known positions" must be chosen with coloring pages counted.** An oracle that
+  assumes only lesson title pages are suppressed will compute the wrong expected absolute
+  number for every page after lesson 1's coloring page. The absolute assertions anchor on
+  positions derived from the rendered page inventory (which master each page rode), not from a
+  page-count arithmetic that assumes one suppression per lesson.
+
 ### The filler must survive the second finalize pass
 
 Contract §2.4 covers not double-inserting. The stronger requirement is that the filler — an
@@ -339,6 +366,15 @@ specifically `removeLeadingBlankParagraphs` and any normalization that treats co
 paragraphs as noise. Guard with a fixed-point test: `finalize(finalize(doc))` is byte-identical
 to `finalize(doc)` for both `insertRectoFiller` values, asserted on the merged `content.xml`.
 
+**The flag-constant fixed point is not the production path.** Assembly runs
+`finalize(doc, false)` and then `finalize(·, true)` (contract §4) — a **mixed** pair that the
+invariant above never exercises. The first pass has already applied the body restart and the
+clone-and-repoint, so the second pass sees a different document than `finalize(doc, true)` sees:
+its "first visible level-1 `text:h`" lookup runs against an already-normalized tree, and a
+second clone-and-repoint could fork the automatic style again. Add the mixed assertion
+explicitly — `finalize(finalize(doc, false), true)` yields a `content.xml` identical to
+`finalize(doc, true)` — because it is the only sequence production actually executes.
+
 ### Fallback if the filler's master page misbehaves
 
 Research R3 leaves open whether two consecutive `First_20_Page` pages, with an explicit
@@ -346,10 +382,17 @@ Research R3 leaves open whether two consecutive `First_20_Page` pages, with an e
 not, the fallback is to pin the filler to **`Standard`** — the other footer-less master, present
 in both assets (R1).
 
-The fallback master MUST be footer-less. FR-009 requires the filler to print **no** page number,
-and the only two masters satisfying that are `First_20_Page` and `Standard` (R1's table:
-`Front_20_matter`, `Table_20_of_20_Contents`, and `Lesson_20_Content` all carry a footer with a
-page-number field). Sequence membership — the spec calls the filler part of the front-matter
+The fallback master MUST be footer-less. FR-009 requires the filler to print **no** page number.
+[static-confirmed during red-team, both assets] Exactly three masters carry a page-number field:
+`Front_20_matter`, `Table_20_of_20_Contents` (bilingual only — absent from the monolingual asset,
+per R5), and `Lesson_20_Content`. Every other master in both assets is page-number-less, so R1's
+"only `First_20_Page` and `Standard` qualify" is too strong as stated. The accurate claim needs a
+second criterion: FR-009's filler must print **nothing at all**, not merely no number, and
+`Coloring_20_Page` — the third master reachable in the assembled page flow — carries a branding
+footer (`Lessons from Luke … Quarter <n> Lesson <n>`) with no page-number field, so it is
+page-number-less yet not blank. `First_20_Page` and `Standard` are the only masters that are both
+reachable in the flow and carry no `<style:footer>` at all, which is what makes them the safe
+fallbacks. Sequence membership — the spec calls the filler part of the front-matter
 run — is a requirement claim about which number it consumes, **not** a licence to pin it to the
 front-matter master, which would print a roman numeral on a page FR-009 says prints nothing.
 
@@ -363,6 +406,63 @@ place. Naming the fallback now keeps the spike from re-deriving it.
 `fo:page-height` (29.7 cm); they differ only in vertical margins (1.499 cm vs 1 cm), which is
 invisible on a blank page. So the fallback introduces no mid-book sheet-size change in a duplex
 print, and no new master needs cloning.
+
+### The two front-matter masters do not number on the same basis today
+
+[static-confirmed during red-team] In the bilingual asset the offset is not uniform across front
+matter: `Front_20_matter` carries `text:page-adjust="-1"` while `Table_20_of_20_Contents` — also
+roman (layout `Mpm16`, `style:num-format="i"`) and also carrying a page-number field — carries
+**no** offset. Front matter therefore prints on two different bases today, and the discontinuity
+lands exactly at the master boundary between them. (The monolingual asset has no
+`Table_20_of_20_Contents` master at all and carries a single `-2` on `Front_20_matter`, so the
+boundary exists only in bilingual — another instance of R5's non-parallelism.)
+
+This sharpens contract §2.2's decision criterion for the conditional front-matter anchor. Reading
+only "does physical page 2 print `ii`" on the offsets-zeroed spike variant is insufficient: page 2
+rides `Front_20_matter`, so it says nothing about whether the sequence stays continuous across the
+`Front_20_matter` → `Table_20_of_20_Contents` transition. The criterion must additionally check
+that boundary for a repeated or skipped value. If the boundary is clean with offsets removed, the
+anchor is redundant (Principle VII) and is not added; if it is not, the anchor is added — and the
+non-uniform offsets are the most likely reason the delivered book's numbering drifted in the first
+place.
+
+### The kill-switch needs a named configuration mechanism, not just a shape
+
+The switch is pinned as server-side-only and default-on above, but "server-side configuration"
+names no mechanism, and this repo has two established and non-interchangeable ones: `secrets.json`
+
+- `defaultSecrets` (`src/server/util/secrets.ts`) for credentials, and environment variables
+  (`BETTER_AUTH_URL`, `NODE_ENV`, `TEST_DB`, `DEV_DB`) for deploy-time toggles. Left unnamed,
+  `/sp:05-tasks` generates a task with no home for the value and the ambiguity survives into
+  implementation.
+
+**Decision**: an **environment variable**, `ASSEMBLY_RECTO_FILLER`. It is an operational toggle an
+operator flips on the deploy host under a failing render, not a secret, and `secrets.json` is
+credential-shaped and regenerated from `defaultSecrets`. Read through a single exported predicate
+colocated with the module it gates (`measureLessonOneParity.ts`), evaluated **per call** rather
+than at module load so tests can exercise both branches without module-cache manipulation.
+Default on: only an explicit `off` / `false` / `0` disables it; any unset, empty, or unrecognized
+value keeps the guarantee, so a typo cannot silently ship books without it.
+
+### A per-constituent automatic-style rename must rewrite every reference, not just `text:style-name`
+
+Gated on research R2 — this constrains fix direction (a) if the spike selects it, and does not
+prescribe the mechanism.
+
+Contract §6 says direction (a) changes "only the automatic-style names inside the constituent
+copy". That understates the blast radius twice over:
+
+- **Automatic style names are referenced from many attributes**, not one. A rename pass that
+  rewrites `text:style-name` alone leaves dangling references behind in
+  `text:cond-style-name`, `draw:style-name`, `draw:text-style-name`, `table:style-name`,
+  `table:default-cell-style-name`, `text:list-style-name`, and `style:parent-style-name` where one
+  automatic style parents another. A dangling reference degrades silently to default formatting —
+  the same class of defect this feature exists to fix.
+- **The 007/009/013 machinery rides automatic styles by name.** `normalizeLessonOpeningMasterPages`
+  clones and repoints automatic styles to pin `First_20_Page`, and the 013 style-application work
+  keys on them too. Renaming underneath that machinery is a real interaction, so direction (a)
+  re-runs the existing template-application and footer/master-page integration assertions as part
+  of its own definition of done rather than assuming they are unaffected.
 
 ### Bounding the wait for the merge to exit
 
