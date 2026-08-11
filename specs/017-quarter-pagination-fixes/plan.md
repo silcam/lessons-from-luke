@@ -410,7 +410,9 @@ to `finalize(doc)` for both `insertRectoFiller` values, asserted on the merged `
 invariant above never exercises. The first pass has already applied the body restart and the
 clone-and-repoint, so the second pass sees a different document than `finalize(doc, true)` sees:
 its "first visible level-1 `text:h`" lookup runs against an already-normalized tree, and a
-second clone-and-repoint could fork the automatic style again. Add the mixed assertion
+second clone-and-repoint risks forking the automatic style again — the same repoint code path
+runs unconditionally on every finalize call, so it does not know it already ran once on this
+document. Add the mixed assertion
 explicitly — `finalize(finalize(doc, false), true)` yields a `content.xml` identical to
 `finalize(doc, true)` — because it is the only sequence production actually executes.
 
