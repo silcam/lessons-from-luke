@@ -12,8 +12,10 @@ to the client and read as a mistake. **Coloring-page memory verse**: of the two 
 verses each coloring page carries by design, the second renders with the inline-graphic
 paragraph's formatting.
 
-The technical approach splits cleanly by where each thing can be expressed. The offsets are
-**asset-only** — delete `text:page-adjust` from both committed templates (research R1). The
+The technical approach splits cleanly by where each thing can be expressed. The offsets to
+**edit** are asset-only — delete `text:page-adjust` from both committed templates (research
+R1). The offsets to **verify gone** are not: the constituents carry offsets of their own, so
+FR-004 is asserted on the merged output rather than on the assets (see Edge Cases). The
 sequence restarts are **finalize-only** — ODF expresses "restart numbering here" as
 `style:page-number` on the paragraph that opens the page, which exists only in the merged
 `content.xml`; `finalizeAssembledQuarter` already patches exactly this shape when it pins
@@ -203,7 +205,8 @@ assets/
 src/server/
 ├── actions/
 │   ├── assembleQuarter.ts                   # CHANGED — measure + conditional re-finalize
-│   ├── assembleQuarter.integration.test.ts  # CHANGED — FR-016 absolute assertions, both modes
+│   ├── assembleQuarter.integration.test.ts  # CHANGED — FR-016 absolute assertions + zero
+│   │                                        #   text:page-adjust in the MERGED output, both modes
 │   ├── finalizeAssembledQuarter.ts          # CHANGED — sequence restart + filler page
 │   ├── finalizeAssembledQuarter.test.ts     # CHANGED
 │   ├── measureLessonOneParity.ts            # NEW — render + locate lesson 1 (FR-010)
