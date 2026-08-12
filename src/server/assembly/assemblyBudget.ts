@@ -29,20 +29,55 @@ export const ASSEMBLY_TTL_MS = 24 * 60 * 60 * 1000;
 export const ASSEMBLY_NON_SOFFICE_BUDGET_MS = 2 * 60 * 1000;
 
 /**
+ * Each render's own self-kill budget. The render is a **second** `soffice`
+ * invocation (contract §5) — a full PDF export of the assembled quarter —
+ * distinct from the merge that `DEFAULT_TIMEOUT_MS` bounds. Sized the same
+ * order of magnitude as the merge timeout: exporting an already-merged
+ * ~100-page book to PDF is comparable single-`soffice`-process work to the
+ * 14-document merge itself.
+ */
+export const ASSEMBLY_RENDER_TIMEOUT_MS = 120 * 1000;
+
+/**
+ * Cap on the bounded poll that waits for a `soffice` process group to have
+ * fully exited before the next `soffice` invocation starts (contract §4's
+ * "Security Considerations" group-exit check). Not an open await — Security
+ * Considerations requires this check to be bounded, and `ASSEMBLY_ABANDON_MS`'s
+ * own rationale is that unbounded awaits inside the runner can wedge the
+ * concurrency-1 slot for the life of the process. There are up to three such
+ * polls per job (before render 1, before the re-finalize, before the
+ * confirmation render), which is why the sum below carries the term ×3.
+ */
+export const ASSEMBLY_EXIT_POLL_CAP_MS = 10 * 1000;
+
+/**
  * Hard per-job registry timeout, measured from run-start.
  *
- * INVARIANT: the registry timeout may only fire AFTER soffice has already
- * self-killed. The registry timeout does NOT kill soffice — only
- * `sofficeAssemble`'s own timer does — so if the registry fired first it
- * would mark the job `failed`, free the concurrency-1 slot, and promote a
- * queued job while the original soffice process was still alive. Two
- * concurrent headless LibreOffice instances on a 2 GB swapless box risk an
- * OOM kill.
+ * INVARIANT: the registry timeout may only fire AFTER every `soffice`
+ * invocation in the job has already self-killed — the merge
+ * (`DEFAULT_TIMEOUT_MS`), and up to two renders (production + mandatory
+ * confirmation render, `ASSEMBLY_RENDER_TIMEOUT_MS` each). The registry
+ * timeout does NOT kill soffice — only `sofficeAssemble`'s own timer (for
+ * the merge) and each render's own timer (for a render) do — so if the
+ * registry fired first it would mark the job `failed`, free the
+ * concurrency-1 slot, and promote a queued job while an original soffice
+ * process group was still alive. Two concurrent headless LibreOffice
+ * instances on a 2 GB swapless box risk an OOM kill.
+ *
+ * The render and exit-poll terms are carried unconditionally (never behind
+ * a runtime branch) for the same reason: deriving the budget from which
+ * branch a job happens to take would make the invariant conditional instead
+ * of structural. The factor of 2 on the render term and 3 on the poll term
+ * are each the documented worst case (contract §5).
  *
  * Deriving this from `DEFAULT_TIMEOUT_MS` rather than hardcoding it is what
  * makes the invariant structural. Asserted in `assemblyBudget.test.ts`.
  */
-export const ASSEMBLY_TIMEOUT_MS = DEFAULT_TIMEOUT_MS + ASSEMBLY_NON_SOFFICE_BUDGET_MS;
+export const ASSEMBLY_TIMEOUT_MS =
+  DEFAULT_TIMEOUT_MS +
+  2 * ASSEMBLY_RENDER_TIMEOUT_MS +
+  3 * ASSEMBLY_EXIT_POLL_CAP_MS +
+  ASSEMBLY_NON_SOFFICE_BUDGET_MS;
 
 /**
  * How long the registry will let a timed-out job keep holding the
