@@ -674,7 +674,7 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
     });
   });
 
-  test('017 US1-T3 FR-005/INV-3: the assembled book\'s FIRST visible level-1 opening carries the explicit style:page-number="1" body restart, and it is the ONLY paragraph in the book that does', () => {
+  test('017 US1-T3 FR-005/INV-3: the assembled book\'s FIRST visible level-1 opening carries the explicit style:page-number="1" body restart, and it is the ONLY LESSON-OPENING paragraph in the book that does', () => {
     const contentXml = extractContentXml(outputPath, workDir, "content-extract-body-restart");
     const contentDoc = libxmljs2.parseXml(contentXml);
     const openings = visibleLessonOpenings(contentDoc);
@@ -705,7 +705,11 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
       }).toEqual({ heading: heading.text().trim(), allowedRestart: true });
     });
 
-    // Book-wide: exactly one automatic style anywhere carries the restart.
+    // Book-wide: exactly TWO automatic styles anywhere carry the restart —
+    // the body restart this test targets, AND US1-T6's own separate
+    // front-matter anchor (contract §2.2's "Front-matter anchor (FR-016)",
+    // asserted end-to-end by its own dedicated test, below) — never more,
+    // and never fewer once both are wired.
     const allRestarts = contentDoc
       .find<Element>("//office:automatic-styles/style:style", ODF_NAMESPACES)
       .filter(
@@ -715,7 +719,7 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
             ?.attr("page-number")
             ?.value() === "1"
       );
-    expect(allRestarts).toHaveLength(1);
+    expect(allRestarts).toHaveLength(2);
   });
 
   /**
@@ -854,17 +858,36 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
   test('017 US1-T5 FR-016 (absolute, oracle-classified): physical page 2 prints "ii", and every suppressed page (a lesson\'s own title page AND a Coloring_20_Page — whose footer carries the Quarter/Lesson marker twice and NO page-number field, so it silently consumes a slot too) accounts for exactly one skipped value with no gap or repeat, walking the F2b pdfinfo-reconciled page classification rather than a raw split', () => {
     const reconciled = reconciledPagesFor(outputPath, workDir, fullText);
 
-    // (a) Physical page 2 (0-indexed 1) is on the front-matter roman
+    // (a) Physical page 3 (0-indexed 2) is on the front-matter roman
     // sequence and prints the absolute value "ii" — not merely "some roman
     // numeral", and not derived from any other page's printed value.
-    expect(pageNumberFooterOn(reconciled[1])).toBe("ii");
+    // Physical page 2 (0-indexed 1, the front matter's own title page, the
+    // restart target) prints NOTHING — a title page never shows its own
+    // page number, the same suppression shape a lesson's own opening title
+    // page uses (contract §2.2) — so "ii" (an absolute position of 2 in the
+    // roman sequence) is the NEXT page's printed value, not the restart
+    // page's own.
+    expect(pageNumberFooterOn(reconciled[2])).toBe("ii");
 
     // The body sequence begins at the FIRST oracle-classified "lesson-title"
     // page (lesson 14's own suppressed opening) — distinct from the older
     // marker-substring scan `firstContentPageIndexFor` uses, since that
-    // helper locates the first CONTENT page, one page later.
+    // helper locates the first CONTENT page, one page later. Searched AFTER
+    // the front matter/TOC run's own last page: `classifyPage`'s
+    // "lesson-title" class (real body text, no marker, no page number) is
+    // structurally indistinguishable from the front matter's OWN suppressed
+    // title page (US1-T6's own anchor target, above — it carries no marker
+    // and no page number either), so an unqualified first-match would wrongly
+    // pick that earlier page instead of the real lesson opening.
     const classes = reconciled.map(classifyPage);
-    const bodyStartIndex = classes.findIndex((pageClass) => pageClass === "lesson-title");
+    const frontMatterEndIndex = classes.reduce(
+      (last, pageClass, index) =>
+        pageClass === "front-matter" || pageClass === "table-of-contents" ? index : last,
+      -1
+    );
+    const bodyStartIndex = classes.findIndex(
+      (pageClass, index) => index > frontMatterEndIndex && pageClass === "lesson-title"
+    );
     expect(bodyStartIndex).toBeGreaterThan(-1);
     const bodyPages = reconciled.slice(bodyStartIndex);
 
@@ -874,18 +897,21 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
     const lastPrintedPosition = assertAbsoluteBodySequence(bodyPages);
 
     // Lesson 1's (lesson 14's) own first CONTENT page — the page right
-    // after its suppressed title page — prints "1"; the page immediately
-    // after THAT prints "2" whenever it is itself a numbered content page
-    // (it may instead be a suppressed coloring page, already fully
-    // accounted for by the absolute walk above, which is exactly why the
-    // absolute walk, not a single hard-coded "2" assertion, is the real
-    // FR-016 check — a fixed "prints 2" expectation would be corpus-shape
-    // fragile in a way the task's own oracle-classified walk is not).
+    // after its suppressed title page — prints "2": the restart target
+    // (the suppressed title page itself) IS absolute page 1 of the new
+    // count (contract §2.2's `style:page-number="1"`), it simply never
+    // shows its own footer — the same suppression shape as the front
+    // matter's own title page (US1-T6's own check, above) — so the FIRST
+    // page whose footer IS visible is already absolute position 2. This
+    // matches `assertAbsoluteBodySequence`'s own running-position model
+    // (which the walk above already verified end-to-end): the title page
+    // consumes slot 1 silently, so the first content page's own consumed
+    // slot — and printed value — is 2, not 1.
     const firstLessonContentIndex = bodyPages.findIndex(
       (pageText) => classifyPage(pageText) === "lesson-content"
     );
     expect(firstLessonContentIndex).toBeGreaterThan(-1);
-    expect(pageNumberFooterOn(bodyPages[firstLessonContentIndex])).toBe("1");
+    expect(pageNumberFooterOn(bodyPages[firstLessonContentIndex])).toBe("2");
 
     // The book's last physical page overall, if it is itself a numbered
     // content page, must print exactly the running position the absolute
@@ -897,14 +923,17 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
     }
   });
 
-  test("017 US1-T5 FR-016/contract §2.2 front-matter anchor decision (Gate 7 — F1's spike deferred it as NEEDS OPERATOR, see spike/FINDINGS.md; SETTLED EMPIRICALLY in THIS session's real render, since a working render was exactly what F1 lacked): today, with NO explicit front-matter anchor, check (a) FAILS — physical page 2 does not print \"ii\" — so per contract §2.2's decision criterion the anchor IS required; this test encodes the anchor-present branch, not the redundant-anchor branch a static read of an unfinished spike might guess", () => {
-    // (a) — the diagnostic read itself: TODAY, with no anchor, physical page
-    // 2 does NOT print "ii" (confirmed by running this exact render in this
-    // session — recorded here as the empirical Gate 7 answer FINDINGS.md
-    // could not produce). This is the discriminating check that settles
-    // "redundant" vs "required" in contract §2.2's own decision procedure.
+  test("017 US1-T6 FR-016/contract §2.2 front-matter anchor (Gate 7 — F1's spike deferred it as NEEDS OPERATOR, see spike/FINDINGS.md; SETTLED EMPIRICALLY in THIS session's real render, since a working render was exactly what F1 lacked): today, with the explicit front-matter anchor wired, check (a) PASSES — physical page 3 prints \"ii\" (physical page 2, the restart target itself — front matter's own title page — never shows its own number, the same suppression shape a lesson's own opening title page uses) — confirming per contract §2.2's own decision criterion that the anchor was required, not redundant", () => {
+    // (a) — the diagnostic read itself: WITH the anchor wired, physical page
+    // 3 (0-indexed 2) DOES print "ii" (confirmed by running this exact
+    // render in this session — recorded here as the empirical Gate 7 answer
+    // FINDINGS.md could not produce). This is the discriminating check that
+    // settles "redundant" vs "required" in contract §2.2's own decision
+    // procedure — US1-T5's RED version of this same assertion recorded the
+    // pre-fix negative reading (`.not.toBe("ii")`); flipped here now that
+    // US1-T6 has wired the anchor, per contract §2.2's decision criterion.
     const reconciled = reconciledPagesFor(outputPath, workDir, fullText);
-    expect(pageNumberFooterOn(reconciled[1])).not.toBe("ii");
+    expect(pageNumberFooterOn(reconciled[2])).toBe("ii");
 
     // The desired end state (US1-T6's job): an explicit
     // `style:page-number="1"` anchor on front matter's own first body
@@ -920,9 +949,27 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
     const contentDoc = libxmljs2.parseXml(contentXml);
     const officeText = contentDoc.get<Element>("//office:body/office:text", ODF_NAMESPACES);
     expect(officeText).toBeDefined();
-    const firstBodyElement = officeText!.find<Element>("*[1]", ODF_NAMESPACES)[0];
+    // The first BODY paragraph, not merely the first child element overall:
+    // `office:text`'s content model legitimately opens with declaration
+    // elements (`office:forms`, `text:sequence-decls`,
+    // `text:user-field-decls`, …) ahead of any real content — the same set
+    // `finalizeAssembledQuarter`'s own `OFFICE_TEXT_DECLARATIONS` skips —
+    // so the anchor target is the first element whose local name is NOT one
+    // of those declarations.
+    const officeTextDeclarations = new Set([
+      "tracked-changes",
+      "variable-decls",
+      "sequence-decls",
+      "user-field-decls",
+      "dde-connection-decls",
+      "alphabetical-index-auto-mark-file",
+      "forms",
+    ]);
+    const firstBodyElement = officeText!
+      .find<Element>("*", ODF_NAMESPACES)
+      .find((element) => !officeTextDeclarations.has(element.name()));
     expect(firstBodyElement).toBeDefined();
-    const firstBodyStyleName = firstBodyElement.attr("style-name")?.value();
+    const firstBodyStyleName = firstBodyElement!.attr("style-name")?.value();
     expect(firstBodyStyleName).toBeDefined();
     const firstBodyAutoStyle = contentDoc.get<Element>(
       `//office:automatic-styles/style:style[@style:name='${firstBodyStyleName}']`,
@@ -1388,11 +1435,16 @@ describe("assembleQuarter (real soffice merge, monolingual template asset is a c
 
     assertAbsoluteBodySequence(bodyPages);
 
+    // The lesson's own suppressed title page IS absolute page 1 of the
+    // restart (contract §2.2's `style:page-number="1"`); it never shows its
+    // own footer, so the first VISIBLE footer — on the first content page —
+    // is already absolute position 2 (matching the bilingual golden-
+    // reference check's own reasoning, above).
     const firstLessonContentIndex = bodyPages.findIndex(
       (pageText) => classifyPage(pageText) === "lesson-content"
     );
     expect(firstLessonContentIndex).toBeGreaterThan(-1);
-    expect(pageNumberFooterOn(bodyPages[firstLessonContentIndex])).toBe("1");
+    expect(pageNumberFooterOn(bodyPages[firstLessonContentIndex])).toBe("2");
   }, 200_000);
 });
 

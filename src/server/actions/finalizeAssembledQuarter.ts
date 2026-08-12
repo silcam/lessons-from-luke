@@ -35,6 +35,11 @@ import { rezipWithMimetypeFirst } from "../xml/rezipWithMimetypeFirst";
  *   opens with an EMPTY paragraph pinned to a `page-usage="left"` (verso)
  *   master, which as the document's first element makes LibreOffice insert
  *   a blank recto filler page (see `removeLeadingBlankParagraphs`).
+ * - **Front-matter anchor (content.xml, FR-016)**: sets an explicit
+ *   `style:page-number="1"` on `office:text`'s own first body element's
+ *   automatic style — settled EMPIRICALLY (017 US1-T5's Gate 7 test): with
+ *   no explicit anchor the front matter's own roman-numeral sequence does
+ *   not resolve absolutely either (see `applyFrontMatterAnchor`).
  * - **Body restart (content.xml, FR-005/INV-3)**: sets an explicit
  *   `style:page-number="1"` on the FIRST visible level-1 opening's automatic
  *   style — the merge otherwise carries no absolute page-number anchor, so
@@ -93,6 +98,12 @@ export function finalizeAssembledQuarter(options: FinalizeAssembledQuarterOption
     if (singleLanguage) {
       restyleMonolingualParagraphs(contentDoc, contentNamespaces);
     }
+    // Front-matter anchor runs first — office:text's own first body element
+    // (see `applyFrontMatterAnchor`'s doc comment) is always earlier in
+    // document order than the first lesson opening `applyBodyRestart`
+    // targets, and the two never share an automatic style, so the ordering
+    // between them is purely for readability (one front-to-back sweep).
+    applyFrontMatterAnchor(contentDoc, contentNamespaces);
     // Body restart runs BEFORE lesson-opening master-page normalization,
     // deliberately: it isolates the FIRST visible opening's automatic style
     // under its own deterministic name (see `applyBodyRestart`'s doc
@@ -324,18 +335,114 @@ function applyBodyRestart(contentDoc: XmlDocument, namespaces: Namespaces): void
   }
   if (!target) return; // no visible level-1 heading in this document — nothing to restart
 
+  isolatePageNumberRestart(contentDoc, namespaces, target, { setMaster: true, required: true });
+}
+
+/**
+ * Local names of ODF elements that may legitimately precede real body
+ * content at the very start of `office:text` — the same declaration set
+ * `removeLeadingBlankParagraphs` skips over — reused here so the
+ * front-matter anchor targets the document's first true content element,
+ * never a declaration.
+ */
+function firstBodyContentElement(
+  officeText: Element,
+  contentDoc: XmlDocument,
+  namespaces: Namespaces
+): Element | undefined {
+  for (const child of officeText.childNodes()) {
+    if (child.type() !== "element") continue;
+    const element = child as Element;
+    if (OFFICE_TEXT_DECLARATIONS.has(element.name())) continue;
+    // Skip the injected hidden heading (auto style with text:display="none")
+    // — the same discipline `applyBodyRestart` applies to its own visible-
+    // opening scan, so a hidden heading merged in ahead of front matter's
+    // own real content is never mistaken for it.
+    const styleName = element.attr("style-name")?.value();
+    const autoStyle = styleName ? findAutomaticStyle(contentDoc, namespaces, styleName) : undefined;
+    if (autoStyle && isHiddenAutoStyle(autoStyle, namespaces)) continue;
+    return element;
+  }
+  return undefined;
+}
+
+/**
+ * Front-matter anchor (017 US1-T6, FR-016, contract §2.2): sets
+ * `style:page-number="1"` on the automatic style of `office:text`'s own
+ * first body element — settled EMPIRICALLY (this session's real render, see
+ * US1-T5's Gate 7 test): with no explicit anchor, the front matter's own
+ * second physical page does not print "ii" per FR-016's absolute check, so
+ * the anchor is required, not redundant (F1's spike had deferred this as
+ * NEEDS OPERATOR).
+ *
+ * Runs BEFORE `applyBodyRestart` under the SAME clone-and-repoint isolation
+ * discipline (`isolatePageNumberRestart`) — front matter's own opening and
+ * the first lesson opening are disjoint content, so the two passes never
+ * touch the same automatic style, but running front matter first keeps both
+ * restarts reading as one front-to-back sweep over `office:text`. Unlike
+ * the body restart, this pass does NOT set `style:master-page-name` — front
+ * matter keeps whatever master its own constituent already pins.
+ *
+ * A no-op (never a throw) when `office:text` has no body-content element at
+ * all, or that element carries no style at all, or that style is a common
+ * NAMED style with no automatic style to isolate (unlike `applyBodyRestart`,
+ * this is NOT a hard failure here — a lesson's own visible opening is
+ * production-guaranteed to carry an automatic style, but `office:text`'s
+ * first body element carries no such guarantee across every fixture this
+ * finalize path runs over, e.g. a single-lesson book with no front-matter/
+ * TOC constituent, where that first element simply IS the lesson's own
+ * opening and already gets its restart from `applyBodyRestart`) — matching
+ * `applyBodyRestart`'s own defensive stance for fixtures unrelated to this
+ * behavior otherwise.
+ */
+function applyFrontMatterAnchor(contentDoc: XmlDocument, namespaces: Namespaces): void {
+  const officeText = contentDoc.get<Element>("//office:body/office:text", namespaces);
+  if (!officeText) return;
+  const target = firstBodyContentElement(officeText, contentDoc, namespaces);
+  if (!target) return;
+  if (!target.attr("style-name")) return; // no style to anchor — nothing to restart
+
+  isolatePageNumberRestart(contentDoc, namespaces, target, { setMaster: false, required: false });
+}
+
+/**
+ * Shared clone-and-repoint isolation core for both page-number restart
+ * passes (`applyBodyRestart`, `applyFrontMatterAnchor`): looks up
+ * `target`'s automatic style, isolates it (patching in place when already
+ * exclusively referenced by `target`, cloning-and-repointing under the
+ * deterministic `<name>_Restart` suffix otherwise — reused, never
+ * re-minted, on repeat finalize passes), then sets
+ * `style:page-number="1"` on the isolated style's
+ * `style:paragraph-properties`, plus `style:master-page-name` when
+ * `setMaster` is true.
+ *
+ * When `target` rides a common NAMED style with no automatic style to
+ * isolate (patching a shared named style in place would restyle every user
+ * of it): throws the curated, path-free "assembly failed to finalize the
+ * merged book" reason (matching `assembleQuarter`'s own wrapping) when
+ * `options.required` is true (`applyBodyRestart`'s own production
+ * invariant); otherwise a silent no-op (`applyFrontMatterAnchor`'s softer
+ * contract — see its own doc comment).
+ */
+function isolatePageNumberRestart(
+  contentDoc: XmlDocument,
+  namespaces: Namespaces,
+  target: Element,
+  options: { setMaster: boolean; required: boolean }
+): void {
   const styleName = target.attr("style-name")!.value();
   const autoStyle = findAutomaticStyle(contentDoc, namespaces, styleName);
   if (!autoStyle) {
-    // Common named style — nothing to clone-and-isolate, and patching a
-    // shared named style in place would restyle every user of it.
-    throw new Error("assembly failed to finalize the merged book");
+    if (options.required) {
+      throw new Error("assembly failed to finalize the merged book");
+    }
+    return;
   }
 
   const referencers = contentDoc.find<Element>(`//*[@text:style-name='${styleName}']`, namespaces);
   let restartStyle: Element;
   if (referencers.length === 1) {
-    // Already exclusively referenced by the target heading — patch in place.
+    // Already exclusively referenced by the target — patch in place.
     restartStyle = autoStyle;
   } else {
     const cloneName = `${styleName}${RESTART_CLONE_SUFFIX}`;
@@ -344,7 +451,9 @@ function applyBodyRestart(contentDoc: XmlDocument, namespaces: Namespaces): void
     target.attr({ "text:style-name": cloneName });
   }
 
-  restartStyle.attr({ "style:master-page-name": FIRST_PAGE_MASTER_NAME });
+  if (options.setMaster) {
+    restartStyle.attr({ "style:master-page-name": FIRST_PAGE_MASTER_NAME });
+  }
   const props =
     restartStyle.get<Element>("style:paragraph-properties", namespaces) ??
     addParagraphProperties(restartStyle);
