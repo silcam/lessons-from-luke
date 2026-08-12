@@ -17,12 +17,12 @@ constitution Principle VI's persistence mandate is not engaged.
 The roman-numbered run from the start of the assembled book up to and including any blank
 filler page.
 
-| Property            | Value                                                                                                                                                                                                                                                                                                                                                                                                     | Where it lives                                                                                                                                                                                                                                                                                                                                         |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Number format       | lowercase roman (`style:num-format="i"`)                                                                                                                                                                                                                                                                                                                                                                  | `Front_20_matter` page layout (`Mpm12`) — and `Table_20_of_20_Contents` (`Mpm16`, bilingual only), which no committed constituent reaches                                                                                                                                                                                                              |
-| Start value         | `1` (renders as `i`)                                                                                                                                                                                                                                                                                                                                                                                      | implicit at document start; explicitly anchored by finalize only if the spike shows front matter still drifts with offsets removed (contract §2.2)                                                                                                                                                                                                     |
-| Offset              | **none** (invariant: no `text:page-adjust` anywhere in the book)                                                                                                                                                                                                                                                                                                                                          | footer page-number field, `Front_20_matter` master only — the sole occurrence in each asset (`-1` bilingual, `-2` monolingual). `Table_20_of_20_Contents` carries none, so the asset admits two numbering bases — but **latently**: no committed constituent pins that master, so front matter renders on one basis in this corpus (see Mode coverage) |
-| First page printing | nothing (the master carrying it renders no footer — its page layout's `<style:footer-style>` is **dormant**: absent, or present with no `<style:header-footer-properties>` child. Presence of the element is not the predicate — LibreOffice emits an empty one on every switched-off layout. Several masters also carry a page-number field that never renders, so "no page-number footer" is wrong too) | master-page + page-layout structure                                                                                                                                                                                                                                                                                                                    |
+| Property            | Value                                                                                                                                                                                                                                                                                                                                                                                                                              | Where it lives                                                                                                                                                                                                                                                                                                                                         |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Number format       | lowercase roman (`style:num-format="i"`)                                                                                                                                                                                                                                                                                                                                                                                           | `Front_20_matter` page layout (`Mpm12`) — and `Table_20_of_20_Contents` (`Mpm16`, bilingual only), which no committed constituent reaches                                                                                                                                                                                                              |
+| Start value         | `1` (renders as `i`)                                                                                                                                                                                                                                                                                                                                                                                                               | implicit at document start; explicitly anchored by finalize only if the spike shows front matter still drifts with offsets removed (contract §2.2)                                                                                                                                                                                                     |
+| Offset              | **none** (invariant: no `text:page-adjust` anywhere in the book)                                                                                                                                                                                                                                                                                                                                                                   | footer page-number field, `Front_20_matter` master only — the sole occurrence in each asset (`-1` bilingual, `-2` monolingual). `Table_20_of_20_Contents` carries none, so the asset admits two numbering bases — but **latently**: no committed constituent pins that master, so front matter renders on one basis in this corpus (see Mode coverage) |
+| First page printing | nothing (the master carrying it renders no footer under the **rendering conjunction** of contract §2.5: a footer renders iff the master carries a `<style:footer>` **and** the layout carries a populated `<style:footer-style>`. `First_20_Page` and `Standard` fail **both** conjuncts. Element presence at either level is not the predicate — LibreOffice emits an empty `<style:footer-style/>` on every switched-off layout) | master-page + page-layout structure                                                                                                                                                                                                                                                                                                                    |
 
 **Invariants**
 
@@ -40,13 +40,13 @@ filler page.
 
 The arabic-numbered run from lesson 1's first page to the end of the book.
 
-| Property           | Value                                                    | Where it lives                                                                                                                                                                           |
-| ------------------ | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Number format      | arabic (`style:num-format="1"`)                          | `First_20_Page` / `Lesson_20_Content` page layouts                                                                                                                                       |
-| Start value        | `1`, pinned explicitly                                   | `style:page-number="1"` on lesson 1's opening heading automatic style, `content.xml`, written by finalize                                                                                |
-| Continuation       | `style:page-number="auto"` on every later lesson opening | `content.xml`                                                                                                                                                                            |
-| Lesson first pages | consume a number, print none                             | `First_20_Page` master, whose layout `Mpm2` has an **empty** `<style:footer-style/>` — its `<style:footer>` renders only if a constituent's **populated** layout wins the merge (INV-6b) |
-| Coloring pages     | consume a number, print none                             | `Coloring_20_Page` master — footer renders `Lessons from Luke  Quarter <Q>  Lesson <N>` twice with **no** `Page <n>`, in both assets                                                     |
+| Property           | Value                                                    | Where it lives                                                                                                                                                                        |
+| ------------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Number format      | arabic (`style:num-format="1"`)                          | `First_20_Page` / `Lesson_20_Content` page layouts                                                                                                                                    |
+| Start value        | `1`, pinned explicitly                                   | `style:page-number="1"` on lesson 1's opening heading automatic style, `content.xml`, written by finalize                                                                             |
+| Continuation       | `style:page-number="auto"` on every later lesson opening | `content.xml`                                                                                                                                                                         |
+| Lesson first pages | consume a number, print none                             | `First_20_Page` master — no `<style:footer>` element **and** an unpopulated `Mpm2`; a footer appears only if a constituent's `First_20_Page`, which has both, wins the merge (INV-6b) |
+| Coloring pages     | consume a number, print none                             | `Coloring_20_Page` master — footer renders `Lessons from Luke  Quarter <Q>  Lesson <N>` twice with **no** `Page <n>`, in both assets                                                  |
 
 **Invariants**
 
@@ -80,12 +80,12 @@ The arabic-numbered run from lesson 1's first page to the end of the book.
 
 Inserted only when parity requires it (FR-008, FR-009).
 
-| Property            | Value                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Representation      | one empty `<text:p>` immediately before lesson 1's opening heading                                                                                                                                                                                                                                                                                                                                                                           |
-| Master page         | `First_20_Page` — renders no footer, so prints nothing, and consumes one number. **Fallback**: `Standard`, likewise (contract §2.5). "Renders no footer" means **its page layout's `<style:footer-style>` is dormant** — absent, or present with no `<style:header-footer-properties>` child. Both masters carry a `<style:footer>`, and both layouts carry an empty `<style:footer-style/>`, so neither element's presence is the predicate |
-| Sequence membership | front matter (it precedes the body restart). A claim about which number the filler consumes, **not** about its master — the front-matter master carries a page-number footer and would violate FR-009 (contract §2.5)                                                                                                                                                                                                                        |
-| Cardinality         | 0 or 1 per book — never more                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Property            | Value                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Representation      | one empty `<text:p>` immediately before lesson 1's opening heading                                                                                                                                                                                                                                                                                                                           |
+| Master page         | `First_20_Page` — renders no footer, so prints nothing, and consumes one number. **Fallback**: `Standard`, likewise (contract §2.5). "Renders no footer" means it fails the **rendering conjunction**: it carries no `<style:footer>` element, **and** its layout has no populated `<style:footer-style>`. Both masters fail both conjuncts, so the choice and the fallback hold with margin |
+| Sequence membership | front matter (it precedes the body restart). A claim about which number the filler consumes, **not** about its master — the front-matter master carries a page-number footer and would violate FR-009 (contract §2.5)                                                                                                                                                                        |
+| Cardinality         | 0 or 1 per book — never more                                                                                                                                                                                                                                                                                                                                                                 |
 
 **Invariants**
 
@@ -95,20 +95,24 @@ Inserted only when parity requires it (FR-008, FR-009).
   own. Blank pages are therefore a page class in the rendered inventory (contract §3), not an
   artifact of this feature, and INV-6's cardinality is a claim about the **filler paragraph** in
   `content.xml`, not about blank pages in the render.
-- INV-6b (FR-007, FR-009): in the **assembled** `styles.xml`, the page layouts referenced by
-  `First_20_Page` and `Standard` are **dormant** — `<style:footer-style>` absent, or present with
-  no `<style:header-footer-properties>` child — in both modes. The assertion tests dormancy, **not**
-  "carries no `<style:footer-style>`": that phrasing (a struck earlier correction) fails on the
-  merged output and on the template alike, because LibreOffice emits an empty `<style:footer-style/>`
-  on every switched-off layout. [static-confirmed during red-team, corrected dormancy probe]
-  Both masters carry a branding `<style:footer>` — byte-identical to
-  `Coloring_20_Page`'s — that renders only when the layout enables it, and **every** sampled
-  constituent (`Luke-2-14v01`, `Luke-2-99v01`, `Luke-1-01v03`) does enable it (populated
-  footer-style) on its own
-  `First_20_Page`. The assembled book is footer-less there only because `Module1.xba`'s
-  `loadStylesFromURL(OverwriteStyles=True, LoadPageStyles=True)` overwrites the layout — the same
-  unstated dependency as INV-1, and load-bearing for FR-007, FR-009, and the contract §3 page
-  classification. Asserted on the merged output; asset-only validation cannot observe it.
+- INV-6b (FR-007, FR-009): in the **assembled** `styles.xml`, the `First_20_Page` and `Standard`
+  masters render no footer under the **rendering conjunction** — no `<style:footer>` element **and**
+  no populated `<style:footer-style>` on the layout, resolved through the master name — in both
+  modes. **Both conjuncts are asserted.** Each alone is true of the template, but the constituents
+  satisfy both, so a half-failed merge is exactly what this guard catches. Not "carries no
+  `<style:footer-style>`" (a struck pass-16 correction: LibreOffice emits an empty one on every
+  switched-off layout, so that phrasing fails on template and merged output alike). [AUTHORITATIVE,
+  XML-parser probe, pass 17 — supersedes the pass-14/16 claim that both masters carry a dormant
+  branding footer identical to `Coloring_20_Page`'s; that was a regex artifact from a pattern that
+  ran past self-closing master elements] Neither master carries a footer element at all, while
+  **every** sampled constituent (`Luke-2-14v01`, `Luke-2-99v01`, `Luke-1-01v03`) satisfies both
+  conjuncts on its own `First_20_Page` and renders the **copyright and licence block** there. So an
+  unwon merge puts a copyright line on every lesson title page and on the filler. The assembled book
+  is footer-less there only because `Module1.xba`'s
+  `loadStylesFromURL(OverwriteStyles=True, LoadPageStyles=True)` overwrites both the master and its
+  layout — the same unstated dependency as INV-1, and load-bearing for FR-007, FR-009, and the
+  contract §3 page classification. Asserted on the merged output; asset-only validation cannot
+  observe it.
 - INV-6 (FR-009): at most one filler paragraph exists, it contains no text, and it does not
   shift the body sequence (the body restart is explicit, so the filler cannot perturb it).
 - INV-7 (FR-008): after insertion, lesson 1's first page falls at an odd physical index in
@@ -211,18 +215,27 @@ assets are not structurally parallel, and the asymmetry is wider than research R
 15 / 15 monolingual** (R5's "18 vs 16" is wrong on both sides; `Footnote` and `Endnote` share
 `Mpm6`). Monolingual lacks `Table_20_of_20_Contents`, `Front_20_cover`, and `Back_20_cover`, and
 carries `-2` where bilingual carries `-1`. `Inside_20_cover`, `Body_20_Pages`, and
-`Cover_20_pages` carry a page-number footer **element** (`<style:footer>` in the master) in the
-bilingual asset and **no footer element at all** in the monolingual one — none of them renders a
-footer either way (their layouts' `<style:footer-style>` is dormant in both assets), so the
-classification is stable, but stable for a different reason per mode. Bilingual results do not
-transfer to monolingual by inspection.
+`Cover_20_pages` were said to carry a page-number footer in the bilingual asset and no footer
+element in the monolingual one, yielding a different rendered signature per mode. [AUTHORITATIVE,
+XML-parser probe, pass 17] **That asymmetry does not exist** and is struck: none of the three
+carries a footer element in **either** asset, and none renders anything in either. They are
+footer-identical across modes. Bilingual results still do not transfer to monolingual by
+inspection — but on the asymmetries that are real (the three missing masters, the `-1` vs `-2`
+offset), not this one.
 
-Footer-rendering counts, corrected [static-confirmed during red-team, dormancy probe]: **four** of
-nineteen bilingual masters render a footer (`Coloring_20_Page`, `Lesson_20_Content`,
-`Front_20_matter`, `Table_20_of_20_Contents`) and **three** of fifteen monolingual. An earlier pass's
-"nine masters render no footer" enumeration came from an element-presence probe and is struck; the
-rendering set is stated positively because it is smaller and cannot be invalidated by a master an
-enumeration omits.
+Footer-rendering counts [AUTHORITATIVE, XML-parser probe]: **four** of nineteen bilingual masters
+render a footer (`Coloring_20_Page`, `Lesson_20_Content`, `Front_20_matter`,
+`Table_20_of_20_Contents`) and **three** of fifteen monolingual. Every other master carries no
+`<style:footer>` element **and** an unpopulated layout footer-style — dormant on both conjuncts. An
+earlier pass's "nine masters render no footer" enumeration came from a regex probe and is struck;
+the rendering set is stated positively because it is smaller and cannot be invalidated by a master
+an enumeration omits.
+
+**Standing evidence rule** (three consecutive passes were misled by the same trap): every ODF
+structural claim in these artifacts is produced by an **XML parser**, never by a regex over the
+serialized document. Most master pages in these assets are self-closing, so a
+`<style:master-page …>(.*?)</style:master-page>` pattern silently captures the _next_ master's body.
+A `[static-confirmed]` tag on a regex-derived claim is not evidence.
 
 **`Table_20_of_20_Contents` is a master no committed constituent uses.** [static-confirmed during
 red-team, every `.odt` in `test/docs/serverDocs/`] The `-99` front-matter constituents pin only

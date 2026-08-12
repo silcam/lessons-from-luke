@@ -211,39 +211,50 @@ explicit `style:page-number="1"` restart on the second, behave as intended.
 
 **Hard constraint**: the filler's master MUST **render no footer**, not merely no page number.
 
-**The criterion is a page-layout property, and it is _dormancy_, not _absence_. Two earlier passes
-each stated it against the wrong thing.** [static-confirmed during red-team, both assets, corrected
-dormancy probe — supersedes both the element-level claims of earlier passes and the
-layout-element-presence correction that replaced them] Footer rendering is governed by whether the
-**page layout**'s `<style:footer-style>` is **populated** (contains a
+**Footer rendering is a conjunction across two XML levels, and the last three passes each got it
+wrong because each probed with a regex.** [AUTHORITATIVE — re-measured with an XML parser, both
+assets; **supersedes every earlier footer claim in this contract**, including the "dormancy
+predicate" installed one pass ago]
+
+A master renders a footer **iff both**: (1) the master carries a `<style:footer>` element, **and**
+(2) the page layout it references carries a **populated** `<style:footer-style>` (one containing a
 `<style:header-footer-properties>` child). LibreOffice emits an empty `<style:footer-style/>` on
-**every** layout whose footer is switched off, so the element is present on all nineteen bilingual
-and all fifteen monolingual layouts and its mere presence discriminates nothing. No `style:display`
-attribute appears on any footer element in either asset, so populated-vs-empty is the entire
-suppression mechanism — and it discriminates perfectly: exactly the four populated layouts
-(`Coloring_20_Page`, `Lesson_20_Content`, `Front_20_matter`, `Table_20_of_20_Contents`; three in
-monolingual, which has no TOC master) are the four masters that render a footer. Three consequences:
+every switched-off layout, so that element is present on all nineteen bilingual and all fifteen
+monolingual layouts and its presence discriminates nothing. No `style:display` attribute appears on
+any footer element in either asset.
 
-- "`First_20_Page` and `Standard` carry no footer element at all" is **false**. Both carry a full
-  branding footer (`Lessons from Luke … Quarter <n> Lesson <n>`), byte-identical to
-  `Coloring_20_Page`'s. It is dormant. A definition of done written from that wording — "assert the
-  filler's master carries no `<style:footer>`" — **fails on both the chosen master and its named
-  fallback**, and MUST NOT be generated.
-- "`Mpm2` and `Mpm1` carry no `<style:footer-style>`" — the correction that replaced the line
-  above — is **also false**, and fails as a DoD in exactly the same way, one XML level down. Both
-  carry one; it is empty. The conclusion was right both times; the evidence was wrong both times.
-- "Exactly three masters carry a page-number field" is **false**. Six do in the bilingual asset
-  (`Lesson_20_Content`, `Front_20_matter`, `Table_20_of_20_Contents`, `Inside_20_cover`,
-  `Body_20_Pages`, `Cover_20_pages`) and two in the monolingual; only four (three monolingual)
-  render a footer at all, and only three (two monolingual) render a **number**.
+The two conditions **coincide exactly in both assets** — so either test alone happens to work
+today — but they are independent in ODF, they do **not** coincide in the constituents, and the merge
+mixes both levels. Assert the conjunction. **Exactly four masters of nineteen render a footer in
+bilingual** (`Coloring_20_Page`, `Lesson_20_Content`, `Front_20_matter`, `Table_20_of_20_Contents`)
+and **three of fifteen** in monolingual, which has no TOC master. Every other master carries no
+footer element at all and an unpopulated layout.
 
-**Corrected predicate (the dormancy predicate)**, binding everywhere "footer-less" or "renders no
-footer" appears in this contract: a layout's footer is **dormant** when its `<style:footer-style>`
-is absent **or** present with no `<style:header-footer-properties>` child. A master renders no
-footer exactly when its layout is dormant, and a master is safe for the filler exactly then. Every
-generated assertion tests dormancy — never element presence, never element absence.
-`First_20_Page` (`Mpm2`) and `Standard` (`Mpm1`) both satisfy it, so the design's choice and its
-fallback stand — only the stated evidence was wrong. `Coloring_20_Page` (`Mpm10`) does not, and
+**The probe error, named so pass 18 does not repeat it**: passes 14–16 matched
+`<style:master-page style:name="X"(.*?)</style:master-page>`. Most masters here are **self-closing**,
+so the pattern runs past the named master into the next one that has a closing tag. `Standard` and
+`First_20_Page` are self-closing and are followed by `Coloring_20_Page` — which is precisely how
+each acquired a phantom "branding footer". **Standing requirement**: every ODF structural claim in
+this contract comes from an XML parser, never a regex. A `[static-confirmed]` tag on a
+regex-derived claim is not evidence.
+
+Reinstated and struck on that authority:
+
+- **REINSTATED — "`First_20_Page` and `Standard` carry no `<style:footer>` at all."** True; pass 14
+  struck it on regex evidence and pass 16 propagated the strike. The DoD "assert the filler's master
+  carries no `<style:footer>`" is satisfiable and correct on the chosen master and its fallback — it
+  is simply only **half** the predicate, so generate the conjunction.
+- **REINSTATED — "exactly three masters carry a `<text:page-number>` field"** (bilingual; two in
+  monolingual). The pass-14 "correction" to six, adding `Inside_20_cover`, `Body_20_Pages`, and
+  `Cover_20_pages`, is false — those three carry no footer element in either asset.
+- **STRUCK — "`Mpm2` and `Mpm1` carry no `<style:footer-style>`."** Still false. Both carry one; it
+  is empty, and a DoD written from that wording fails on the chosen master and its fallback.
+
+**Corrected predicate (the rendering conjunction)**, binding everywhere "footer-less" or "renders no
+footer" appears in this contract: a master renders no footer when it carries no `<style:footer>`
+element, **or** the layout it references has no populated `<style:footer-style>`; it is safe for the
+filler exactly then. `First_20_Page` and `Standard` satisfy **both** disjuncts, so the design's
+choice and its fallback stand with margin. `Coloring_20_Page` (`Mpm10`) satisfies neither, and
 would print branding text on a page FR-009 says prints nothing. The filler's membership in the
 front-matter sequence is a claim about which number it consumes, **not** a licence to pin it to the
 front-matter master, which would print a roman numeral on that page.
@@ -251,16 +262,21 @@ front-matter master, which would print a roman numeral on that page.
 **Merged-output guard (new, mirrors §1's INV-1 assertion).** The template's suppression is not a
 property of the delivered book; it is one the merge must win. [static-confirmed during red-team,
 `test/docs/serverDocs/`] Every constituent sampled (`Luke-2-14v01`, `Luke-2-99v01`,
-`Luke-1-01v03`) defines a `First_20_Page` whose layout's footer-style is **populated**, and
-`Luke-1-01v03` has a populated one on `Standard` too — so the assembled book's title pages are
-footer-less only because `loadStylesFromURL(OverwriteStyles=True, LoadPageStyles=True)` overwrites
-them. (Re-probed at the dormancy level after the element-presence probe was struck; the conclusion
-survives the correction.) This is the same unstated dependency as INV-1, and it is load-bearing for
-FR-007, FR-009, and the whole §3 page-class table. `assembleQuarter.integration.test.ts` therefore
-asserts that in the **assembled** `styles.xml` the layouts referenced by `First_20_Page` and
-`Standard` are **dormant** — footer-style absent, or present with no
-`<style:header-footer-properties>` — in **both** modes. **Not** "carry no `<style:footer-style>`":
-that assertion fails on the merged output for the same reason it fails on the template.
+`Luke-1-01v03`) defines a `First_20_Page` satisfying **both** conjuncts — footer content **and** a
+populated `Mpm2` — and what it renders is the **copyright and licence block**, not branding
+(`Year of publication Publisher This work is licensed under the …`). `Luke-1-01v03` also renders a
+footer on `Standard`, and aliases `Lesson_20_Content` to `Mpm1`. So the assembled book's title pages
+are footer-less only because `loadStylesFromURL(OverwriteStyles=True, LoadPageStyles=True)`
+overwrites them; a merge that fails puts a copyright line on every lesson title page and on the
+FR-009 filler. (Re-probed with an XML parser in pass 17; the conclusion survives, the consequence
+sharpens.) This is the same unstated dependency as INV-1, and it is load-bearing for FR-007,
+FR-009, and the whole §3 page-class table. `assembleQuarter.integration.test.ts` therefore asserts
+that in the **assembled** `styles.xml` the `First_20_Page` and `Standard` masters render no footer
+under the **conjunction** — no `<style:footer>` element, **and** no populated `<style:footer-style>`
+on the layout resolved through the master name — in **both** modes. Assert both conjuncts: each
+alone is true of the template, but the constituents satisfy both, so a half-failed merge is exactly
+what this guard catches. **Not** "carry no `<style:footer-style>`": that assertion fails on the
+merged output for the same reason it fails on the template.
 
 **`Mpm<n>` is a template-local name.** Automatic page-layout names are only locally unique — the
 same weakness R2 documents for automatic paragraph styles. In `Luke-2-99v01`, `Mpm13` is
@@ -365,7 +381,7 @@ table, both load-bearing: `pdftotext` extracts **whole-page text**, not footers 
 body text containing a signature string can forge a footer signature (a title page plausibly prints
 "Lessons from Luke" and "Quarter <n>" in its body) — the spike's signature-confirmation item covers
 adversarial body text, not only footers. And the two "absent footer" rows are **not**
-master-exclusive: [corrected dormancy probe — supersedes the earlier "nine masters" count]
+master-exclusive: [XML-parser probe — supersedes the earlier "nine masters" count]
 footer-rendering is the **minority** case, four masters of nineteen bilingual and three of fifteen
 monolingual (§2.5); every other master renders nothing, `Inside_20_cover` among them — and it is
 demonstrably reachable (the TOC
@@ -373,11 +389,12 @@ constituent `Luke-2-99v01` pins a paragraph to it). Such a page carries body tex
 so reads as lesson-title class. Confirmation B below is stated as a denial for exactly this reason.
 
 Note that the title-vs-coloring discriminator itself **does** hold, but for a mechanism the earlier
-wording got wrong twice: `Coloring_20_Page`'s layout `Mpm10` has a **populated**
-`<style:footer-style>` and `First_20_Page`'s `Mpm2` has an **empty** one, so the coloring page
-renders the branding line and the title page renders nothing — not because the title page's master
-lacks a footer element (it has one, dormant), and not because its layout lacks a footer-style
-element (it has one, empty).
+wording got wrong twice: `Coloring_20_Page` carries a doubled branding `<style:footer>` **and** a
+populated `Mpm10`, while `First_20_Page` carries **no footer element** and an unpopulated `Mpm2`.
+So the coloring page renders the branding line twice and the title page renders nothing — the two
+classes differ on **both** conjuncts, which is what makes the discriminator robust. (Earlier
+wordings had the title page carrying a dormant branding footer identical to the coloring page's;
+that was a regex artifact and is struck.)
 
 | Page class          | `Quarter <Q> … Lesson <N>` | `Page <n>` | Other signature                        |
 | ------------------- | -------------------------- | ---------- | -------------------------------------- |
@@ -425,8 +442,8 @@ Three consequences the classifier must honour:
 **Rule**: `lessonOnePageIndex` is the index of the **first page satisfying the whole conjunction
 below** — lesson-title class _and_ both confirmations. It is emphatically **not** "the first
 lesson-title-class page, then check the confirmations": the book's own physical page 1 is also
-lesson-title class, because the master carrying it renders no footer (its layout's footer-style is
-dormant — note that "prints no page number" alone would _not_ imply this; see §2.5).
+lesson-title class, because the master carrying it renders no footer (it fails the §2.5 rendering
+conjunction — note that "prints no page number" alone would _not_ imply this).
 A first-then-check rule selects page 1, fails confirmation A, and throws on **every** job. The scan
 continues past non-matching candidates and throws only when the whole book is exhausted.
 
