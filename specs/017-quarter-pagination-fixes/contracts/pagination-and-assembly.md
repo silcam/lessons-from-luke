@@ -347,7 +347,7 @@ does not satisfy the invocation discipline stated immediately below.
 
 - Renders `odtPath` to PDF with headless `soffice`, into `outDir`. **The caller is responsible
   for siting `outDir` inside the per-job working directory**, so the existing `finally` cleanup
-  reaps it — the pass no longer receives a job-scoped `workDir` it could derive that from, and an
+  reaps it — the pass no longer receives a job-scoped `workDir` to derive it from, and an
   `outDir` outside the job dir leaks a PDF of unpublished translation content past job end. The
   pass creates `outDir` if absent and asserts it holds no pre-existing PDF for this input
   (the freshness rule above).
