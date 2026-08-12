@@ -630,11 +630,20 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
     // First opening (lesson 14) carries the explicit restart.
     expect(restartAttrOn(openings[0].autoStyle)).toBe("1");
     // Every LATER opening keeps auto-continuation, never a second restart.
+    // Allows `undefined` (no attribute — the common shape) OR the literal
+    // ODF value `"auto"` — some real constituents (verified: Luke-2-15's and
+    // Luke-2-20's own "True Disciples of Jesus Love Their Enemies" openings)
+    // already carry an explicit `style:page-number="auto"` in their raw
+    // source, predating this feature; `"auto"` IS auto-continuation, so it
+    // is not a competing restart. A stray explicit NUMBER (the actual INV-3
+    // defect class) is still caught here, and by the book-wide count below.
     openings.slice(1).forEach(({ heading, autoStyle }) => {
-      expect({ heading: heading.text().trim(), restart: restartAttrOn(autoStyle) }).toEqual({
+      const restart = restartAttrOn(autoStyle);
+      // Keyed by heading text so a failure names the offending lesson.
+      expect({
         heading: heading.text().trim(),
-        restart: undefined,
-      });
+        allowedRestart: [undefined, "auto"].includes(restart),
+      }).toEqual({ heading: heading.text().trim(), allowedRestart: true });
     });
 
     // Book-wide: exactly one automatic style anywhere carries the restart.

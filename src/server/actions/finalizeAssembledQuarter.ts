@@ -35,6 +35,13 @@ import { rezipWithMimetypeFirst } from "../xml/rezipWithMimetypeFirst";
  *   opens with an EMPTY paragraph pinned to a `page-usage="left"` (verso)
  *   master, which as the document's first element makes LibreOffice insert
  *   a blank recto filler page (see `removeLeadingBlankParagraphs`).
+ * - **Body restart (content.xml, FR-005/INV-3)**: sets an explicit
+ *   `style:page-number="1"` on the FIRST visible level-1 opening's automatic
+ *   style — the merge otherwise carries no absolute page-number anchor, so
+ *   the book renders continuing whatever page count the merge's blank base
+ *   happened to accumulate (see `applyBodyRestart`). Runs BEFORE lesson-
+ *   opening master-page normalization (below) — see that call site's
+ *   comment for why the order matters.
  * - **Lesson-opening master pages (content.xml)**: pin every visible
  *   level-1 heading's automatic style to the `First_20_Page` master when it
  *   carries none — the production Luke-1-09 constituent opens with only
@@ -86,6 +93,13 @@ export function finalizeAssembledQuarter(options: FinalizeAssembledQuarterOption
     if (singleLanguage) {
       restyleMonolingualParagraphs(contentDoc, contentNamespaces);
     }
+    // Body restart runs BEFORE lesson-opening master-page normalization,
+    // deliberately: it isolates the FIRST visible opening's automatic style
+    // under its own deterministic name (see `applyBodyRestart`'s doc
+    // comment), and normalization's own "already pinned" skip then leaves
+    // that isolated style alone — so the restart's clone is never re-cloned
+    // under normalization's separate `_QA` naming scheme.
+    applyBodyRestart(contentDoc, contentNamespaces);
     normalizeLessonOpeningMasterPages(contentDoc, contentNamespaces);
     fs.writeFileSync(contentXmlPath, contentDoc.toString(false));
 
@@ -238,6 +252,120 @@ function normalizeLessonOpeningMasterPages(contentDoc: XmlDocument, namespaces: 
     });
     referencers.filter(isOpeningHeading).forEach((el) => el.attr({ "text:style-name": cloneName }));
   }
+}
+
+/** Deterministic suffix appended to a style name to name its restart clone. */
+const RESTART_CLONE_SUFFIX = "_Restart";
+
+/** True for a visible (non-outline-level-2+) level-1 heading. */
+function isOpeningHeadingElement(el: Element): boolean {
+  if (el.name() !== "h") return false;
+  const level = el.attr("outline-level");
+  return !level || level.value() === "1";
+}
+
+/** Looks up a content.xml automatic style by name, or `undefined` if it is a common named style. */
+function findAutomaticStyle(
+  contentDoc: XmlDocument,
+  namespaces: Namespaces,
+  styleName: string
+): Element | undefined {
+  return (
+    contentDoc.get<Element>(
+      `//office:automatic-styles/style:style[@style:name='${styleName}']`,
+      namespaces
+    ) ?? undefined
+  );
+}
+
+/** True when the auto style is the injected hidden heading's style (`text:display="none"`). */
+function isHiddenAutoStyle(autoStyle: Element, namespaces: Namespaces): boolean {
+  return (
+    autoStyle.get<Element>("style:text-properties", namespaces)?.attr("display")?.value() === "none"
+  );
+}
+
+/**
+ * Restarts absolute page numbering at the FIRST visible level-1 opening
+ * (017 US1-T3/T4, FR-005, INV-3, contract §2.2/§2.5): sets
+ * `style:page-number="1"` on its automatic style's
+ * `style:paragraph-properties`, alongside `style:master-page-name`. Unlike
+ * `normalizeLessonOpeningMasterPages`, this pass does not trust — and is not
+ * gated by — an auto style that already carries a master or a heading that
+ * shares its auto style with other content: the restart's target style must
+ * be exclusively referenced by the first opening, cloning-and-repointing
+ * where it is not, REGARDLESS of any existing `style:master-page-name`.
+ *
+ * The clone name is a deterministic function of the original style name
+ * (`<name>_Restart`), never a probed suffix, so repeat finalize passes over
+ * an already-restarted document detect and reuse the existing clone instead
+ * of minting a new one — required for the mixed-mode fixed point later
+ * tasks depend on.
+ *
+ * A no-op (never a throw) when the document has no level-1 heading at all —
+ * a merged book always has at least one lesson opening in production, and
+ * treating "no heading anywhere" as a hard failure would wrongly reject
+ * fixtures/constituents exercising unrelated finalize behavior. Throws the
+ * curated, path-free "assembly failed to finalize the merged book" reason
+ * (matching `assembleQuarter`'s own wrapping) ONLY when a visible level-1
+ * heading exists but rides a common NAMED style with no automatic style to
+ * isolate.
+ */
+function applyBodyRestart(contentDoc: XmlDocument, namespaces: Namespaces): void {
+  let target: Element | undefined;
+  for (const heading of contentDoc.find<Element>("//office:body//text:h", namespaces)) {
+    if (!isOpeningHeadingElement(heading)) continue;
+    const styleName = heading.attr("style-name")?.value();
+    if (!styleName) continue;
+    const autoStyle = findAutomaticStyle(contentDoc, namespaces, styleName);
+    if (autoStyle && isHiddenAutoStyle(autoStyle, namespaces)) continue; // injected hidden heading
+    target = heading;
+    break;
+  }
+  if (!target) return; // no visible level-1 heading in this document — nothing to restart
+
+  const styleName = target.attr("style-name")!.value();
+  const autoStyle = findAutomaticStyle(contentDoc, namespaces, styleName);
+  if (!autoStyle) {
+    // Common named style — nothing to clone-and-isolate, and patching a
+    // shared named style in place would restyle every user of it.
+    throw new Error("assembly failed to finalize the merged book");
+  }
+
+  const referencers = contentDoc.find<Element>(`//*[@text:style-name='${styleName}']`, namespaces);
+  let restartStyle: Element;
+  if (referencers.length === 1) {
+    // Already exclusively referenced by the target heading — patch in place.
+    restartStyle = autoStyle;
+  } else {
+    const cloneName = `${styleName}${RESTART_CLONE_SUFFIX}`;
+    restartStyle =
+      findAutomaticStyle(contentDoc, namespaces, cloneName) ?? cloneAutoStyle(autoStyle, cloneName);
+    target.attr({ "text:style-name": cloneName });
+  }
+
+  restartStyle.attr({ "style:master-page-name": FIRST_PAGE_MASTER_NAME });
+  const props =
+    restartStyle.get<Element>("style:paragraph-properties", namespaces) ??
+    addParagraphProperties(restartStyle);
+  props.attr({ "style:page-number": "1" });
+}
+
+/** Clones an automatic style under a new name, inserted right after the original. */
+function cloneAutoStyle(autoStyle: Element, cloneName: string): Element {
+  const clone = autoStyle.clone() as Element;
+  autoStyle.addNextSibling(clone);
+  clone.attr({ "style:name": cloneName });
+  return clone;
+}
+
+/** Adds an empty `style:paragraph-properties` child to an automatic style, correctly namespaced. */
+function addParagraphProperties(autoStyle: Element): Element {
+  const styleNs = autoStyle.namespace();
+  const props = new Element(autoStyle.doc(), "paragraph-properties");
+  autoStyle.addChild(props);
+  if (styleNs) props.namespace(styleNs);
+  return props;
 }
 
 /** Sets num-format/num-list-format/start-value on the level-1 outline style ONLY. */

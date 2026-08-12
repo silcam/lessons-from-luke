@@ -272,19 +272,28 @@ function optionsWithSingleLanguage(
   return { ...defaultOptions(odtPath), singleLanguage };
 }
 
+// A preceding auto-styled level-1 opening (P26, unrelated to the M.T. restyle
+// under test) gives the 017 US1-T4 body-restart pass a legitimate first-opening
+// target, so the M.T. heading below — riding a common NAMED style directly,
+// with no automatic style to isolate — is never itself the restart's target.
+const MT_PRECEDING_OPENING = `<text:h text:style-name="P26" text:outline-level="1">Somo 0</text:h>`;
 const MT_OFFICE_TEXT_INNER =
+  MT_PRECEDING_OPENING +
   `<text:h text:style-name="M.T._20_Lesson_20_Title">Yesu</text:h>` +
   `<text:p text:style-name="M.T._20_Coloring_20_Page_20_-_20_Memory_20_Verse">verse</text:p>` +
   `<text:p text:style-name="M.T._20_Text">body</text:p>`;
+const MT_AUTOMATIC_STYLES_INNER = `<style:style style:name="P26" style:family="paragraph"/>`;
 
 test("singleLanguage: true restyles M.T. references in BOTH content.xml and styles.xml to the plain styles", () => {
   const odtPath = `${workDir}/assembled.odt`;
-  buildMergedFixtureOdt(odtPath, MT_OFFICE_TEXT_INNER);
+  buildMergedFixtureOdt(odtPath, MT_OFFICE_TEXT_INNER, {
+    automaticStylesInner: MT_AUTOMATIC_STYLES_INNER,
+  });
 
   finalizeAssembledQuarter(optionsWithSingleLanguage(odtPath, true));
 
   const contentDoc = extractXml(odtPath, "content.xml");
-  const heading = contentDoc.get<Element>("//text:h", NAMESPACES)!;
+  const heading = contentDoc.get<Element>("(//text:h)[2]", NAMESPACES)!;
   expect(heading.attr("style-name")!.value()).toBe("Lesson_20_Title");
   const verse = contentDoc.get<Element>("//office:text/text:p[1]", NAMESPACES)!;
   expect(verse.attr("style-name")!.value()).toBe("Coloring_20_Page_20_-_20_Memory_20_Verse");
@@ -308,12 +317,14 @@ test("singleLanguage: true restyles M.T. references in BOTH content.xml and styl
 
 test("singleLanguage: false leaves every M.T. reference intact (bilingual output byte-for-byte unaffected)", () => {
   const odtPath = `${workDir}/assembled.odt`;
-  buildMergedFixtureOdt(odtPath, MT_OFFICE_TEXT_INNER);
+  buildMergedFixtureOdt(odtPath, MT_OFFICE_TEXT_INNER, {
+    automaticStylesInner: MT_AUTOMATIC_STYLES_INNER,
+  });
 
   finalizeAssembledQuarter(optionsWithSingleLanguage(odtPath, false));
 
   const contentDoc = extractXml(odtPath, "content.xml");
-  expect(contentDoc.get<Element>("//text:h", NAMESPACES)!.attr("style-name")!.value()).toBe(
+  expect(contentDoc.get<Element>("(//text:h)[2]", NAMESPACES)!.attr("style-name")!.value()).toBe(
     "M.T._20_Lesson_20_Title"
   );
   const stylesDoc = extractXml(odtPath, "styles.xml");
@@ -323,19 +334,24 @@ test("singleLanguage: false leaves every M.T. reference intact (bilingual output
 
 test("omitting singleLanguage defaults to bilingual — M.T. references intact", () => {
   const odtPath = `${workDir}/assembled.odt`;
-  buildMergedFixtureOdt(odtPath, MT_OFFICE_TEXT_INNER);
+  buildMergedFixtureOdt(odtPath, MT_OFFICE_TEXT_INNER, {
+    automaticStylesInner: MT_AUTOMATIC_STYLES_INNER,
+  });
 
   finalizeAssembledQuarter(defaultOptions(odtPath));
 
   const contentDoc = extractXml(odtPath, "content.xml");
-  expect(contentDoc.get<Element>("//text:h", NAMESPACES)!.attr("style-name")!.value()).toBe(
+  expect(contentDoc.get<Element>("(//text:h)[2]", NAMESPACES)!.attr("style-name")!.value()).toBe(
     "M.T._20_Lesson_20_Title"
   );
 });
 
 test("singleLanguage: true throws loudly when a plain restyle target is missing from styles.xml (template-asset regression)", () => {
   const odtPath = `${workDir}/assembled.odt`;
-  buildMergedFixtureOdt(odtPath, MT_OFFICE_TEXT_INNER, { omitPlainRestyleTargets: true });
+  buildMergedFixtureOdt(odtPath, MT_OFFICE_TEXT_INNER, {
+    omitPlainRestyleTargets: true,
+    automaticStylesInner: MT_AUTOMATIC_STYLES_INNER,
+  });
 
   expect(() => finalizeAssembledQuarter(optionsWithSingleLanguage(odtPath, true))).toThrow(
     /restyle/i
@@ -469,15 +485,20 @@ describe("lesson-opening master-page normalization", () => {
 
   test("ignores level-2+ headings and headings referencing common named styles", () => {
     const odtPath = `${workDir}/assembled.odt`;
+    // A valid FIRST level-1 opening (P25) precedes the level-2 heading and
+    // the named-style heading, so the body-restart pass (017 US1-T4) has a
+    // legitimate target and this fixture keeps exercising ONLY what it was
+    // written to test: normalization ignoring level-2+ and named-style
+    // headings (Heading_20_1, here the SECOND visible level-1 opening).
     buildMergedFixtureOdt(
       odtPath,
-      `<text:h text:style-name="P24" text:outline-level="2">Sehemu</text:h>` +
+      `<text:h text:style-name="P25" text:outline-level="1">Somo 1</text:h>` +
+        `<text:h text:style-name="P24" text:outline-level="2">Sehemu</text:h>` +
         `<text:h text:style-name="Heading_20_1" text:outline-level="1">Somo 4</text:h>`,
       {
-        automaticStylesInner: autoStyle(
-          "P24",
-          `<style:paragraph-properties fo:break-before="page"/>`
-        ),
+        automaticStylesInner:
+          autoStyle("P25", "") +
+          autoStyle("P24", `<style:paragraph-properties fo:break-before="page"/>`),
       }
     );
 
@@ -488,7 +509,7 @@ describe("lesson-opening master-page normalization", () => {
     expect(p24.attr("master-page-name")).toBeNull();
     // The named-common-style heading is skipped: no auto style minted for it.
     const named = contentDoc.find<Element>("//office:automatic-styles/style:style", NAMESPACES);
-    expect(named.map((s) => s.attr("name")!.value())).toEqual(["P7", "P8", "P24"]);
+    expect(named.map((s) => s.attr("name")!.value())).toEqual(["P7", "P8", "P25", "P24"]);
   });
 });
 
@@ -573,9 +594,12 @@ describe("body restart (FR-005 / INV-3)", () => {
 
     const contentDoc = extractXml(odtPath, "content.xml");
     const hidden = contentDoc.get<Element>("//style:style[@style:name='PHiddenR']", NAMESPACES)!;
+    // libxmljs2's `.get()` returns `undefined` (not `null`) for an absent
+    // element — the hidden style is never touched, so it never gains a
+    // `style:paragraph-properties` child at all.
     expect(
       hidden.get<Element>("style:paragraph-properties", NAMESPACES)?.attr("page-number")
-    ).toBeNull();
+    ).toBeUndefined();
     const p35 = contentDoc.get<Element>("//style:style[@style:name='P35']", NAMESPACES)!;
     expect(
       p35.get<Element>("style:paragraph-properties", NAMESPACES)!.attr("page-number")!.value()
@@ -624,9 +648,12 @@ describe("restart isolation (INV-3)", () => {
     const paragraph = contentDoc.get<Element>("//office:text/text:p", NAMESPACES)!;
     expect(paragraph.attr("style-name")!.value()).toBe("PSR");
     const original = contentDoc.get<Element>("//style:style[@style:name='PSR']", NAMESPACES)!;
+    // libxmljs2's `.get()` returns `undefined` (not `null`) for an absent
+    // element — the original style is never touched, so it never gains a
+    // `style:paragraph-properties` child at all.
     expect(
       original.get<Element>("style:paragraph-properties", NAMESPACES)?.attr("page-number")
-    ).toBeNull();
+    ).toBeUndefined();
   });
 });
 
