@@ -842,18 +842,19 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
     expect(bulletChar).not.toHaveLength(0);
   });
 
-  test("page-offset parity: the produced book's final printed page number matches the physical PDF page count now that IsSkipEmptyPages=false renders LibreOffice's implicit blank page (F2b, contract §3 — the render previously dropped that page, which is why this relationship carried a +1 offset before PDF_CONVERT_TO_TARGET pinned the filter)", () => {
-    const pdfPath = path.join(workDir, "pdf-out", `${path.basename(outputPath, ".odt")}.pdf`);
-    const physicalPageCount = pdfPageCount(pdfPath);
-
-    const numberedPages = pages
-      .map(pageNumberFooterOn)
-      .filter((token): token is string => token !== undefined && /^\d+$/.test(token))
-      .map((token) => parseInt(token, 10));
-    const finalPrintedPageNumber = numberedPages[numberedPages.length - 1];
-
-    expect(finalPrintedPageNumber).toBe(physicalPageCount);
-  });
+  // "page-offset parity" (pre-017: `finalPrintedPageNumber` toBe
+  // `physicalPageCount`) retired here. That relative oracle assumed a single
+  // continuous printed-number sequence spanning the whole physical page
+  // count; 017's roman-front-matter + arabic-body-restart design (contract
+  // §2.2) makes that assumption structurally false by intent — the printed
+  // sequence restarts at the first lesson opening, so the final printed
+  // number is the body's own absolute position, not the physical page total
+  // (empirically: 84 vs. 88 physical pages, a 4-page front-matter delta).
+  // c2a2fce (US1-T4 GREEN) called out this exact fallout as known/expected
+  // and assigned US1-T5 to replace it with FR-016's absolute,
+  // pdfinfo-reconciled assertions. The "last physical page prints its
+  // correct absolute body position" check below (line ~916-923) is that
+  // replacement — same coverage, correct oracle.
 
   test('017 US1-T5 FR-016 (absolute, oracle-classified): physical page 2 prints "ii", and every suppressed page (a lesson\'s own title page AND a Coloring_20_Page — whose footer carries the Quarter/Lesson marker twice and NO page-number field, so it silently consumes a slot too) accounts for exactly one skipped value with no gap or repeat, walking the F2b pdfinfo-reconciled page classification rather than a raw split', () => {
     const reconciled = reconciledPagesFor(outputPath, workDir, fullText);
