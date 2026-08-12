@@ -67,6 +67,24 @@ import { rezipWithMimetypeFirst } from "../xml/rezipWithMimetypeFirst";
  *   text:outline-level="2"` elements) never affect a level-1 chapter field
  *   and are benign — they must NOT count.
  *
+ * **content.xml (memory-verse coloring-page paragraphs, all constituents):**
+ * - Each coloring page carries two memory-verse paragraphs, asymmetric in how
+ *   they reach their style: the first names the memory-verse style directly
+ *   (`text:style-name` on the `text:p`); the second reaches it indirectly
+ *   through a content.xml automatic style (e.g. `P5`, `P27`) whose
+ *   `style:parent-style-name` is the memory-verse style. Automatic-style
+ *   names are only LOCALLY unique — they collide across constituents with
+ *   incompatible meanings (`P5` means "memory verse" in one lesson,
+ *   "coloring-page graphic anchor" in another), and a first-definition-wins
+ *   merge dedupe can make the second copy silently inherit the wrong
+ *   constituent's formatting (017 US2, FR-011..FR-014; spike FINDINGS.md
+ *   Gate 1's "modified direction (a)"). Fixed here by flattening: every
+ *   `text:p` whose `text:style-name` is a content.xml automatic paragraph
+ *   style parenting a `styles.xml`-defined *memory-verse* named style
+ *   (either style-naming family — plain or `M.T.`-prefixed) is rewritten to
+ *   name that memory-verse style DIRECTLY, matching how the first copy
+ *   already does. Neither paragraph is removed or deduplicated (FR-014).
+ *
  * Re-zips with the `mimetype` entry stored FIRST and UNCOMPRESSED (ODF
  * requirement). Mutates `odtPath` IN PLACE — the CALLER must pass a
  * disposable COPY, never the canonical source ODT (see `assembleQuarter`'s
@@ -128,6 +146,7 @@ export function prepareConstituentForAssembly(
     const contentXmlPath = `${extractDirPath}/content.xml`;
     const contentDoc = libxmljs2.parseXml(fs.readFileSync(contentXmlPath, "utf8"));
     const contentNamespaces = extractNamespaces(contentDoc);
+    flattenMemoryVerseAutomaticStyles(contentDoc, stylesDoc, contentNamespaces);
     if (!isTOC && countOutlineParticipants(contentDoc, stylesDoc, contentNamespaces) === 0) {
       injectHiddenHeading(contentDoc, contentNamespaces, meta.subject ?? fallbackTitle);
     }
@@ -263,6 +282,59 @@ function countOutlineParticipants(
     .filter((p) => effectiveOutlineLevel(p.attr("style-name")!.value()) === "1").length;
 
   return headings + outlineParagraphs;
+}
+
+/** Matches both style-naming families: `Coloring Page - Memory Verse` and `M.T. Coloring Page - Memory Verse`. */
+const MEMORY_VERSE_STYLE_NAME_PATTERN = /Memory_20_Verse$/;
+
+/**
+ * Rewrites every `text:p` whose `text:style-name` is a content.xml automatic
+ * paragraph style parenting a `styles.xml`-defined memory-verse named style,
+ * to name that memory-verse style DIRECTLY — sidestepping the automatic
+ * style's only-locally-unique name (see the module doc comment's
+ * memory-verse section, 017 US2 FR-011..FR-014).
+ */
+function flattenMemoryVerseAutomaticStyles(
+  contentDoc: XmlDocument,
+  stylesDoc: XmlDocument,
+  namespaces: Namespaces
+): void {
+  const namedMemoryVerseStyles = new Set(
+    stylesDoc
+      .find<Element>("//office:styles/style:style[@style:family='paragraph']", namespaces)
+      .map((style) => style.attr("name")?.value())
+      .filter((name): name is string => !!name && MEMORY_VERSE_STYLE_NAME_PATTERN.test(name))
+  );
+  if (namedMemoryVerseStyles.size === 0) return;
+
+  const automaticStyleParents = new Map<string, string | undefined>();
+  contentDoc
+    .find<Element>("//office:automatic-styles/style:style[@style:family='paragraph']", namespaces)
+    .forEach((style) => {
+      const name = style.attr("name")?.value();
+      if (!name) return;
+      automaticStyleParents.set(name, style.attr("parent-style-name")?.value() ?? undefined);
+    });
+
+  /** Resolves an automatic style's ultimate memory-verse named-style parent, if any. */
+  const resolveMemoryVerseTarget = (automaticStyleName: string): string | undefined => {
+    const seen = new Set<string>();
+    let current: string | undefined = automaticStyleName;
+    while (current && !seen.has(current)) {
+      seen.add(current);
+      if (namedMemoryVerseStyles.has(current)) return current;
+      current = automaticStyleParents.get(current);
+    }
+    return undefined;
+  };
+
+  contentDoc.find<Element>("//office:body//text:p[@text:style-name]", namespaces).forEach((p) => {
+    const styleName = p.attr("style-name")!.value();
+    if (namedMemoryVerseStyles.has(styleName)) return; // already direct
+    if (!automaticStyleParents.has(styleName)) return; // not a content.xml automatic style
+    const target = resolveMemoryVerseTarget(styleName);
+    if (target) p.attr("text:style-name", target);
+  });
 }
 
 /**
