@@ -1,5 +1,6 @@
 import fs from "fs";
 import { Express, Request, Response } from "express";
+import { Pool } from "pg";
 import { Persistence } from "../../core/interfaces/Persistence";
 import { AllBooks, BaseLesson, Book } from "../../core/models/Lesson";
 import {
@@ -16,6 +17,8 @@ import {
   AssemblyRunner,
 } from "../assembly/AssemblyJobRegistry";
 import { requireSameOrigin } from "../middle/requireSameOrigin";
+import requireUser from "../middle/requireUser";
+import assemblyRateLimit from "../middle/assemblyRateLimit";
 import assembleQuarter from "../actions/assembleQuarter";
 import deriveMajorityLanguageId from "../actions/deriveMajorityLanguageId";
 
@@ -31,8 +34,15 @@ import deriveMajorityLanguageId from "../actions/deriveMajorityLanguageId";
  *   GET  /api/assembly/:jobId/status
  *   GET  /api/assembly/:jobId/download
  *
- * `requireSameOrigin` (CSRF) gates the state-changing POST route only — the
- * three GET routes are read-only and exempt (contract §1).
+ * `requireSameOrigin` (CSRF), `requireUser` (authentication), and
+ * `assemblyRateLimit` (per-user throttle) all gate the state-changing POST
+ * route only — the three GET routes are read-only and exempt (contract §1).
+ * The GET routes' only protection is the unguessable UUID `jobId` (status
+ * poll by quarter+mode is scoped by languageId/book/series, not a secret);
+ * this is an intentional, documented posture — the assembled book itself is
+ * not treated as confidential, only its creation is access-controlled and
+ * throttled (remediation: lessons-from-luke-ipuf.7, sp:security-review
+ * CRITICAL finding on the unauthenticated, unthrottled POST route).
  *
  * The completeness gate here is the cheap EXISTENCE-only check
  * (`missingQuarterParts`); the fuller generation-time gate (a constituent
@@ -48,6 +58,12 @@ export interface AssemblyControllerOptions {
   registry: AssemblyJobRegistry;
   /** Dedicated per-job working-dir root (`<docStorage>/assembly-work`). */
   workRoot: string;
+  /**
+   * The shared better-auth-owned `pg.Pool` (`getAuthPool()`), used by
+   * `assemblyRateLimit` to throttle the POST route (remediation:
+   * lessons-from-luke-ipuf.7).
+   */
+  authPool: Pool;
 }
 
 const VALID_MODES: readonly string[] = ["bilingual", "single-language"];
@@ -193,11 +209,13 @@ export default function assemblyController(
   storage: Persistence,
   options: AssemblyControllerOptions
 ): void {
-  const { registry, workRoot } = options;
+  const { registry, workRoot, authPool } = options;
 
   app.post(
     "/api/languages/:languageId/quarters/:book/:series/assembly",
     requireSameOrigin,
+    requireUser,
+    assemblyRateLimit(authPool),
     async (req: Request, res: Response): Promise<void> => {
       const languageId = parseIntParam(req.params.languageId);
       const series = parseIntParam(req.params.series);

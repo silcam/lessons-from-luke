@@ -18,6 +18,7 @@
 
 import fs from "fs";
 import express, { Express } from "express";
+import { Pool } from "pg";
 import request from "supertest";
 import assemblyController from "./assemblyController";
 import { Persistence } from "../../core/interfaces/Persistence";
@@ -30,9 +31,39 @@ import {
   AssemblyRunner,
 } from "../assembly/AssemblyJobRegistry";
 import assembleQuarter from "../actions/assembleQuarter";
+import { getAuth } from "../auth/auth";
+import { checkAndIncrementThrottle } from "../util/rateLimitCounter";
 
 jest.mock("../actions/assembleQuarter");
 const mockAssembleQuarter = assembleQuarter as jest.MockedFunction<typeof assembleQuarter>;
+
+// requireUser (mounted on the POST route — remediation: lessons-from-luke-ipuf.7)
+// calls getAuth().api.getSession() to load the session; mock it so every test
+// below gets a signed-in user by default (mirrors requireUser.test.ts's
+// jest.mock pattern). Individual tests override this per-call to exercise the
+// 401 (no session) path.
+jest.mock("../auth/auth");
+const mockGetAuth = getAuth as jest.MockedFunction<typeof getAuth>;
+
+function mockAuthedSession(userId = "user-1") {
+  mockGetAuth.mockReturnValue({
+    api: {
+      getSession: jest.fn(async () => ({ user: { id: userId, admin: false } })),
+    },
+  } as unknown as ReturnType<typeof getAuth>);
+}
+
+// assemblyRateLimit (also mounted on the POST route) short-circuits in test
+// mode unless BETTER_AUTH_ENFORCE_RATE_LIMIT=1 (mirrors invitationRateLimit.ts
+// / auth.ts's existing flag), so most tests below never touch the pool or
+// checkAndIncrementThrottle. The dedicated 429 test flips the flag and mocks
+// checkAndIncrementThrottle directly instead of standing up a real pg.Pool.
+jest.mock("../util/rateLimitCounter");
+const mockCheckAndIncrementThrottle = checkAndIncrementThrottle as jest.MockedFunction<
+  typeof checkAndIncrementThrottle
+>;
+
+const FAKE_AUTH_POOL = {} as unknown as Pool;
 
 const LANGUAGE_ID = ENGLISH_ID;
 const BOOK = "Luke";
@@ -96,9 +127,18 @@ function buildApp(storage: Persistence, registry: AssemblyJobRegistry): Express 
   // Cast needed: @types/express body-parser types disagree with @types/node@20
   // ServerResponse, same as the existing formDataParser cast in documentsController.ts.
   app.use(express.json() as any);
-  assemblyController(app, storage, { registry, workRoot: "/tmp/assembly-work-test" });
+  assemblyController(app, storage, {
+    registry,
+    workRoot: "/tmp/assembly-work-test",
+    authPool: FAKE_AUTH_POOL,
+  });
   return app;
 }
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockAuthedSession();
+});
 
 describe("POST .../assembly (start or attach)", () => {
   it("202: starts a new job — {jobId, status: queued|running}", async () => {
@@ -216,6 +256,50 @@ describe("POST .../assembly (start or attach)", () => {
     } finally {
       process.env.BETTER_AUTH_ENFORCE_ORIGIN = savedEnforce;
       process.env.BETTER_AUTH_URL = savedUrl;
+    }
+  });
+
+  // Remediation: lessons-from-luke-ipuf.7 (sp:security-review CRITICAL — POST
+  // .../assembly was the only state-changing route not gated by an
+  // authenticated-session check).
+  it("401: rejected by requireUser when there is no session, even with a valid Origin — no job started", async () => {
+    mockGetAuth.mockReturnValue({
+      api: { getSession: jest.fn(async () => null) },
+    } as unknown as ReturnType<typeof getAuth>);
+    const registry = makeRegistry({
+      startOrAttach: jest.fn().mockReturnValue({ outcome: "started", job: makeJob() }),
+    });
+    const app = buildApp(makeStorage(), registry);
+
+    const res = await request(app).post(BASE_PATH).send({ mode: "bilingual" });
+
+    expect(res.status).toBe(401);
+    expect(registry.startOrAttach).not.toHaveBeenCalled();
+  });
+
+  // Remediation: lessons-from-luke-ipuf.7 — per-user rate limit on the
+  // assembly start route (assemblyRateLimit.ts), modeled on
+  // invitationRateLimit.ts. Enforcement is normally skipped in test mode, so
+  // this test flips BETTER_AUTH_ENFORCE_RATE_LIMIT and mocks the shared
+  // checkAndIncrementThrottle helper directly rather than standing up a real
+  // pg.Pool against the better-auth `rateLimit` table.
+  it("429: an authenticated caller exceeding the rate limit gets 429 — no job started", async () => {
+    const saved = process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT;
+    process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT = "1";
+    mockCheckAndIncrementThrottle.mockResolvedValue(true);
+
+    try {
+      const registry = makeRegistry({
+        startOrAttach: jest.fn().mockReturnValue({ outcome: "started", job: makeJob() }),
+      });
+      const app = buildApp(makeStorage(), registry);
+
+      const res = await request(app).post(BASE_PATH).send({ mode: "bilingual" });
+
+      expect(res.status).toBe(429);
+      expect(registry.startOrAttach).not.toHaveBeenCalled();
+    } finally {
+      process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT = saved;
     }
   });
 
