@@ -498,3 +498,108 @@ describe("result metadata and repacking", () => {
     expect(entries[0].method).toBe("Stored");
   });
 });
+
+describe("memory-verse coloring-page style resolution (017 US2-T1, INV-8/INV-9/INV-10)", () => {
+  /**
+   * Copies a REAL production constituent fixture into workDir (never
+   * mutates the committed original — `prepareConstituentForAssembly`
+   * rewrites `odtPath` IN PLACE) so these tests reproduce the actual
+   * collision-prone automatic-style-dependent memory-verse paragraph the
+   * real masters ship (F1 FINDINGS.md Gate 1), not a synthetic
+   * approximation. See that file's per-lesson `inspect_p_style.py` audit:
+   * `Luke-1-04v03.odt`'s coloring page carries FOUR memory-verse paragraphs
+   * (an empty spacer + the verse text, each duplicated once directly-named
+   * and once via the collision-prone automatic style `P5`); `Luke-1-08v01`
+   * (the M.T.-prefixed style-naming family) carries the same asymmetric
+   * direct/automatic duplication via automatic style `P27`.
+   */
+  function copyRealFixture(name: string): string {
+    mkdirSafe(workDir);
+    const dest = `${workDir}/${name}`;
+    fs.copyFileSync(path.join("test", "docs", "serverDocs", name), dest);
+    return dest;
+  }
+
+  /**
+   * Every `text:p` whose `text:style-name` resolves DIRECTLY to
+   * `familyStyleName` — never via an automatic-style parent chain. Per F1's
+   * recorded fix direction (modified direction (a), FINDINGS.md Gate 1):
+   * flatten the automatic-style-dependent copy onto the named memory-verse
+   * style directly, matching how the first copy already names it. This is
+   * the shape BOTH copies must share after `prepareConstituentForAssembly`.
+   */
+  function directMemoryVerseParagraphs(
+    contentDoc: XmlDocument,
+    familyStyleName: string
+  ): Element[] {
+    return contentDoc.find<Element>(
+      `//office:body//text:p[@text:style-name='${familyStyleName}']`,
+      NAMESPACES
+    );
+  }
+
+  test("INV-8/INV-10: both memory-verse paragraphs on a real coloring page (Luke-1-04v03, plain style-naming family) resolve DIRECTLY to the named memory-verse style after prepare — neither paragraph is dropped or deduped, and the collision-prone automatic style P5 is no longer referenced", () => {
+    const odtPath = copyRealFixture("Luke-1-04v03.odt");
+
+    prepareConstituentForAssembly({
+      odtPath,
+      series: 1,
+      lesson: 4,
+      isTOC: false,
+      fallbackTitle: "Luke 1-04",
+    });
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    const familyStyleName = "Coloring_20_Page_20_-_20_Memory_20_Verse";
+
+    // INV-10: paragraph count on the coloring page is UNCHANGED. Before the
+    // fix, this fixture carries exactly 4 memory-verse paragraphs: 2 named
+    // directly (an empty spacer + the verse text) and 2 via automatic style
+    // P5 (the same empty-spacer/verse-text pair). Neither copy may be
+    // removed or deduplicated by the fix.
+    const allParagraphs = contentDoc.find<Element>(
+      `//office:body//text:p[@text:style-name='${familyStyleName}' or @text:style-name='P5']`,
+      NAMESPACES
+    );
+    expect(allParagraphs).toHaveLength(4);
+
+    // INV-8: EVERY one of those 4 paragraphs now resolves DIRECTLY to the
+    // named memory-verse style — none may still reference the automatic
+    // style P5, whose name is only locally unique and collides across
+    // constituents (e.g. Luke-1-05v03's P5 means "coloring-page graphic
+    // anchor", an incompatible meaning — F1 FINDINGS.md Gate 1).
+    expect(contentDoc.find<Element>("//text:p[@text:style-name='P5']", NAMESPACES)).toHaveLength(0);
+    const directParagraphs = directMemoryVerseParagraphs(contentDoc, familyStyleName);
+    expect(directParagraphs).toHaveLength(4);
+
+    // The empty spacer paragraph adjacent to each filled verse paragraph
+    // must survive as its OWN paragraph, not get collapsed into the
+    // text-bearing copy (background note: do not mistake an empty spacer
+    // carrying the memory-verse style for "the duplicate").
+    const texts = directParagraphs.map((p) => p.text().trim());
+    expect(texts.filter((t) => t === "")).toHaveLength(2);
+    expect(texts.filter((t) => t.startsWith("Luke 2:52"))).toHaveLength(2);
+  });
+
+  test("INV-9: the fix also applies to the M.T.-prefixed style-naming family (Luke-1-08v01) — the automatic-style-dependent copy (originally P27) resolves DIRECTLY to M.T._20_Coloring_20_Page_20_-_20_Memory_20_Verse, not via the collision-prone automatic style", () => {
+    const odtPath = copyRealFixture("Luke-1-08v01.odt");
+
+    prepareConstituentForAssembly({
+      odtPath,
+      series: 1,
+      lesson: 8,
+      isTOC: false,
+      fallbackTitle: "Luke 1-08",
+    });
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    const familyStyleName = "M.T._20_Coloring_20_Page_20_-_20_Memory_20_Verse";
+
+    expect(contentDoc.find<Element>("//text:p[@text:style-name='P27']", NAMESPACES)).toHaveLength(
+      0
+    );
+    const directParagraphs = directMemoryVerseParagraphs(contentDoc, familyStyleName);
+    expect(directParagraphs).toHaveLength(2);
+    directParagraphs.forEach((p) => expect(p.text().trim()).toMatch(/^Luke 4:18-19/));
+  });
+});
