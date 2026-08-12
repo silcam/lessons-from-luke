@@ -339,9 +339,9 @@ does not satisfy the invocation discipline stated immediately below.
   input's basename and offers no way to name it. Both renders on the filler branch read the
   **same** `odtPath` (the re-finalize rewrites it in place), so they derive the identical
   basename: the per-pass output path required above is achievable only by giving each pass its
-  own `outDir`. The caller passes a pass-tagged directory (`<workDir>/pdf-out-measure`,
-  `<workDir>/pdf-out-confirm`); the freshness assertion then has a path that a prior pass cannot
-  have written.
+  own `outDir`. The caller passes a pass-tagged directory under the job's own working directory
+  (`<jobDir>/pdf-out-measure`, `<jobDir>/pdf-out-confirm`); the freshness assertion then has a
+  path that a prior pass cannot have written, and both land inside what the `finally` reaps.
 
 **Contract**
 
