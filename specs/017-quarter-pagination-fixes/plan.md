@@ -726,8 +726,8 @@ This is the **same unstated dependency as INV-1**, one layer down, and it is loa
 more: FR-007 (lesson first pages print no number), FR-009 (the filler prints nothing), and the
 entire page-class table the FR-010 locator and the FR-016 oracle are built on. A narrowing of the
 style load, or a constituent introducing a layout the template does not overwrite, silently turns
-every title page and the filler into branding-footer pages — and the locator's title-vs-coloring
-discriminator collapses, because the two classes become identical in `pdftotext` output.
+every title page and the filler into **copyright-line** pages — and the locator's title-vs-coloring
+discriminator degrades, because both classes then carry footer text where the table expects none.
 
 **Requirement**: assert it on the merged output, in the same place and the same style as INV-1's
 offset assertion. `assembleQuarter.integration.test.ts` asserts that in the assembled book's
@@ -751,20 +751,27 @@ against the merged output must resolve the layout through its master name rather
 
 ### The offsets are not asset-only on the input side — the constituents carry their own
 
-[static-confirmed during red-team, whole `test/docs/serverDocs/` corpus] Research R1's
-"the offsets are asset-only" is accurate about the two committed assets and **inaccurate about
-the inputs**. Scanning every committed lesson master finds 30 `text:page-adjust` occurrences
-outside the assets:
+[AUTHORITATIVE — XML-parser probe of the whole `test/docs/serverDocs/` corpus; **supersedes the
+pass-13 attribution table, which was regex-derived and mis-assigned two of its three rows**]
+Research R1's "the offsets are asset-only" is accurate about the two committed assets and
+**inaccurate about the inputs**. Every committed lesson master together carries 30
+`text:page-adjust` occurrences outside the assets — and **all thirty sit on `Front_20_matter`**:
 
-| Master carrying the offset | Value | Occurrences                    | Present in both template assets? |
-| -------------------------- | ----- | ------------------------------ | -------------------------------- |
-| `Front_20_matter`          | `-3`  | 27                             | yes                              |
-| `HTML`                     | `-1`  | 2 (the `-99` TOC constituents) | yes                              |
-| `Body_20_Pages`            | `-3`  | 1                              | yes                              |
+| Master carrying the offset | Value | Occurrences | Where                                                |
+| -------------------------- | ----- | ----------- | ---------------------------------------------------- |
+| `Front_20_matter`          | `-3`  | 28          | lesson constituents                                  |
+| `Front_20_matter`          | `-1`  | 2           | the `-99` front-matter constituents (Luke-1, Luke-2) |
+
+**Struck**: the earlier rows attributing `-1` to `HTML` and `-3` to `Body_20_Pages`. Neither master
+carries an offset anywhere in the corpus; the attribution came from the same boundary-spanning regex
+that produced the phantom footers (see §2.5's probe-error note), which assigns each offset to
+whichever master name happens to precede it in the serialized file. The **total of 30 is unchanged**,
+so only the attribution was wrong.
 
 This matters because the **entire corpus `assembleQuarter.integration.test.ts` assembles**
 (`Luke-2-{14..26,99}v01.odt`) is offset-carrying: 13 lesson constituents at `-3` plus a TOC
-constituent at `-1`, against a template at `-1`. Three competing values enter one merge.
+constituent at `-1`, against a template at `-1`. Three competing values enter one merge — on **one**
+master name, not three, which makes the overwrite story simpler and the assertion no weaker.
 
 **Why the delivered book is probably still correct after the asset edit, and why that is not
 enough.** `Module1.xba` merges into a blank base, then calls

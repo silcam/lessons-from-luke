@@ -51,16 +51,22 @@ one** `text:page-adjust` occurrence, on the `Front_20_matter` master's footer pa
 previous asset, so the change is reviewable as a diff of intent rather than as an opaque
 4 MB binary delta.
 
-**The inputs are not offset-free** [static-confirmed during red-team, whole
-`test/docs/serverDocs/` corpus]. R1's "offsets are asset-only" describes the assets, not the
-constituents: 30 `text:page-adjust` occurrences live in committed lesson masters —
-`Front_20_matter` at `-3` (27×), `HTML` at `-1` (the two `-99` TOC constituents), and
-`Body_20_Pages` at `-3` (1×). The corpus `assembleQuarter.integration.test.ts` assembles
-(`Luke-2-{14..26,99}v01.odt`) is entirely offset-carrying. All three master names exist in **both**
-assets, so `Module1.xba`'s `loadStylesFromURL(OverwriteStyles=True, LoadPageStyles=True)` is
-expected to overwrite them with the fixed, offset-free definitions — but that is an **unstated
-dependency** on the style-load's family list and on no constituent ever introducing a master name
-absent from the template. Asset-only validation cannot observe it.
+**The inputs are not offset-free** [AUTHORITATIVE — XML-parser probe of the whole
+`test/docs/serverDocs/` corpus; **supersedes the pass-13 attribution table**]. R1's "offsets are
+asset-only" describes the assets, not the constituents: 30 `text:page-adjust` occurrences live in
+committed lesson masters, and **all thirty sit on `Front_20_matter`** — `-3` ×28 in the lesson
+constituents, `-1` ×2 in the `-99` front-matter constituents. **Struck**: the earlier rows
+attributing `-1` to `HTML` and `-3` to `Body_20_Pages`. Neither master carries an offset anywhere in
+the corpus; that attribution came from a regex that spans master-page boundaries (§2.5's probe-error
+note) and assigns each offset to whatever master name precedes it in the file. The total of 30 is
+unchanged — only the attribution was wrong.
+
+The corpus `assembleQuarter.integration.test.ts` assembles (`Luke-2-{14..26,99}v01.odt`) is entirely
+offset-carrying. `Front_20_matter` exists in **both** assets, so `Module1.xba`'s
+`loadStylesFromURL(OverwriteStyles=True, LoadPageStyles=True)` is expected to overwrite it with the
+fixed, offset-free definition — but that is an **unstated dependency** on the style-load's family
+list and on no constituent ever introducing a master name absent from the template. Asset-only
+validation cannot observe it.
 
 **Validation** (two assertions, both required):
 
