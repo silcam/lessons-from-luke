@@ -34,6 +34,7 @@ import {
 import assembleQuarter from "./assembleQuarter";
 import { selectAssemblyConstituents } from "../controllers/assemblyController";
 import * as quarterStylesTemplate from "../assembly/quarterStylesTemplate";
+import { PDF_CONVERT_TO_TARGET, classifyPage } from "./pdfRenderOptions";
 
 // The real merge (~14 `soffice` inserts + a `--convert-to pdf` verification
 // pass) comfortably exceeds Jest's 5s default. `sofficeAssemble`'s own hard
@@ -163,7 +164,7 @@ function convertToPdf(odtPath: string, workDir: string, profileDir: string): str
       "--nologo",
       `-env:UserInstallation=file://${profileDir}`,
       "--convert-to",
-      "pdf",
+      PDF_CONVERT_TO_TARGET,
       "--outdir",
       outDir,
       odtPath,
@@ -194,6 +195,20 @@ function pdfToText(pdfPath: string): string {
 /** Per-page text, split on the `\f` form-feed `pdftotext` emits between pages. */
 function pagesOf(fullText: string): string[] {
   return fullText.split("\f");
+}
+
+/**
+ * Locates a lesson's first CONTENT page (not merely the first page carrying
+ * its footer marker) by requiring the page classifier's `"lesson-content"`
+ * class in addition to the marker (contract §3 page-class signature table).
+ * A raw `pageText.includes(marker)` scan is wrong when a coloring page
+ * (which also carries the marker, printed twice, with no page number)
+ * precedes the lesson's actual first numbered content page.
+ */
+function firstContentPageIndexFor(pages: string[], marker: string): number {
+  return pages.findIndex(
+    (pageText) => pageText.includes(marker) && classifyPage(pageText) === "lesson-content"
+  );
 }
 
 /** Extracts and reads `styles.xml` from the assembled book into a fresh subdir of `workDir` — shared by the styles/outline assertions below, each of which needs its own extraction target to avoid clobbering a concurrently-running unzip. */
@@ -467,7 +482,7 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
     // page) — confirmed against the real merge output.
     LESSON_NUMBERS.forEach((n) => {
       const marker = footerMarkerFor(n);
-      const firstContentPageIndex = pages.findIndex((pageText) => pageText.includes(marker));
+      const firstContentPageIndex = firstContentPageIndexFor(pages, marker);
       expect(firstContentPageIndex).toBeGreaterThan(0);
 
       const titlePageIndex = firstContentPageIndex - 1;
@@ -478,7 +493,7 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
   test("FR-002: no lesson first page renders any footer content — the stand-alone CC license footer is gone (contracts/template-application.md §4)", () => {
     LESSON_NUMBERS.forEach((n) => {
       const marker = footerMarkerFor(n);
-      const firstContentPageIndex = pages.findIndex((pageText) => pageText.includes(marker));
+      const firstContentPageIndex = firstContentPageIndexFor(pages, marker);
       expect(firstContentPageIndex).toBeGreaterThan(0);
 
       const titlePageIndex = firstContentPageIndex - 1;
@@ -492,9 +507,7 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
     // boundary the "first page suppresses its page number" test above
     // computes for lesson 14, the quarter's first lesson.
     const firstLessonMarker = footerMarkerFor(LESSON_NUMBERS[0]);
-    const firstLessonContentPageIndex = pages.findIndex((pageText) =>
-      pageText.includes(firstLessonMarker)
-    );
+    const firstLessonContentPageIndex = firstContentPageIndexFor(pages, firstLessonMarker);
     expect(firstLessonContentPageIndex).toBeGreaterThan(0);
     const firstLessonTitlePageIndex = firstLessonContentPageIndex - 1;
 
@@ -618,7 +631,7 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
     // stale cached "Review Lesson" heading name, and not blank.
     LESSON_NUMBERS.forEach((n) => {
       const marker = footerMarkerFor(n);
-      const contentPageIndex = pages.findIndex((pageText) => pageText.includes(marker));
+      const contentPageIndex = firstContentPageIndexFor(pages, marker);
       expect(contentPageIndex).toBeGreaterThan(-1);
       expect(pages[contentPageIndex]).toContain(LESSON_TITLES[n]);
     });
@@ -628,10 +641,7 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
     // master page's own footer, carrying the title alongside the live
     // Quarter field checked above — confirmed present through Page iii,
     // immediately before lesson 14's own first content page).
-    const tocFooterPages = pages.slice(
-      0,
-      pages.findIndex((p) => p.includes(footerMarkerFor(14)))
-    );
+    const tocFooterPages = pages.slice(0, firstContentPageIndexFor(pages, footerMarkerFor(14)));
     expect(tocFooterPages.length).toBeGreaterThan(0);
     tocFooterPages
       .filter((p) => /Page\s+i+\b/.test(p))
@@ -656,7 +666,7 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
     expect(bulletChar).not.toHaveLength(0);
   });
 
-  test("page-offset parity: the produced book's final printed page number carries the known +1 offset vs. physical PDF page count (research.md R3 — matched, not fixed)", () => {
+  test("page-offset parity: the produced book's final printed page number matches the physical PDF page count now that IsSkipEmptyPages=false renders LibreOffice's implicit blank page (F2b, contract §3 — the render previously dropped that page, which is why this relationship carried a +1 offset before PDF_CONVERT_TO_TARGET pinned the filter)", () => {
     const pdfPath = path.join(workDir, "pdf-out", `${path.basename(outputPath, ".odt")}.pdf`);
     const physicalPageCount = pdfPageCount(pdfPath);
 
@@ -666,7 +676,7 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
       .map((token) => parseInt(token, 10));
     const finalPrintedPageNumber = numberedPages[numberedPages.length - 1];
 
-    expect(finalPrintedPageNumber).toBe(physicalPageCount + 1);
+    expect(finalPrintedPageNumber).toBe(physicalPageCount);
   });
 });
 

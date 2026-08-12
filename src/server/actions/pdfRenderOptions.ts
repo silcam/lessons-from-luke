@@ -6,7 +6,7 @@
  * code AND the integration-test oracle both pull from, so an edit to either
  * cannot silently diverge from the other (F2a/F2b).
  *
- * Three responsibilities, none implemented yet (this is the RED half — F2a):
+ * Three responsibilities:
  *
  * 1. {@link PDF_CONVERT_TO_TARGET} — the `--convert-to` filter target every
  *    headless `soffice` PDF export must use, pinning `IsSkipEmptyPages` to
@@ -28,12 +28,10 @@
  * and silently produce a short PDF on books carrying an implicit
  * `style:page-usage="left"` blank, e.g. via `Inside_20_cover`).
  *
- * STUB (F2a RED): not yet the real filter target — F2b (GREEN) implements
- * the pinned value. Deliberately NOT the bare `"pdf"` target the
- * pre-F2b `convertToPdf` test helper hardcodes, so a stub-vs-stub
- * coincidence can't paper over either RED assertion.
+ * Requires LibreOffice >= 7.4 (per F1's spike finding).
  */
-export const PDF_CONVERT_TO_TARGET = "pdf-STUB-not-yet-implemented";
+export const PDF_CONVERT_TO_TARGET =
+  'pdf:writer_pdf_Export:{"IsSkipEmptyPages":{"type":"boolean","value":"false"}}';
 
 /** Thrown by {@link reconcilePdfPages} when the extraction and the
  * authoritative page count describe different documents. Never carries an
@@ -52,12 +50,22 @@ export class PdfPageReconciliationError extends Error {}
  * mismatch (wrong entry count, or a non-empty tail) throws
  * {@link PdfPageReconciliationError} with a curated, path-free reason rather
  * than being silently absorbed.
- *
- * STUB (F2a RED): returns the naive, unreconciled split — F2b (GREEN)
- * implements the real reconciliation.
  */
-export function reconcilePdfPages(fullText: string, _renderedPageCount: number): string[] {
-  return fullText.split("\f");
+export function reconcilePdfPages(fullText: string, renderedPageCount: number): string[] {
+  const parts = fullText.split("\f");
+  const expectedLength = renderedPageCount + 1;
+  const tail = parts[parts.length - 1];
+  if (parts.length !== expectedLength || tail !== "") {
+    throw new PdfPageReconciliationError(
+      `PDF text extraction did not reconcile against the authoritative page count: ` +
+        `expected ${renderedPageCount} page(s) (${expectedLength} pdftotext entr${
+          expectedLength === 1 ? "y" : "ies"
+        } including the trailing empty tail), got ${parts.length} entr${
+          parts.length === 1 ? "y" : "ies"
+        }${tail !== "" ? " with a non-empty trailing entry" : ""}.`
+    );
+  }
+  return parts.slice(0, -1);
 }
 
 /**
@@ -66,6 +74,13 @@ export function reconcilePdfPages(fullText: string, _renderedPageCount: number):
  */
 export type PageClass =
   "lesson-title" | "blank" | "coloring" | "lesson-content" | "front-matter" | "table-of-contents";
+
+/** `Quarter <Q>` immediately followed by `Lesson <N>`, on whole-token boundaries. */
+const LESSON_MARKER = /\bQuarter\s+\d+\s+Lesson\s+\d+\b/g;
+/** `Quarter <Q>` alone, on whole-token boundaries. */
+const QUARTER_TOKEN = /\bQuarter\s+\d+\b/;
+/** A printed page-number footer token, e.g. `Page 5` or `Page iii`. */
+const PAGE_TOKEN = /\bPage\s+\S+/;
 
 /**
  * Classifies a single rendered page's extracted text by its footer
@@ -78,10 +93,29 @@ export type PageClass =
  * whole-token boundaries — `Front_20_matter`'s footer alone carries
  * `Quarter <Q>`, so a discriminator keyed on either token alone
  * misclassifies every front-matter page as coloring-page class.
- *
- * STUB (F2a RED): always returns `"lesson-title"` — F2b (GREEN) implements
- * the real classifier.
  */
-export function classifyPage(_pageText: string): PageClass {
+export function classifyPage(pageText: string): PageClass {
+  if (pageText.trim() === "") return "blank";
+
+  const markerOccurrences = pageText.match(LESSON_MARKER)?.length ?? 0;
+  const hasPageNumber = PAGE_TOKEN.test(pageText);
+
+  // The master's footer literally carries the Quarter/Lesson run twice on a
+  // coloring page (once per printed half-sheet), and coloring pages never
+  // print a page number.
+  if (markerOccurrences >= 2 && !hasPageNumber) return "coloring";
+
+  // Ordinary lesson content: the marker once, plus a page number.
+  if (markerOccurrences === 1 && hasPageNumber) return "lesson-content";
+
+  // Front matter / TOC pages never carry the Quarter+Lesson marker, but do
+  // print a page number — distinguished from each other by whether the lone
+  // `Quarter <Q>` token (without `Lesson <N>`) is present.
+  if (markerOccurrences === 0 && hasPageNumber) {
+    return QUARTER_TOKEN.test(pageText) ? "front-matter" : "table-of-contents";
+  }
+
+  // No footer at all (no marker, no page number), but real body text — a
+  // lesson's own suppressed-footer title page.
   return "lesson-title";
 }
