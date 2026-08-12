@@ -1559,6 +1559,7 @@ describe("assembleQuarter (real soffice merge) — US3-T7 kill-switch off branch
     fs.mkdirSync(path.join(jobWorkRoot, jobId), { recursive: true });
 
     let outputPath: string | undefined;
+    let warnCalls: unknown[][];
     try {
       outputPath = await assembleQuarter({
         storage,
@@ -1569,6 +1570,10 @@ describe("assembleQuarter (real soffice merge) — US3-T7 kill-switch off branch
         workRoot: jobWorkRoot,
       });
     } finally {
+      // Capture the call history BEFORE mockRestore() — mockRestore() also
+      // performs a mockReset() (clears mock.calls/instances/results), so
+      // reading warnSpy.mock.calls after restoring would always see [].
+      warnCalls = warnSpy.mock.calls;
       warnSpy.mockRestore();
     }
 
@@ -1576,7 +1581,7 @@ describe("assembleQuarter (real soffice merge) — US3-T7 kill-switch off branch
     expect(fs.existsSync(outputPath!)).toBe(true);
     fs.rmSync(outputPath!, { force: true });
 
-    const fr008Warnings = warnSpy.mock.calls.filter(([line]) =>
+    const fr008Warnings = warnCalls.filter(([line]) =>
       typeof line === "string" ? line.includes("FR-008") : false
     );
     expect(fr008Warnings).toHaveLength(1);
