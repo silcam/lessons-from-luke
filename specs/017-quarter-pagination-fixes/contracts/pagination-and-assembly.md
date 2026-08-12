@@ -357,12 +357,23 @@ export function measureLessonOneParity(options: {
   corpus among them — and FR-016 / INV-7 would pass or fail for reasons unrelated to the delivered
   book. Satisfy the invariant **structurally**: route every such render through one exported helper
   that owns the filter argument, and have the integration test assert the argument is present, so a
-  helper edit cannot silently drop it. If the R3 fallback moves production's option-setting into the
+  helper edit cannot silently drop it.
+
+  **What is shared is the filter-argument construction, not the spawn mechanics.** The helper is a
+  pure exported value/function in production code (colocated with `measureLessonOneParity`) that
+  builds the `--convert-to` target string; the test imports it. It is deliberately **not** a shared
+  spawner: production must spawn `detached`, kill by process group, and honour an `AbortSignal`
+  (invocation discipline below), while the integration test's `execFileSync` needs none of that.
+  Sharing the spawner would drag the process-lifecycle machinery into the test path and give the
+  helper two masters; sharing the argument is the whole of what the invariant requires. If the R3 fallback moves production's option-setting into the
   UNO macro while the tests keep the JSON `--convert-to` syntax, the equivalence of the two routes
   becomes a spike-confirmation item (same page count on a book known to carry an implicit blank),
   not an assumption.
 
-- **Page splitting is reconciled against `pdfinfo` before anything is classified.**
+- **Page splitting is reconciled against the authoritative page count before anything is
+  classified.** That count is `pdfinfo`'s today, and the UNO macro's under R3's fallback branch (no
+  poppler in production) — the reconciliation rule is stated over `renderedPageCount` from whichever
+  mechanism ships, and does not become optional if the fallback lands.
   [static-confirmed during red-team, `assembleQuarter.integration.test.ts:194-196`] The existing
   `pagesOf` helper is `fullText.split("\f")`, and `pdftotext` emits a form feed after **every** page
   including the last, so the split yields `renderedPageCount + 1` entries with an empty tail. Under

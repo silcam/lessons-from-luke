@@ -557,7 +557,9 @@ a genuine blank-class page, so the inventory INV-5 requires to account for **eve
 disagrees with `pdfinfo` by one on **every** book, and a rule reading "the last page is blank" is
 a coin flip. Two concrete requirements, both cheap:
 
-- **Anchor the inventory on `pdfinfo`.** Assert `parts.length === renderedPageCount + 1` and that
+- **Anchor the inventory on the authoritative page count** — `pdfinfo`'s today, the UNO macro's if
+  R3's no-poppler-in-production fallback lands; the rule is stated over `renderedPageCount` and does
+  not lapse with the mechanism. Assert `parts.length === renderedPageCount + 1` and that
   the tail entry is empty, then drop exactly one entry; the classifier consumes exactly
   `renderedPageCount` entries and every index it reports is a physical sheet position by
   construction. A mismatch throws the curated reason rather than being silently absorbed — it means
@@ -634,7 +636,10 @@ off-by-one is present on every book today.
   (the oracle must reflect physical sheets). Satisfy it structurally, by routing every such render
   through **one exported helper** that owns the filter argument, rather than by repeating the
   argument at each call site; the integration test additionally asserts the argument is present, so
-  a helper edit cannot silently drop it.
+  a helper edit cannot silently drop it. **The helper shares the argument, not the spawn**: it is a
+  pure exported builder for the `--convert-to` target, because production must spawn `detached`,
+  group-kill, and honour an `AbortSignal` while the test's `execFileSync` needs none of that.
+  A shared spawner would pull process-lifecycle machinery into the test path for no gain.
 
   **If the R3 fallback lands, the mechanisms diverge and equivalence becomes a spike item.**
   Production may end up setting the property through the UNO macro (`Module1.xba`) while the tests

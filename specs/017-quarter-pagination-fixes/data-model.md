@@ -77,8 +77,9 @@ The arabic-numbered run from lesson 1's first page to the end of the book.
   distinguishable: [static-confirmed during red-team] both footers render `Lessons from Luke` and
   `Teacher's Guide`, separated only by `Front_20_matter`'s `– Quarter <Q>` run. The lesson marker
   is tested on `Quarter <Q>` **and** `Lesson <N>` together, because `Front_20_matter`'s footer
-  carries `Quarter <Q>` on its own. The inventory is **anchored on `pdfinfo`'s page count before
-  anything is classified**: [static-confirmed during red-team,
+  carries `Quarter <Q>` on its own. The inventory is **anchored on the authoritative
+  `renderedPageCount` before anything is classified** (`pdfinfo`'s today, the UNO macro's under R3's
+  no-poppler fallback — the rule does not lapse with the mechanism): [static-confirmed during red-team,
   `assembleQuarter.integration.test.ts:194-196`] `pdftotext` emits a form feed after every page
   including the last, so a naive `split("\f")` yields `renderedPageCount + 1` entries with an empty
   tail that is byte-identical to a genuine blank-class page. Assert
