@@ -17,6 +17,7 @@ const NAMESPACES = {
   fo: "urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0",
   meta: "urn:oasis:names:tc:opendocument:xmlns:meta:1.0",
   dc: "http://purl.org/dc/elements/1.1/",
+  config: "urn:oasis:names:tc:opendocument:xmlns:config:1.0",
 };
 
 const workDir = "test/tmp-finalizeAssembledQuarter";
@@ -33,10 +34,43 @@ afterEach(() => {
  * Quarter property. Packed WITHOUT mimetype-first ordering so the repack
  * assertion is meaningful.
  */
+/**
+ * `settings.xml` variants for the `PrintEmptyPages` pin (contract §2.6,
+ * INV-7a):
+ * - "default": the config-item-set is present with `PrintEmptyPages` already
+ *   `false` — the shape finalize must flip to `true`.
+ * - "omitPrintEmptyPagesItem": the config-item-set is present but carries no
+ *   `PrintEmptyPages` item at all — finalize must create it.
+ * - "omitConfigSet": `office:settings` is present but empty — no
+ *   `ooo:configuration-settings` item set to patch.
+ * - "omitFile": `settings.xml` is not written into the archive at all.
+ */
+type SettingsXmlVariant = "default" | "omitPrintEmptyPagesItem" | "omitConfigSet" | "omitFile";
+
+function settingsXmlContent(variant: SettingsXmlVariant): string | undefined {
+  if (variant === "omitFile") return undefined;
+  const configItemSet =
+    variant === "omitConfigSet"
+      ? ""
+      : `<config:config-item-set config:name="ooo:configuration-settings">${
+          variant === "omitPrintEmptyPagesItem"
+            ? `<config:config-item config:name="SomeOtherSetting" config:type="boolean">true</config:config-item>`
+            : `<config:config-item config:name="PrintEmptyPages" config:type="boolean">false</config:config-item>`
+        }</config:config-item-set>`;
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-settings xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0" office:version="1.2">
+  <office:settings>${configItemSet}</office:settings>
+</office:document-settings>`;
+}
+
 function buildMergedFixtureOdt(
   odtPath: string,
   officeTextInner = "",
-  opts: { omitPlainRestyleTargets?: boolean; automaticStylesInner?: string } = {}
+  opts: {
+    omitPlainRestyleTargets?: boolean;
+    automaticStylesInner?: string;
+    settingsXml?: SettingsXmlVariant;
+  } = {}
 ): void {
   const srcDir = `${workDir}/src-${path.basename(odtPath, ".odt")}`;
   mkdirSafe(workDir);
@@ -100,19 +134,37 @@ function buildMergedFixtureOdt(
 </office:document-styles>`
   );
 
+  const settingsXml = settingsXmlContent(opts.settingsXml ?? "default");
+  if (settingsXml !== undefined) {
+    fs.writeFileSync(`${srcDir}/settings.xml`, settingsXml);
+  }
+
   const absOut = path.resolve(odtPath);
   fs.rmSync(absOut, { force: true });
   execFileSync("zip", ["-r", "-X", absOut, "."], { cwd: srcDir });
 }
 
-function extractXml(
-  odtPath: string,
-  entry: "styles.xml" | "meta.xml" | "content.xml"
-): XmlDocument {
+type FinalizedEntry = "styles.xml" | "meta.xml" | "content.xml" | "settings.xml";
+
+function extractXml(odtPath: string, entry: FinalizedEntry): XmlDocument {
   const extractDir = `${workDir}/extracted-${entry.replace(".xml", "")}`;
   unlinkRecursive(extractDir);
   unzip(odtPath, extractDir);
   return libxmljs2.parseXml(fs.readFileSync(`${extractDir}/${entry}`, "utf8"));
+}
+
+/**
+ * Raw (unparsed) text of a single entry, extracted fresh from the archive —
+ * used for the INV-13/INV-13a fixed-point comparisons. Comparing the
+ * extracted XML text, not archive bytes: `rezipWithMimetypeFirst` rewrites
+ * compressed streams and central-directory metadata on every call, so a
+ * whole-archive byte-diff is unsatisfiable by design (contract §1).
+ */
+function extractRaw(odtPath: string, entry: FinalizedEntry): string {
+  const extractDir = `${workDir}/extracted-raw-${entry.replace(".xml", "")}`;
+  unlinkRecursive(extractDir);
+  unzip(odtPath, extractDir);
+  return fs.readFileSync(`${extractDir}/${entry}`, "utf8");
 }
 
 function listArchiveEntries(odtPath: string): { name: string; method: string }[] {
@@ -747,3 +799,238 @@ test("re-packs with the mimetype entry stored FIRST and UNCOMPRESSED (ODF requir
   expect(entries[0].name).toBe("mimetype");
   expect(entries[0].method).toBe("Stored");
 });
+
+/**
+ * Recto filler insertion (017 US3, FR-009, contract §2.2/§2.5, data-model.md
+ * INV-6/INV-6a/INV-6b): the NEW `insertRectoFiller` option (default false, so
+ * every existing call site above stays valid) inserts exactly one empty
+ * `<text:p>` immediately before lesson 1's opening heading, on a fresh
+ * automatic style pinned to the footer-less `First_20_Page` master with no
+ * `style:page-number` — the filler consumes a front-matter number but
+ * carries no restart of its own.
+ */
+describe("recto filler insertion (FR-009, contract §2.2/§2.5)", () => {
+  function fillerFixture(odtPath: string): void {
+    buildMergedFixtureOdt(
+      odtPath,
+      `<text:h text:style-name="PF1" text:outline-level="1">Somo 1</text:h>`,
+      { automaticStylesInner: autoStyleTag("PF1", "") }
+    );
+  }
+
+  test("insertRectoFiller: false (the default) never inserts a filler paragraph", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    fillerFixture(odtPath);
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    expect(contentDoc.find<Element>("//office:text/text:p", NAMESPACES)).toHaveLength(0);
+  });
+
+  test("insertRectoFiller: true inserts exactly one empty text:p immediately before lesson 1's opening heading, on a fresh automatic style pinned to First_20_Page with no style:page-number", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    fillerFixture(odtPath);
+
+    finalizeAssembledQuarter({ ...defaultOptions(odtPath), insertRectoFiller: true });
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    const officeText = contentDoc.get<Element>("//office:body/office:text", NAMESPACES)!;
+    const children = officeText
+      .childNodes()
+      .filter((node) => node.type() === "element") as Element[];
+    expect(children).toHaveLength(2);
+    const [filler, heading] = children;
+    expect(filler.name()).toBe("p");
+    expect(filler.text().trim()).toBe("");
+    expect(heading.name()).toBe("h");
+
+    const fillerStyleName = filler.attr("style-name")!.value();
+    // A FRESH style — not the heading's own PF1 (that would make the filler
+    // and the heading co-referencers of the same, differently-purposed style).
+    expect(fillerStyleName).not.toBe("PF1");
+    const fillerStyle = contentDoc.get<Element>(
+      `//office:automatic-styles/style:style[@style:name='${fillerStyleName}']`,
+      NAMESPACES
+    )!;
+    expect(fillerStyle.attr("master-page-name")!.value()).toBe("First_20_Page");
+    // No style:page-number on the filler — the body restart stays exclusively
+    // on lesson 1's own heading (INV-6/INV-3).
+    expect(
+      fillerStyle.get<Element>("style:paragraph-properties", NAMESPACES)?.attr("page-number")
+    ).toBeUndefined();
+  });
+
+  test("throws the curated reason when insertRectoFiller is requested but lesson 1's opening heading cannot be located", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    // No level-1 heading anywhere — nowhere to insert the filler before.
+    buildMergedFixtureOdt(odtPath);
+
+    expect(() =>
+      finalizeAssembledQuarter({ ...defaultOptions(odtPath), insertRectoFiller: true })
+    ).toThrow(/assembly failed to finalize the merged book/i);
+  });
+});
+
+/**
+ * PrintEmptyPages pin (017 US3, FR-008, SC-004, contract §2.6, data-model.md
+ * INV-7a): finalize additionally patches `settings.xml`, pinning the
+ * `PrintEmptyPages` config item to `true` — creating it if absent — in BOTH
+ * `insertRectoFiller` modes, since the polarity is opposite to
+ * `IsSkipEmptyPages` and this is the DELIVERED `.odt`'s own print setting,
+ * not a render/export option. Asset-only validation cannot observe this; the
+ * merged value comes from whichever base document `Module1.xba` merges into.
+ */
+describe("PrintEmptyPages pin (contract §2.6, INV-7a)", () => {
+  function printEmptyPagesItem(settingsDoc: XmlDocument): Element {
+    return settingsDoc.get<Element>(
+      "//config:config-item[@config:name='PrintEmptyPages']",
+      NAMESPACES
+    )!;
+  }
+
+  test("flips an existing PrintEmptyPages=false item to true", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(odtPath, "", { settingsXml: "default" });
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+
+    const settingsDoc = extractXml(odtPath, "settings.xml");
+    expect(printEmptyPagesItem(settingsDoc)!.text()).toBe("true");
+    expect(printEmptyPagesItem(settingsDoc)!.attr("type")!.value()).toBe("boolean");
+  });
+
+  test("creates the PrintEmptyPages item when the configuration-settings set exists but omits it", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(odtPath, "", { settingsXml: "omitPrintEmptyPagesItem" });
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+
+    const settingsDoc = extractXml(odtPath, "settings.xml");
+    expect(printEmptyPagesItem(settingsDoc)!.text()).toBe("true");
+    // The pre-existing, unrelated item is left alone.
+    const other = settingsDoc.get<Element>(
+      "//config:config-item[@config:name='SomeOtherSetting']",
+      NAMESPACES
+    )!;
+    expect(other.text()).toBe("true");
+  });
+
+  test("pins PrintEmptyPages to true in BOTH insertRectoFiller modes", () => {
+    const falsePath = `${workDir}/assembled-false.odt`;
+    buildMergedFixtureOdt(
+      falsePath,
+      `<text:h text:style-name="PPE1" text:outline-level="1">Somo 1</text:h>`,
+      { automaticStylesInner: autoStyleTag("PPE1", ""), settingsXml: "default" }
+    );
+    finalizeAssembledQuarter({ ...defaultOptions(falsePath), insertRectoFiller: false });
+    expect(printEmptyPagesItem(extractXml(falsePath, "settings.xml"))!.text()).toBe("true");
+
+    const truePath = `${workDir}/assembled-true.odt`;
+    buildMergedFixtureOdt(
+      truePath,
+      `<text:h text:style-name="PPE2" text:outline-level="1">Somo 1</text:h>`,
+      { automaticStylesInner: autoStyleTag("PPE2", ""), settingsXml: "default" }
+    );
+    finalizeAssembledQuarter({ ...defaultOptions(truePath), insertRectoFiller: true });
+    expect(printEmptyPagesItem(extractXml(truePath, "settings.xml"))!.text()).toBe("true");
+  });
+
+  test("throws the curated reason when settings.xml is missing from the merged archive", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(odtPath, "", { settingsXml: "omitFile" });
+
+    expect(() => finalizeAssembledQuarter(defaultOptions(odtPath))).toThrow(
+      /assembly failed to finalize the merged book/i
+    );
+  });
+
+  test("throws the curated reason when settings.xml has no configuration-settings item set", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(odtPath, "", { settingsXml: "omitConfigSet" });
+
+    expect(() => finalizeAssembledQuarter(defaultOptions(odtPath))).toThrow(
+      /assembly failed to finalize the merged book/i
+    );
+  });
+});
+
+/**
+ * Finalize fixed point (017 US3, contract §2.4, data-model.md INV-13/
+ * INV-13a): running finalize twice must not double-insert the filler or
+ * double-apply the PrintEmptyPages pin. Scope is every file finalize
+ * patches — content.xml, styles.xml, settings.xml, and meta.xml — not
+ * content.xml alone, since the filler and the pin both live outside it.
+ *
+ * Each comparison is preceded by a guard assertion on the ONCE-finalized
+ * output, so the property is exercised against the NEW behavior this task
+ * covers, not only against machinery (body restart, metadata upsert) that
+ * was already a fixed point before this feature.
+ */
+describe("finalize fixed point (contract §2.4, INV-13, INV-13a)", () => {
+  const FOUR_FILE_SCOPE = ["content.xml", "styles.xml", "settings.xml", "meta.xml"] as const;
+
+  function fixedPointFixture(odtPath: string): void {
+    buildMergedFixtureOdt(
+      odtPath,
+      `<text:h text:style-name="PFP" text:outline-level="1">Somo 1</text:h>`,
+      { automaticStylesInner: autoStyleTag("PFP", ""), settingsXml: "default" }
+    );
+  }
+
+  test.each([false, true])(
+    "flag-constant fixed point (INV-13): finalize(finalize(doc)) is byte-identical to finalize(doc) over content.xml, styles.xml, settings.xml, and meta.xml — insertRectoFiller: %s",
+    (insertRectoFiller) => {
+      const oncePath = `${workDir}/once-${String(insertRectoFiller)}.odt`;
+      fixedPointFixture(oncePath);
+      finalizeAssembledQuarter({ ...defaultOptions(oncePath), insertRectoFiller });
+
+      // Guard: the once-finalized output must already carry the new
+      // invariants this fixed point is meant to protect, or the comparison
+      // below is vacuous.
+      expect(printEmptyPagesItemText(extractXml(oncePath, "settings.xml"))).toBe("true");
+      if (insertRectoFiller) {
+        expect(
+          extractXml(oncePath, "content.xml").find<Element>("//office:text/text:p", NAMESPACES)
+        ).toHaveLength(1);
+      }
+
+      const twicePath = `${workDir}/twice-${String(insertRectoFiller)}.odt`;
+      fs.copyFileSync(oncePath, twicePath);
+      finalizeAssembledQuarter({ ...defaultOptions(twicePath), insertRectoFiller });
+
+      for (const entry of FOUR_FILE_SCOPE) {
+        expect(extractRaw(twicePath, entry)).toBe(extractRaw(oncePath, entry));
+      }
+    }
+  );
+
+  test("mixed-mode fixed point (INV-13a, the production path): finalize(finalize(doc, false), true) equals finalize(doc, true), over the same four-file scope", () => {
+    const mixedPath = `${workDir}/mixed.odt`;
+    fixedPointFixture(mixedPath);
+    finalizeAssembledQuarter({ ...defaultOptions(mixedPath), insertRectoFiller: false });
+    finalizeAssembledQuarter({ ...defaultOptions(mixedPath), insertRectoFiller: true });
+
+    const directPath = `${workDir}/direct.odt`;
+    fixedPointFixture(directPath);
+    finalizeAssembledQuarter({ ...defaultOptions(directPath), insertRectoFiller: true });
+
+    // Guard: the direct single-pass output must carry the filler, or the
+    // comparison below never exercises the mixed sequence's own defect class
+    // (an already-restarted, already-repointed tree on the second call).
+    expect(
+      extractXml(directPath, "content.xml").find<Element>("//office:text/text:p", NAMESPACES)
+    ).toHaveLength(1);
+
+    for (const entry of FOUR_FILE_SCOPE) {
+      expect(extractRaw(mixedPath, entry)).toBe(extractRaw(directPath, entry));
+    }
+  });
+});
+
+/** Shared with the fixed-point describe block above. */
+function printEmptyPagesItemText(settingsDoc: XmlDocument): string | undefined {
+  return settingsDoc
+    .get<Element>("//config:config-item[@config:name='PrintEmptyPages']", NAMESPACES)
+    ?.text();
+}

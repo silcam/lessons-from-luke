@@ -76,6 +76,18 @@ export interface FinalizeAssembledQuarterOptions {
    * byte-for-byte untouched by the restyle.
    */
   singleLanguage?: boolean;
+  /**
+   * True to insert the blank recto filler paragraph before lesson 1's
+   * opening heading (FR-009, contract §2.2/§2.5) — needed when lesson 1
+   * would otherwise open on an even (verso) physical page. Defaults to
+   * false, so every existing call site stays valid.
+   *
+   * STUB (US3-T5 RED, lessons-from-luke-ipuf.5.8.5): accepted on the
+   * options type so the RED test suite typechecks, but not yet acted on —
+   * US3-T6 (GREEN) implements the actual insertion and the §2.6
+   * `PrintEmptyPages` pin.
+   */
+  insertRectoFiller?: boolean;
 }
 
 /**
@@ -84,7 +96,16 @@ export interface FinalizeAssembledQuarterOptions {
  * comment for the full contract.
  */
 export function finalizeAssembledQuarter(options: FinalizeAssembledQuarterOptions): void {
-  const { odtPath, series, firstLessonNumber, title, subject, singleLanguage = false } = options;
+  const {
+    odtPath,
+    series,
+    firstLessonNumber,
+    title,
+    subject,
+    singleLanguage = false,
+    // STUB (US3-T5 RED): accepted, not yet acted on — see the option's doc comment.
+    insertRectoFiller: _insertRectoFiller = false,
+  } = options;
   const extractDirPath = `${odtPath}_finalize`;
 
   try {
