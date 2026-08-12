@@ -1,0 +1,27 @@
+;=============================================
+; Both memory-verse copies on a coloring page render identically.
+;=============================================
+GIVEN an assembled quarter book containing a coloring page.
+WHEN the two memory-verse paragraphs on that page are compared.
+THEN they render identically.
+
+;=============================================
+; A coloring page whose source master names the memory-verse style directly holds.
+;=============================================
+GIVEN a coloring page whose source master names the memory-verse style directly.
+WHEN the assembled book is inspected.
+THEN both copies carry that style.
+
+;=============================================
+; A coloring page reaching the style indirectly through an automatic style's parent holds.
+;=============================================
+GIVEN a coloring page whose source master reaches the memory-verse style indirectly through an automatic style's parent.
+WHEN the assembled book is inspected.
+THEN both copies still render in the memory-verse style.
+
+;=============================================
+; The fix holds across both style-naming families.
+;=============================================
+GIVEN lesson masters using either style-naming family, M.T.-prefixed or plain.
+WHEN the assembled book is inspected.
+THEN the result is the same for both families.
