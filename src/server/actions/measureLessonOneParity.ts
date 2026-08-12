@@ -1,19 +1,13 @@
 import fs from "fs";
 import path from "path";
 import { spawn, execFile, type ChildProcess } from "child_process";
-import { reconcilePdfPages, classifyPage } from "./pdfRenderOptions";
+import { PDF_CONVERT_TO_TARGET, reconcilePdfPages, classifyPage } from "./pdfRenderOptions";
 
 /**
  * measureLessonOneParity — renders a finalized quarter book to PDF and
  * locates lesson 1's first physical page so the caller can decide whether a
  * blank recto filler is required (US3, FR-010).
  * See contracts/pagination-and-assembly.md §3.
- *
- * STUB (US3-T1 RED): the shapes below satisfy the signature so the RED test
- * file compiles and typechecks, but none of the behavior is implemented yet
- * — US3-T2 (GREEN) fills this in. Every exported function here is
- * deliberately wrong/naive so the RED suite fails on assertions, not on
- * "Cannot find module" or a TypeScript error.
  */
 
 /** Options for {@link measureLessonOneParity}. See contract §3 for "the two path parameters". */
@@ -76,13 +70,18 @@ export class MeasureLessonOneParityAbortedError extends MeasureLessonOneParityEr
 }
 
 /**
+ * Hard per-render self-kill budget. A single-document PDF export is far
+ * cheaper than the 14-document `soffice` merge `sofficeAssemble.ts` bounds
+ * (`DEFAULT_TIMEOUT_MS`), so this is deliberately a fraction of it — see
+ * plan.md §5 for the eventual `ASSEMBLY_RENDER_TIMEOUT_MS` budget-sum term
+ * this constant feeds once the orchestration task wires it in.
+ */
+export const MEASURE_RENDER_TIMEOUT_MS = 90_000;
+
+/**
  * Builds the `soffice --convert-to` argument array for the measurement
  * render. Pure — no spawning — so it is unit-testable on its own (contract
  * §3 "render pinning" + "profileDir is a parameter, never re-derived").
- *
- * STUB (RED): omits {@link PDF_CONVERT_TO_TARGET} and hardcodes a bare `pdf`
- * target, and ignores the passed `profileDir` in favor of a fake default —
- * both wrong on purpose so the RED assertions fail cleanly.
  */
 export function buildMeasureConvertArgs(options: {
   odtPath: string;
@@ -93,9 +92,9 @@ export function buildMeasureConvertArgs(options: {
     "--headless",
     "--norestore",
     "--nologo",
-    "-env:UserInstallation=file:///tmp/STUB-default-profile-not-yet-implemented",
+    `-env:UserInstallation=file://${options.profileDir}`,
     "--convert-to",
-    "pdf",
+    PDF_CONVERT_TO_TARGET,
     "--outdir",
     options.outDir,
     options.odtPath,
@@ -112,32 +111,40 @@ export function firstLessonMarker(series: number, firstLessonNumber: number): Re
  * FIRST page satisfying the whole conjunction — lesson-title class AND
  * confirmation A (the next page belongs to the quarter's first lesson) AND
  * confirmation B (a denial: the preceding page is absent, or does not carry
- * the first lesson's marker). Scans the entire book; throws when zero or
- * more than one page satisfies the conjunction.
- *
- * STUB (RED): implements the explicitly-rejected "first-then-check" +
- * marker-adjacency shortcuts the contract calls out as unsafe, so the RED
- * suite's dedicated rejection tests fail cleanly.
+ * the first lesson's marker). Scans the entire book — never stops at the
+ * first lesson-title-class candidate — and throws when zero or more than
+ * one page satisfies the conjunction, rather than guessing.
  */
 export function locateLessonOnePage(
   pages: string[],
   series: number,
   firstLessonNumber: number
 ): number {
-  // STUB: neither `series` nor `firstLessonNumber` is consulted — see
-  // {@link firstLessonMarker} for the real marker this STUB ignores.
-  void series;
-  void firstLessonNumber;
-  // STUB: "first-then-check" — selects the first lesson-title-class page
-  // without checking either confirmation, which is exactly the unsafe
-  // shortcut the contract forbids (it selects the book's own physical
-  // page 1).
+  const marker = firstLessonMarker(series, firstLessonNumber);
+  const matches: number[] = [];
+
   for (let i = 0; i < pages.length; i++) {
-    if (classifyPage(pages[i]) === "lesson-title") {
-      return i + 1;
-    }
+    if (classifyPage(pages[i]) !== "lesson-title") continue;
+
+    // Confirmation A: the NEXT page belongs to the quarter's first lesson —
+    // coloring or content class, marker matched on a whole-token boundary.
+    const nextPage = pages[i + 1];
+    if (nextPage === undefined || !marker.test(nextPage)) continue;
+    const nextClass = classifyPage(nextPage);
+    if (nextClass !== "coloring" && nextClass !== "lesson-content") continue;
+
+    // Confirmation B (a DENIAL, not an allow-list): the PRECEDING page is
+    // absent, or does not carry the first lesson's marker.
+    const prevPage = pages[i - 1];
+    if (prevPage !== undefined && marker.test(prevPage)) continue;
+
+    matches.push(i + 1);
   }
-  throw new MeasureLessonOneParityError("could not locate lesson 1's opening page");
+
+  if (matches.length !== 1) {
+    throw new MeasureLessonOneParityError("could not locate lesson 1's opening page");
+  }
+  return matches[0];
 }
 
 /** `lessonOnePageIndex` even → lesson 1 opens verso and needs a filler (contract §3). */
@@ -149,12 +156,14 @@ export function needsFillerForIndex(lessonOnePageIndex: number): boolean {
  * Asserts the pass-tagged `outDir` holds no stale PDF for `odtPath` before
  * this pass renders into it — a stale PDF from a prior pass must never be
  * silently read as the current result (contract §3 "invocation discipline").
- * Unlinks it if present.
- *
- * STUB (RED): no-ops, so a stale PDF is silently left in place.
+ * Unlinks it if present; a missing file is not an error.
  */
-export function assertFreshPdfOutput(_pdfPath: string): void {
-  // STUB — does nothing.
+export function assertFreshPdfOutput(pdfPath: string): void {
+  try {
+    fs.unlinkSync(pdfPath);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code !== "ENOENT") throw err;
+  }
 }
 
 /** The PDF path `soffice --convert-to` derives from `odtPath`'s basename inside `outDir`. */
@@ -167,16 +176,20 @@ export function pdfPathFor(odtPath: string, outDir: string): string {
  * exited, per contract §4's "Bounded wait" — never an open await. Resolves
  * `true` once `checkExited()` reports the group is gone, or `false` once
  * `capMs` elapses first.
- *
- * STUB (RED): resolves immediately without ever calling `checkExited`, so
- * the RED suite's dedicated poll-shape tests fail cleanly.
  */
 export async function pollProcessGroupExited(
-  _checkExited: () => boolean,
-  _capMs: number,
-  _intervalMs = 100
+  checkExited: () => boolean,
+  capMs: number,
+  intervalMs = 100
 ): Promise<boolean> {
-  return true;
+  const start = Date.now();
+  if (checkExited()) return true;
+
+  while (Date.now() - start < capMs) {
+    await new Promise<void>((resolve) => setTimeout(resolve, intervalMs));
+    if (checkExited()) return true;
+  }
+  return false;
 }
 
 /**
@@ -184,27 +197,26 @@ export async function pollProcessGroupExited(
  * group — this pass's own timeout/abort, vs. an externally-caused signal
  * death (e.g. the OOM killer) it did not send. Diagnostics-only; the
  * coordinator-facing curated reason is unaffected.
- *
- * STUB (RED): both branches produce the same string.
  */
-export function renderKillLogLine(_killedByUs: boolean): string {
-  return "soffice render was killed";
+export function renderKillLogLine(killedByUs: boolean): string {
+  return killedByUs
+    ? `measureLessonOneParity: soffice render process group killed by us at MEASURE_RENDER_TIMEOUT_MS (our own timeout/abort)`
+    : `measureLessonOneParity: soffice render process group died by a signal this process did not send (e.g. the OOM killer)`;
 }
 
 /**
  * Run the full render-then-locate flow for one measurement or confirmation
- * pass. See the module doc comment and contract §3 for the full contract
- * this MUST satisfy once implemented.
- *
- * STUB (US3-T1 RED): spawns nothing resembling the real invocation
- * discipline yet — a minimal, deliberately-wrong placeholder so the RED
- * suite's mocked-spawn assertions fail cleanly rather than the whole file
- * failing to import.
+ * pass. Follows `sofficeAssemble.ts`'s invocation discipline, NOT
+ * `webifyLesson.ts`'s (the in-repo anti-pattern: shell `exec` with an
+ * interpolated path and a shared default profile) — array-arg `spawn`,
+ * detached so a process-group kill can target the whole tree, self-killed on
+ * timeout, and honouring an `AbortSignal`. See the module doc comment and
+ * contract §3.
  */
 export function measureLessonOneParity(
   options: MeasureLessonOneParityOptions
 ): Promise<LessonOneParity> {
-  const { odtPath, outDir, series, firstLessonNumber, signal } = options;
+  const { odtPath, outDir, profileDir, series, firstLessonNumber, signal } = options;
 
   return new Promise<LessonOneParity>((resolve, reject) => {
     if (signal?.aborted) {
@@ -219,52 +231,113 @@ export function measureLessonOneParity(
       return;
     }
 
-    const args = buildMeasureConvertArgs({ odtPath, outDir, profileDir: options.profileDir });
-    // STUB: not detached, no process-group kill wiring, no timeout — every
-    // one of the RED suite's invocation-discipline assertions is expected
-    // to fail against this.
-    const child: ChildProcess = spawn("soffice", args);
+    const pdfPath = pdfPathFor(odtPath, outDir);
+    assertFreshPdfOutput(pdfPath);
 
-    child.on("error", (err) => reject(err));
-    child.on("close", (code) => {
+    const args = buildMeasureConvertArgs({ odtPath, outDir, profileDir });
+
+    let settled = false;
+
+    /** The single settle funnel: every exit path clears the timer and drops the abort listener exactly once. */
+    function finish(act: () => void): void {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      act();
+    }
+
+    /** Kill the live render's process group, swallowing any failure (a hung `soffice` must not wedge this promise). */
+    function killGroup(killedByUs: boolean): void {
+      console.warn(renderKillLogLine(killedByUs));
+      if (!child.pid) return;
+      try {
+        process.kill(-child.pid, "SIGKILL");
+      } catch (err) {
+        console.warn("measureLessonOneParity: process-group kill failed", err);
+      }
+    }
+
+    function onAbort(): void {
+      finish(() => {
+        killGroup(true);
+        reject(new MeasureLessonOneParityAbortedError());
+      });
+    }
+    signal?.addEventListener("abort", onAbort);
+
+    const timer = setTimeout(() => {
+      finish(() => {
+        killGroup(true);
+        reject(new MeasureLessonOneParityTimeoutError());
+      });
+    }, MEASURE_RENDER_TIMEOUT_MS);
+
+    const child: ChildProcess = spawn("soffice", args, { detached: true });
+
+    child.on("error", (err) => {
+      finish(() => reject(err));
+    });
+
+    child.on("close", (code, killedBySignal) => {
+      // Our own timeout/abort kill already settled and rejected via
+      // `finish` — this guard keeps the close event from double-handling.
+      if (settled) return;
+
       if (code !== 0) {
-        reject(new MeasureLessonOneParityError("lesson-one parity render failed"));
+        finish(() => {
+          // A signal death this process did not send (e.g. the OOM killer)
+          // reads distinctly from an ordinary non-zero exit.
+          if (killedBySignal) {
+            console.warn(renderKillLogLine(false));
+          }
+          reject(new MeasureLessonOneParityError("lesson-one parity render failed"));
+        });
         return;
       }
-      const pdfPath = pdfPathFor(odtPath, outDir);
+
       execFile("pdfinfo", [pdfPath], { encoding: "utf8" }, (infoErr, infoOut) => {
+        if (settled) return;
         if (infoErr) {
-          reject(
-            new MeasureLessonOneParityError("lesson-one parity render produced no readable PDF")
+          finish(() =>
+            reject(
+              new MeasureLessonOneParityError("lesson-one parity render produced no readable PDF")
+            )
           );
           return;
         }
         const match = /^Pages:\s+(\d+)/m.exec(infoOut);
         const renderedPageCount = match ? parseInt(match[1], 10) : 0;
+
         execFile(
           "pdftotext",
           ["-layout", pdfPath, "-"],
           { encoding: "utf8", maxBuffer: 1024 * 1024 * 64 },
           (textErr, textOut) => {
+            if (settled) return;
             if (textErr) {
-              reject(
-                new MeasureLessonOneParityError(
-                  "lesson-one parity render produced no extractable text"
+              finish(() =>
+                reject(
+                  new MeasureLessonOneParityError(
+                    "lesson-one parity render produced no extractable text"
+                  )
                 )
               );
               return;
             }
-            try {
-              const pages = reconcilePdfPages(textOut, renderedPageCount);
-              const lessonOnePageIndex = locateLessonOnePage(pages, series, firstLessonNumber);
-              resolve({
-                lessonOnePageIndex,
-                needsFiller: needsFillerForIndex(lessonOnePageIndex),
-                renderedPageCount,
-              });
-            } catch {
-              reject(new MeasureLessonOneParityError("could not locate lesson 1's opening page"));
-            }
+            finish(() => {
+              try {
+                const pages = reconcilePdfPages(textOut, renderedPageCount);
+                const lessonOnePageIndex = locateLessonOnePage(pages, series, firstLessonNumber);
+                resolve({
+                  lessonOnePageIndex,
+                  needsFiller: needsFillerForIndex(lessonOnePageIndex),
+                  renderedPageCount,
+                });
+              } catch {
+                reject(new MeasureLessonOneParityError("could not locate lesson 1's opening page"));
+              }
+            });
           }
         );
       });
