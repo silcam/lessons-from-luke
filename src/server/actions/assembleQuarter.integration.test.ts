@@ -615,6 +615,96 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
     });
   });
 
+  test('017 US1-T3 FR-005/INV-3: the assembled book\'s FIRST visible level-1 opening carries the explicit style:page-number="1" body restart, and it is the ONLY paragraph in the book that does', () => {
+    const contentXml = extractContentXml(outputPath, workDir, "content-extract-body-restart");
+    const contentDoc = libxmljs2.parseXml(contentXml);
+    const openings = visibleLessonOpenings(contentDoc);
+    expect(openings).toHaveLength(LESSON_NUMBERS.length);
+
+    const restartAttrOn = (style: Element | undefined) =>
+      style
+        ?.get<Element>("style:paragraph-properties", ODF_NAMESPACES)
+        ?.attr("page-number")
+        ?.value();
+
+    // First opening (lesson 14) carries the explicit restart.
+    expect(restartAttrOn(openings[0].autoStyle)).toBe("1");
+    // Every LATER opening keeps auto-continuation, never a second restart.
+    openings.slice(1).forEach(({ heading, autoStyle }) => {
+      expect({ heading: heading.text().trim(), restart: restartAttrOn(autoStyle) }).toEqual({
+        heading: heading.text().trim(),
+        restart: undefined,
+      });
+    });
+
+    // Book-wide: exactly one automatic style anywhere carries the restart.
+    const allRestarts = contentDoc
+      .find<Element>("//office:automatic-styles/style:style", ODF_NAMESPACES)
+      .filter(
+        (style) =>
+          style
+            .get<Element>("style:paragraph-properties", ODF_NAMESPACES)
+            ?.attr("page-number")
+            ?.value() === "1"
+      );
+    expect(allRestarts).toHaveLength(1);
+  });
+
+  /**
+   * INV-6b (017 US1-T3, contract §2.5): footer rendering is a conjunction
+   * across two XML levels — (1) the master carries a `<style:footer>`
+   * element, AND (2) the page layout it references carries a POPULATED
+   * `<style:footer-style>` (one with a `<style:header-footer-properties>`
+   * child). LibreOffice emits an EMPTY `<style:footer-style/>` on every
+   * switched-off layout, so testing footer-style presence alone is wrong —
+   * it fails on the template itself. Resolved by MASTER NAME, never a
+   * literal `Mpm<n>` (automatic layout names are only locally unique).
+   * Uses an XML parser throughout — a regex spanning to the next master's
+   * closing tag has produced false claims in prior red-team passes on these
+   * assets, most of which are self-closing.
+   */
+  function masterRendersFooter(
+    stylesDoc: ReturnType<typeof libxmljs2.parseXml>,
+    masterName: string
+  ): boolean {
+    const master = stylesDoc.get<Element>(
+      `//style:master-page[@style:name='${masterName}']`,
+      ODF_NAMESPACES
+    );
+    expect(master).toBeDefined();
+    const hasFooterElement = !!master!.get<Element>("style:footer", ODF_NAMESPACES);
+    const layoutName = master!.attr("page-layout-name")?.value();
+    expect(layoutName).toBeDefined();
+    const layout = stylesDoc.get<Element>(
+      `//style:page-layout[@style:name='${layoutName}']`,
+      ODF_NAMESPACES
+    );
+    expect(layout).toBeDefined();
+    const footerStyle = layout!.get<Element>("style:footer-style", ODF_NAMESPACES);
+    const hasPopulatedFooterStyle = !!footerStyle?.get<Element>(
+      "style:header-footer-properties",
+      ODF_NAMESPACES
+    );
+    return hasFooterElement && hasPopulatedFooterStyle;
+  }
+
+  // GREEN from birth (same pattern as the master-pages regression guard
+  // above): the merge already wins INV-6b via `loadStylesFromURL`'s
+  // template-style overwrite (contract §2.5), so this conjunction already
+  // holds on today's real corpus. It ships now as the regression guard the
+  // spec requires — a future asset or merge regression that breaks EITHER
+  // conjunct (e.g. reintroduces a populated footer-style on the layout
+  // while the master itself stays footer-less) trips this, where the old
+  // single-conjunct assertion at line ~540 would not.
+  test("017 US1-T3 FR-007/FR-009, INV-6b: in the assembled book's styles.xml, First_20_Page and Standard render NO footer under the CONJUNCTION (no style:footer element AND no populated style:footer-style on the resolved layout) — both conjuncts asserted, resolved by master NAME not literal Mpm<n>", () => {
+    const stylesXml = extractStylesXml(outputPath, workDir, "styles-extract-footer-conjunction");
+    const stylesDoc = libxmljs2.parseXml(stylesXml);
+
+    ["First_20_Page", "Standard"].forEach((masterName) => {
+      expect(masterRendersFooter(stylesDoc, masterName)).toBe(false);
+    });
+  });
+
   test("outline numbering: the merged book's level-1 outline style starts at the quarter's first absolute lesson number (14), so chapter-number footer fields render", () => {
     const stylesXml = extractStylesXml(outputPath, workDir, "styles-extract-outline");
 

@@ -137,6 +137,11 @@ function defaultOptions(odtPath: string) {
   };
 }
 
+/** Builds a content.xml `<style:style>` automatic-style fragment for a paragraph family. */
+function autoStyleTag(name: string, inner: string, attrs = ""): string {
+  return `<style:style style:name="${name}" style:family="paragraph"${attrs}>${inner}</style:style>`;
+}
+
 test("patches the level-1 outline style so chapter-number footer fields render: num-format 1, %1% list format, start-value = the quarter's first absolute lesson number", () => {
   const odtPath = `${workDir}/assembled.odt`;
   buildMergedFixtureOdt(odtPath);
@@ -484,6 +489,224 @@ describe("lesson-opening master-page normalization", () => {
     // The named-common-style heading is skipped: no auto style minted for it.
     const named = contentDoc.find<Element>("//office:automatic-styles/style:style", NAMESPACES);
     expect(named.map((s) => s.attr("name")!.value())).toEqual(["P7", "P8", "P24"]);
+  });
+});
+
+/**
+ * Body restart (017 US1-T3, FR-005, INV-3, contract §2.2/§2.5, data-model.md
+ * INV-3): the FIRST visible level-1 opening's automatic style must carry
+ * BOTH `style:master-page-name="First_20_Page"` and an explicit
+ * `style:page-number="1"` restart, and it must be the ONLY paragraph in the
+ * book carrying that restart. This is a NEW pass, distinct from — and not
+ * gated by — `normalizeLessonOpeningMasterPages`' skip conditions: that
+ * function trusts (skips cloning for) an auto style that already carries a
+ * master, and skips entirely when the heading rides a common named style.
+ * Neither skip is safe for the restart (contract §2.2), so the restart pass
+ * must guarantee its own isolation regardless.
+ */
+describe("body restart (FR-005 / INV-3)", () => {
+  test('sets style:page-number="1" alongside master-page-name=First_20_Page on the FIRST visible level-1 opening\'s own (isolated) automatic style', () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(
+      odtPath,
+      `<text:h text:style-name="P30" text:outline-level="1">Somo 1</text:h>` +
+        `<text:h text:style-name="P31" text:outline-level="1">Somo 2</text:h>`,
+      { automaticStylesInner: autoStyleTag("P30", "") + autoStyleTag("P31", "") }
+    );
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    const heading1 = contentDoc.get<Element>("//office:body//text:h[1]", NAMESPACES)!;
+    const style1Name = heading1.attr("style-name")!.value();
+    const style1 = contentDoc.get<Element>(
+      `//office:automatic-styles/style:style[@style:name='${style1Name}']`,
+      NAMESPACES
+    )!;
+    expect(style1.attr("master-page-name")!.value()).toBe("First_20_Page");
+    const props1 = style1.get<Element>("style:paragraph-properties", NAMESPACES);
+    expect(props1?.attr("page-number")?.value()).toBe("1");
+  });
+
+  test('exactly one paragraph in the book carries the explicit style:page-number="1" restart — the second (and every later) opening\'s automatic style carries NO style:page-number attribute', () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(
+      odtPath,
+      `<text:h text:style-name="P32" text:outline-level="1">Somo 1</text:h>` +
+        `<text:h text:style-name="P33" text:outline-level="1">Somo 2</text:h>` +
+        `<text:h text:style-name="P34" text:outline-level="1">Somo 3</text:h>`,
+      {
+        automaticStylesInner:
+          autoStyleTag("P32", "") + autoStyleTag("P33", "") + autoStyleTag("P34", ""),
+      }
+    );
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    const restarts = contentDoc
+      .find<Element>("//office:automatic-styles/style:style", NAMESPACES)
+      .filter(
+        (style) =>
+          style
+            .get<Element>("style:paragraph-properties", NAMESPACES)
+            ?.attr("page-number")
+            ?.value() === "1"
+      );
+    expect(restarts).toHaveLength(1);
+  });
+
+  test("skips the injected hidden heading (text:display='none') when locating the first VISIBLE opening — the restart lands on the first heading that actually renders", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(
+      odtPath,
+      `<text:h text:style-name="PHiddenR" text:outline-level="1">hidden</text:h>` +
+        `<text:h text:style-name="P35" text:outline-level="1">Somo 1</text:h>`,
+      {
+        automaticStylesInner:
+          autoStyleTag("PHiddenR", `<style:text-properties text:display="none"/>`) +
+          autoStyleTag("P35", ""),
+      }
+    );
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    const hidden = contentDoc.get<Element>("//style:style[@style:name='PHiddenR']", NAMESPACES)!;
+    expect(
+      hidden.get<Element>("style:paragraph-properties", NAMESPACES)?.attr("page-number")
+    ).toBeNull();
+    const p35 = contentDoc.get<Element>("//style:style[@style:name='P35']", NAMESPACES)!;
+    expect(
+      p35.get<Element>("style:paragraph-properties", NAMESPACES)!.attr("page-number")!.value()
+    ).toBe("1");
+  });
+});
+
+/**
+ * Restart isolation (INV-3): the restart's target automatic style must have
+ * the first heading as its ONLY referencer — cloned and repointed where it
+ * is not, REGARDLESS of whether the style already carries a
+ * `style:master-page-name` (contract §2.2: "the restart must NOT inherit
+ * that skip"). Deliberately builds a fixture that
+ * `normalizeLessonOpeningMasterPages` would leave untouched (already-pinned
+ * master) to prove the restart pass does not rely on that function's
+ * cloning.
+ */
+describe("restart isolation (INV-3)", () => {
+  test("clones and repoints when the first opening's auto style is SHARED with a non-heading paragraph, even though it already carries style:master-page-name (the case normalizeLessonOpeningMasterPages trusts and skips)", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(
+      odtPath,
+      `<text:h text:style-name="PSR" text:outline-level="1">Somo 1</text:h>` +
+        `<text:p text:style-name="PSR">shared-style body</text:p>`,
+      {
+        automaticStylesInner: autoStyleTag("PSR", "", ` style:master-page-name="First_20_Page"`),
+      }
+    );
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    const heading = contentDoc.get<Element>("//text:h", NAMESPACES)!;
+    const headingStyleName = heading.attr("style-name")!.value();
+    // The heading must no longer reference the shared style.
+    expect(headingStyleName).not.toBe("PSR");
+    const clone = contentDoc.get<Element>(
+      `//office:automatic-styles/style:style[@style:name='${headingStyleName}']`,
+      NAMESPACES
+    )!;
+    expect(clone.attr("master-page-name")!.value()).toBe("First_20_Page");
+    expect(
+      clone.get<Element>("style:paragraph-properties", NAMESPACES)!.attr("page-number")!.value()
+    ).toBe("1");
+    // The co-referencing paragraph keeps the ORIGINAL, un-restarted style.
+    const paragraph = contentDoc.get<Element>("//office:text/text:p", NAMESPACES)!;
+    expect(paragraph.attr("style-name")!.value()).toBe("PSR");
+    const original = contentDoc.get<Element>("//style:style[@style:name='PSR']", NAMESPACES)!;
+    expect(
+      original.get<Element>("style:paragraph-properties", NAMESPACES)?.attr("page-number")
+    ).toBeNull();
+  });
+});
+
+/**
+ * Throw, don't skip (contract §2.3): a heading on a common NAMED style with
+ * no automatic style to clone leaves the restart pass nothing to isolate —
+ * finalize must throw the curated, path-free reason rather than silently
+ * leaving FR-005 unmet.
+ */
+describe("throw when the restart target cannot be isolated", () => {
+  test("throws when the first visible level-1 opening rides a common NAMED style (no automatic style exists to clone)", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(
+      odtPath,
+      `<text:h text:style-name="Heading_20_1" text:outline-level="1">Somo 1</text:h>`
+    );
+
+    expect(() => finalizeAssembledQuarter(defaultOptions(odtPath))).toThrow(
+      /assembly failed to finalize the merged book/i
+    );
+  });
+});
+
+/**
+ * Deterministic clone naming (contract §2.2/§2.4, INV-13a): the restart's
+ * clone name is derived deterministically from the heading's own style
+ * name — or an existing restart clone is detected and reused — never
+ * minted by probing for the next free suffix. A non-deterministic name
+ * would break the `finalize(finalize(doc,false),true)` mixed-mode fixed
+ * point the US1-T5/T6 tasks depend on.
+ */
+describe("deterministic clone naming", () => {
+  test("the restart clone's name is a deterministic function of the original style name, not a probed suffix", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(
+      odtPath,
+      `<text:h text:style-name="PDN" text:outline-level="1">Somo 1</text:h>` +
+        `<text:p text:style-name="PDN">shared-style body</text:p>`,
+      { automaticStylesInner: autoStyleTag("PDN", "") }
+    );
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    const heading = contentDoc.get<Element>("//text:h", NAMESPACES)!;
+    // Deterministically derived from the heading's own original style name —
+    // not a `_QA`-suffix probe (the naming scheme
+    // `normalizeLessonOpeningMasterPages` uses for its OWN, unrelated clone).
+    expect(heading.attr("style-name")!.value()).toBe("PDN_Restart");
+  });
+
+  test("a second finalize pass over an already-restarted document reuses the SAME clone name — no new clone is minted", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(
+      odtPath,
+      `<text:h text:style-name="PDN2" text:outline-level="1">Somo 1</text:h>` +
+        `<text:p text:style-name="PDN2">shared-style body</text:p>`,
+      { automaticStylesInner: autoStyleTag("PDN2", "") }
+    );
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+    const firstPassContentDoc = extractXml(odtPath, "content.xml");
+    const firstPassStyleName = firstPassContentDoc
+      .get<Element>("//text:h", NAMESPACES)!
+      .attr("style-name")!
+      .value();
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+
+    const secondPassContentDoc = extractXml(odtPath, "content.xml");
+    const secondPassStyleName = secondPassContentDoc
+      .get<Element>("//text:h", NAMESPACES)!
+      .attr("style-name")!
+      .value();
+    expect(secondPassStyleName).toBe(firstPassStyleName);
+    // Exactly one restart clone exists — no `_Restart_Restart` double-clone.
+    const restartClones = secondPassContentDoc
+      .find<Element>("//office:automatic-styles/style:style", NAMESPACES)
+      .filter((style) => style.attr("name")!.value().endsWith("_Restart"));
+    expect(restartClones).toHaveLength(1);
   });
 });
 
