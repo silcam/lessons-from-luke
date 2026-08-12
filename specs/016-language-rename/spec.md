@@ -74,6 +74,10 @@ An admin attempting to save an empty name, a whitespace-only name, or a name alr
 - **FR-008**: Renaming MUST be available only to admins; the existing admin gating (admin-only page routing and admin-only server endpoints) applies unchanged.
 - **FR-009**: A rename MUST NOT change the language's identity (internal ID and language code); all references to the language remain intact.
 - **FR-010**: Renames MUST propagate to desktop clients through the existing synchronization mechanism, with no desktop-side changes.
+  _Addendum (post-merge fix):_ the "no desktop-side changes" premise was falsified — the sync flag
+  read `max(created)` (renames only stamp `modified`) and `syncState.language` was never refreshed
+  after initial sign-in. Fixed server-side (`max(modified)`) and desktop-side (name merge in
+  `downSync.syncLanguages()`); see `plan.md` D-005 and `contracts/language-rename.md`.
 
 ### Key Entities
 

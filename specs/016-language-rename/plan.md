@@ -411,6 +411,14 @@ already selects `name`. The existing `/api/sync/:timestamp/languages/...` down-s
 carries a rename to desktop clients like any other language mutation. No `LocalStorage` or
 `downSync` change; the desktop app has no rename UI and needs none.
 
+**Addendum (post-merge fix):** this "no change needed" claim was falsified. `PGStorage.sync()`
+computed the `languages` down-sync flag from `SELECT max(created) FROM languages`, and rename only
+stamps `modified`, so a rename never tripped the flag; separately, `downSync.syncLanguages()` only
+refreshed `memoryStore.languages`, leaving `syncState.language` (page title, sync messages) stale
+forever. Fixed by switching the flag query to `max(modified)` and merging the fresh `name` into
+`syncState.language` in `syncLanguages()`. See the desktop-sync section of
+`contracts/language-rename.md` and FR-010 in `spec.md`.
+
 ## Security Considerations
 
 ### Input Validation (server is authoritative)

@@ -460,10 +460,16 @@ export default class PGStorage implements Persistence {
     languageTimestamps: LanguageTimestamp[]
   ): Promise<ContinuousSyncPackage> {
     const now = Date.now();
+    // languages: modified covers both renames and creation (createLanguage
+    // stamps created and modified together at insert; updateProgress's raw
+    // UPDATE doesn't touch modified, so progress recalcs won't flip this flag)
     let rows = await this.sql`
-      SELECT max(created) FROM languages
+      SELECT max(modified) FROM languages
     `;
     const langsTimestamp = rows[0].max;
+    // lessons: created only — this is a deliberate "new lesson added to
+    // roster" signal; content edits already flow through the lessons list
+    // below (WHERE modified > timestamp)
     rows = await this.sql`
       SELECT max(created) FROM lessons
     `;

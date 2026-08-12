@@ -127,3 +127,13 @@ mirroring `AddLanguageForm`'s handler.
 Unchanged. `updateLanguageChecked` stamps `modified`, and the existing
 `/api/sync/:timestamp/languages/:languageTimestamps?` down-sync already carries `name`. Desktop
 clients receive renames with no desktop-side code change (FR-010).
+
+**Addendum (post-merge fix):** this claim was falsified. `PGStorage.sync()` derived the `languages`
+down-sync flag from `SELECT max(created) FROM languages`, so a rename (which only updates
+`modified`) never set the flag and `/api/languages` was never refetched. Separately, even when the
+languages list was refetched, `desktop/controllers/downSync.ts`'s `syncLanguages()` only called
+`setLanguages()` (updating `memoryStore.languages`) and never touched `syncState.language` — the
+copy read for the page title and sync messages, set once at access-code entry and otherwise static.
+Fixed: the flag query now reads `max(modified)`, and `syncLanguages()` merges the fresh `name` into
+`syncState.language` (preserving `code` and `progress`) via `setSyncState(..., app)` so the IPC
+event fires and the UI updates live.
