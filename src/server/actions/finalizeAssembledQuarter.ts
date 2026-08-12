@@ -1,5 +1,5 @@
 import fs from "fs";
-import libxmljs2, { Document as XmlDocument, Element } from "libxmljs2";
+import libxmljs2, { Document as XmlDocument, Element, Namespace } from "libxmljs2";
 import { mkdirSafe, unzip, unlinkRecursive } from "../../core/util/fsUtils";
 import { extractNamespaces, Namespaces } from "../xml/mergeXml";
 import {
@@ -82,10 +82,8 @@ export interface FinalizeAssembledQuarterOptions {
    * would otherwise open on an even (verso) physical page. Defaults to
    * false, so every existing call site stays valid.
    *
-   * STUB (US3-T5 RED, lessons-from-luke-ipuf.5.8.5): accepted on the
-   * options type so the RED test suite typechecks, but not yet acted on —
-   * US3-T6 (GREEN) implements the actual insertion and the §2.6
-   * `PrintEmptyPages` pin.
+   * The `PrintEmptyPages` `settings.xml` pin (contract §2.6) is applied
+   * unconditionally, in BOTH modes — see `patchPrintEmptyPages`.
    */
   insertRectoFiller?: boolean;
 }
@@ -103,8 +101,7 @@ export function finalizeAssembledQuarter(options: FinalizeAssembledQuarterOption
     title,
     subject,
     singleLanguage = false,
-    // STUB (US3-T5 RED): accepted, not yet acted on — see the option's doc comment.
-    insertRectoFiller: _insertRectoFiller = false,
+    insertRectoFiller = false,
   } = options;
   const extractDirPath = `${odtPath}_finalize`;
 
@@ -133,6 +130,9 @@ export function finalizeAssembledQuarter(options: FinalizeAssembledQuarterOption
     // under normalization's separate `_QA` naming scheme.
     applyBodyRestart(contentDoc, contentNamespaces);
     normalizeLessonOpeningMasterPages(contentDoc, contentNamespaces);
+    if (insertRectoFiller) {
+      applyRectoFiller(contentDoc, contentNamespaces);
+    }
     fs.writeFileSync(contentXmlPath, contentDoc.toString(false));
 
     const stylesXmlPath = `${extractDirPath}/styles.xml`;
@@ -149,6 +149,14 @@ export function finalizeAssembledQuarter(options: FinalizeAssembledQuarterOption
     const metaDoc = libxmljs2.parseXml(fs.readFileSync(metaXmlPath, "utf8"));
     patchBookMetadata(metaDoc, extractNamespaces(metaDoc), { series, title, subject });
     fs.writeFileSync(metaXmlPath, metaDoc.toString(false));
+
+    const settingsXmlPath = `${extractDirPath}/settings.xml`;
+    if (!fs.existsSync(settingsXmlPath)) {
+      throw new Error("assembly failed to finalize the merged book");
+    }
+    const settingsDoc = libxmljs2.parseXml(fs.readFileSync(settingsXmlPath, "utf8"));
+    patchPrintEmptyPages(settingsDoc, extractNamespaces(settingsDoc));
+    fs.writeFileSync(settingsXmlPath, settingsDoc.toString(false));
 
     rezipWithMimetypeFirst(extractDirPath, odtPath);
   } finally {
@@ -344,19 +352,104 @@ function isHiddenAutoStyle(autoStyle: Element, namespaces: Namespaces): boolean 
  * isolate.
  */
 function applyBodyRestart(contentDoc: XmlDocument, namespaces: Namespaces): void {
-  let target: Element | undefined;
+  const target = findFirstVisibleOpeningHeading(contentDoc, namespaces);
+  if (!target) return; // no visible level-1 heading in this document — nothing to restart
+
+  isolatePageNumberRestart(contentDoc, namespaces, target, { setMaster: true, required: true });
+}
+
+/**
+ * Finds the first visible (non-hidden, level-1) lesson-opening heading in
+ * document order — the shared target `applyBodyRestart` restarts page
+ * numbering on and `applyRectoFiller` inserts the filler paragraph before.
+ * Skips the injected hidden heading (auto style with `text:display="none"`)
+ * the same way `applyBodyRestart`'s own scan always has. Returns `undefined`
+ * when no such heading exists.
+ */
+function findFirstVisibleOpeningHeading(
+  contentDoc: XmlDocument,
+  namespaces: Namespaces
+): Element | undefined {
   for (const heading of contentDoc.find<Element>("//office:body//text:h", namespaces)) {
     if (!isOpeningHeadingElement(heading)) continue;
     const styleName = heading.attr("style-name")?.value();
     if (!styleName) continue;
     const autoStyle = findAutomaticStyle(contentDoc, namespaces, styleName);
     if (autoStyle && isHiddenAutoStyle(autoStyle, namespaces)) continue; // injected hidden heading
-    target = heading;
-    break;
+    return heading;
   }
-  if (!target) return; // no visible level-1 heading in this document — nothing to restart
+  return undefined;
+}
 
-  isolatePageNumberRestart(contentDoc, namespaces, target, { setMaster: true, required: true });
+/** Deterministic suffix appended to a heading's style name to name its filler paragraph's style. */
+const FILLER_STYLE_SUFFIX = "_Filler";
+
+/**
+ * Recto filler insertion (017 US3, FR-009, contract §2.2/§2.5, INV-6/INV-6a/
+ * INV-6b): inserts exactly one empty `<text:p>` immediately before lesson 1's
+ * opening heading (`findFirstVisibleOpeningHeading`'s target), on a FRESH
+ * automatic style pinned to the `First_20_Page` master with NO
+ * `style:page-number` — the filler consumes a front-matter page number but
+ * carries no restart of its own (that stays exclusively on the heading, via
+ * `applyBodyRestart`).
+ *
+ * The filler style's name is a deterministic function of the heading's OWN
+ * current style name (`<name>_Filler`) — never a probed suffix — mirroring
+ * `isolatePageNumberRestart`'s own repeat-pass discipline. Idempotent: when
+ * the heading's immediately preceding sibling is already a filler paragraph
+ * referencing that deterministic style, this is a no-op, so a repeat
+ * finalize pass never double-inserts (INV-13/INV-13a).
+ *
+ * Throws the curated, path-free "assembly failed to finalize the merged
+ * book" reason (matching `assembleQuarter`'s own wrapping) when no visible
+ * level-1 heading can be located to insert before.
+ */
+function applyRectoFiller(contentDoc: XmlDocument, namespaces: Namespaces): void {
+  const heading = findFirstVisibleOpeningHeading(contentDoc, namespaces);
+  if (!heading) {
+    throw new Error("assembly failed to finalize the merged book");
+  }
+
+  const headingStyleName = heading.attr("style-name")!.value();
+  const fillerStyleName = `${headingStyleName}${FILLER_STYLE_SUFFIX}`;
+
+  const previousSibling = previousElementSibling(heading);
+  if (
+    previousSibling &&
+    previousSibling.name() === "p" &&
+    previousSibling.attr("style-name")?.value() === fillerStyleName
+  ) {
+    return; // already inserted by a prior finalize pass
+  }
+
+  if (!findAutomaticStyle(contentDoc, namespaces, fillerStyleName)) {
+    const automaticStyles = contentDoc.get<Element>("//office:automatic-styles", namespaces)!;
+    const style = new Element(contentDoc, "style");
+    automaticStyles.addChild(style);
+    const styleNs = namespaceByPrefix(contentDoc, namespaces, "style");
+    if (styleNs) style.namespace(styleNs);
+    style.attr({
+      "style:name": fillerStyleName,
+      "style:family": "paragraph",
+      "style:master-page-name": FIRST_PAGE_MASTER_NAME,
+    });
+  }
+
+  const filler = new Element(contentDoc, "p");
+  const textNs = heading.namespace();
+  if (textNs) filler.namespace(textNs);
+  filler.attr({ "text:style-name": fillerStyleName });
+  heading.addPrevSibling(filler);
+}
+
+/** The immediately preceding ELEMENT sibling of `el`, skipping text/comment nodes. */
+function previousElementSibling(el: Element): Element | undefined {
+  let node = el.prevSibling();
+  while (node) {
+    if (node.type() === "element") return node as Element;
+    node = node.prevSibling();
+  }
+  return undefined;
 }
 
 /**
@@ -565,4 +658,67 @@ function patchBookMetadata(
   if (values.subject) {
     upsert("//dc:subject", "http://purl.org/dc/elements/1.1/", "subject", values.subject);
   }
+}
+
+/**
+ * Looks up the root-declared namespace object matching `prefix`'s href in
+ * `namespaces` (an `extractNamespaces` map) — used when constructing a
+ * brand-new element that must carry a specific existing prefix's namespace,
+ * since a fresh `Element` starts with none.
+ */
+function namespaceByPrefix(
+  doc: XmlDocument,
+  namespaces: Namespaces,
+  prefix: string
+): Namespace | undefined {
+  const href = namespaces[prefix];
+  if (!href) return undefined;
+  return doc
+    .root()!
+    .namespaces()
+    .find((candidate) => candidate.href() === href);
+}
+
+/**
+ * PrintEmptyPages pin (017 US3, FR-008, SC-004, contract §2.6, INV-7a):
+ * pins the `settings.xml` `PrintEmptyPages` config item — inside the
+ * `ooo:configuration-settings` config-item-set — to `true`, creating the
+ * item when the set carries none. Applied unconditionally by
+ * `finalizeAssembledQuarter`, in BOTH `insertRectoFiller` modes: this is the
+ * DELIVERED `.odt`'s own print setting, opposite in polarity to
+ * `IsSkipEmptyPages`, and independent of whether a filler paragraph was
+ * inserted.
+ *
+ * Idempotent by construction: flipping an existing item's text to `"true"`
+ * or creating a missing item are both no-ops on a second pass over an
+ * already-patched document (INV-13/INV-13a).
+ *
+ * Throws the curated, path-free "assembly failed to finalize the merged
+ * book" reason (matching `assembleQuarter`'s own wrapping) when
+ * `settings.xml` carries no `ooo:configuration-settings` config-item-set to
+ * patch.
+ */
+function patchPrintEmptyPages(settingsDoc: XmlDocument, namespaces: Namespaces): void {
+  const configItemSet = settingsDoc.get<Element>(
+    "//office:settings/config:config-item-set[@config:name='ooo:configuration-settings']",
+    namespaces
+  );
+  if (!configItemSet) {
+    throw new Error("assembly failed to finalize the merged book");
+  }
+
+  let item = configItemSet.get<Element>(
+    "config:config-item[@config:name='PrintEmptyPages']",
+    namespaces
+  );
+  if (!item) {
+    item = new Element(settingsDoc, "config-item");
+    configItemSet.addChild(item);
+    const configNs = namespaceByPrefix(settingsDoc, namespaces, "config");
+    if (configNs) item.namespace(configNs);
+    item.attr({ "config:name": "PrintEmptyPages", "config:type": "boolean" });
+  } else {
+    item.attr({ "config:type": "boolean" });
+  }
+  item.text("true");
 }
