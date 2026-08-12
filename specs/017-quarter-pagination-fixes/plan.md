@@ -653,6 +653,22 @@ off-by-one is present on every book today.
   but it is an assumption: the spike confirms both routes produce the same rendered page count on a
   book known to carry an implicit blank, rather than inferring it.
 
+  **And on that branch the invariant stops being structural, which is the part worth saying out
+  loud.** The whole point of routing every render through one exported helper is that a helper edit
+  cannot silently drop the option from production, because production and the oracle share the
+  argument. If production moves to the UNO macro, the helper binds only the test and spike renders:
+  the shared object is gone, an edit to `Module1.xba` can drop the property with every helper
+  assertion still green, and the guarantee degrades to the coincidence the invariant was written to
+  replace. **Requirement on that branch**: the single guard is replaced by **two named** ones rather
+  than quietly lost — the existing helper assertion keeps binding the verification renders, and
+  `module1Xba.ts`'s embedded macro constant is asserted to set the filter property, in the same
+  style as the existing embedded-constant assertions. Both, or the branch is not done.
+
+  **Contract §7's carve-out is widened to match.** It currently exempts `Module1.xba` /
+  `module1Xba.ts` from "unchanged" only for the R3 page-index query; the filter-option fallback is a
+  second, independent reason the same files can change, and an unnamed second reason is how a
+  "nothing changes here" line goes stale.
+
 - **The "+1 page" assumption behind the filler is not safe, so the confirmation render is
   mandatory on the `needsFiller` branch.** Inserting one blank flips the parity of every page
   after it, which can make LibreOffice add or drop an implicit page-usage blank upstream of the
@@ -742,7 +758,23 @@ Contract §2.4 covers not double-inserting. The stronger requirement is that the
 **empty** `<text:p>` — survives every _other_ pass that re-runs on the second finalize,
 specifically `removeLeadingBlankParagraphs` and any normalization that treats contentless
 paragraphs as noise. Guard with a fixed-point test: `finalize(finalize(doc))` is byte-identical
-to `finalize(doc)` for both `insertRectoFiller` values, asserted on the merged `content.xml`.
+to `finalize(doc)` for both `insertRectoFiller` values.
+
+**The fixed point covers every file finalize patches, not `content.xml` alone.** Scoping it to
+`content.xml` under-covered the pass even before this feature — [static-confirmed during red-team,
+`finalizeAssembledQuarter.ts:80-107`] finalize already rewrites `styles.xml` (`patchOutlineNumbering`,
+and the monolingual restyle) and `meta.xml` (`patchBookMetadata`) — and §2.6 now adds
+`settings.xml` as a fourth. Two of those four are load-bearing for this feature specifically: the
+`PrintEmptyPages` pin (INV-7a) and, if the merged-output assertion forces it, the unconditional
+offset strip in the styles pass (INV-1). A second pass that perturbed either would break a delivered
+guarantee while a content-only fixed point stayed green — the passes-while-wrong shape one file over.
+State the invariant as _every file finalize patches is a fixed point_, and assert all four.
+
+All four are expected to hold, and `meta.xml` — the only one whose stability is not obvious — does
+[static-confirmed during red-team, `finalizeAssembledQuarter.ts:268-310`]: `patchBookMetadata`'s
+`upsert` removes each target element and re-appends it to `office:meta` in a fixed order, so the
+first pass moves them to the end and every later pass reproduces that same arrangement. Order-stable
+after one pass, hence a fixed point. The assertion is a regression guard, not a suspicion.
 
 **The flag-constant fixed point is not the production path.** Assembly runs
 `finalize(doc, false)` and then `finalize(·, true)` (contract §4) — a **mixed** pair that the
@@ -752,8 +784,9 @@ its "first visible level-1 `text:h`" lookup runs against an already-normalized t
 second clone-and-repoint risks forking the automatic style again — the same repoint code path
 runs unconditionally on every finalize call, so it does not know it already ran once on this
 document. Add the mixed assertion
-explicitly — `finalize(finalize(doc, false), true)` yields a `content.xml` identical to
-`finalize(doc, true)` — because it is the only sequence production actually executes.
+explicitly — `finalize(finalize(doc, false), true)` yields the same patched files as
+`finalize(doc, true)`, over the same four-file scope as the flag-constant fixed point above —
+because it is the only sequence production actually executes.
 
 ### The body restart cannot inherit `normalizeLessonOpeningMasterPages`' skip conditions
 
@@ -1051,6 +1084,26 @@ colocated with the module it gates (`measureLessonOneParity.ts`), evaluated **pe
 than at module load so tests can exercise both branches without module-cache manipulation.
 Default on: only an explicit `off` / `false` / `0` disables it; any unset, empty, or unrecognized
 value keeps the guarantee, so a typo cannot silently ship books without it.
+
+**Where the predicate is consulted is a separate decision from where it lives, and only the first
+is pinned so far.** "Colocated with the module it gates (`measureLessonOneParity.ts`)" fixes the
+_home_; it says nothing about the _call site_, and the nearest reading — consult it inside
+`measureLessonOneParity` — is not implementable against the signature contract §3 states.
+`measureLessonOneParity` returns `LessonOneParity`, which has no representation for "skipped": an
+off reading inside the pass would have to invent a sentinel index, a nullable return, or a thrown
+sentinel, and all three put a second meaning into a value the filler decision consumes directly.
+Left unstated, `/sp:05-tasks` generates a task that has to pick one.
+
+**Decision**: `assembleQuarter` — the orchestrator that owns the branch — consults the predicate
+**exactly once per job**, before the first measurement, and that single boolean governs all three
+dependent steps (the measurement, the conditional re-finalize, and the mandatory confirmation
+render). The predicate is never consulted inside `measureLessonOneParity`, whose contract is
+unconditional: called, it measures. Reading it once per job also keeps the three steps from
+disagreeing about whether FR-008 is being enforced — a job that measured, inserted a filler, and
+then skipped the confirmation would deliver a filler-carrying book whose parity was never verified
+on the delivered document, which is precisely what contract §4 makes the confirmation render
+mandatory to prevent. Per-call evaluation stays a property of the **predicate** (so tests exercise
+both branches without module-cache manipulation), not of the decision.
 
 ### A per-constituent automatic-style rename must rewrite every reference, not just `text:style-name`
 

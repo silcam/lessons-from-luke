@@ -189,11 +189,22 @@ Running finalize twice on the same document must not double-insert a filler or d
 a restart — required by the two-pass flow in §4. The filler insertion checks for an existing
 filler paragraph; the restart is an attribute set, naturally idempotent.
 
-Stronger requirement: **finalize is a fixed point.** `finalize(finalize(doc))` produces a
-`content.xml` byte-identical to `finalize(doc)`, for both `insertRectoFiller` values. This
+Stronger requirement: **finalize is a fixed point.** `finalize(finalize(doc))` produces
+byte-identical output to `finalize(doc)`, for both `insertRectoFiller` values. This
 covers not only double-insertion but every _other_ pass that re-runs on the second finalize —
 in particular `removeLeadingBlankParagraphs` and any normalization that treats a contentless
 paragraph as noise, either of which would silently delete the filler. Asserted as a unit test.
+
+**Scope: every file finalize patches, not `content.xml` alone.** [static-confirmed during red-team,
+`finalizeAssembledQuarter.ts:80-107`] The pass already rewrites `content.xml`, `styles.xml`
+(`patchOutlineNumbering` + the monolingual restyle) and `meta.xml` (`patchBookMetadata`), and §2.6
+adds `settings.xml` as a fourth. Two of the four carry guarantees this feature depends on — the
+`PrintEmptyPages` pin (§2.6) and, if §1's merged-output assertion forces it, the unconditional offset
+strip in the styles pass — so a content-only fixed point would stay green while a second pass
+perturbed a delivered guarantee. All four are asserted. `meta.xml` is the only one whose stability is
+non-obvious and it holds [static-confirmed, `finalizeAssembledQuarter.ts:268-310`]:
+`patchBookMetadata`'s `upsert` removes each target element and re-appends it to `office:meta` in a
+fixed order, so the arrangement produced by the first pass is reproduced exactly by every later one.
 
 **Mixed-mode requirement (the production path).** The flag-constant fixed point above never
 exercises the sequence §4 actually runs: `finalize(doc, false)` followed by
@@ -202,10 +213,11 @@ exercises the sequence §4 actually runs: `finalize(doc, false)` followed by
 than a single `finalize(doc, true)` would. Assert it directly:
 
 ```
-finalize(finalize(doc, false), true).content.xml  ≡  finalize(doc, true).content.xml
+finalize(finalize(doc, false), true)  ≡  finalize(doc, true)
+    over content.xml, styles.xml, settings.xml, and meta.xml
 ```
 
-Both assertions ship; the mixed one is the load-bearing one.
+Both assertions ship, over the same four-file scope; the mixed one is the load-bearing one.
 
 ### 2.5 Filler master page and its fallback
 
@@ -301,7 +313,8 @@ master-page transition rather than a same-master repeat, which is the most likel
 `PrintEmptyPages` (`<config:config-item config:name="PrintEmptyPages" config:type="boolean">`) to
 **`true`**. Created if the item is absent; the pass throws the curated, path-free reason if
 `settings.xml` or its configuration-settings set is missing, rather than proceeding with an
-unpinned document. Setting a constant is idempotent, so §2.4's fixed points are unaffected.
+unpinned document. Setting a constant is idempotent, so §2.4's fixed points are unaffected — and
+`settings.xml` is now inside their scope, which is what turns that reasoning into an assertion.
 
 **Why it is contractual and not an implementation detail**: the deliverable is an **`.odt`**
 (`assembleQuarter.ts:293-296`), not the PDF §3 measures. `PrintEmptyPages` is LibreOffice's "Print
@@ -434,6 +447,15 @@ does not satisfy the invocation discipline stated immediately below.
   UNO macro while the tests keep the JSON `--convert-to` syntax, the equivalence of the two routes
   becomes a spike-confirmation item (same page count on a book known to carry an implicit blank),
   not an assumption.
+
+  **On that branch the helper stops binding production, so the single guard becomes two.** The
+  invariant is structural only while production and the oracle share the argument; if production
+  sets the property in `Module1.xba`, the helper binds the verification renders alone, and a macro
+  edit can drop the property with every helper assertion still green. Required on that branch, both:
+  the helper assertion continues to bind the integration, acceptance, and spike renders, **and**
+  `module1Xba.ts`'s embedded macro constant is asserted to set the filter property, in the style of
+  the existing embedded-constant assertions. §7's `Module1.xba` carve-out names this as a second,
+  independent reason those files may change.
 
 - **Page splitting is reconciled against the authoritative page count before anything is
   classified.** That count is `pdfinfo`'s today, and the UNO macro's under R3's fallback branch (no
@@ -651,6 +673,18 @@ There is exactly one alternative behaviour — the pre-017 flow.
   evaluated **per call**, so both branches are testable without module-cache manipulation. An
   env var rather than `secrets.json`: this is a deploy-host operational toggle, not a
   credential, and `secrets.json` is credential-shaped and regenerated from `defaultSecrets`.
+- **Consulted by `assembleQuarter`, exactly once per job — never inside the pass.** Colocation
+  fixes where the predicate lives, not where it is called, and the nearest reading (consult it
+  inside `measureLessonOneParity`) is not implementable against §3's signature: `LessonOneParity`
+  has no representation for "skipped", so an off reading there would need a sentinel index, a
+  nullable return, or a sentinel throw — each of which overloads the value the filler decision
+  consumes. `measureLessonOneParity` is therefore unconditional: called, it measures. The
+  orchestrator reads the predicate once, before the first measurement, and that one boolean governs
+  all three dependent steps — measurement, conditional re-finalize, and confirmation render — so
+  they cannot disagree about whether FR-008 is being enforced. A job that measured, inserted a
+  filler, then skipped the confirmation would deliver a filler-carrying book whose parity was never
+  verified on the delivered document, which is exactly what the mandatory confirmation render above
+  exists to prevent.
 - Default **on**: only an explicit `off` / `false` / `0` disables it. Unset, empty, or
   unrecognized values keep the guarantee, so a typo cannot silently ship books without it.
 - The off path is a real branch and carries its own integration assertion: a book with no
@@ -805,7 +839,10 @@ therefore specified as a contract on the _outcome_, not yet on the module:
 - The HTTP API (routes, status shape, download semantics, error vocabulary).
 - `Persistence` and every domain type. No migration.
 - `resolveTemplatePath` / `validateTemplateAsset` / `TEMPLATE_ASSET_MISSING_MESSAGE`.
-- `Module1.xba` and the embedded `module1Xba.ts` constant (unless the R3 "no `pdftotext` in
-  production" branch forces the page-index query into UNO — flagged open in research.md).
+- `Module1.xba` and the embedded `module1Xba.ts` constant — unless **either** R3 branch fires, and
+  there are two independent ones: the "no `pdftotext` in production" branch, which forces the
+  page-index query into UNO, and the "`soffice` older than 7.4 on the deploy host" branch, which
+  forces the `IsSkipEmptyPages` = `false` pin into UNO (§3). Either one makes these files change and
+  requires the embedded-constant assertion §3 names. Both are flagged open in research.md.
 - Desktop, the isomorphic `core`, and the frontend. This is a server-side assembly change
   with no UI surface.

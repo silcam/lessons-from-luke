@@ -145,13 +145,22 @@ Inserted only when parity requires it (FR-008, FR-009).
   dependency as INV-1 and INV-6b, and unobservable by asset-only validation. The FR-009 filler is
   unaffected: it is an explicit paragraph, hence a content page that always prints.
 - INV-13: the filler survives a second finalize pass unchanged — `finalize(finalize(doc))`
-  yields a `content.xml` byte-identical to `finalize(doc)` for both `insertRectoFiller`
+  is byte-identical to `finalize(doc)` for both `insertRectoFiller`
   values. An empty `<text:p>` is exactly the shape `removeLeadingBlankParagraphs` and any
-  contentless-paragraph normalization would delete (contract §2.4).
-- INV-13a (the production path): `finalize(finalize(doc, false), true)` yields a `content.xml`
-  identical to `finalize(doc, true)`. INV-13 holds the flag constant and so never exercises the
-  mixed sequence contract §4 actually runs, where the second pass sees an already-restarted,
-  already-repointed tree.
+  contentless-paragraph normalization would delete (contract §2.4). **Scope: every file finalize
+  patches** — `content.xml`, `styles.xml`, `settings.xml`, and `meta.xml` — not `content.xml`
+  alone. [static-confirmed during red-team, `finalizeAssembledQuarter.ts:80-107`] finalize already
+  rewrote `styles.xml` and `meta.xml` before this feature, and §2.6 adds `settings.xml`; INV-1's
+  offset strip (if forced) and INV-7a's `PrintEmptyPages` pin both live outside `content.xml`, so a
+  content-only fixed point would stay green while a second pass perturbed a delivered guarantee.
+  `meta.xml`'s stability is the only non-obvious one and it holds [static-confirmed,
+  `finalizeAssembledQuarter.ts:268-310`]: `patchBookMetadata`'s `upsert` removes and re-appends each
+  target element to `office:meta` in a fixed order, so every pass after the first reproduces the same
+  arrangement.
+- INV-13a (the production path): `finalize(finalize(doc, false), true)` is identical to
+  `finalize(doc, true)`, over the same four-file scope. INV-13 holds the flag constant and so never
+  exercises the mixed sequence contract §4 actually runs, where the second pass sees an
+  already-restarted, already-repointed tree.
 
 ### Coloring-page memory-verse paragraph pair
 
@@ -269,6 +278,21 @@ render a footer (`Coloring_20_Page`, `Lesson_20_Content`, `Front_20_matter`,
 earlier pass's "nine masters render no footer" enumeration came from a regex probe and is struck;
 the rendering set is stated positively because it is smaller and cannot be invalidated by a master
 an enumeration omits.
+
+**`style:num-format` is uniform across the corpus — recorded as a denial so it is not re-opened.**
+[AUTHORITATIVE, XML-parser probe, pass 18] The same unstated-merge-dependency argument that produced
+INV-1 (offsets), INV-6b (footers), and INV-7a (`PrintEmptyPages`) applies on its face to the roman
+vs arabic number format too, since FR-001 rests on `Front_20_matter`'s layout carrying
+`style:num-format="i"` and the merge deciding which definition wins. Measured across both assets and
+every `.odt` in `test/docs/serverDocs/`, **no master carries more than one distinct `num-format`
+value anywhere in the corpus** — `Front_20_matter` (and bilingual `Table_20_of_20_Contents`) are
+`i` everywhere, every other master is `1` everywhere. The merge therefore cannot resolve a conflict
+that does not exist, and **no merged-output assertion is added for `num-format`** (Principle VII).
+Folding it into INV-6b's existing parse would be defensible if a future asset refresh introduces a
+divergence; it is not warranted today. Also confirmed by the same probe: `Inside_20_cover` carries
+`style:page-usage="left"` in both assets and in `Luke-2-99v01`, as INV-6a assumes — note that the
+attribute sits on `<style:page-layout>`, not on `<style:page-layout-properties>`, so a probe reading
+the properties element reports it absent.
 
 **Standing evidence rule** (three consecutive passes were misled by the same trap): every ODF
 structural claim in these artifacts is produced by an **XML parser**, never by a regex over the
