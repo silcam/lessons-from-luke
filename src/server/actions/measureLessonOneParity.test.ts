@@ -448,3 +448,86 @@ describe("renderKillLogLine (contract §4 partial-coverage fix, OOM-vs-timeout l
     expect(externalKill.toLowerCase()).not.toMatch(/\bus\b|\bour\b|\bself\b/);
   });
 });
+
+/**
+ * `isRectoFillerEnabled` — the ASSEMBLY_RECTO_FILLER kill-switch predicate
+ * (US3-T7 RED, contract §4 "Switch shape"). NOT YET EXPORTED: this module
+ * has no such member today, so every assertion below reads it off the
+ * imported module namespace as an unknown property rather than importing
+ * the named binding directly — a direct `import { isRectoFillerEnabled }`
+ * would fail TypeScript compilation ("has no exported member"), which is
+ * the wrong kind of RED failure (a compile error, not an assertion
+ * failure). Reading it dynamically keeps this file typechecking while the
+ * assertions themselves fail, exactly as the RED protocol requires.
+ *
+ * Per contract §4: default ON; only an explicit 'off'/'false'/'0' value
+ * (case-insensitive) disables it; every other value — unset, empty, or
+ * unrecognized — keeps the guarantee; and it is evaluated PER CALL, never
+ * module-load-cached, so both branches are testable without module-cache
+ * manipulation.
+ */
+describe("isRectoFillerEnabled (US3-T7 RED, contract §4 kill-switch predicate)", () => {
+  const ENV_VAR = "ASSEMBLY_RECTO_FILLER";
+  const originalValue = process.env[ENV_VAR];
+
+  afterEach(() => {
+    if (originalValue === undefined) {
+      delete process.env[ENV_VAR];
+    } else {
+      process.env[ENV_VAR] = originalValue;
+    }
+  });
+
+  /** Reads the predicate off the module namespace without a static import of the (not yet existing) name. */
+  async function readPredicate(): Promise<(() => boolean) | undefined> {
+    const mod: Record<string, unknown> = await import("./measureLessonOneParity");
+    return mod["isRectoFillerEnabled"] as (() => boolean) | undefined;
+  }
+
+  test("is exported as a function, colocated with measureLessonOneParity", async () => {
+    const predicate = await readPredicate();
+    expect(typeof predicate).toBe("function");
+  });
+
+  test("defaults to true when the env var is unset", async () => {
+    delete process.env[ENV_VAR];
+    const predicate = await readPredicate();
+    expect(predicate?.()).toBe(true);
+  });
+
+  test("defaults to true when the env var is set to an empty string", async () => {
+    process.env[ENV_VAR] = "";
+    const predicate = await readPredicate();
+    expect(predicate?.()).toBe(true);
+  });
+
+  test.each(["off", "OFF", "false", "FALSE", "0"])(
+    "returns false for the explicit disabling value %s",
+    async (value) => {
+      process.env[ENV_VAR] = value;
+      const predicate = await readPredicate();
+      expect(predicate?.()).toBe(false);
+    }
+  );
+
+  test.each(["on", "true", "1", "yes", "nope", "  off  ", "off-by-typo"])(
+    "keeps the guarantee (returns true) for the unrecognized value %s — a typo must not silently ship without it",
+    async (value) => {
+      process.env[ENV_VAR] = value;
+      const predicate = await readPredicate();
+      expect(predicate?.()).toBe(true);
+    }
+  );
+
+  test("is evaluated PER CALL, not module-load-cached — flipping the env var between two calls changes the result", async () => {
+    delete process.env[ENV_VAR];
+    const predicate = await readPredicate();
+    expect(predicate?.()).toBe(true);
+
+    process.env[ENV_VAR] = "off";
+    expect(predicate?.()).toBe(false);
+
+    delete process.env[ENV_VAR];
+    expect(predicate?.()).toBe(true);
+  });
+});

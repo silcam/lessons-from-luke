@@ -5,6 +5,7 @@ jest.mock("./prepareConstituentForAssembly");
 jest.mock("./finalizeAssembledQuarter");
 jest.mock("../assembly/sofficeAssemble");
 jest.mock("../assembly/quarterStylesTemplate");
+jest.mock("./measureLessonOneParity");
 
 import fs from "fs";
 import os from "os";
@@ -16,6 +17,7 @@ import makeLessonFile from "./makeLessonFile";
 import { prepareConstituentForAssembly } from "./prepareConstituentForAssembly";
 import { finalizeAssembledQuarter } from "./finalizeAssembledQuarter";
 import { sofficeAssemble } from "../assembly/sofficeAssemble";
+import { measureLessonOneParity, pollProcessGroupExited } from "./measureLessonOneParity";
 import {
   isMonolingualTemplatePath,
   resolveTemplatePath,
@@ -30,6 +32,8 @@ const makeLessonFileMock = makeLessonFile as unknown as jest.Mock;
 const prepareConstituentForAssemblyMock = prepareConstituentForAssembly as unknown as jest.Mock;
 const finalizeAssembledQuarterMock = finalizeAssembledQuarter as unknown as jest.Mock;
 const sofficeAssembleMock = sofficeAssemble as unknown as jest.Mock;
+const measureLessonOneParityMock = measureLessonOneParity as unknown as jest.Mock;
+const pollProcessGroupExitedMock = pollProcessGroupExited as unknown as jest.Mock;
 const resolveTemplatePathMock = resolveTemplatePath as unknown as jest.Mock;
 const validateTemplateAssetMock = validateTemplateAsset as unknown as jest.Mock;
 
@@ -970,5 +974,251 @@ describe("assembleQuarter — US4 generation-failure curated reason", () => {
     const message = (caught as Error).message;
     expect(message).not.toMatch(/\//);
     expect(finalizeAssembledQuarterMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * US3-T7 RED (contract §4 "assembleQuarter orchestration"): the measure /
+ * conditional re-finalize / mandatory confirmation render sequence, gated
+ * by the ASSEMBLY_RECTO_FILLER kill-switch. `assembleQuarter` today never
+ * imports or calls `measureLessonOneParity` at all — every assertion below
+ * that expects it to have been called fails, which is the RED state this
+ * task ships. See specs/017-quarter-pagination-fixes/contracts/
+ * pagination-and-assembly.md §4 and data-model.md INV-12.
+ */
+describe("assembleQuarter — US3-T7 measurement/kill-switch orchestration (contract §4)", () => {
+  let fixtureDir: string;
+
+  const ENV_VAR = "ASSEMBLY_RECTO_FILLER";
+  const originalEnvValue = process.env[ENV_VAR];
+
+  beforeEach(() => {
+    fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembleQuarter-t7-test-"));
+    delete process.env[ENV_VAR];
+
+    makeLessonFileMock.mockReset();
+    makeLessonFileMock.mockImplementation(async (_storage: Persistence, lsn: Lesson) => {
+      const rawPath = path.join(fixtureDir, `raw-${lsn.lesson}.odt`);
+      fs.writeFileSync(rawPath, `raw contents for lesson ${lsn.lesson}`);
+      return rawPath;
+    });
+
+    prepareConstituentForAssemblyMock.mockReset();
+    prepareConstituentForAssemblyMock.mockImplementation(() => ({ title: "", subject: "" }));
+
+    finalizeAssembledQuarterMock.mockReset();
+    finalizeAssembledQuarterMock.mockImplementation(() => undefined);
+
+    sofficeAssembleMock.mockReset();
+    sofficeAssembleMock.mockImplementation(async (options: { outputPath: string }) => {
+      fs.writeFileSync(options.outputPath, "assembled contents");
+      return { outputPath: options.outputPath };
+    });
+
+    resolveTemplatePathMock.mockReset();
+    resolveTemplatePathMock.mockReturnValue("/fixture/quarter-styles-template.odt");
+    validateTemplateAssetMock.mockReset();
+    validateTemplateAssetMock.mockImplementation(() => undefined);
+    isMonolingualTemplatePathMock.mockReset();
+    isMonolingualTemplatePathMock.mockReturnValue(false);
+
+    measureLessonOneParityMock.mockReset();
+    measureLessonOneParityMock.mockResolvedValue({
+      lessonOnePageIndex: 3,
+      needsFiller: false,
+      renderedPageCount: 80,
+    });
+
+    pollProcessGroupExitedMock.mockReset();
+    pollProcessGroupExitedMock.mockResolvedValue(true);
+  });
+
+  afterEach(() => {
+    fs.rmSync(fixtureDir, { recursive: true, force: true });
+    if (originalEnvValue === undefined) {
+      delete process.env[ENV_VAR];
+    } else {
+      process.env[ENV_VAR] = originalEnvValue;
+    }
+  });
+
+  function assemble(jobId: string, signal?: AbortSignal): Promise<string> {
+    return assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId,
+      workRoot: fixtureDir,
+      signal,
+    });
+  }
+
+  test("no-filler branch: measures exactly once, on the finalized-but-filler-free document, and never re-finalizes or confirms", async () => {
+    await assemble("job-t7-no-filler");
+
+    // sofficeAssemble -> finalize(insertRectoFiller:false) -> measure, and
+    // nothing further once the measurement reports no filler is needed.
+    expect(finalizeAssembledQuarterMock).toHaveBeenCalledTimes(1);
+    const [firstFinalizeOptions] = finalizeAssembledQuarterMock.mock.calls[0] as [
+      { insertRectoFiller?: boolean },
+    ];
+    expect(firstFinalizeOptions.insertRectoFiller).not.toBe(true);
+
+    expect(measureLessonOneParityMock).toHaveBeenCalledTimes(1);
+
+    const sofficeOrder = sofficeAssembleMock.mock.invocationCallOrder[0];
+    const finalizeOrder = finalizeAssembledQuarterMock.mock.invocationCallOrder[0];
+    const measureOrder = measureLessonOneParityMock.mock.invocationCallOrder[0];
+    expect(sofficeOrder).toBeLessThan(finalizeOrder);
+    expect(finalizeOrder).toBeLessThan(measureOrder);
+  });
+
+  test("needsFiller branch: re-finalizes with insertRectoFiller:true and runs a mandatory confirmation render", async () => {
+    measureLessonOneParityMock
+      .mockResolvedValueOnce({ lessonOnePageIndex: 4, needsFiller: true, renderedPageCount: 80 })
+      .mockResolvedValueOnce({ lessonOnePageIndex: 5, needsFiller: false, renderedPageCount: 81 });
+
+    await assemble("job-t7-needs-filler");
+
+    expect(finalizeAssembledQuarterMock).toHaveBeenCalledTimes(2);
+    const [, secondFinalizeOptions] = finalizeAssembledQuarterMock.mock.calls.map(
+      ([options]) => options as { insertRectoFiller?: boolean }
+    );
+    expect(secondFinalizeOptions.insertRectoFiller).toBe(true);
+
+    // The mandatory confirmation render: measured again, on the re-finalized document.
+    expect(measureLessonOneParityMock).toHaveBeenCalledTimes(2);
+    const finalizeCallOrders = finalizeAssembledQuarterMock.mock.invocationCallOrder;
+    const measureCallOrders = measureLessonOneParityMock.mock.invocationCallOrder;
+    // measure(1) -> finalize(insertRectoFiller:true) -> measure(2) (confirmation)
+    expect(measureCallOrders[0]).toBeLessThan(finalizeCallOrders[1]);
+    expect(finalizeCallOrders[1]).toBeLessThan(measureCallOrders[1]);
+  });
+
+  test("confirmation render still reports an even index: the job FAILS with a curated reason, and a second filler is never inserted", async () => {
+    measureLessonOneParityMock
+      .mockResolvedValueOnce({ lessonOnePageIndex: 4, needsFiller: true, renderedPageCount: 80 })
+      .mockResolvedValueOnce({ lessonOnePageIndex: 4, needsFiller: true, renderedPageCount: 81 });
+
+    let caught: unknown;
+    try {
+      await assemble("job-t7-confirmation-fails");
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    // Curated, path-free — never the raw internal detail.
+    expect(message).not.toMatch(/\//);
+
+    // Exactly two finalize calls (the initial pass and the one filler
+    // insertion) — a second filler is NEVER inserted, no matter what the
+    // confirmation render reports.
+    expect(finalizeAssembledQuarterMock).toHaveBeenCalledTimes(2);
+    expect(measureLessonOneParityMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("kill-switch off (ASSEMBLY_RECTO_FILLER=off): skips measurement and re-finalize entirely, delivers with no filler, warns exactly once naming FR-008", async () => {
+    process.env[ENV_VAR] = "off";
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    await assemble("job-t7-switch-off");
+
+    expect(measureLessonOneParityMock).not.toHaveBeenCalled();
+    expect(finalizeAssembledQuarterMock).toHaveBeenCalledTimes(1);
+    const [options] = finalizeAssembledQuarterMock.mock.calls[0] as [
+      { insertRectoFiller?: boolean },
+    ];
+    expect(options.insertRectoFiller).not.toBe(true);
+
+    const fr008Warnings = warnSpy.mock.calls.filter(([line]) =>
+      typeof line === "string" ? line.includes("FR-008") : false
+    );
+    expect(fr008Warnings).toHaveLength(1);
+
+    warnSpy.mockRestore();
+  });
+
+  test.each(["", "on", "true", "1", "garbage"])(
+    "kill-switch stays ON for unrecognized/unset-like value %s — still measures",
+    async (value) => {
+      if (value === "") {
+        process.env[ENV_VAR] = "";
+      } else {
+        process.env[ENV_VAR] = value;
+      }
+
+      await assemble(`job-t7-switch-value-${value || "empty"}`);
+
+      expect(measureLessonOneParityMock).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  test("the kill-switch is consulted exactly once per job, before the first measurement — never inside the pass itself", async () => {
+    // A per-job single read is only observable indirectly through
+    // measureLessonOneParity's own call count for a needsFiller:false job —
+    // this asserts the read happens (measurement occurs) rather than being
+    // skipped, and is the RED placeholder for the "consulted once" shape;
+    // GREEN's orchestration must not call measureLessonOneParity more than
+    // the two dictated by the sequence in a needsFiller branch, nor thread
+    // any additional predicate re-check into it.
+    measureLessonOneParityMock
+      .mockResolvedValueOnce({ lessonOnePageIndex: 4, needsFiller: true, renderedPageCount: 80 })
+      .mockResolvedValueOnce({ lessonOnePageIndex: 5, needsFiller: false, renderedPageCount: 81 });
+
+    await assemble("job-t7-consulted-once");
+
+    expect(measureLessonOneParityMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("bounded exit-poll: the previous soffice process group's exit is confirmed via the capped poll before each render, and a poll that never resolves fails the job rather than hanging forever", async () => {
+    measureLessonOneParityMock
+      .mockResolvedValueOnce({ lessonOnePageIndex: 4, needsFiller: true, renderedPageCount: 80 })
+      .mockResolvedValueOnce({ lessonOnePageIndex: 5, needsFiller: false, renderedPageCount: 81 });
+
+    await assemble("job-t7-bounded-poll");
+
+    // One poll before the measurement render, one before the confirmation
+    // render — the capped poll from contract §4, never an open await.
+    expect(pollProcessGroupExitedMock).toHaveBeenCalled();
+    expect(pollProcessGroupExitedMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("exit-poll expiry fails the job with the curated reason rather than starting a second soffice beside a live one", async () => {
+    pollProcessGroupExitedMock.mockResolvedValue(false);
+
+    let caught: unknown;
+    try {
+      await assemble("job-t7-exit-poll-expired");
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    expect(message).not.toMatch(/\//);
+    expect(measureLessonOneParityMock).not.toHaveBeenCalled();
+  });
+
+  test("diagnostics: measureLessonOneParity's measurement and confirmation passes each get their own outDir, both inside the job's own working directory", async () => {
+    measureLessonOneParityMock
+      .mockResolvedValueOnce({ lessonOnePageIndex: 4, needsFiller: true, renderedPageCount: 80 })
+      .mockResolvedValueOnce({ lessonOnePageIndex: 5, needsFiller: false, renderedPageCount: 81 });
+
+    await assemble("job-t7-diagnostics");
+
+    expect(measureLessonOneParityMock).toHaveBeenCalledTimes(2);
+    const [firstCallOptions, secondCallOptions] = measureLessonOneParityMock.mock.calls.map(
+      ([options]) => options as { outDir: string }
+    );
+    expect(firstCallOptions.outDir).not.toBe(secondCallOptions.outDir);
+    expect(firstCallOptions.outDir.startsWith(path.join(fixtureDir, "job-t7-diagnostics"))).toBe(
+      true
+    );
+    expect(secondCallOptions.outDir.startsWith(path.join(fixtureDir, "job-t7-diagnostics"))).toBe(
+      true
+    );
   });
 });

@@ -1521,6 +1521,68 @@ describe("assembleQuarter (real soffice merge, doctored Lesson-9-shaped constitu
   }, 200_000);
 });
 
+/**
+ * US3-T7 RED (contract §4 "Operational kill-switch", "off-branch integration
+ * test"): the real `assembleQuarter` pipeline, with `ASSEMBLY_RECTO_FILLER`
+ * explicitly disabled. `assembleQuarter` today never reads this env var and
+ * never emits any FR-008 warning at all, so the assertion below fails —
+ * this is the RED state US3-T8 (GREEN) makes pass. A single-lesson corpus
+ * (no TOC required, `orderQuarterLessons` accepts it) keeps this fast: it
+ * exercises the same `assembleQuarter` orchestration path the 14-file golden
+ * corpus does, without paying for a 14-file merge.
+ */
+describe("assembleQuarter (real soffice merge) — US3-T7 kill-switch off branch (contract §4)", () => {
+  const ENV_VAR = "ASSEMBLY_RECTO_FILLER";
+  const originalEnvValue = process.env[ENV_VAR];
+  let workDir: string;
+
+  beforeAll(() => {
+    execFileSync("soffice", ["--version"]);
+    workDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembleQuarter-t7-switch-off-"));
+  });
+
+  afterAll(() => {
+    if (workDir) fs.rmSync(workDir, { recursive: true, force: true });
+    if (originalEnvValue === undefined) {
+      delete process.env[ENV_VAR];
+    } else {
+      process.env[ENV_VAR] = originalEnvValue;
+    }
+  });
+
+  test("with the switch off, assembly skips measurement/re-finalize entirely, still delivers a valid book, and logs exactly one FR-008 warning naming the skipped requirement", async () => {
+    process.env[ENV_VAR] = "off";
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const jobId = "t7-switch-off";
+    const jobWorkRoot = path.join(workDir, "assembly-work");
+    fs.mkdirSync(path.join(jobWorkRoot, jobId), { recursive: true });
+
+    let outputPath: string | undefined;
+    try {
+      outputPath = await assembleQuarter({
+        storage,
+        lessons: [lesson(15)],
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId,
+        workRoot: jobWorkRoot,
+      });
+    } finally {
+      warnSpy.mockRestore();
+    }
+
+    expect(outputPath).toBeDefined();
+    expect(fs.existsSync(outputPath!)).toBe(true);
+    fs.rmSync(outputPath!, { force: true });
+
+    const fr008Warnings = warnSpy.mock.calls.filter(([line]) =>
+      typeof line === "string" ? line.includes("FR-008") : false
+    );
+    expect(fr008Warnings).toHaveLength(1);
+  }, 200_000);
+});
+
 describe("this file's convertToPdf helper (F2a RED — contract §3, shared PDF filter option)", () => {
   test("routes through the shared PDF_CONVERT_TO_TARGET builder (--convert-to filter argument), not a bare 'pdf' target with no IsSkipEmptyPages filter — every render whose output feeds a page inventory pins IsSkipEmptyPages=false (contract §3: 'route every such render through one exported helper that owns the filter argument, and have the integration test assert the argument is present, so a helper edit cannot silently drop it')", () => {
     // A source-level assertion, deliberately: spying on the built-in
