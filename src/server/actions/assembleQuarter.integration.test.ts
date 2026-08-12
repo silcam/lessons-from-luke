@@ -34,7 +34,7 @@ import {
 import assembleQuarter from "./assembleQuarter";
 import { selectAssemblyConstituents } from "../controllers/assemblyController";
 import * as quarterStylesTemplate from "../assembly/quarterStylesTemplate";
-import { PDF_CONVERT_TO_TARGET, classifyPage } from "./pdfRenderOptions";
+import { PDF_CONVERT_TO_TARGET, classifyPage, reconcilePdfPages } from "./pdfRenderOptions";
 
 // The real merge (~14 `soffice` inserts + a `--convert-to pdf` verification
 // pass) comfortably exceeds Jest's 5s default. `sofficeAssemble`'s own hard
@@ -351,6 +351,65 @@ function buildStyleSourceFixture(workDir: string, name: string, backgroundColor:
 function pageNumberFooterOn(pageText: string): string | undefined {
   const matches = [...pageText.matchAll(/\bPage\s+(\S+)/g)];
   return matches.length > 0 ? matches[matches.length - 1][1] : undefined;
+}
+
+/**
+ * Reconciles a rendered book's `pdftotext` extraction against `pdfinfo`'s
+ * authoritative page count (F2b's render oracle, contract §3) — the shared
+ * helper every FR-016 absolute-assertion test in this file uses instead of
+ * the raw, unreconciled {@link pagesOf} split.
+ */
+function reconciledPagesFor(outputPath: string, workDir: string, fullText: string): string[] {
+  const pdfPath = path.join(workDir, "pdf-out", `${path.basename(outputPath, ".odt")}.pdf`);
+  const physicalPageCount = pdfPageCount(pdfPath);
+  return reconcilePdfPages(fullText, physicalPageCount);
+}
+
+/**
+ * Walks a book's (or a body sub-range's) reconciled, oracle-classified pages
+ * in physical order and asserts the FR-016 absolute invariant directly: a
+ * running body-position counter advances by exactly one for EVERY page that
+ * belongs to the body/lesson sequence — "lesson-title" (a lesson's own
+ * suppressed first page) and "coloring" (Coloring_20_Page's footer carries
+ * the Quarter/Lesson marker twice and no page-number field, so it silently
+ * consumes a slot — the exact class the task description calls out by name)
+ * consume a slot and print NOTHING; "lesson-content" consumes a slot and
+ * prints exactly that running position, as a string. This is derived purely
+ * from each page's own oracle classification, never from the PREVIOUS
+ * page's printed value — the load-bearing difference from the older
+ * relative "adjacent numbered pages increment by 1" check, which the task
+ * description notes would pass even under a uniformly-shifted defect this
+ * feature exists to fix.
+ *
+ * @returns the last body position that was actually printed (the position
+ * the book's final content page prints), so callers can assert it against
+ * an independently-derived expectation.
+ */
+function assertAbsoluteBodySequence(pages: string[]): number {
+  let runningPosition = 0;
+  let lastPrintedPosition: number | undefined;
+  pages.forEach((pageText, index) => {
+    const pageClass = classifyPage(pageText);
+    const printed = pageNumberFooterOn(pageText);
+    if (pageClass === "lesson-title" || pageClass === "coloring") {
+      runningPosition++;
+      expect({ index, pageClass, printed }).toEqual({
+        index,
+        pageClass,
+        printed: undefined,
+      });
+    } else if (pageClass === "lesson-content") {
+      runningPosition++;
+      expect({ index, pageClass, printed }).toEqual({
+        index,
+        pageClass,
+        printed: String(runningPosition),
+      });
+      lastPrintedPosition = runningPosition;
+    }
+  });
+  expect(lastPrintedPosition).toBeDefined();
+  return lastPrintedPosition!;
 }
 
 describe("assembleQuarter (real soffice merge, golden-reference parity)", () => {
@@ -791,6 +850,115 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
 
     expect(finalPrintedPageNumber).toBe(physicalPageCount);
   });
+
+  test('017 US1-T5 FR-016 (absolute, oracle-classified): physical page 2 prints "ii", and every suppressed page (a lesson\'s own title page AND a Coloring_20_Page — whose footer carries the Quarter/Lesson marker twice and NO page-number field, so it silently consumes a slot too) accounts for exactly one skipped value with no gap or repeat, walking the F2b pdfinfo-reconciled page classification rather than a raw split', () => {
+    const reconciled = reconciledPagesFor(outputPath, workDir, fullText);
+
+    // (a) Physical page 2 (0-indexed 1) is on the front-matter roman
+    // sequence and prints the absolute value "ii" — not merely "some roman
+    // numeral", and not derived from any other page's printed value.
+    expect(pageNumberFooterOn(reconciled[1])).toBe("ii");
+
+    // The body sequence begins at the FIRST oracle-classified "lesson-title"
+    // page (lesson 14's own suppressed opening) — distinct from the older
+    // marker-substring scan `firstContentPageIndexFor` uses, since that
+    // helper locates the first CONTENT page, one page later.
+    const classes = reconciled.map(classifyPage);
+    const bodyStartIndex = classes.findIndex((pageClass) => pageClass === "lesson-title");
+    expect(bodyStartIndex).toBeGreaterThan(-1);
+    const bodyPages = reconciled.slice(bodyStartIndex);
+
+    // Absolute walk: a running body-position counter derived purely from
+    // each page's own classification, advancing by exactly one per page,
+    // regardless of whether that page prints a number.
+    const lastPrintedPosition = assertAbsoluteBodySequence(bodyPages);
+
+    // Lesson 1's (lesson 14's) own first CONTENT page — the page right
+    // after its suppressed title page — prints "1"; the page immediately
+    // after THAT prints "2" whenever it is itself a numbered content page
+    // (it may instead be a suppressed coloring page, already fully
+    // accounted for by the absolute walk above, which is exactly why the
+    // absolute walk, not a single hard-coded "2" assertion, is the real
+    // FR-016 check — a fixed "prints 2" expectation would be corpus-shape
+    // fragile in a way the task's own oracle-classified walk is not).
+    const firstLessonContentIndex = bodyPages.findIndex(
+      (pageText) => classifyPage(pageText) === "lesson-content"
+    );
+    expect(firstLessonContentIndex).toBeGreaterThan(-1);
+    expect(pageNumberFooterOn(bodyPages[firstLessonContentIndex])).toBe("1");
+
+    // The book's last physical page overall, if it is itself a numbered
+    // content page, must print exactly the running position the absolute
+    // walk independently computed for it — the book's own final position in
+    // the body sequence, not merely "one more than its physical neighbor".
+    const lastPage = reconciled[reconciled.length - 1];
+    if (classifyPage(lastPage) === "lesson-content") {
+      expect(pageNumberFooterOn(lastPage)).toBe(String(lastPrintedPosition));
+    }
+  });
+
+  test("017 US1-T5 FR-016/contract §2.2 front-matter anchor decision (Gate 7 — F1's spike deferred it as NEEDS OPERATOR, see spike/FINDINGS.md; SETTLED EMPIRICALLY in THIS session's real render, since a working render was exactly what F1 lacked): today, with NO explicit front-matter anchor, check (a) FAILS — physical page 2 does not print \"ii\" — so per contract §2.2's decision criterion the anchor IS required; this test encodes the anchor-present branch, not the redundant-anchor branch a static read of an unfinished spike might guess", () => {
+    // (a) — the diagnostic read itself: TODAY, with no anchor, physical page
+    // 2 does NOT print "ii" (confirmed by running this exact render in this
+    // session — recorded here as the empirical Gate 7 answer FINDINGS.md
+    // could not produce). This is the discriminating check that settles
+    // "redundant" vs "required" in contract §2.2's own decision procedure.
+    const reconciled = reconciledPagesFor(outputPath, workDir, fullText);
+    expect(pageNumberFooterOn(reconciled[1])).not.toBe("ii");
+
+    // The desired end state (US1-T6's job): an explicit
+    // `style:page-number="1"` anchor on front matter's own first body
+    // paragraph, under the SAME clone-and-repoint isolation discipline as
+    // the body restart (contract §2.2) — the automatic style the anchor is
+    // set on must be referenced ONLY by that one paragraph, never a style
+    // shared with any other paragraph.
+    const contentXml = extractContentXml(
+      outputPath,
+      workDir,
+      "content-extract-front-matter-anchor"
+    );
+    const contentDoc = libxmljs2.parseXml(contentXml);
+    const officeText = contentDoc.get<Element>("//office:body/office:text", ODF_NAMESPACES);
+    expect(officeText).toBeDefined();
+    const firstBodyElement = officeText!.find<Element>("*[1]", ODF_NAMESPACES)[0];
+    expect(firstBodyElement).toBeDefined();
+    const firstBodyStyleName = firstBodyElement.attr("style-name")?.value();
+    expect(firstBodyStyleName).toBeDefined();
+    const firstBodyAutoStyle = contentDoc.get<Element>(
+      `//office:automatic-styles/style:style[@style:name='${firstBodyStyleName}']`,
+      ODF_NAMESPACES
+    );
+    expect(firstBodyAutoStyle).toBeDefined();
+    const anchorRestart = firstBodyAutoStyle!
+      .get<Element>("style:paragraph-properties", ODF_NAMESPACES)
+      ?.attr("page-number")
+      ?.value();
+    expect(anchorRestart).toBe("1");
+    // Isolation: that automatic style is referenced by exactly ONE element
+    // in the whole book (front matter's own first paragraph) — never a
+    // style shared with another paragraph, which would restart numbering
+    // everywhere else it is used too.
+    const referencingElements = contentDoc.find<Element>(
+      `//office:body//*[@text:style-name='${firstBodyStyleName}']`,
+      ODF_NAMESPACES
+    );
+    expect(referencingElements).toHaveLength(1);
+
+    // Book-wide: with the front-matter anchor added, TWO automatic styles
+    // carry the restart — front matter's own AND the lesson-opening body
+    // restart (contract §2.2's "Body restart (FR-005)") — never more, and
+    // never fewer once both are wired.
+    const allRestarts = contentDoc
+      .find<Element>("//office:automatic-styles/style:style", ODF_NAMESPACES)
+      .filter(
+        (style) =>
+          style
+            .get<Element>("style:paragraph-properties", ODF_NAMESPACES)
+            ?.attr("page-number")
+            ?.value() === "1"
+      );
+    expect(allRestarts).toHaveLength(2);
+  });
 });
 
 /**
@@ -1205,6 +1373,26 @@ describe("assembleQuarter (real soffice merge, monolingual template asset is a c
     // The asset stores 0.9cm; soffice re-serializes lengths in inches
     // (0.9 cm = 0.3543 in), so accept either spelling of the same measure.
     expect(lessonTitleStyle).toMatch(/fo:margin-top="(0\.9cm|0\.3543in)"/);
+
+    // 017 US1-T5 FR-016 (absolute, oracle-classified, MONOLINGUAL mode — the
+    // "both modes" half of this task): this fixture is a single lesson with
+    // no front matter/TOC constituent, so the body sequence begins at
+    // physical page 0. Same F2b pdfinfo-reconciled walk as the bilingual
+    // golden-reference check, on this mode's own render.
+    const physicalPageCount = pdfPageCount(pdfPath);
+    const reconciled = reconcilePdfPages(fullText, physicalPageCount);
+    const classes = reconciled.map(classifyPage);
+    const bodyStartIndex = classes.findIndex((pageClass) => pageClass === "lesson-title");
+    expect(bodyStartIndex).toBeGreaterThan(-1);
+    const bodyPages = reconciled.slice(bodyStartIndex);
+
+    assertAbsoluteBodySequence(bodyPages);
+
+    const firstLessonContentIndex = bodyPages.findIndex(
+      (pageText) => classifyPage(pageText) === "lesson-content"
+    );
+    expect(firstLessonContentIndex).toBeGreaterThan(-1);
+    expect(pageNumberFooterOn(bodyPages[firstLessonContentIndex])).toBe("1");
   }, 200_000);
 });
 
