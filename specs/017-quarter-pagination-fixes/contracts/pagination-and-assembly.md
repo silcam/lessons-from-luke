@@ -311,12 +311,37 @@ export interface LessonOneParity {
 
 export function measureLessonOneParity(options: {
   odtPath: string;
-  workDir: string;
+  /** Pass-scoped render output directory. See "the two path parameters" below. */
+  outDir: string;
+  /** The merge's warmed per-job profile — `profileDirFor(workRoot, jobId)`, threaded in. */
+  profileDir: string;
   series: number;
   firstLessonNumber: number;
   signal?: AbortSignal;
 }): Promise<LessonOneParity>;
 ```
+
+**The two path parameters are load-bearing, and an earlier revision of this signature omitted
+both** — it took a single `workDir` and left the profile and the output location implicit, which
+does not satisfy the invocation discipline stated immediately below.
+
+- **`profileDir` is a parameter, not a re-derivation.** The discipline requires
+  `-env:UserInstallation=file://<profileDir>` to name the profile the merge already warmed, and
+  §4's reapability corollary depends on the render carrying `…/<jobId>/…` in that argument.
+  `profileDirFor(workRoot, jobId)` needs `workRoot` **and** `jobId`, and neither is recoverable
+  from a render working directory nested inside the job dir. A signature that does not carry the
+  value leaves an implementer two options, both wrong: string surgery on a path, or LibreOffice's
+  shared default profile — which the security rule forbids and which makes an orphaned render
+  unreapable. The existing `convertToPdf(odtPath, workDir, profileDir)` helper in
+  `assembleQuarter.integration.test.ts` already threads it explicitly; production matches it.
+- **`outDir`, not an output file path, is what makes the passes distinct.**
+  `soffice --convert-to pdf --outdir <dir> <input>` derives the output **filename** from the
+  input's basename and offers no way to name it. Both renders on the filler branch read the
+  **same** `odtPath` (the re-finalize rewrites it in place), so they derive the identical
+  basename: the per-pass output path required above is achievable only by giving each pass its
+  own `outDir`. The caller passes a pass-tagged directory (`<workDir>/pdf-out-measure`,
+  `<workDir>/pdf-out-confirm`); the freshness assertion then has a path that a prior pass cannot
+  have written.
 
 **Contract**
 
@@ -411,7 +436,8 @@ export function measureLessonOneParity(options: {
   before the re-finalize and the confirmation render — must be confirmed exited first, via the
   capped poll of §4, never an open await. The re-finalize rewrites the ODT in place over the same
   path a live render may still hold open.
-- **Each render writes its own output path** (pass-tagged), and the parse asserts the PDF it reads
+- **Each render writes its own output path** — via its own pass-tagged `outDir`, since
+  `--convert-to` names the file from the input basename and both passes share one `odtPath` — and the parse asserts the PDF it reads
   was produced by the invocation that just ran — the path is unlinked beforehand, or asserted
   absent. A stale PDF from a prior pass parsed as the current one can silently confirm a recto
   guarantee that was never verified.
@@ -525,6 +551,15 @@ coloring page.
   `pdftotext -layout`, and where a coloring page actually falls within a lesson. The rule above
   must be correct either way; the spike settles which discriminator is cheapest, and whether
   monolingual output carries the same signatures at all.
+- **Spike validation, language axis (not spanned by "both modes")**: this locator is the first
+  production dependence on _rendered footer text_, and assembly is per-language
+  (`POST /api/languages/:languageId/quarters/:book/:series/assembly`). The marker tokens
+  (`Quarter <Q>`, `Lesson <N>`, `Lessons from Luke`) are expected to be template-borne and
+  therefore language-invariant, by the same `loadStylesFromURL` mechanism INV-6b depends on — but
+  that is inference, not evidence, and a translated footer frame makes the locator throw on every
+  job in that language. If a non-English corpus is cheaply available during the spike, render one
+  and confirm the tokens are unchanged; if none is, record the assumption explicitly so the first
+  failure in a new language is diagnosable rather than mysterious. Stated as a check, not new work.
 
 **Diagnostics**: `lessonOnePageIndex` and `renderedPageCount` are recorded in the job's
 diagnostics. Extracted page text is **never** logged (it is unpublished translation content),

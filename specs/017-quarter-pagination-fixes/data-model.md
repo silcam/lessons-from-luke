@@ -189,7 +189,9 @@ Lives only for the duration of one assembly job; nothing persists it.
   different page inventory than production measured on exactly the books carrying an implicit blank.
   Routed through one shared helper that owns the argument (contract §3, §4).
   And from the PDF
-  **the current invocation produced**. Each render pass writes its own pass-tagged output path and the parse asserts
+  **the current invocation produced**. Each render pass writes its own pass-tagged output path — a
+  pass-scoped `outDir`, since `--convert-to` derives the filename from the input basename and both
+  passes read the same `odtPath` — and the parse asserts
   freshness, so a stale PDF from an earlier pass cannot silently confirm a parity that was never
   measured on the delivered document (contract §3).
 - INV-12: measurement runs on the finalized-but-filler-free document, because inserting the

@@ -297,7 +297,13 @@ interpolated path and no profile isolation. Concretely, the render pass MUST:
   This applies equally to the `pdftotext` / `pdfinfo` calls (the integration test already uses
   `execFileSync` with array args — match it).
 - Pass `-env:UserInstallation=file://<profileDir>` using the **same per-job profile directory**
-  the merge already warmed (`profileDirFor(workRoot, jobId)`). The two invocations are strictly
+  the merge already warmed (`profileDirFor(workRoot, jobId)`) — **threaded in as a parameter**, not
+  re-derived inside the pass. `profileDirFor` needs `workRoot` and `jobId`, neither recoverable
+  from a render working directory nested inside the job dir, so a signature that omits the value
+  leaves only string surgery or the shared default profile — the thing this bullet forbids, and
+  the thing that makes an orphaned render unreapable. The signature carries `profileDir` and a
+  pass-tagged `outDir` explicitly (contract §3), matching the existing
+  `convertToPdf(odtPath, workDir, profileDir)` test helper. The two invocations are strictly
   sequential within one job, so profile reuse is safe and avoids a second warm; what is not
   safe is falling back to LibreOffice's shared default profile, which is single-instance and
   would let the render collide with a concurrent `webifyLesson` or a lingering merge.
@@ -1047,7 +1053,11 @@ one, and two of the existing safeguards were written for the merge → render pa
   odd stale index and _silently confirm a guarantee that was never verified_ — the exact
   passes-while-wrong failure this feature exists to correct. So: distinct, pass-tagged output paths
   per render, and the parse asserts the file it reads was produced by the invocation that just ran
-  (path did not exist beforehand, or is unlinked before the render).
+  (path did not exist beforehand, or is unlinked before the render). **Distinctness comes from a
+  per-pass `outDir`, not from naming the file**: `soffice --convert-to pdf --outdir <dir> <input>`
+  derives the output filename from the input basename and offers no way to set it, and both renders
+  read the same `odtPath` (the re-finalize rewrites it in place), so they derive the identical
+  basename. `outDir` is therefore a parameter of the pass (contract §3).
 
 ### Both parity branches must be verified, and the measurement recorded
 
