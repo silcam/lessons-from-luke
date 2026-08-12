@@ -1143,3 +1143,20 @@ describe("assembleQuarter (real soffice merge, doctored Lesson-9-shaped constitu
     });
   }, 200_000);
 });
+
+describe("this file's convertToPdf helper (F2a RED — contract §3, shared PDF filter option)", () => {
+  test("routes through the shared PDF_CONVERT_TO_TARGET builder (--convert-to filter argument), not a bare 'pdf' target with no IsSkipEmptyPages filter — every render whose output feeds a page inventory pins IsSkipEmptyPages=false (contract §3: 'route every such render through one exported helper that owns the filter argument, and have the integration test assert the argument is present, so a helper edit cannot silently drop it')", () => {
+    // A source-level assertion, deliberately: spying on the built-in
+    // `child_process` module's `execFileSync` to capture argv without a
+    // real soffice invocation hits a non-configurable-property TypeError
+    // under ts-jest's esModuleInterop namespace object, and this file's many
+    // OTHER tests genuinely need a real, unmocked execFileSync. Reading back
+    // this file's own convertToPdf() definition and asserting it references
+    // the shared builder is exactly the structural guard contract §3 asks
+    // for: "a helper edit cannot silently drop" the filter argument.
+    const thisFileSource = fs.readFileSync(__filename, "utf8");
+    const convertToPdfSource = /function convertToPdf\([\s\S]*?\n\}\n/.exec(thisFileSource)?.[0];
+    expect(convertToPdfSource).toBeDefined();
+    expect(convertToPdfSource).toContain("PDF_CONVERT_TO_TARGET");
+  });
+});
