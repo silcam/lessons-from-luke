@@ -295,6 +295,39 @@ through its master name, never by literal `Mpm<n>`.
 master-page transition rather than a same-master repeat, which is the most likely reason the
 `First_20_Page`-on-`First_20_Page` arrangement would fail to honour the restart.
 
+### 2.6 Delivered-document print setting (`settings.xml`)
+
+**Change**: the finalize pass additionally patches `settings.xml`, setting the ODF config item
+`PrintEmptyPages` (`<config:config-item config:name="PrintEmptyPages" config:type="boolean">`) to
+**`true`**. Created if the item is absent; the pass throws the curated, path-free reason if
+`settings.xml` or its configuration-settings set is missing, rather than proceeding with an
+unpinned document. Setting a constant is idempotent, so §2.4's fixed points are unaffected.
+
+**Why it is contractual and not an implementation detail**: the deliverable is an **`.odt`**
+(`assembleQuarter.ts:293-296`), not the PDF §3 measures. `PrintEmptyPages` is LibreOffice's "Print
+automatically inserted blank pages", and its polarity runs opposite to the export option's —
+`PrintEmptyPages` = `true` and `IsSkipEmptyPages` = `false` both mean _include the blanks_. If the
+delivered book carries `false`, the implicit `style:page-usage="left"` blank (`Inside_20_cover`,
+§3) is dropped at print time, everything after it shifts by one, and lesson 1 opens **verso** in
+the printed book while every assertion read off a render pinned the other way reports odd and
+passes — FR-008/SC-004 broken in the only artifact the client sees.
+
+**The inputs disagree, and the template's value does not propagate** [AUTHORITATIVE — XML-parser
+probe of `settings.xml`, both assets and the committed corpus]: both assets and `Luke-2-14v01`
+carry `true`, while `Luke-2-99v01` — the same `-99` constituent that pins `Inside_20_cover` and so
+_causes_ the implicit blank — carries **`false`**. `loadStylesFromURL` loads styles, not document
+settings, so the merged value comes from the base document `Module1.xba` merges into (the per-job
+profile's default), which is unestablished and outside this feature's control.
+
+**Validation**: `assembleQuarter.integration.test.ts` asserts `PrintEmptyPages` is `true` in the
+**assembled** `settings.xml`, in **both** modes — a merged-output guard of the same kind as §1's
+INV-1 and §2.5's INV-6b, and for the same reason: asset-only validation cannot observe it.
+
+**Scope**: this does not affect the FR-009 filler, which is an explicit empty paragraph pinned to a
+master and therefore a content page that always prints. The exposure is confined to books carrying
+an implicit blank. It also removes a confounder from research R4's headless-vs-interactive
+comparison, which must be run against a pinned document.
+
 ---
 
 ## 3. `measureLessonOneParity` (NEW)

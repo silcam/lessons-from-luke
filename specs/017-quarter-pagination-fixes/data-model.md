@@ -130,6 +130,20 @@ Inserted only when parity requires it (FR-008, FR-009).
   shift the body sequence (the body restart is explicit, so the filler cannot perturb it).
 - INV-7 (FR-008): after insertion, lesson 1's first page falls at an odd physical index in
   the rendered PDF.
+- INV-7a (FR-008, SC-004 — the delivered artifact): the assembled book's `settings.xml` carries
+  `<config:config-item config:name="PrintEmptyPages" config:type="boolean">true</config:config-item>`,
+  set by finalize and asserted on the **merged output** in both modes (contract §2.6). INV-7 is
+  measured on a PDF pinned to include automatically inserted blank pages, but the deliverable is an
+  **`.odt`** (`assembleQuarter.ts:293-296`) the coordinator prints herself; `PrintEmptyPages` =
+  `false` drops the implicit `style:page-usage="left"` blank (INV-6a) at print time and lands lesson
+  1 verso while INV-7 still reports odd. The polarity is opposite to the export option's:
+  `PrintEmptyPages` = `true` and `IsSkipEmptyPages` = `false` both mean _include the blanks_.
+  [AUTHORITATIVE, XML-parser probe of `settings.xml`] The inputs disagree — both assets and
+  `Luke-2-14v01` carry `true`, while `Luke-2-99v01`, the constituent that pins `Inside_20_cover` and
+  so causes the implicit blank, carries `false` — and `loadStylesFromURL` loads styles, not document
+  settings, so the merged value comes from the base document's profile default. Same unstated-merge
+  dependency as INV-1 and INV-6b, and unobservable by asset-only validation. The FR-009 filler is
+  unaffected: it is an explicit paragraph, hence a content page that always prints.
 - INV-13: the filler survives a second finalize pass unchanged — `finalize(finalize(doc))`
   yields a `content.xml` byte-identical to `finalize(doc)` for both `insertRectoFiller`
   values. An empty `<text:p>` is exactly the shape `removeLeadingBlankParagraphs` and any

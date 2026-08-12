@@ -668,6 +668,69 @@ off-by-one is present on every book today.
   stay strictly sequential, so the "never two LibreOffice processes" guarantee and the
   soffice-self-kills-first invariant are unchanged in kind.
 
+### The parity is measured on a PDF, but the book is delivered as an ODT — and the two disagree about blank pages by default
+
+[static-confirmed during red-team, `assembleQuarter.ts:293-296`] The deliverable is an **`.odt`**
+retained at `<docs>/tmp/<timestamp>_<jobId>.odt`; the coordinator opens it and prints or exports it
+herself. The FR-010 measurement pins its own export to **include** LibreOffice's automatically
+inserted blank pages (`IsSkipEmptyPages` = `false`), so the measured index is a physical sheet
+position **of that render**. Whether it is also a physical sheet position of the **printed** book is
+a separate, per-document setting that nothing in this plan touches.
+
+[AUTHORITATIVE — XML-parser probe of `settings.xml`, both assets and the committed corpus] ODF
+carries that setting inside the document:
+`<config:config-item config:name="PrintEmptyPages" config:type="boolean">`, LibreOffice's "Print
+automatically inserted blank pages". Note the polarity runs opposite to the export option's:
+`PrintEmptyPages` = **`true`** and `IsSkipEmptyPages` = **`false`** both mean _include the blanks_.
+It is **not** uniform across the inputs:
+
+| Document                                          | `PrintEmptyPages` |
+| ------------------------------------------------- | ----------------- |
+| `assets/quarter-styles-template.odt`              | `true`            |
+| `assets/quarter-styles-template-monolingual.odt`  | `true`            |
+| `Luke-2-14v01.odt` (lesson constituent)           | `true`            |
+| `Luke-2-99v01.odt` (the `-99` front-matter / TOC) | **`false`**       |
+
+The last row is the one that bites: `Luke-2-99v01` is the very constituent that pins
+`Inside_20_cover` and therefore _causes_ the implicit `style:page-usage="left"` blank the recto
+arithmetic depends on. And the assembled book does not inherit the template's `true`:
+`loadStylesFromURL` loads **styles**, not document settings, so the merged document's value comes
+from the base document `Module1.xba` merges into — i.e. from the per-job LibreOffice profile's
+default, which is unestablished here and outside this feature's control.
+
+If the delivered book ends up carrying `PrintEmptyPages` = `false`, its implicit blank is dropped at
+print time, every page after it shifts by one, and lesson 1 opens **verso** in the printed
+book — while every automated assertion, read off a render pinned the other way, reports odd and
+passes. That is the passes-while-wrong shape this feature exists to kill, moved one step past the
+last thing the plan asserts. SC-004 is a claim about the book the client holds, not about the PDF
+the server rendered.
+
+**Requirement**: finalize pins it in the delivered document, and the merged-output assertion
+guards it. `finalizeAssembledQuarter` already unzips the whole package and patches `content.xml`,
+`styles.xml`, and `meta.xml` before re-zipping
+[static-confirmed during red-team, `finalizeAssembledQuarter.ts:80-107`], so this is a fourth entry
+in an existing pass rather than a new mechanism: set `PrintEmptyPages` to `true` in the assembled
+`settings.xml`, creating the `config:config-item` if absent and failing loudly with the curated
+reason if the settings document has no configuration-settings set to create it in (contract §2.6).
+`assembleQuarter.integration.test.ts` asserts the value on the **merged output** in both modes,
+alongside the INV-1 and INV-6b merged-output guards it already carries, and for the same reason as
+those two: it is a property of the delivered book that the merge decides, and asset-only validation
+cannot observe it.
+
+Three scope notes, so this does not grow:
+
+- **The FR-009 filler is unaffected either way.** The setting governs only pages LibreOffice
+  inserts _automatically_ to satisfy a left/right page usage. The filler is an explicit empty
+  paragraph pinned to a master, so it is a content page and always prints. The exposure is confined
+  to books that carry an implicit blank — the Luke-2 corpus among them.
+- **The fixed points are unaffected.** Setting a config item to a constant is naturally idempotent,
+  so INV-13 and INV-13a still hold byte-identically across the two-pass flow.
+- **It gives research R4 a confounder to control rather than a new question.** R4 compares the
+  headless render against an interactive PDF export of the same document. If the assembled ODT
+  carries `false` while the headless render pins the blanks in, the two disagree on exactly the
+  books with an implicit blank, and R4 records a spurious non-equivalence. Pin the setting before
+  the spike exports anything.
+
 ### The filler must survive the second finalize pass
 
 Contract §2.4 covers not double-inserting. The stronger requirement is that the filler — an
