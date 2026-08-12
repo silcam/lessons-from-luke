@@ -320,6 +320,50 @@ filesystem paths — extending the existing path-free curated-reason rule
 numeric `lessonOnePageIndex` / `renderedPageCount` (see Edge Cases below) is fine; recording
 the page text that produced them is not.
 
+## Performance Considerations
+
+### The admission guard is sized for the merge, and this feature changes the peak it guards
+
+[static-confirmed during red-team, `assemblyBudget.ts:70-82`, `AssemblyJobRegistry.ts:237-244`]
+`ASSEMBLY_MIN_AVAILABLE_BYTES` (512 MB) is a Linux `MemAvailable` floor below which a genuinely new
+job is refused. Its own doc comment says it is **a placeholder, not a sized number**, chosen for
+safety against the deploy box's ~1.31 GB idle `MemAvailable` and explicitly **not** derived from a
+measured peak of the 14-document merge. Two properties of that guard matter here:
+
+- It is consulted at **admission only**. A job admitted at 600 MB proceeds through the whole
+  pipeline, including a render whose peak has never been measured.
+- The peak it was (loosely) chosen against is the merge's. A PDF export of a ~100-page,
+  graphics-heavy book is a **second** LibreOffice peak of unknown size, and on the 2 vCPU / 2 GB
+  swapless box there is no swap to absorb an underestimate.
+
+**Requirements**, both folded into work this plan already schedules rather than added as new scope:
+
+- The Technical Context's "cost to be measured on a ~100-page book" is extended from wall-clock to
+  **`MemAvailable` during the render**, using the exact procedure the constant's doc comment already
+  prescribes for the merge (`while :; do grep MemAvailable /proc/meminfo; sleep 1; done`). The spike
+  already produces the artifact; this is one shell loop alongside it. If the render's peak exceeds
+  the merge's, `ASSEMBLY_MIN_AVAILABLE_BYTES` is re-tuned to the observed peak plus headroom; if it
+  does not, that is recorded so the next pass does not re-open the question.
+- **An OOM kill must not be reported as a timeout.** The render is spawned `detached` and killed
+  with `process.kill(-pid, "SIGKILL")` on timeout or abort (Security Considerations), so a
+  SIGKILL-terminated render is otherwise indistinguishable from an OOM-killer SIGKILL — and the two
+  need opposite operator responses (raise the budget vs. lower concurrency / raise the floor). The
+  pass knows which signals it sent, so the server-side log line distinguishes "killed by us at
+  `ASSEMBLY_RENDER_TIMEOUT_MS`" from "died on a signal we did not send". The coordinator-facing
+  curated reason is unchanged.
+
+### The wedged-job window widens for every job, including jobs that never render
+
+`ASSEMBLY_TIMEOUT_MS` gains `2 × ASSEMBLY_RENDER_TIMEOUT_MS + 3 × ASSEMBLY_EXIT_POLL_CAP_MS`
+unconditionally (contract §5), and `ASSEMBLY_ABANDON_MS` is derived from it
+[static-confirmed during red-team, `assemblyBudget.ts:69`], so both windows widen automatically —
+correct, and no extra work. The consequence to state rather than discover: assembly runs at
+concurrency 1, so a single wedged job now holds the only slot for a materially longer period before
+the registry marks it failed, and that is true even for jobs the kill-switch turned the render off
+for. This is the same accepted cost already recorded for the kill-switch, generalized: it is
+accepted deliberately, because deriving the budget from a runtime branch would make the
+soffice-self-kills-first invariant conditional rather than structural.
+
 ## Edge Cases & Error Handling
 
 ### The recto pass must not be able to block delivery of the two reported defects
@@ -392,7 +436,7 @@ absorb:
   | Page class          | `Quarter <Q>` **and** `Lesson <N>` | `Page <n>` | Other signature                             |
   | ------------------- | ---------------------------------- | ---------- | ------------------------------------------- |
   | Lesson title page   | absent                             | absent     | no rendered footer, but the page's own text |
-  | Blank page          | absent                             | absent     | **no extractable text at all**              |
+  | Blank page          | absent                             | absent     | **no extractable text at all** (after trim) |
   | Coloring page       | present **twice**                  | absent     | `Lessons from Luke`                         |
   | Lesson content page | present                            | present    | the lesson title                            |
   | Front matter        | absent (`Quarter <Q>` alone)       | present    | `Lessons from Luke` + `Teacher's Guide`     |
@@ -459,6 +503,17 @@ absorb:
   byte-identical strings under `pdftotext -layout`. The locator must be correct either way; the
   spike only settles which discriminator is cheapest.
 
+  **One further axis the spike's "both modes" coverage does not span: language.** This locator is
+  the first production dependence on _rendered footer text_, and assembly is per-language
+  (`POST /api/languages/:languageId/quarters/:book/:series/assembly`). The marker tokens
+  (`Quarter <Q>`, `Lesson <N>`, `Lessons from Luke`) should be template-borne and therefore
+  language-invariant, by the same `loadStylesFromURL` mechanism INV-6b depends on — but that is
+  inference, not evidence, and a translated footer frame would make the locator throw on every job
+  in that language. Stated as a **check, not new work**: if a non-English corpus is cheaply
+  available during the spike, render one and confirm the marker tokens are unchanged; if none is,
+  record the assumption explicitly so the first failure in a new language is diagnosable rather than
+  mysterious.
+
 - **FR-016's "known positions" must be chosen with coloring pages counted.** An oracle that
   assumes only lesson title pages are suppressed will compute the wrong expected absolute
   number for every page after lesson 1's coloring page. The absolute assertions anchor on
@@ -491,6 +546,31 @@ survive and are the ones to build against:
 Blank and lesson-title classes are distinguishable in `pdftotext` output — a lesson title page
 carries the lesson's title text with no footer; a blank page carries no extractable text at all —
 so this is an added row, not an ambiguity.
+
+**But "no extractable text" is only well-defined once the page split is reconciled against
+`pdfinfo`, and today's helper does not reconcile it.** [static-confirmed during red-team,
+`assembleQuarter.integration.test.ts:194-196`] `pagesOf` is
+`fullText.split("\f")`, and `pdftotext` emits a form feed **after every page including the last**,
+so the split yields `pageCount + 1` entries whose tail is empty. Under the pre-017 relative
+assertions that tail was harmless. It is not harmless now: an empty tail entry is byte-identical to
+a genuine blank-class page, so the inventory INV-5 requires to account for **every** rendered page
+disagrees with `pdfinfo` by one on **every** book, and a rule reading "the last page is blank" is
+a coin flip. Two concrete requirements, both cheap:
+
+- **Anchor the inventory on `pdfinfo`.** Assert `parts.length === renderedPageCount + 1` and that
+  the tail entry is empty, then drop exactly one entry; the classifier consumes exactly
+  `renderedPageCount` entries and every index it reports is a physical sheet position by
+  construction. A mismatch throws the curated reason rather than being silently absorbed — it means
+  the extraction and the count are describing different documents, which is F1's failure one layer
+  down.
+- **Blank class is "no extractable text after whitespace trim."** Under `-layout`, a page with no
+  content commonly yields newlines and spaces rather than the empty string, so an exact-empty test
+  misclassifies blanks as lesson-title class — and lesson-title class is what the locator scans for.
+
+A genuine trailing blank page is probably unreachable (LibreOffice inserts an implicit blank to fix
+a _following_ page's parity, so it never lands last), which is why this is a robustness requirement
+rather than a live defect. The `pdfinfo` cross-check earns its place regardless, because the
+off-by-one is present on every book today.
 
 **Consequences, all specified rather than left to implementation:**
 
@@ -536,6 +616,31 @@ so this is an added row, not an ambiguity.
   spike verifies the rendered page count against a book known to contain an implicit blank, which
   also gives research R4 (headless vs interactive equivalence) a concrete failure mode to test
   instead of an open equivalence question.
+
+  **The filter option binds every render, not just the production one — the verification layer is
+  currently the counterexample.** [static-confirmed during red-team,
+  `assembleQuarter.integration.test.ts:155-178`] The integration test's own `convertToPdf` helper
+  invokes bare `soffice --headless --convert-to pdf` with **no** filter argument. If
+  `measureLessonOneParity` pins `IsSkipEmptyPages` to `false` and the verification render does not,
+  the two render a **different page inventory** of the same book on exactly the books that carry an
+  implicit `page-usage="left"` blank — the Luke-2 corpus among them. FR-016's absolute page-number
+  assertions and INV-7's odd-index check would then be evaluated against a document that is not the
+  one production measured, and both would pass or fail for reasons unrelated to the delivered book:
+  the passes-while-wrong shape this feature exists to kill, reproduced inside its own oracle.
+
+  **Invariant**: _every render whose output feeds a page inventory, an absolute page-number
+  assertion, or a parity claim pins `IsSkipEmptyPages` = `false`_ — the production measurement, the
+  integration and acceptance renders, and the spike scripts alike, for the same reason in each case
+  (the oracle must reflect physical sheets). Satisfy it structurally, by routing every such render
+  through **one exported helper** that owns the filter argument, rather than by repeating the
+  argument at each call site; the integration test additionally asserts the argument is present, so
+  a helper edit cannot silently drop it.
+
+  **If the R3 fallback lands, the mechanisms diverge and equivalence becomes a spike item.**
+  Production may end up setting the property through the UNO macro (`Module1.xba`) while the tests
+  keep the JSON `--convert-to` syntax — two different routes to the same option. That is workable,
+  but it is an assumption: the spike confirms both routes produce the same rendered page count on a
+  book known to carry an implicit blank, rather than inferring it.
 
 - **The "+1 page" assumption behind the filler is not safe, so the confirmation render is
   mandatory on the `needsFiller` branch.** Inserting one blank flips the parity of every page

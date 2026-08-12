@@ -77,7 +77,16 @@ The arabic-numbered run from lesson 1's first page to the end of the book.
   distinguishable: [static-confirmed during red-team] both footers render `Lessons from Luke` and
   `Teacher's Guide`, separated only by `Front_20_matter`'s `– Quarter <Q>` run. The lesson marker
   is tested on `Quarter <Q>` **and** `Lesson <N>` together, because `Front_20_matter`'s footer
-  carries `Quarter <Q>` on its own.
+  carries `Quarter <Q>` on its own. The inventory is **anchored on `pdfinfo`'s page count before
+  anything is classified**: [static-confirmed during red-team,
+  `assembleQuarter.integration.test.ts:194-196`] `pdftotext` emits a form feed after every page
+  including the last, so a naive `split("\f")` yields `renderedPageCount + 1` entries with an empty
+  tail that is byte-identical to a genuine blank-class page. Assert
+  `parts.length === renderedPageCount + 1` and an empty tail, drop exactly one entry, classify
+  exactly `renderedPageCount`; a mismatch throws. Blank class is "no extractable text **after
+  whitespace trim**" — under `-layout` an empty page commonly yields whitespace, and an exact-empty
+  test misclassifies it as lesson-title class, the very class INV-14's locator scans for
+  (contract §3).
 
 ### Blank filler page
 
@@ -172,6 +181,12 @@ Lives only for the duration of one assembly job; nothing persists it.
   `page-usage="left"` blanks and the index is not a physical sheet position. The flag is not trusted
   on its own — the spike compares the rendered page count against a book known to carry an implicit
   blank, which is what tells an accepted filter option from a silently ignored one (contract §3).
+  **The same pinning binds every render that feeds a page inventory, an absolute page-number
+  assertion, or a parity claim** — the integration and acceptance renders and the spike scripts, not
+  only this pass. [static-confirmed during red-team, `assembleQuarter.integration.test.ts:155-178`]
+  The current `convertToPdf` helper passes no filter argument, so an unfixed oracle would judge a
+  different page inventory than production measured on exactly the books carrying an implicit blank.
+  Routed through one shared helper that owns the argument (contract §3, §4).
   And from the PDF
   **the current invocation produced**. Each render pass writes its own pass-tagged output path and the parse asserts
   freshness, so a stale PDF from an earlier pass cannot silently confirm a parity that was never
@@ -188,8 +203,12 @@ Lives only for the duration of one assembly job; nothing persists it.
   quarter's first lesson by whole-token match of the marker built from `firstLessonNumber` (never
   the literal `Lesson 1`; the Luke-2 corpus's first lesson is `14`), predecessor absent **or not
   carrying the first lesson's marker** — a denial, not an allow-list, because "footer-less but
-  texted" is not exclusive to lesson title pages: nine masters render no footer, and
-  `Inside_20_cover` is reachable (pinned by the TOC constituent `Luke-2-99v01`), so an allow-list
+  texted" is not exclusive to lesson title pages: footer-rendering is the **minority** case
+  ([AUTHORITATIVE, XML-parser probe] four masters of nineteen bilingual and three of fifteen
+  monolingual render a footer; every other master renders nothing — the earlier "nine masters"
+  count was regex-derived and is struck, see Mode coverage), and
+  `Inside_20_cover` is among the non-rendering set and is reachable (pinned by the TOC constituent
+  `Luke-2-99v01`), so an allow-list
   of blank / front-matter / table-of-contents predecessors throws on every job for that corpus
   shape (contract §3) — or
   the pass throws. The conjunction is scanned, never checked after a first lesson-title-class

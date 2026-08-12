@@ -347,6 +347,35 @@ export function measureLessonOneParity(options: {
   book known to carry an implicit blank, which is what distinguishes an accepted filter option from
   a silently ignored one.
 
+  **It binds every render, not only this one.** Invariant: _every render whose output feeds a page
+  inventory, an absolute page-number assertion, or a parity claim pins `IsSkipEmptyPages` =
+  `false`_ — this pass, the integration and acceptance renders, and the spike scripts alike.
+  [static-confirmed during red-team, `assembleQuarter.integration.test.ts:155-178`] The integration
+  test's `convertToPdf` helper currently invokes bare `soffice --headless --convert-to pdf` with no
+  filter argument, so as written the oracle would render a **different page inventory** than this
+  pass measures on exactly the books carrying an implicit `page-usage="left"` blank — the Luke-2
+  corpus among them — and FR-016 / INV-7 would pass or fail for reasons unrelated to the delivered
+  book. Satisfy the invariant **structurally**: route every such render through one exported helper
+  that owns the filter argument, and have the integration test assert the argument is present, so a
+  helper edit cannot silently drop it. If the R3 fallback moves production's option-setting into the
+  UNO macro while the tests keep the JSON `--convert-to` syntax, the equivalence of the two routes
+  becomes a spike-confirmation item (same page count on a book known to carry an implicit blank),
+  not an assumption.
+
+- **Page splitting is reconciled against `pdfinfo` before anything is classified.**
+  [static-confirmed during red-team, `assembleQuarter.integration.test.ts:194-196`] The existing
+  `pagesOf` helper is `fullText.split("\f")`, and `pdftotext` emits a form feed after **every** page
+  including the last, so the split yields `renderedPageCount + 1` entries with an empty tail. Under
+  the pre-017 relative assertions that was harmless; with a blank class defined as "no extractable
+  text" it is not, because the tail entry is byte-identical to a genuine blank page and the INV-5
+  inventory then disagrees with `pdfinfo` by one on every book. So: assert
+  `parts.length === renderedPageCount + 1` **and** that the tail is empty, drop exactly one entry,
+  and classify exactly `renderedPageCount` entries — a mismatch throws the curated reason rather
+  than being absorbed, since it means the extraction and the count describe different documents.
+  Blank-class membership is **"no extractable text after whitespace trim"**: under `-layout` an
+  empty page commonly yields newlines and spaces rather than the empty string, and an exact-empty
+  test misclassifies it as lesson-title class — precisely the class the locator scans for.
+
 - Locates lesson 1's first page **by observable page class**, not by marker adjacency (see
   "Locator robustness" below). Marker adjacency is unsafe: [static-confirmed during red-team]
   the `Coloring_20_Page` footer carries the same `Quarter <Q> … Lesson <N>` marker as
@@ -402,14 +431,14 @@ classes differ on **both** conjuncts, which is what makes the discriminator robu
 wordings had the title page carrying a dormant branding footer identical to the coloring page's;
 that was a regex artifact and is struck.)
 
-| Page class          | `Quarter <Q> … Lesson <N>` | `Page <n>` | Other signature                        |
-| ------------------- | -------------------------- | ---------- | -------------------------------------- |
-| Lesson title page   | absent                     | absent     | no footer, but the lesson's title text |
-| Blank page          | absent                     | absent     | **no extractable text at all**         |
-| Coloring page       | present (twice)            | absent     | `Lessons from Luke`                    |
-| Lesson content page | present                    | present    | —                                      |
-| Front matter        | absent                     | present    | `Teacher's Guide`                      |
-| Table of contents   | absent                     | present    | book title + subject                   |
+| Page class          | `Quarter <Q> … Lesson <N>`   | `Page <n>` | Other signature                             |
+| ------------------- | ---------------------------- | ---------- | ------------------------------------------- |
+| Lesson title page   | absent                       | absent     | no footer, but the lesson's title text      |
+| Blank page          | absent                       | absent     | **no extractable text at all** (after trim) |
+| Coloring page       | present **twice**            | absent     | `Lessons from Luke`                         |
+| Lesson content page | present                      | present    | the lesson title                            |
+| Front matter        | absent (`Quarter <Q>` alone) | present    | `Lessons from Luke` + `Teacher's Guide`     |
+| Table of contents   | absent                       | present    | `Lessons from Luke: Teacher's Guide`        |
 
 **The blank class is required, not defensive.** A page with no text is not a lesson title page,
 and two kinds of blank page occur here: the filler this feature inserts (FR-009), and blanks
@@ -608,6 +637,16 @@ corpus's actual parity.
 **filler-inserted** branch as well as the no-filler branch, with the same FR-016 absolute
 page-number assertions. FR-016's own reasoning applies here: the delivered defect shipped
 because only relative assertions ran on one path.
+
+**The verification renders are held to §3's render invariants.** Both branches' assertions are read
+off a PDF, so both are subject to the two rules §3 states for the production render: the export
+pins `IsSkipEmptyPages` = `false` (via the shared helper, whose argument the test asserts is
+present), and the page split is reconciled against `pdfinfo` before classification. Today's
+`convertToPdf` and `pagesOf` helpers satisfy neither
+[static-confirmed during red-team, `assembleQuarter.integration.test.ts:155-178`, `:194-196`], so
+this is a change to them, not a property they already have. An oracle rendered under different
+filter options than the document it is judging is the passes-while-wrong shape reproduced inside
+the verification layer.
 
 ---
 
