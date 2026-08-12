@@ -72,6 +72,13 @@ ways — `soffice --headless --convert-to pdf` and File → Export as PDF — an
 count and per-page footer tokens. If they agree, every later verification round runs
 headless.
 
+Pin the blank-page handling on **both** routes first, or the comparison is confounded on exactly
+the books carrying an implicit `page-usage="left"` blank (the Luke-2 corpus among them): the
+headless call carries `IsSkipEmptyPages` = `false` in its `--convert-to` filter argument, and in
+the export dialog the **"Export automatically inserted blank pages" checkbox must be checked**.
+The document's own `PrintEmptyPages` setting (pinned to `true` by finalize, contract §2.6) governs
+printing, not this dialog.
+
 ## 4. Automated verification
 
 ```bash

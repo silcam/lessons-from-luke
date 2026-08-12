@@ -325,8 +325,11 @@ INV-1 and §2.5's INV-6b, and for the same reason: asset-only validation cannot 
 
 **Scope**: this does not affect the FR-009 filler, which is an explicit empty paragraph pinned to a
 master and therefore a content page that always prints. The exposure is confined to books carrying
-an implicit blank. It also removes a confounder from research R4's headless-vs-interactive
-comparison, which must be run against a pinned document.
+an implicit blank. It removes **half** of research R4's headless-vs-interactive confounder: this
+setting governs the **print** path, while the interactive **export** path is governed by the export
+dialog's own "Export automatically inserted blank pages" checkbox — the same `IsSkipEmptyPages` §3
+pins as an argument, and not established to derive from the document setting. R4's comparison pins
+both, and its instruction names the checkbox rather than assuming the document settles it.
 
 ---
 

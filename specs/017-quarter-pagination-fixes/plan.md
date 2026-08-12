@@ -725,11 +725,16 @@ Three scope notes, so this does not grow:
   to books that carry an implicit blank — the Luke-2 corpus among them.
 - **The fixed points are unaffected.** Setting a config item to a constant is naturally idempotent,
   so INV-13 and INV-13a still hold byte-identically across the two-pass flow.
-- **It gives research R4 a confounder to control rather than a new question.** R4 compares the
-  headless render against an interactive PDF export of the same document. If the assembled ODT
-  carries `false` while the headless render pins the blanks in, the two disagree on exactly the
-  books with an implicit blank, and R4 records a spurious non-equivalence. Pin the setting before
-  the spike exports anything.
+- **It gives research R4 a confounder to control — but only half of one, so say which half.** R4
+  compares the headless render against an interactive PDF export of the same document. Pinning
+  `PrintEmptyPages` governs the **print** path; the interactive **export** path is governed by the
+  dialog's own "Export automatically inserted blank pages" checkbox, which is the same
+  `IsSkipEmptyPages` the headless render pins as an argument and is **not** established to derive
+  from the document's setting. So R4's instruction must name the checkbox explicitly (checked =
+  blanks included = `IsSkipEmptyPages` `false`) rather than assuming a pinned document settles it.
+  Left implicit, the two routes disagree on exactly the books carrying an implicit blank and R4
+  records a spurious non-equivalence — the confounder this note claims to remove, surviving in the
+  half it does not reach. Both are pinned before the spike exports anything.
 
 ### The filler must survive the second finalize pass
 
