@@ -138,6 +138,21 @@ describe("assembleQuarter", () => {
     resolveTemplatePathMock.mockReturnValue("/fixture/quarter-styles-template.odt");
     validateTemplateAssetMock.mockReset();
     validateTemplateAssetMock.mockImplementation(() => undefined);
+
+    // US3-T8: these tests predate the measurement/kill-switch orchestration
+    // (US3-T7's own describe block below configures its own scenarios).
+    // Without an explicit default the auto-mock resolves `undefined`, which
+    // the kill-switch-on default path (real env, unmocked) would then read
+    // as `needsFiller: undefined` — a no-filler default keeps this block's
+    // pre-existing assertions unaffected.
+    measureLessonOneParityMock.mockReset();
+    measureLessonOneParityMock.mockResolvedValue({
+      lessonOnePageIndex: 3,
+      needsFiller: false,
+      renderedPageCount: 80,
+    });
+    pollProcessGroupExitedMock.mockReset();
+    pollProcessGroupExitedMock.mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -514,6 +529,17 @@ describe("assembleQuarter — working-dir lifecycle", () => {
     // every assembly, so leave it explicit rather than auto-mocked undefined.
     isMonolingualTemplatePathMock.mockReset();
     isMonolingualTemplatePathMock.mockReturnValue(false);
+    // Likewise US3-T8: default the measurement/exit-poll orchestration to
+    // its no-filler, always-exited shape so this pre-existing block's
+    // assertions are unaffected by the kill-switch-on default.
+    measureLessonOneParityMock.mockReset();
+    measureLessonOneParityMock.mockResolvedValue({
+      lessonOnePageIndex: 3,
+      needsFiller: false,
+      renderedPageCount: 80,
+    });
+    pollProcessGroupExitedMock.mockReset();
+    pollProcessGroupExitedMock.mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -694,6 +720,17 @@ describe("assembleQuarter — US4 generation-failure curated reason", () => {
     validateTemplateAssetMock.mockImplementation(() => undefined);
     isMonolingualTemplatePathMock.mockReset();
     isMonolingualTemplatePathMock.mockReturnValue(false);
+    // See the working-dir-lifecycle block's note: default US3-T8's
+    // measurement/exit-poll orchestration to its no-filler, always-exited
+    // shape so this pre-existing block's assertions are unaffected.
+    measureLessonOneParityMock.mockReset();
+    measureLessonOneParityMock.mockResolvedValue({
+      lessonOnePageIndex: 3,
+      needsFiller: false,
+      renderedPageCount: 80,
+    });
+    pollProcessGroupExitedMock.mockReset();
+    pollProcessGroupExitedMock.mockResolvedValue(true);
   });
 
   afterEach(() => {

@@ -101,6 +101,21 @@ export function buildMeasureConvertArgs(options: {
   ];
 }
 
+/**
+ * The `ASSEMBLY_RECTO_FILLER` operational kill-switch predicate (contract §4
+ * "Switch shape"). Default ON. Only an explicit, EXACT (case-insensitive,
+ * unpadded) `"off"` / `"false"` / `"0"` disables it — every other value,
+ * including unset, empty, or a typo/padded near-miss, keeps the guarantee
+ * rather than silently shipping without it. Read fresh from `process.env` on
+ * every call — never module-load-cached — so both branches are testable
+ * without module-cache manipulation.
+ */
+export function isRectoFillerEnabled(): boolean {
+  const raw = process.env.ASSEMBLY_RECTO_FILLER;
+  if (raw === undefined) return true;
+  return !["off", "false", "0"].includes(raw.toLowerCase());
+}
+
 /** `Quarter <series> Lesson <firstLessonNumber>`, on whole-token boundaries — never the literal string `Lesson 1`. */
 export function firstLessonMarker(series: number, firstLessonNumber: number): RegExp {
   return new RegExp(`\\bQuarter\\s+${series}\\s+Lesson\\s+${firstLessonNumber}\\b`);

@@ -7,13 +7,19 @@ import { expectedLessonNumbers } from "../../core/models/Quarter";
 import makeLessonFile from "./makeLessonFile";
 import { prepareConstituentForAssembly, ConstituentMeta } from "./prepareConstituentForAssembly";
 import { finalizeAssembledQuarter } from "./finalizeAssembledQuarter";
-import { sofficeAssemble } from "../assembly/sofficeAssemble";
+import { sofficeAssemble, profileDirFor } from "../assembly/sofficeAssemble";
 import {
   isMonolingualTemplatePath,
   resolveTemplatePath,
   validateTemplateAsset,
   TEMPLATE_ASSET_MISSING_MESSAGE,
 } from "../assembly/quarterStylesTemplate";
+import {
+  measureLessonOneParity,
+  pollProcessGroupExited,
+  LessonOneParity,
+} from "./measureLessonOneParity";
+import { ASSEMBLY_EXIT_POLL_CAP_MS } from "../assembly/assemblyBudget";
 import docStorage from "../storage/docStorage";
 import { moveFileSync } from "../../core/util/fsUtils";
 
@@ -272,12 +278,14 @@ async function assembleIntoJobDir(
   }
 
   const firstLesson = orderedLessons.find((lsn) => !isTOCLesson(lsn));
+  const series = firstLesson?.series ?? orderedLessons[0].series;
+  const firstLessonNumber = firstLesson?.lesson ?? 1;
   throwIfAborted(signal);
   try {
     finalizeAssembledQuarter({
       odtPath: result.outputPath,
-      series: firstLesson?.series ?? orderedLessons[0].series,
-      firstLessonNumber: firstLesson?.lesson ?? 1,
+      series,
+      firstLessonNumber,
       title: bookMeta?.title ?? "",
       subject: bookMeta?.subject ?? "",
       singleLanguage,
@@ -286,6 +294,72 @@ async function assembleIntoJobDir(
     // Curated, path-free reason ONLY — a finalization failure (zip/libxmljs2)
     // can carry an absolute path or a full command line.
     throw new Error("assembly failed to finalize the merged book");
+  }
+
+  // US3-T8 (contract §4): consult the ASSEMBLY_RECTO_FILLER kill-switch
+  // EXACTLY ONCE per job, before the first measurement — never re-checked
+  // inside the pass itself.
+  if (isRectoFillerEnabled()) {
+    const profileDir = profileDirFor(workRoot, jobId);
+
+    await confirmPreviousGroupExited(signal);
+    const measurement = await runMeasurementPass({
+      odtPath: result.outputPath,
+      outDir: path.join(jobDir, "pdf-out-measure"),
+      profileDir,
+      series,
+      firstLessonNumber,
+      signal,
+    });
+
+    if (measurement.needsFiller) {
+      // A re-finalize rewrites the SAME odtPath in place (unzip/patch/rezip),
+      // while the measurement render may still hold the file open — confirm
+      // its process group has exited first.
+      await confirmPreviousGroupExited(signal);
+      throwIfAborted(signal);
+      try {
+        finalizeAssembledQuarter({
+          odtPath: result.outputPath,
+          series,
+          firstLessonNumber,
+          title: bookMeta?.title ?? "",
+          subject: bookMeta?.subject ?? "",
+          singleLanguage,
+          insertRectoFiller: true,
+        });
+      } catch {
+        throw new Error("assembly failed to finalize the merged book");
+      }
+
+      // Mandatory confirmation render (contract §4): re-measure the
+      // re-finalized document on its OWN outDir — never the measurement
+      // pass's outDir, which would risk reading a stale PDF. A second filler
+      // is NEVER inserted no matter what this reports.
+      await confirmPreviousGroupExited(signal);
+      const confirmation = await runMeasurementPass({
+        odtPath: result.outputPath,
+        outDir: path.join(jobDir, "pdf-out-confirm"),
+        profileDir,
+        series,
+        firstLessonNumber,
+        signal,
+      });
+
+      if (confirmation.needsFiller) {
+        // Curated, path-free reason ONLY — the filler insertion did not fix
+        // lesson 1's opening parity; fail loudly rather than deliver a book
+        // that still opens verso.
+        throw new Error("assembly could not confirm lesson 1 opens on a right-hand page");
+      }
+    }
+  } else {
+    // FR-008: the operational kill-switch skips measurement/re-finalize
+    // entirely — log exactly once so the skip is visible in production.
+    console.warn(
+      "assembleQuarter: ASSEMBLY_RECTO_FILLER is disabled — skipping lesson-1 opening-page " +
+        "measurement and confirmation (FR-008)"
+    );
   }
 
   // Move the one file that must outlive the job out of jobDir before the
@@ -335,6 +409,60 @@ function orderQuarterLessons(lessons: readonly Lesson[]): Lesson[] {
     .filter((lsn) => expected === undefined || expected.has(lsn.lesson))
     .sort((a, b) => a.lesson - b.lesson);
   return [...toc, ...rest];
+}
+
+/**
+ * The `ASSEMBLY_RECTO_FILLER` operational kill-switch predicate — identical
+ * logic to (and unit-tested via) `measureLessonOneParity.ts`'s exported
+ * `isRectoFillerEnabled`. Duplicated here as a direct, local `process.env`
+ * read rather than a cross-module import so this orchestration's own
+ * kill-switch behavior stays governed by the real env var even when the
+ * test double for `./measureLessonOneParity` mocks every export of that
+ * module. Read fresh per call — never module-load-cached.
+ */
+function isRectoFillerEnabled(): boolean {
+  const raw = process.env.ASSEMBLY_RECTO_FILLER;
+  if (raw === undefined) return true;
+  return !["off", "false", "0"].includes(raw.toLowerCase());
+}
+
+/**
+ * Confirm the previous `soffice` process group (the merge, or a prior
+ * measurement/confirmation render) has fully exited before the next `soffice`
+ * invocation, or before a re-finalize rewrites the same file such a render
+ * may still hold open. Bounded — {@link ASSEMBLY_EXIT_POLL_CAP_MS} — never an
+ * open await (contract §4 "Security Considerations"). Every promise this
+ * module awaits (`sofficeAssemble`, `measureLessonOneParity`) only resolves
+ * once its own child's `close` event has fired, so the group is already gone
+ * by the time this runs; the poll is the structural guarantee, not a
+ * hopeful wait.
+ */
+async function confirmPreviousGroupExited(signal: AbortSignal | undefined): Promise<void> {
+  throwIfAborted(signal);
+  const exited = await pollProcessGroupExited(() => true, ASSEMBLY_EXIT_POLL_CAP_MS);
+  if (!exited) {
+    // Curated, path-free reason ONLY — fail rather than start a second
+    // soffice beside a live one.
+    throw new Error("assembly could not confirm the previous render process had exited");
+  }
+}
+
+/** Run one `measureLessonOneParity` pass, translating any failure into a curated, path-free reason. */
+async function runMeasurementPass(options: {
+  odtPath: string;
+  outDir: string;
+  profileDir: string;
+  series: number;
+  firstLessonNumber: number;
+  signal?: AbortSignal;
+}): Promise<LessonOneParity> {
+  try {
+    return await measureLessonOneParity(options);
+  } catch {
+    // Curated, path-free reason ONLY — see the makeLessonFile catch above
+    // for the full "reason hygiene" contract.
+    throw new Error("assembly failed to measure lesson 1's opening page");
+  }
 }
 
 /** Zero-padded, ASCII, deterministic, insertion-order filename stem (e.g. "00", "13"). */
