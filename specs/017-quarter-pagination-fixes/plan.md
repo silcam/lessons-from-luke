@@ -292,7 +292,7 @@ render pass invokes external binaries and what it reports.
 interpolated path and no profile isolation. Concretely, the render pass MUST:
 
 - Spawn via `execFile`-style **array arguments** (`spawn`/`execFile`), never a shell string.
-  `odtPath`, `workDir`, and the PDF output path are derived from job-scoped paths; a shell
+  `odtPath`, `outDir`, and the PDF output path are derived from job-scoped paths; a shell
   string breaks on spaces and turns any future path component into an injection surface.
   This applies equally to the `pdftotext` / `pdfinfo` calls (the integration test already uses
   `execFileSync` with array args — match it).
