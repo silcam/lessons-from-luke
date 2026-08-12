@@ -80,3 +80,53 @@ test("validateTemplateAsset does not throw when the file exists and is non-empty
 
   expect(() => validateTemplateAsset("/some/path/quarter-styles-template.odt")).not.toThrow();
 });
+
+/**
+ * 017 FR-004/SC-005, contracts/pagination-and-assembly.md §1: neither
+ * committed template asset may carry a `text:page-adjust` offset anywhere.
+ * Today each asset carries exactly one occurrence, on the `Front_20_matter`
+ * master's footer page-number field (`-1` bilingual, `-2` monolingual) — so
+ * this is RED until that attribute is removed from both assets.
+ *
+ * Reads the REAL committed `.odt` files (not the mocked `fs` module this
+ * file otherwise uses for the path-resolution tests above) via
+ * `jest.requireActual("fs")` and the real `unzip` binary, matching the
+ * extraction technique `assembleQuarter.integration.test.ts` already uses.
+ */
+describe("committed template assets carry no text:page-adjust offset (017 FR-004/SC-005)", () => {
+  const realFs = jest.requireActual("fs") as typeof fs;
+
+  const { execFileSync } = jest.requireActual("child_process") as typeof import("child_process");
+
+  const os = jest.requireActual("os") as typeof import("os");
+
+  const path = jest.requireActual("path") as typeof import("path");
+
+  function extractStylesXml(assetPath: string): string {
+    const workDir = realFs.mkdtempSync(path.join(os.tmpdir(), "quarter-styles-template-asset-"));
+    try {
+      execFileSync("unzip", ["-o", "-q", assetPath, "styles.xml", "-d", workDir]);
+      return realFs.readFileSync(path.join(workDir, "styles.xml"), "utf8");
+    } finally {
+      realFs.rmSync(workDir, { recursive: true, force: true });
+    }
+  }
+
+  test("assets/quarter-styles-template.odt (bilingual) contains no text:page-adjust anywhere", () => {
+    const assetPath = path.join(process.cwd(), "assets", "quarter-styles-template.odt");
+    expect(realFs.existsSync(assetPath)).toBe(true);
+
+    const stylesXml = extractStylesXml(assetPath);
+
+    expect(stylesXml).not.toContain("text:page-adjust");
+  });
+
+  test("assets/quarter-styles-template-monolingual.odt contains no text:page-adjust anywhere", () => {
+    const assetPath = path.join(process.cwd(), "assets", "quarter-styles-template-monolingual.odt");
+    expect(realFs.existsSync(assetPath)).toBe(true);
+
+    const stylesXml = extractStylesXml(assetPath);
+
+    expect(stylesXml).not.toContain("text:page-adjust");
+  });
+});

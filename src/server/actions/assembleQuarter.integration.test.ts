@@ -425,6 +425,20 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
     });
   });
 
+  test("017 FR-004/SC-005, INV-1 (bilingual): the assembled book's styles.xml and content.xml carry zero text:page-adjust occurrences, even though the source corpus is entirely offset-carrying (30 occurrences across the 14 constituents, all on Front_20_matter)", () => {
+    // The assertion that actually matters for SC-005 — the client inspects
+    // the DELIVERED book, not the template asset. This corpus
+    // (Luke-2-{14..26,99}v01) is itself offset-carrying, so this is a real
+    // test of Module1.xba's loadStylesFromURL(OverwriteStyles=True) winning
+    // over every constituent's own Front_20_matter definition, not a
+    // tautology an asset-only assertion could pass while this still fails.
+    const stylesXml = extractStylesXml(outputPath, workDir, "styles-extract-page-adjust");
+    const contentXml = extractContentXml(outputPath, workDir, "content-extract-page-adjust");
+
+    expect(stylesXml).not.toContain("text:page-adjust");
+    expect(contentXml).not.toContain("text:page-adjust");
+  });
+
   test("content + lesson ordering: TOC first, then lessons 1-13 (14-26) ascending", () => {
     const tocIndex = fullText.indexOf(TOC_MARKER);
     expect(tocIndex).toBeGreaterThan(-1);
@@ -1012,6 +1026,19 @@ describe("assembleQuarter (real soffice merge, monolingual template asset is a c
     // No legacy working-highlight: the M.T. Text background must not be the
     // #ffffcc highlight color (transparent or absent are both acceptable).
     expect(mtTextBackgroundColor(stylesXml)).not.toBe("#ffffcc");
+
+    // 017 FR-004/SC-005, INV-1 (single-language): same zero-occurrence
+    // guarantee as the bilingual golden-reference corpus, checked here
+    // against a real offset-carrying constituent (Luke-2-14v01, which
+    // carries its own Front_20_matter text:page-adjust="-3" per
+    // data-model.md's corpus table) merged through the monolingual asset.
+    const contentXmlForPageAdjust = extractContentXml(
+      outputPath,
+      workDir,
+      "content-extract-monolingual-page-adjust"
+    );
+    expect(stylesXml).not.toContain("text:page-adjust");
+    expect(contentXmlForPageAdjust).not.toContain("text:page-adjust");
 
     // FR-002 (contracts/template-application.md §4): the 'First Page' master
     // page style has no <style:footer> element in single-language mode
