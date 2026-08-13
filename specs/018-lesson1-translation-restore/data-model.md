@@ -138,6 +138,46 @@ on precisely the path they were written for. When `--prior-report` is omitted
 and a report already exists in the same directory, the tool says so rather than
 proceeding blind. The prior `diagnosisId` is recorded as provenance.
 
+### `LanguageIdentityCheck`
+
+Cross-database evidence that a `languageId` denotes the same language on both
+sides (invariant I22). One entry per language seen in either database.
+
+```
+LanguageIdentityCheck {
+  code: string                          // the join key
+  snapshotLanguageId: number | null     // null = production-only language
+  productionLanguageId: number | null   // null = snapshot-only language
+  snapshotName: string | null
+  productionName: string | null
+  agrees: boolean                       // ids equal, or production-only
+}
+```
+
+`languages.languageId` is a **serial**, exactly like `lessonId` (which the
+design refuses to assume equal across databases) and `masterId` (which gets a
+whole mapping layer). Yet `TranslationFinding`, `RestoreWrite`, `DriftSkip`, and
+`LanguageCounts` each carry one bare `languageId` used on both sides. If the
+snapshot's id 7 is Fulfulde and production's id 7 is Hausa, the tool writes
+Fulfulde's pre-incident translations into Hausa's rows — and every other guard
+passes, because each write still looks like a legitimate `restore` of an absent
+row. It is the one corruption in this design that no downstream check catches.
+
+Validation — `diagnose` aborts with exit 15 when any of these hold:
+
+- A matched pair has `snapshotLanguageId !== productionLanguageId`.
+- Two snapshot languages map to one production language (or vice versa).
+- A snapshot language with translations of the affected lesson has no
+  production counterpart by `code`.
+
+Production-only languages are recorded with `agrees: true` — they are
+post-snapshot additions with nothing to restore.
+
+This is **verify-and-abort, never remap**. Divergent ids mean the operator has
+the wrong snapshot, and the tool stops on surprises rather than adapting to
+them; a remapping layer would add machinery to survive a state that should end
+the run.
+
 ### `MasterDocumentCandidate`
 
 A historical ODT under `docs/` considered for the English restore (research D5).
@@ -146,6 +186,8 @@ A historical ODT under `docs/` considered for the English restore (research D5).
 MasterDocumentCandidate {
   filepath: string
   version: number | null            // parsed from the versioned filename
+  sha256: string                    // pinned at diagnose; re-checked at use (I23)
+  sizeBytes: number
   englishTextSetMatchesSnapshot: boolean
   isKnownBadUpload: boolean         // version ∈ AffectedLesson.knownBadVersions
   missingFromDocument: string[]     // snapshot English texts absent from the ODT
@@ -175,6 +217,14 @@ Validation:
   production version: after `restore-english` bumps production to 159, a
   live-derived rule would stop flagging v158 (the actual cover file) and start
   flagging v159 (the file just correctly restored).
+- **`restore-english` re-hashes the file and aborts (22) unless `sha256` and
+  `sizeBytes` still match the report, and unless the resolved real path lies
+  inside the `docs/` root** (I23). The verification is done at diagnose time,
+  possibly hours before use; the report is checksum-gated but the ODT on disk is
+  not. Anything that replaces the file in the interval — a helpful operator, a
+  `docs/` restore-from-backup, a swapped symlink — otherwise passes every gate
+  and gets uploaded as the master. The design pins facts at diagnosis and
+  re-verifies them at use everywhere except the one physical file it consumes.
 - The tool aborts unless `resolve(candidate.filepath) !== resolve(destination)`,
   where destination is the new version's path, so the source document can never
   be unlinked by `saveDoc`'s destination cleanup.
@@ -351,17 +401,80 @@ Two constraints the atomicity claim depends on:
 ```
 ApplyState {
   startedAt: string
+  scopedLanguageIds: number[] | null   // --languages; null = whole corpus
   languageBatches: {
     languageId: number
     status: "pending" | "completed" | "failed"
     writesAttempted: number
     writesApplied: number
     driftSkipped: number
+    failureMessage: string | null
     completedAt: string | null
   }[]
   completedAt: string | null
 }
 ```
+
+`status: "failed"` is reachable, and its policy is defined: a throwing
+`saveTStrings` call (dropped connection, disk full, unexpected constraint error)
+marks the batch `failed`, flushes `applyState` and the journal, prints the
+pre-apply dump and journal paths, and **stops the run at exit 32** without
+attempting further languages. Continuing would keep writing under a fault whose
+cause is unknown. Partial application is already a handled state — the journal
+records how far it got and `diagnose --prior-report` re-plans from live
+production.
+
+`scopedLanguageIds` exists so `verify` can tell a deliberately scoped apply from
+a run that covered everything and restored nothing in eleven languages. It also
+bounds `apply`'s computed `--max-writes` default: the cap is derived over the
+scoped languages only, since a whole-corpus cap is no cap at all for a
+one-language run.
+
+### `EnglishRestore`
+
+Recorded by `restore-english`; its presence is `apply`'s precondition 5 and the
+source of the expected-version rule.
+
+```
+EnglishRestore {
+  method: "upload" | "relink"
+  masterDocumentPath: string | null
+  masterDocumentSha256: string | null   // the bytes actually consumed (I23)
+  newLessonVersion: number
+  dumpPath: string                      // this step's own rollback route
+  restoredAt: string                    // ISO 8601
+}
+```
+
+`dumpPath` is not redundant with the report's `preApplyDumpPath`, which `apply`
+writes. Two full dumps are taken during a recovery, and the English restore's is
+the **only** way back during the window between a successful English restore and
+`apply`. Recording one path and not the other leaves the operator reconstructing
+a filename from shell scrollback at the worst possible moment — and leaves a
+credential-bearing dump un-enumerated in the runbook's destruction step.
+
+### `Verification`
+
+Recorded by `verify`.
+
+```
+Verification {
+  mode: "snapshot" | "offline"
+  verifiedAt: string                    // ISO 8601
+  clientReportPath: string
+  clientReportWithheld: boolean         // true when the duplicate delta is non-empty
+}
+```
+
+`mode` must be durable, not just a console label: a later reader of
+`report.json` otherwise cannot tell whether the after-figures came from a live
+snapshot comparison or from the report's stored `perLanguageCounts`.
+
+`clientReportWithheld` pairs with exit 30. The Markdown is **always** written —
+withholding it invites a hand-written substitute — but on a non-empty duplicate
+delta its first heading is a `DRAFT — DO NOT SEND` banner naming the duplicate
+count and affected languages. The artifact states what is wrong with itself
+rather than relying on the operator having remembered an exit code.
 
 ### `DiagnosisReport`
 
@@ -379,19 +492,23 @@ DiagnosisReport {
   identity: ServerIdentity
   productionFingerprint: ProductionFingerprint
   affectedLessons: AffectedLesson[]
+  languageIdentityChecks: LanguageIdentityCheck[]  // I22; diagnose, required
   mappings: MasterStringMapping[]
   findings: TranslationFinding[]
   perLanguageCounts: LanguageCounts[]
   legacyLessonStringRowCounts: { production: number; snapshot: number }
+  nullModifiedCounts?: { production: number; snapshot: number }
   blastRadius: { sharedMasterIds: number; lessons: LessonRef[] }
   plannedWrites: RestoreWrite[]    // dry run: what WOULD be written
+  englishRestore?: EnglishRestore  // restore-english only
   applyState?: ApplyState          // apply only; flushed after every batch
   appliedWrites?: AppliedWrite[]   // apply only; reconciled from the journal
   driftSkips?: DriftSkip[]         // apply only
   duplicateRowsBaseline: DuplicateRow[]  // diagnose; pre-existing, not caused here
   duplicateRows?: DuplicateRow[]   // verify only; residual-race detection
+  verification?: Verification      // verify only
   priorDiagnosisId?: string        // set when --prior-report carried facts forward
-  preApplyDumpPath?: string        // apply only
+  preApplyDumpPath?: string        // apply only (restore-english's is englishRestore.dumpPath)
   conflicts: TranslationFinding[]  // classification === "conflict" | "newerWork"
 }
 ```
@@ -418,9 +535,15 @@ ProductionFingerprint {
 }
 ```
 
-Validation: `restore-english`, `apply`, and `verify` re-verify
-`diagnosisChecksum` **and** `reportChecksum`, and re-read `databaseName`; a
-mismatch on any of the three aborts with exit 20 before anything else runs. The
+Validation: `restore-english`, `apply`, `verify`, **and
+`diagnose --prior-report`** re-verify `diagnosisChecksum` **and**
+`reportChecksum`, and re-read `databaseName`; a mismatch on any of the three
+aborts with exit 20 before anything else runs. `verify` is included because it
+mutates the report and produces the artifact the client reads.
+`diagnose --prior-report` is included because the prior report is a **trust
+input**: it supplies `knownBadVersions`, which is the entire foundation of I16,
+so a hand-edited prior report with an empty list would silently disarm the
+cover-file denial on exactly the path the flag exists for. The
 count/max fields are recorded as evidence and reported on change rather than
 hard-gating, since legitimate translator activity moves them.
 
@@ -453,30 +576,37 @@ be conflated: the client report's "restored" figure has to be the real one.
 `driftSkipped` counts benign (`intact`) drift too, so it can be non-zero while
 apply still exits 0.
 
+A language outside `applyState.scopedLanguageIds` has
+`productionReachableAfter === null` and is reported by `verify` as **not yet
+applied**, not as a zero-restore outcome.
+
 ---
 
 ## Part C — Invariants the implementation must uphold
 
-| #   | Invariant                                                                                                          | Enforced by                                                                                                                  |
-| --- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| I1  | The snapshot database receives zero writes, ever.                                                                  | `PGSnapshotStorage` overrides + read-only session                                                                            |
-| I2  | Dry run performs zero writes to either database.                                                                   | No write call reachable from `diagnose`                                                                                      |
-| I3  | A production value differing from the snapshot is never overwritten.                                               | D7 table; `RestoreWrite` emission rule                                                                                       |
-| I4  | Every write goes through `saveTStrings` (never a bare INSERT).                                                     | `restoreWrite` wrapper is the only writer                                                                                    |
-| I5  | Re-running apply produces zero writes and zero new rows.                                                           | `saveTStrings` equal-text short-circuit                                                                                      |
-| I6  | Overwritten production values are retained in `history`.                                                           | `saveTStrings` history append                                                                                                |
-| I7  | Archived languages are enumerated in the diagnosis (not silently dropped).                                         | Raw SQL reads, bypassing `NOT archived`                                                                                      |
-| I8  | Nothing outside the affected lesson's master strings is written.                                                   | Write plan derived only from `mappings`                                                                                      |
-| I9  | Apply cannot run without a matching prior diagnosis report and a fresh production dump.                            | Apply preconditions (research D9)                                                                                            |
-| I10 | Language progress is recomputed with `await` before the process exits.                                             | `awaitProgress: true` + terminal `await`                                                                                     |
-| I11 | No planned write is submitted without re-validating it against **live** production first.                          | Apply-time re-classification per batch; `DriftSkip` + exit 27                                                                |
-| I12 | An interrupted apply still leaves a complete record of what was written.                                           | `ApplyState` flushed after every batch + append-only `report.journal.jsonl`; temp file in the same directory                 |
-| I13 | The report being applied is provably the report that was reviewed.                                                 | Frozen `diagnosisChecksum` + `reportChecksum` + `productionFingerprint.databaseName` re-verified                             |
-| I14 | Two write runs cannot overlap.                                                                                     | `pg_try_advisory_lock` on a **reserved** (non-pooled) connection held for the whole run; exit 28                             |
-| I15 | The historical master document survives being used as the restore source.                                          | Copying `mv` shim; source ≠ destination assertion                                                                            |
-| I16 | The cover file can never be re-uploaded.                                                                           | `knownBadVersions` pinned at first diagnosis; hard denial, no override                                                       |
-| I17 | Credentials never reach the report, stdout, logs, or the client-facing Markdown.                                   | URL redaction; report/dump `0600` in a `0700` dir                                                                            |
-| I18 | Files the web server reads keep app-readable modes.                                                                | Umask scoped to dump/report writes; post-upload mode/owner assertion on the new ODT and preview                              |
-| I19 | Rows duplicated through the residual write race are detected, not hidden, and not confused with pre-existing ones. | Duplicate sweep at **both** `diagnose` (`duplicateRowsBaseline`) and `verify` (`duplicateRows`); non-empty delta → exit 30   |
-| I20 | The pinned facts survive a drift-recovery re-diagnosis.                                                            | `diagnose --prior-report` carries `knownBadVersions` + bump accounting forward; warns when omitted beside an existing report |
-| I21 | No abort leaves production mid-change without a recovery instruction.                                              | Post-upload check repairs, re-checks, then aborts naming files, actual vs expected modes, and the fix command                |
+| #   | Invariant                                                                                                          | Enforced by                                                                                                                   |
+| --- | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| I1  | The snapshot database receives zero writes, ever.                                                                  | `PGSnapshotStorage` overrides + read-only session                                                                             |
+| I2  | Dry run performs zero writes to either database.                                                                   | No write call reachable from `diagnose`                                                                                       |
+| I3  | A production value differing from the snapshot is never overwritten.                                               | D7 table; `RestoreWrite` emission rule                                                                                        |
+| I4  | Every write goes through `saveTStrings` (never a bare INSERT).                                                     | `restoreWrite` wrapper is the only writer                                                                                     |
+| I5  | Re-running apply produces zero writes and zero new rows.                                                           | `saveTStrings` equal-text short-circuit                                                                                       |
+| I6  | Overwritten production values are retained in `history`.                                                           | `saveTStrings` history append                                                                                                 |
+| I7  | Archived languages are enumerated in the diagnosis (not silently dropped).                                         | Raw SQL reads, bypassing `NOT archived`                                                                                       |
+| I8  | Nothing outside the affected lesson's master strings is written.                                                   | Write plan derived only from `mappings`                                                                                       |
+| I9  | Apply cannot run without a matching prior diagnosis report and a fresh production dump.                            | Apply preconditions (research D9)                                                                                             |
+| I10 | Language progress is recomputed with `await` before the process exits.                                             | `awaitProgress: true` + terminal `await`                                                                                      |
+| I11 | No planned write is submitted without re-validating it against **live** production first.                          | Apply-time re-classification per batch; `DriftSkip` + exit 27                                                                 |
+| I12 | An interrupted apply still leaves a complete record of what was written.                                           | `ApplyState` flushed after every batch + append-only `report.journal.jsonl`; temp file in the same directory                  |
+| I13 | The report being applied is provably the report that was reviewed.                                                 | Frozen `diagnosisChecksum` + `reportChecksum` + `productionFingerprint.databaseName` re-verified                              |
+| I14 | Two write runs cannot overlap.                                                                                     | `pg_try_advisory_lock` on a **reserved** (non-pooled) connection held for the whole run; exit 28                              |
+| I15 | The historical master document survives being used as the restore source.                                          | Copying `mv` shim; source ≠ destination assertion                                                                             |
+| I16 | The cover file can never be re-uploaded.                                                                           | `knownBadVersions` pinned at first diagnosis; hard denial, no override                                                        |
+| I17 | Credentials never reach the report, stdout, logs, or the client-facing Markdown.                                   | URL redaction; report/dump `0600` in a `0700` dir                                                                             |
+| I18 | Files the web server reads keep app-readable modes.                                                                | Umask scoped to dump/report writes; post-upload mode/owner assertion on the new ODT and preview                               |
+| I19 | Rows duplicated through the residual write race are detected, not hidden, and not confused with pre-existing ones. | Duplicate sweep at **both** `diagnose` (`duplicateRowsBaseline`) and `verify` (`duplicateRows`); non-empty delta → exit 30    |
+| I20 | The pinned facts survive a drift-recovery re-diagnosis.                                                            | `diagnose --prior-report` carries `knownBadVersions` + bump accounting forward; warns when omitted beside an existing report  |
+| I21 | No abort leaves production mid-change without a recovery instruction.                                              | Post-upload check repairs, re-checks, then aborts naming files, actual vs expected modes, and the fix command                 |
+| I22 | A `languageId` denotes the same language in both databases, or the run stops.                                      | Cross-database `code` join asserting id equality at `diagnose`; `languageIdentityChecks`; exit 15, never remap                |
+| I23 | The document uploaded is byte-for-byte the document that was verified.                                             | `sha256`/`sizeBytes` pinned per candidate at diagnose, re-hashed at `restore-english`; real path confined to `docs/`; exit 22 |
+| I24 | A failed batch stops the run and is recorded, never swallowed.                                                     | Batch failure → `status: "failed"` + `failureMessage`, flush, print dump and journal paths, exit 32                           |

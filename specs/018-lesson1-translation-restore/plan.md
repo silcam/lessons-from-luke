@@ -252,6 +252,40 @@ This also subsumes the "stale write plan after the English restore" hazard:
 production, and the re-check sees the post-upload landscape rather than the
 diagnosis-time one.
 
+### Cross-database language identity (CRITICAL — I22)
+
+`lessonId` is a serial and the design already refuses to assume it is equal
+across the two databases — identity is `(book, series, lesson)`. `masterId` is a
+serial and gets an entire `MasterStringMapping` layer. **`languages.languageId`
+is also a serial, and every `TranslationFinding`, `RestoreWrite`, `DriftSkip`,
+and `LanguageCounts` carries a single bare `languageId` used on both sides.**
+
+Nothing in the design checks that a snapshot `languageId` denotes the same
+language in production. If it does not, the tool writes one language's
+pre-incident translations into a **different language's** rows — a silent
+corruption worse than the incident, invisible to every other guard, because
+each individual write still looks like a legitimate `restore` of an absent row.
+
+The ids probably do agree (the snapshot is meant to be a lineal ancestor of
+production). "Probably" is exactly what Principle Zeroth forbids, and the
+failure mode is unrecoverable-by-inspection.
+
+**Mitigation (I22)**: `diagnose` joins `languages` across the two databases on
+`code` (with `name` as corroborating evidence, read with the same unfiltered raw
+SQL so archived languages participate) and asserts, per pair, that
+`snapshotLanguageId === productionLanguageId`. The result is recorded in the
+report as `languageIdentityChecks`. The run **aborts with exit 15** if any
+matched pair disagrees on id, if two snapshot languages map to one production
+language, or if a snapshot language with translations of the affected lesson has
+no production counterpart by `code`.
+
+This is verify-and-abort, **not** remap. Divergent ids mean the operator has the
+wrong snapshot, and the tool's doctrine everywhere else is to stop on a
+surprise rather than adapt to it. A remapping layer would add complexity in
+order to survive a state that should end the run. Languages present only in
+production are fine and are recorded, not fatal — they are post-snapshot
+additions with nothing to restore.
+
 ### The restore-source document must survive being used
 
 `uploadEnglishDoc` → `docStorage.saveDoc` calls `file.mv(filepath)` on an
@@ -264,6 +298,60 @@ midway.
 Additionally: `saveDoc` unlinks its destination before writing. The tool MUST
 assert `path.resolve(source) !== path.resolve(destination)` and abort if they
 are equal, so a version-arithmetic error can never delete the source file.
+
+### The verified document and the used document must be the same bytes (I23)
+
+`restore-english`'s precondition is "`--master-document` is one of the report's
+`candidateMasterDocuments` with `englishTextSetMatchesSnapshot === true`". That
+check is by **path**, against a verification performed at `diagnose` time,
+possibly hours earlier. The report is checksum-gated; the ODT on disk is not.
+
+Anything that changes `docs/Luke-1-01v157.odt` in the interval — a well-meaning
+operator "helpfully" replacing it, a restore-from-backup of the `docs/` tree, a
+symlink swapped in, a second recovery attempt writing over it — passes every
+gate the design has and gets uploaded as the master. The design pins facts at
+diagnosis and re-verifies them at use everywhere except for the one physical
+file it actually consumes.
+
+**Mitigation (I23)**: `MasterDocumentCandidate` records `sha256` and `sizeBytes`
+at diagnose time. `restore-english` re-hashes the resolved file and aborts with
+exit 22 unless both match the report. It also asserts the resolved real path is
+inside the configured `docs/` root, so a symlink cannot redirect the upload to a
+file the diagnosis never inspected.
+
+### A language batch that fails mid-apply
+
+`ApplyState.languageBatches[].status` includes `"failed"`, but nothing in the
+design says what `apply` does when a `saveTStrings` call throws (a dropped
+connection, a constraint error, a transient disk-full). The status value is
+unreachable, and no exit code covers it — so the natural implementation is an
+unhandled rejection, which is the one outcome that leaves neither a flushed
+`applyState` nor a clear operator instruction.
+
+**Policy**: a batch failure **stops the run immediately** — no further languages
+are attempted. Continuing would keep writing under a fault whose cause is
+unknown, which is the opposite of the tool's posture everywhere else. The tool
+marks the batch `failed`, flushes `applyState` and the journal, prints the
+pre-apply dump path and the journal path, and exits **32**. Partial application
+is expected and already handled: the journal says exactly how far it got, and
+re-running `diagnose --prior-report` re-plans from live production.
+
+### Scoped applies (`--languages`)
+
+`apply --languages <ids>` restricts the run to some languages. Two consequences
+the design did not state:
+
+- The computed `--max-writes` sanity cap must be computed **over the scoped
+  languages only**. A cap derived from the whole corpus is not a cap at all when
+  one language is being applied.
+- `verify` cannot currently distinguish "apply was deliberately scoped to three
+  languages" from "apply covered everything and eleven languages came back
+  empty". The client-facing report would understate the recovery, or overstate
+  the failure, depending on which way the reader guesses.
+
+**Mitigation**: `applyState` records `scopedLanguageIds` (null when unscoped).
+`verify` reads it and reports unscoped languages as **not yet applied**, plainly
+labelled, rather than as zero-restore outcomes.
 
 ### Known-bad document guard (misuse)
 
@@ -340,8 +428,12 @@ answer different questions:
   This only detects tampering since the last tool write, which is why it cannot
   serve as the review gate on its own.
 
-Every write subcommand verifies both plus `productionFingerprint.databaseName`
-before doing anything; a mismatch aborts with exit 20. This makes "the report I
+Every subcommand that reads a report — `restore-english`, `apply`, `verify`, and
+`diagnose --prior-report` — verifies both checksums plus
+`productionFingerprint.databaseName` before doing anything; a mismatch aborts
+with exit 20. `verify` is included deliberately: it mutates the report and it
+produces the artifact the client reads, so it has more reason to prove the
+report's provenance than less. This makes "the report I
 reviewed is the report being applied" a checked fact rather than a filename
 convention.
 
@@ -433,8 +525,18 @@ i.e. the pass-2 mitigations evaporate on exactly the path they were written
 for. `diagnose --prior-report` reads the earlier report, carries forward
 `knownBadVersions` and `englishRestore`-derived bump accounting, and records the
 prior `diagnosisId` as provenance. When `--prior-report` is omitted and a report
-already exists in the same directory, the tool says so rather than proceeding
-blind.
+already exists in the same directory, the tool **aborts** (exit 14) rather than
+proceeding blind — "says so" is not enough for a check whose whole purpose is to
+stop a hurried operator from losing the cover-file denial.
+
+**The prior report is a trust input and MUST be verified like one.** It carries
+`knownBadVersions`, which is the entire foundation of I16 — the guarantee that
+the cover file can never be re-uploaded. A hand-edited prior report with
+`knownBadVersions: []` silently disarms that guarantee on the very path the flag
+exists for. `diagnose --prior-report` therefore verifies the prior report's
+`diagnosisChecksum` **and** `reportChecksum` and its
+`productionFingerprint.databaseName` before reading anything out of it, aborting
+with exit 20 on any mismatch, exactly as the write subcommands do.
 
 ### Aborting after the upload has already happened
 
@@ -466,6 +568,43 @@ the client never gets the report the whole engagement is being judged on.
 **Mitigation**: `verify` accepts `--offline`, computing before/after counts from
 the report's stored `perLanguageCounts` and live production only. It labels the
 output as snapshot-independent so nobody mistakes it for a fresh comparison.
+
+That label MUST also reach the durable artifact. `verify` appends a
+`verification` record (`mode: "snapshot" | "offline"`, `verifiedAt`,
+`clientReportPath`, `clientReportWithheld`) to the report. Without it, a reader
+of `report.json` months later — or a re-run of `verify` — cannot tell whether the
+after-figures came from a live snapshot comparison or from stored counts, and
+the honesty the `--offline` label buys evaporates the moment the console
+scrollback is gone.
+
+### `verify` finds new duplicates but the client report is already written
+
+Exit 30 says "resolve by hand before sending the client report". Nothing says
+whether the client report was written. If it was, it is sitting on disk looking
+finished, and the operator who reads exit codes less carefully than intended
+sends it. If it was not, the operator has an exit code and no artifact, and the
+temptation is to re-run without `--out` or to hand-write a summary.
+
+**Policy**: the Markdown is always written, and on a non-empty duplicate delta
+its first heading is a `DRAFT — DO NOT SEND` banner naming the duplicate count
+and listing the affected languages, with the normal content below it. The
+report records `clientReportWithheld: true`. Consistent with the rest of the
+design: every abort that leaves state behind carries its own instruction, and
+the artifact says what is wrong with itself rather than relying on the operator
+having remembered an exit code.
+
+### Two dumps, one recorded path
+
+`restore-english` and `apply` each take a full `pg_dump`. The report has a
+single `preApplyDumpPath`, written by `apply`. **The dump that is the rollback
+route for the English restore is therefore recorded nowhere**, which matters
+precisely in the window where it is the only way back: after
+`restore-english` succeeds and before `apply` runs. The operator is left
+reconstructing a filename from shell scrollback.
+
+**Mitigation**: `englishRestore` records its own `dumpPath`. Both paths appear
+in the report and in the runbook's retention-and-destruction step, so neither
+dump is forgotten on disk with credentials in it.
 
 ### After-effects of the English restore
 

@@ -22,10 +22,14 @@
     "blastRadius",
     "plannedWrites",
     "conflicts",
-    "duplicateRowsBaseline"
+    "duplicateRowsBaseline",
+    "languageIdentityChecks"
   ],
   "properties": {
-    "diagnosisId": { "type": "string", "minLength": 8 },
+    "diagnosisId": {
+      "type": "string",
+      "minLength": 8
+    },
     "diagnosisChecksum": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$",
@@ -34,7 +38,7 @@
     "reportChecksum": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$",
-      "description": "SHA-256 over the canonical serialisation of the whole report body with this field excluded. Recomputed on every append, so it only detects tampering since the last tool write — it cannot serve as the review gate on its own. Re-verified by every write subcommand (I13); mismatch aborts with exit 20."
+      "description": "SHA-256 over the canonical serialisation of the whole report body with this field excluded. Recomputed on every append, so it only detects tampering since the last tool write \u2014 it cannot serve as the review gate on its own. Re-verified by every write subcommand (I13); mismatch aborts with exit 20."
     },
     "productionFingerprint": {
       "type": "object",
@@ -42,15 +46,30 @@
       "required": ["databaseName", "lessonCount", "maxMasterId", "maxLessonStringId"],
       "description": "Identity evidence for the production database the diagnosis ran against (I13). databaseName is hard-gated; the count/max fields are evidence and are reported on change, since translator activity legitimately moves them.",
       "properties": {
-        "databaseName": { "type": "string" },
-        "lessonCount": { "type": "integer" },
-        "maxMasterId": { "type": "integer" },
-        "maxLessonStringId": { "type": "integer" }
+        "databaseName": {
+          "type": "string"
+        },
+        "lessonCount": {
+          "type": "integer"
+        },
+        "maxMasterId": {
+          "type": "integer"
+        },
+        "maxLessonStringId": {
+          "type": "integer"
+        }
       }
     },
-    "generatedAt": { "type": "string", "format": "date-time" },
-    "toolVersion": { "type": "string" },
-    "mode": { "enum": ["diagnose", "restore-english", "apply", "verify"] },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "toolVersion": {
+      "type": "string"
+    },
+    "mode": {
+      "enum": ["diagnose", "restore-english", "apply", "verify"]
+    },
     "identity": {
       "type": "object",
       "additionalProperties": false,
@@ -62,11 +81,22 @@
         "snapshotIsOlder"
       ],
       "properties": {
-        "productionMarkerPresent": { "const": true },
-        "snapshotConfirmationToken": { "type": "string", "minLength": 1 },
-        "productionLessonVersion": { "type": "integer" },
-        "snapshotLessonVersion": { "type": "integer" },
-        "snapshotIsOlder": { "const": true }
+        "productionMarkerPresent": {
+          "const": true
+        },
+        "snapshotConfirmationToken": {
+          "type": "string",
+          "minLength": 1
+        },
+        "productionLessonVersion": {
+          "type": "integer"
+        },
+        "snapshotLessonVersion": {
+          "type": "integer"
+        },
+        "snapshotIsOlder": {
+          "const": true
+        }
       }
     },
     "affectedLessons": {
@@ -90,24 +120,45 @@
           "candidateMasterDocuments"
         ],
         "properties": {
-          "book": { "type": "string" },
-          "series": { "type": "integer" },
-          "lesson": { "type": "integer" },
-          "productionLessonId": { "type": "integer" },
-          "snapshotLessonId": { "type": "integer" },
-          "productionVersion": { "type": "integer" },
-          "snapshotVersion": { "type": "integer" },
-          "bumpCount": { "type": "integer", "minimum": 1 },
+          "book": {
+            "type": "string"
+          },
+          "series": {
+            "type": "integer"
+          },
+          "lesson": {
+            "type": "integer"
+          },
+          "productionLessonId": {
+            "type": "integer"
+          },
+          "snapshotLessonId": {
+            "type": "integer"
+          },
+          "productionVersion": {
+            "type": "integer"
+          },
+          "snapshotVersion": {
+            "type": "integer"
+          },
+          "bumpCount": {
+            "type": "integer",
+            "minimum": 1
+          },
           "expectedBumpCount": {
             "type": "integer",
             "minimum": 1,
             "description": "1 for the first diagnosis; 1 + versions bumped by this tool for any later one (read from the prior report's englishRestore). The stop-and-re-review warning fires when bumpCount !== expectedBumpCount, so re-diagnosing after a legitimate English restore (bumpCount 2, snapshotAnchored) does not alarm on its own happy path."
           },
-          "mappingStrategy": { "enum": ["findTSubsBridge", "snapshotAnchored"] },
+          "mappingStrategy": {
+            "enum": ["findTSubsBridge", "snapshotAnchored"]
+          },
           "knownBadVersions": {
             "type": "array",
-            "items": { "type": "integer" },
-            "description": "Lesson versions that must never be re-uploaded — [158] for this incident. PINNED at first diagnosis and carried forward; never derived from the live production version, which after the restore-english bump to 159 would stop flagging the cover file and start flagging the file just correctly restored."
+            "items": {
+              "type": "integer"
+            },
+            "description": "Lesson versions that must never be re-uploaded \u2014 [158] for this incident. PINNED at first diagnosis and carried forward; never derived from the live production version, which after the restore-english bump to 159 would stop flagging the cover file and start flagging the file just correctly restored."
           },
           "candidateMasterDocuments": {
             "type": "array",
@@ -118,21 +169,46 @@
                 "filepath",
                 "version",
                 "englishTextSetMatchesSnapshot",
-                "isKnownBadUpload"
+                "isKnownBadUpload",
+                "sha256",
+                "sizeBytes"
               ],
               "properties": {
-                "filepath": { "type": "string" },
+                "filepath": {
+                  "type": "string"
+                },
                 "version": {
                   "type": ["integer", "null"],
                   "description": "Parsed from the versioned filename. zeroPad(version, 2) pads to a MINIMUM width and never truncates, so the segment is variable width (v03, v157). Parse with v(\\d+)\\.odt$, not a fixed two-digit pattern."
                 },
-                "englishTextSetMatchesSnapshot": { "type": "boolean" },
+                "englishTextSetMatchesSnapshot": {
+                  "type": "boolean"
+                },
                 "isKnownBadUpload": {
                   "type": "boolean",
-                  "description": "True when this document's version is in the enclosing lesson's pinned knownBadVersions — i.e. it is the cover file that caused the incident (v158 for Luke 1-1). Hard-denied as --master-document with no override flag."
+                  "description": "True when this document's version is in the enclosing lesson's pinned knownBadVersions \u2014 i.e. it is the cover file that caused the incident (v158 for Luke 1-1). Hard-denied as --master-document with no override flag."
                 },
-                "missingFromDocument": { "type": "array", "items": { "type": "string" } },
-                "extraInDocument": { "type": "array", "items": { "type": "string" } }
+                "missingFromDocument": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "extraInDocument": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$",
+                  "description": "I23. Pinned at diagnose; restore-english re-hashes the file and aborts (22) on mismatch. The report is checksum-gated but the ODT on disk is not."
+                },
+                "sizeBytes": {
+                  "type": "integer",
+                  "minimum": 0
+                }
               }
             }
           }
@@ -156,16 +232,30 @@
           "sharedWithLessons"
         ],
         "properties": {
-          "snapshotMasterId": { "type": "integer" },
-          "productionMasterId": { "type": ["integer", "null"] },
-          "englishText": { "type": "string" },
-          "type": { "type": "string" },
-          "xpath": { "type": "string" },
-          "position": { "type": "integer" },
+          "snapshotMasterId": {
+            "type": "integer"
+          },
+          "productionMasterId": {
+            "type": ["integer", "null"]
+          },
+          "englishText": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "xpath": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer"
+          },
           "matchMethod": {
             "enum": ["identicalText", "findTSubs", "typeXpath", "position", "unmatched"]
           },
-          "reachableInProduction": { "type": "boolean" },
+          "reachableInProduction": {
+            "type": "boolean"
+          },
           "sharedWithLessons": {
             "type": "array",
             "items": {
@@ -173,16 +263,24 @@
               "additionalProperties": false,
               "required": ["book", "series", "lesson"],
               "properties": {
-                "book": { "type": "string" },
-                "series": { "type": "integer" },
-                "lesson": { "type": "integer" }
+                "book": {
+                  "type": "string"
+                },
+                "series": {
+                  "type": "integer"
+                },
+                "lesson": {
+                  "type": "integer"
+                }
               }
             }
           }
         }
       }
     },
-    "findings": { "$ref": "#/definitions/findingArray" },
+    "findings": {
+      "$ref": "#/definitions/findingArray"
+    },
     "conflicts": {
       "$ref": "#/definitions/findingArray",
       "description": "Subset of findings with classification conflict or newerWork; left untouched, for human review (FR-008)."
@@ -205,19 +303,37 @@
           "lost"
         ],
         "properties": {
-          "languageId": { "type": "integer" },
-          "languageName": { "type": "string" },
-          "archived": { "type": "boolean" },
-          "snapshotReachable": { "type": "integer" },
-          "productionReachableBefore": { "type": "integer" },
-          "productionReachableAfter": { "type": ["integer", "null"] },
+          "languageId": {
+            "type": "integer"
+          },
+          "languageName": {
+            "type": "string"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "snapshotReachable": {
+            "type": "integer"
+          },
+          "productionReachableBefore": {
+            "type": "integer"
+          },
+          "productionReachableAfter": {
+            "type": ["integer", "null"]
+          },
           "restored": {
             "type": "integer",
             "description": "Writes ACTUALLY applied, not planned. restored + driftSkipped equals this language's plannedWrites count."
           },
-          "conflicts": { "type": "integer" },
-          "newerWork": { "type": "integer" },
-          "lost": { "type": "integer" },
+          "conflicts": {
+            "type": "integer"
+          },
+          "newerWork": {
+            "type": "integer"
+          },
+          "lost": {
+            "type": "integer"
+          },
           "driftSkipped": {
             "type": "integer",
             "description": "Apply only. Planned writes withheld because live production changed after the diagnosis (I11)."
@@ -229,18 +345,26 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["production", "snapshot"],
-      "description": "count(*) FROM tstrings WHERE lessonstringid IS NOT NULL — the second orphan vector, counted rather than assumed inert.",
+      "description": "count(*) FROM tstrings WHERE lessonstringid IS NOT NULL \u2014 the second orphan vector, counted rather than assumed inert.",
       "properties": {
-        "production": { "type": "integer" },
-        "snapshot": { "type": "integer" }
+        "production": {
+          "type": "integer"
+        },
+        "snapshot": {
+          "type": "integer"
+        }
       }
     },
     "nullModifiedCounts": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "production": { "type": "integer" },
-        "snapshot": { "type": "integer" }
+        "production": {
+          "type": "integer"
+        },
+        "snapshot": {
+          "type": "integer"
+        }
       }
     },
     "blastRadius": {
@@ -248,7 +372,9 @@
       "additionalProperties": false,
       "required": ["sharedMasterIds", "lessons"],
       "properties": {
-        "sharedMasterIds": { "type": "integer" },
+        "sharedMasterIds": {
+          "type": "integer"
+        },
         "lessons": {
           "type": "array",
           "items": {
@@ -256,15 +382,23 @@
             "additionalProperties": false,
             "required": ["book", "series", "lesson"],
             "properties": {
-              "book": { "type": "string" },
-              "series": { "type": "integer" },
-              "lesson": { "type": "integer" }
+              "book": {
+                "type": "string"
+              },
+              "series": {
+                "type": "integer"
+              },
+              "lesson": {
+                "type": "integer"
+              }
             }
           }
         }
       }
     },
-    "plannedWrites": { "$ref": "#/definitions/writeArray" },
+    "plannedWrites": {
+      "$ref": "#/definitions/writeArray"
+    },
     "appliedWrites": {
       "type": "array",
       "items": {
@@ -272,14 +406,23 @@
         "additionalProperties": false,
         "required": ["languageId", "masterId", "text", "overwrote", "appliedAt"],
         "properties": {
-          "languageId": { "type": "integer" },
-          "masterId": { "type": "integer" },
-          "text": { "type": "string" },
+          "languageId": {
+            "type": "integer"
+          },
+          "masterId": {
+            "type": "integer"
+          },
+          "text": {
+            "type": "string"
+          },
           "overwrote": {
             "type": ["string", "null"],
             "description": "Prior production value, now first in history. Null when the row was inserted."
           },
-          "appliedAt": { "type": "string", "format": "date-time" }
+          "appliedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       }
     },
@@ -299,26 +442,39 @@
           "detectedAt"
         ],
         "properties": {
-          "languageId": { "type": "integer" },
-          "masterId": { "type": "integer" },
-          "plannedText": { "type": "string" },
-          "liveProductionText": { "type": ["string", "null"] },
-          "reclassifiedAs": { "enum": ["intact", "conflict", "newerWork", "lost"] },
+          "languageId": {
+            "type": "integer"
+          },
+          "masterId": {
+            "type": "integer"
+          },
+          "plannedText": {
+            "type": "string"
+          },
+          "liveProductionText": {
+            "type": ["string", "null"]
+          },
+          "reclassifiedAs": {
+            "enum": ["intact", "conflict", "newerWork", "lost"]
+          },
           "benign": {
             "type": "boolean",
-            "description": "True iff reclassifiedAs === 'intact' — someone re-typed the exact text we were going to write. Recorded for the audit trail; does not trigger exit 27."
+            "description": "True iff reclassifiedAs === 'intact' \u2014 someone re-typed the exact text we were going to write. Recorded for the audit trail; does not trigger exit 27."
           },
-          "detectedAt": { "type": "string", "format": "date-time" }
+          "detectedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       }
     },
     "duplicateRowsBaseline": {
       "$ref": "#/definitions/duplicateRowArray",
-      "description": "Diagnose. Duplicates that already existed before this tool touched anything — tstrings has had no unique constraint for the life of the database. Without this baseline, verify cannot tell a duplicate this tool created from one that was already there, and would default to blaming the restore in a document the client reads."
+      "description": "Diagnose. Duplicates that already existed before this tool touched anything \u2014 tstrings has had no unique constraint for the life of the database. Without this baseline, verify cannot tell a duplicate this tool created from one that was already there, and would default to blaming the restore in a document the client reads."
     },
     "duplicateRows": {
       "$ref": "#/definitions/duplicateRowArray",
-      "description": "Verify only. Result of the post-restore duplicate sweep (I19). The apply-time re-check narrows but cannot close the write race — tstrings has no unique constraint, so an absent row cannot be locked and adding one is outside this feature's scope. Detection is the honest compensation. Verify reports the DELTA against duplicateRowsBaseline; a non-empty delta exits 30."
+      "description": "Verify only. Result of the post-restore duplicate sweep (I19). The apply-time re-check narrows but cannot close the write race \u2014 tstrings has no unique constraint, so an absent row cannot be locked and adding one is outside this feature's scope. Detection is the honest compensation. Verify reports the DELTA against duplicateRowsBaseline; a non-empty delta exits 30."
     },
     "priorDiagnosisId": {
       "type": "string",
@@ -327,11 +483,17 @@
     "applyState": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["startedAt", "languageBatches", "completedAt"],
-      "description": "Batch journal flushed atomically after EVERY per-language batch, so an interrupted apply still leaves a complete record of what was written (SC-004, I12). The temp file MUST be created in the SAME directory as the report — rename(2) is atomic only within a filesystem. The per-write log is also appended to a sibling report.journal.jsonl which is never rewritten; appliedWrites is reconciled from it at the end and the journal wins on disagreement.",
+      "required": ["startedAt", "languageBatches", "completedAt", "scopedLanguageIds"],
+      "description": "Batch journal flushed atomically after EVERY per-language batch, so an interrupted apply still leaves a complete record of what was written (SC-004, I12). The temp file MUST be created in the SAME directory as the report \u2014 rename(2) is atomic only within a filesystem. The per-write log is also appended to a sibling report.journal.jsonl which is never rewritten; appliedWrites is reconciled from it at the end and the journal wins on disagreement.",
       "properties": {
-        "startedAt": { "type": "string", "format": "date-time" },
-        "completedAt": { "type": ["string", "null"], "format": "date-time" },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completedAt": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        },
         "languageBatches": {
           "type": "array",
           "items": {
@@ -343,34 +505,126 @@
               "writesAttempted",
               "writesApplied",
               "driftSkipped",
-              "completedAt"
+              "completedAt",
+              "failureMessage"
             ],
             "properties": {
-              "languageId": { "type": "integer" },
-              "status": { "enum": ["pending", "completed", "failed"] },
-              "writesAttempted": { "type": "integer" },
-              "writesApplied": { "type": "integer" },
-              "driftSkipped": { "type": "integer" },
-              "completedAt": { "type": ["string", "null"], "format": "date-time" }
+              "languageId": {
+                "type": "integer"
+              },
+              "status": {
+                "enum": ["pending", "completed", "failed"]
+              },
+              "writesAttempted": {
+                "type": "integer"
+              },
+              "writesApplied": {
+                "type": "integer"
+              },
+              "driftSkipped": {
+                "type": "integer"
+              },
+              "completedAt": {
+                "type": ["string", "null"],
+                "format": "date-time"
+              },
+              "failureMessage": {
+                "type": ["string", "null"]
+              }
             }
-          }
+          },
+          "description": "A throwing batch is marked failed with its failureMessage, flushed with the journal, and STOPS the run at exit 32 (I24) \u2014 no further languages are attempted."
+        },
+        "scopedLanguageIds": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "integer"
+          },
+          "description": "--languages scope; null = whole corpus. verify reports languages outside the scope as 'not yet applied' rather than as zero-restore outcomes, and apply's computed --max-writes default is derived over the scoped languages only."
         }
       }
     },
     "englishRestore": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["method", "masterDocumentPath", "newLessonVersion", "restoredAt"],
+      "required": ["method", "masterDocumentPath", "newLessonVersion", "restoredAt", "dumpPath"],
       "properties": {
-        "method": { "enum": ["upload", "relink"] },
-        "masterDocumentPath": { "type": ["string", "null"] },
-        "newLessonVersion": { "type": "integer" },
-        "restoredAt": { "type": "string", "format": "date-time" }
+        "method": {
+          "enum": ["upload", "relink"]
+        },
+        "masterDocumentPath": {
+          "type": ["string", "null"]
+        },
+        "newLessonVersion": {
+          "type": "integer"
+        },
+        "restoredAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "masterDocumentSha256": {
+          "type": ["string", "null"],
+          "description": "The bytes actually consumed (I23)."
+        },
+        "dumpPath": {
+          "type": "string",
+          "description": "This step's own pg_dump path. Not redundant with preApplyDumpPath (written by apply): this dump is the ONLY rollback route in the window between a successful English restore and apply, and it is credential-bearing, so it must be enumerated in the runbook's destruction step."
+        }
       }
     },
     "preApplyDumpPath": {
       "type": "string",
-      "description": "Path to the pg_dump -Fc file. The dump contains the WHOLE database, including better-auth user/account (Argon2id hashes), session, and invitation tables — written mode 0600 into a 0700 directory, never copied off the production host, deleted once the client confirms restoration."
+      "description": "Path to the pg_dump -Fc file. The dump contains the WHOLE database, including better-auth user/account (Argon2id hashes), session, and invitation tables \u2014 written mode 0600 into a 0700 directory, never copied off the production host, deleted once the client confirms restoration."
+    },
+    "languageIdentityChecks": {
+      "type": "array",
+      "description": "I22. Cross-database evidence that a languageId denotes the same language on both sides. languages.languageId is a serial, like lessonId and masterId, yet every finding and write carries one bare value used on both sides; divergence would write one language's translations into another language's rows and no downstream guard would catch it. diagnose joins on code (unfiltered raw SQL so archived languages participate) and aborts with exit 15 on any id disagreement, many-to-one mapping, or snapshot language with affected-lesson translations and no production counterpart. Verify-and-abort, never remap.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "snapshotLanguageId", "productionLanguageId", "agrees"],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "snapshotLanguageId": {
+            "type": ["integer", "null"]
+          },
+          "productionLanguageId": {
+            "type": ["integer", "null"]
+          },
+          "snapshotName": {
+            "type": ["string", "null"]
+          },
+          "productionName": {
+            "type": ["string", "null"]
+          },
+          "agrees": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "verifiedAt", "clientReportPath", "clientReportWithheld"],
+      "description": "Written by verify. mode must be durable, not just a console label: a later reader otherwise cannot tell whether after-figures came from a live snapshot comparison or from stored perLanguageCounts. clientReportWithheld pairs with exit 30 \u2014 the Markdown is always written, but on a non-empty duplicate delta its first heading is a DRAFT - DO NOT SEND banner.",
+      "properties": {
+        "mode": {
+          "enum": ["snapshot", "offline"]
+        },
+        "verifiedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "clientReportPath": {
+          "type": "string"
+        },
+        "clientReportWithheld": {
+          "type": "boolean"
+        }
+      }
     }
   },
   "definitions": {
@@ -381,11 +635,25 @@
         "additionalProperties": false,
         "required": ["languageId", "masterId", "lessonStringId", "rowCount", "texts"],
         "properties": {
-          "languageId": { "type": "integer" },
-          "masterId": { "type": "integer" },
-          "lessonStringId": { "type": ["integer", "null"] },
-          "rowCount": { "type": "integer", "minimum": 2 },
-          "texts": { "type": "array", "items": { "type": "string" } }
+          "languageId": {
+            "type": "integer"
+          },
+          "masterId": {
+            "type": "integer"
+          },
+          "lessonStringId": {
+            "type": ["integer", "null"]
+          },
+          "rowCount": {
+            "type": "integer",
+            "minimum": 2
+          },
+          "texts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       }
     },
@@ -408,17 +676,39 @@
           "sampleEnglishText"
         ],
         "properties": {
-          "languageId": { "type": "integer" },
-          "languageName": { "type": "string" },
-          "languageArchived": { "type": "boolean" },
-          "snapshotMasterId": { "type": "integer" },
-          "productionMasterId": { "type": ["integer", "null"] },
-          "classification": { "enum": ["restore", "intact", "conflict", "newerWork", "lost"] },
-          "snapshotText": { "type": ["string", "null"] },
-          "productionText": { "type": ["string", "null"] },
-          "productionModified": { "type": ["integer", "null"] },
-          "legacyLessonStringId": { "type": ["integer", "null"] },
-          "sampleEnglishText": { "type": "string" }
+          "languageId": {
+            "type": "integer"
+          },
+          "languageName": {
+            "type": "string"
+          },
+          "languageArchived": {
+            "type": "boolean"
+          },
+          "snapshotMasterId": {
+            "type": "integer"
+          },
+          "productionMasterId": {
+            "type": ["integer", "null"]
+          },
+          "classification": {
+            "enum": ["restore", "intact", "conflict", "newerWork", "lost"]
+          },
+          "snapshotText": {
+            "type": ["string", "null"]
+          },
+          "productionText": {
+            "type": ["string", "null"]
+          },
+          "productionModified": {
+            "type": ["integer", "null"]
+          },
+          "legacyLessonStringId": {
+            "type": ["integer", "null"]
+          },
+          "sampleEnglishText": {
+            "type": "string"
+          }
         }
       }
     },
@@ -429,20 +719,30 @@
         "additionalProperties": false,
         "required": ["languageId", "masterId", "lessonStringId", "text", "history"],
         "properties": {
-          "languageId": { "type": "integer" },
-          "masterId": { "type": "integer" },
+          "languageId": {
+            "type": "integer"
+          },
+          "masterId": {
+            "type": "integer"
+          },
           "lessonStringId": {
             "type": "null",
-            "description": "Always null — restored rows use the shape all current write paths use."
+            "description": "Always null \u2014 restored rows use the shape all current write paths use."
           },
-          "text": { "type": "string" },
+          "text": {
+            "type": "string"
+          },
           "history": {
             "type": "array",
             "maxItems": 0,
             "description": "Always empty: saveTStrings routes non-empty-history rows to UPDATE, which no-ops for rows that do not yet exist (research D6)."
           },
-          "sourceLanguageId": { "type": ["integer", "null"] },
-          "source": { "type": ["string", "null"] }
+          "sourceLanguageId": {
+            "type": ["integer", "null"]
+          },
+          "source": {
+            "type": ["string", "null"]
+          }
         }
       }
     }

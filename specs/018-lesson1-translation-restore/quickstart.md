@@ -141,6 +141,10 @@ without the dump. Confirm:
 - [ ] The planned write count is in the right order of magnitude. The tool caps
       it by default at 1.2× the snapshot's reachable count and aborts above
       that, but a plan much smaller than expected is also a signal.
+- [ ] `languageIdentityChecks` shows every language agreeing on `languageId`
+      across the two databases. The tool aborts with **exit 15** if not — that
+      means the snapshot is not an ancestor of this production database, and
+      applying it would write one language's translations into another's.
 - [ ] The blast radius (other lessons sharing strings) is understood and
       acceptable.
 
@@ -218,13 +222,22 @@ NODE_ENV=production node dist/server/tasks/restoreLesson/cli.js diagnose \
 
 Without `--prior-report` the second diagnosis loses the pinned `knownBadVersions`
 (so the cover file stops being denied) and mis-warns on `bumpCount`. The tool
-warns if you omit it beside an existing report, but pass it deliberately.
+**aborts (exit 14)** if you omit it beside an existing report. It also verifies
+the prior report's checksums and database name before trusting it (exit 20) —
+that file is what supplies the cover-file denial, so it is a trust input, not a
+convenience.
 
 On that re-diagnosis, `bumpCount` will be **2** and the strategy
 `snapshotAnchored`, because `restore-english` bumped production to 159. That is
 correct and expected — the tool compares against `expectedBumpCount`, so it
 will not raise the step-4 alarm. Benign drift (someone typed the exact text we
 were going to write) is recorded but does not cause exit 27.
+
+**Exit code 32 means a language batch failed and the run stopped.** No further
+languages were attempted — deliberately, because the cause is unknown. The tool
+prints the dump path and the journal path. Read `applyState.languageBatches` for
+the `failureMessage`, fix the cause, then re-diagnose with `--prior-report` and
+repeat.
 
 If it fails midway: the dump taken at the start of this step restores
 production wholesale. Re-running `diagnose` will also show you exactly how far
