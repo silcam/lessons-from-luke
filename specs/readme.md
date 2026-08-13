@@ -23,6 +23,11 @@ Spec: specs/005-transactional-email-reset/spec.md
 Keywords: language project, delete language, remove language, archive language, soft delete, deprecate language, source language, defaultSrcLang, dependent language, translation target, language list, Languages screen, admin delete, un-archive, restore, URL routing, language detail URL, /languages/:languageId, browser back forward, page refresh, react-router, shareable link, permalink, translate access, translator picker
 Spec: specs/012-language-archive-routing/spec.md
 
+## Luke Lesson 1 Translation Restoration
+
+Keywords: data restoration, data recovery, restore translations, orphaned translation, lost translations, accidental upload, cover file, wrong document uploaded, master document re-upload, incident recovery, database snapshot, backup database, targeted restore, rollback, undo upload, tstrings, lessonstrings, masterId, lesson version, dry-run report, conflict policy, never overwrite newer work, production incident, disaster recovery script, Luke Lesson 1
+Spec: specs/018-lesson1-translation-restore/spec.md
+
 ## How to Update This File
 
 - Add one entry per feature spec, before this section.

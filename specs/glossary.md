@@ -13,6 +13,10 @@
 
 **Accepted** (noun): Terminal status of an Invitation that has been successfully redeemed; an Account exists for the bound email. [See: Invitation, Pending, Retracted, Expired]
 
+## C
+
+**Cover file** (noun): A cover-page document for a curriculum series, not yet supported by the application. Uploading one as a Master document replaces the target Lesson's content — the cause of the 2026-08-11 Lesson 1 incident. [See: Master document, Lesson]
+
 ## E
 
 **Expired** (noun): Terminal status of a Pending Invitation whose 14-day window has elapsed without redemption. The link no longer works; the record is retained for audit. [See: Invitation, Pending]
@@ -35,6 +39,14 @@
 
 **LessonString** (noun): Links a master string (TString) to a Lesson with type (content/styles/meta) and xpath.
 
+## M
+
+**Master document** (noun): The English source ODT for a Lesson. Uploading one for an existing Lesson bumps the Lesson version and regenerates all of its LessonStrings; prior generations are archived. [Docs: specs/018-lesson1-translation-restore/spec.md] [See: Lesson, LessonString, Cover file]
+
+## O
+
+**Orphaned translation** (noun): A TString that still exists but is no longer reachable through any Lesson, because the master string identity it translates is no longer referenced by the Lesson's current LessonStrings (typically after a Master document re-upload changed the English text). [Docs: specs/018-lesson1-translation-restore/spec.md] [See: TString, LessonString, Master document]
+
 ## P
 
 **Pending** (noun): The initial, active status of an Invitation. A Pending, non-expired Invitation has a working link; only Pending Invitations can be Retracted or redeemed. [See: Invitation, Accepted, Retracted, Expired]
@@ -50,6 +62,8 @@
 **Retracted** (noun): Terminal status of a Pending Invitation that an Administrator has explicitly cancelled. The link stops working immediately; the record is retained for audit. [See: Invitation, Pending]
 
 ## S
+
+**Snapshot** (noun): The read-only pre-incident copy of the production database (08:00 WAT, 2026-08-11) hosted on a separate server; source of truth for pre-incident state during the Lesson 1 restoration. Never written to. [Docs: specs/018-lesson1-translation-restore/spec.md] [See: Orphaned translation]
 
 **Source language dependency** (noun): The relationship where one Language designates another as `defaultSrcLang`, the language it translates from. Any Language, not only English, can be a source for others. An active dependency blocks its target from being Archived until dependents are re-pointed. [Docs: specs/012-language-archive-routing/spec.md] [See: Language, Archived]
 
