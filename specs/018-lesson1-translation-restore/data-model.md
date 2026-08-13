@@ -493,6 +493,15 @@ after a drift recovery. Two things key on the distinction:
   report becomes unoverwritable the moment it is created — while recording no
   writes of its own, which is the entire thing the refusal exists to protect.
 
+It names the report that **performed** the restore, not the report it was copied
+from. A second drift recovery carries an already-carried entry forward, and
+`carriedFromDiagnosisId` is preserved rather than overwritten with the
+intermediate report's id — otherwise the field walks forward one hop per
+recovery and stops pointing at the run that actually touched production, which
+is the only thing an audit reader wants from it. (`priorDiagnosisId` is the
+per-hop provenance and does advance each time; the two answer different
+questions.)
+
 `dumpPath` is not redundant with the report's `preApplyDumpPath`, which `apply`
 writes. Two full dumps are taken during a recovery, and the English restore's is
 the **only** way back during the window between a successful English restore and

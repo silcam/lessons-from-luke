@@ -576,7 +576,7 @@
         },
         "carriedFromDiagnosisId": {
           "type": ["string", "null"],
-          "description": "Null when this report's own restore-english produced the entry; the earlier report's diagnosisId when diagnose --prior-report carried it forward (I26). verify must not present a carried restore as this run's work, and --force-report's refusal to clobber an audit artifact keys on a SELF-PRODUCED entry only — keyed on presence alone, a drift-recovery report would be unoverwritable from the moment it is created while recording no writes of its own."
+          "description": "Null when this report's own restore-english produced the entry; the earlier report's diagnosisId when diagnose --prior-report carried it forward (I26). verify must not present a carried restore as this run's work, and --force-report's refusal to clobber an audit artifact keys on a SELF-PRODUCED entry only — keyed on presence alone, a drift-recovery report would be unoverwritable from the moment it is created while recording no writes of its own. It names the report that PERFORMED the restore: on a second drift recovery an already-carried entry keeps its original value rather than advancing to the intermediate report's id, so it never stops pointing at the run that actually touched production. priorDiagnosisId is the per-hop provenance and does advance."
         },
         "dumpPath": {
           "type": "string",
