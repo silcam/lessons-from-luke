@@ -190,11 +190,16 @@ re-check the app before continuing to step 6.
 
 ```bash
 NODE_ENV=production node dist/server/tasks/restoreLesson/cli.js apply \
-  --snapshot-url "$SNAPSHOT_DATABASE_URL" \
   --report ~/recovery/report.json \
   --diagnosis-id <id-from-step-4> \
   --dump ~/recovery
 ```
+
+`apply` takes **no `--snapshot-url`** and opens no snapshot connection: the
+planned text, the mappings, and the count bounding `--max-writes` all come from
+the checksum-gated report, and the drift re-check reads live production. The
+snapshot only has to be up for step 2's `diagnose` and for a non-`--offline`
+`verify`.
 
 Guarantees, restated:
 
@@ -229,6 +234,11 @@ Without `--prior-report` the second diagnosis loses the pinned `knownBadVersions
 the prior report's checksums and database name before trusting it (exit 20) —
 that file is what supplies the cover-file denial, so it is a trust input, not a
 convenience.
+
+Do **not** re-run `restore-english` for the remainder. `--prior-report` carries
+the first report's `englishRestore` forward, so `apply` against `report-2.json`
+sees the English master as already restored and proceeds; running it again
+would bump production to v160 for nothing.
 
 On that re-diagnosis, `bumpCount` will be **2** and the strategy
 `snapshotAnchored`, because `restore-english` bumped production to 159. That is
@@ -306,9 +316,12 @@ tokens, not just translations. Until then:
 shred -u ~/recovery/*.dump 2>/dev/null || rm -f ~/recovery/*.dump
 ```
 
-Keep `report.json`, `report.journal.jsonl`, and `client-report.md` (all `0600`)
-as the record of the recovery. The journal is the append-only write log — if it
-and the report ever disagree, the journal is the truth.
+Keep **every** report, its journal, and `client-report.md` (all `0600`) as the
+record of the recovery. Each report has its own journal, named after it —
+`report.json` → `report.journal.jsonl`, `report-2.json` →
+`report-2.journal.jsonl` — so a drift recovery leaves two pairs, and both belong
+in the record. The journal is the append-only write log; if it and its report
+ever disagree, the journal is the truth.
 
 ---
 
@@ -329,8 +342,11 @@ and flagged.
 or 6 (`~/recovery/*.dump`). Rollback of a single string: its previous value is
 the last entry in the string's `history` and is visible in the translation UI.
 
-**Do not run two write commands at once.** `restore-english` and `apply` each
-take a Postgres advisory lock and exit 28 if the other is running — `tstrings`
+**Do not run two write commands at once.** `restore-english`, `apply`, **and
+`verify`** each take a Postgres advisory lock and exit 28 if another is running
+— `verify` is included because it writes `languages.progress` and rewrites
+`report.json`, so overlapping it with `apply` loses whichever run's audit
+record is written first. `tstrings`
 has no unique constraint, so overlapping writes are how duplicate rows get
 made. If you see exit 28, find the other session before retrying.
 

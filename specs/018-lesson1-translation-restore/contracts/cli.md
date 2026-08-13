@@ -224,6 +224,17 @@ cli.js restore-english --report <path> --diagnosis-id <id> \
    `languageIdentityChecks` entry `agrees: true`. This subcommand takes no
    `--snapshot-url` and opens no snapshot connection; requiring it to re-run
    checks that need one would make this precondition unsatisfiable.
+
+   **These assertions keep `diagnose`'s exit codes, not new ones**: a report
+   whose `identity.snapshotIsOlder` is false aborts **11**, and one whose
+   `languageIdentityChecks` is absent, empty, or contains any entry with
+   `agrees: false` aborts **15**. A precondition without an exit code is how a
+   check becomes an unhandled rejection, and a code that means one thing in
+   `diagnose` and another here is how an operator misreads it under pressure.
+   Neither state should be reachable — `diagnose` refuses to write such a report
+   — so reaching one means the report was hand-edited past its checksums, and
+   the message says exactly that.
+
 2. The report exists, its `diagnosisId` matches `--diagnosis-id`, its
    frozen `diagnosisChecksum` **and** its `reportChecksum` verify, its
    `productionFingerprint.databaseName` matches the live database, and the
@@ -284,7 +295,9 @@ cli.js restore-english --report <path> --diagnosis-id <id> \
   path; the relink fallback calls it explicitly).
 - Appends the result to the report and recomputes `reportChecksum`.
 
-**Exit codes**: 0 success; 20 report/diagnosis-id/checksum/database mismatch;
+**Exit codes**: 0 success; 11 the report's `identity.snapshotIsOlder` is false;
+15 the report's `languageIdentityChecks` is missing or contains a disagreement;
+20 report/diagnosis-id/checksum/database mismatch;
 21 production changed since diagnosis; 22 master document not verified against
 the snapshot, is the known-bad upload, or collides with its destination path;
 23 dump failed, insufficient disk, or unsafe dump directory permissions;
@@ -424,7 +437,9 @@ cannot be locked and the last sub-second race between re-read and write stays
 open. It is compensated by detection, not by a false guarantee — `verify` runs
 a duplicate sweep (I19) and reports any hit prominently.
 
-**Exit codes**: 0 success, no non-benign drift; 20 report/diagnosis-id/checksum/database
+**Exit codes**: 0 success, no non-benign drift; 11 and 15 as for
+`restore-english` (the report's snapshot-dependent evidence fails its
+assertion); 20 report/diagnosis-id/checksum/database
 mismatch; 21 production changed since diagnosis; 23 dump failed, insufficient
 disk, or unsafe dump directory permissions; 24 English master not yet restored;
 25 write plan exceeds `--max-writes` (explicit or the computed default);
