@@ -1,0 +1,21 @@
+;=============================================
+; Restoring the English master replaces the cover-page content with the pre-incident lesson content.
+;=============================================
+GIVEN production Lesson 1 currently contains cover-page content.
+WHEN the English master is restored.
+THEN Lesson 1's English strings match the pre-incident Lesson 1 content verified against the Snapshot.
+
+;=============================================
+; The restoration uses the correct pre-incident master document, never the cover file.
+;=============================================
+GIVEN the restoration mechanism reuses the app's own upload pathway with the correct pre-incident document.
+WHEN it runs.
+THEN it uses the correct Lesson 1 master document and never the cover file.
+THEN the resulting lesson structure supports re-attaching existing translations.
+
+;=============================================
+; Production is reversible from a pre-write dump if anything goes wrong mid-restore.
+;=============================================
+GIVEN a fresh production dump was taken before any write.
+WHEN anything goes wrong mid-restore.
+THEN production can be returned to its pre-restore state from that dump.

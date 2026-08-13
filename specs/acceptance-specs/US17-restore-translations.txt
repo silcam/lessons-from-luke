@@ -1,0 +1,36 @@
+;=============================================
+; Orphaned translations become reachable again through the restored lesson.
+;=============================================
+GIVEN orphaned translations exist for the affected lesson.
+WHEN the restore applies.
+THEN each orphaned translation is re-attached or copied so it is reachable through Lesson 1 in its language again.
+
+;=============================================
+; Translations edited in production after the Snapshot are left untouched and reported as conflicts.
+;=============================================
+GIVEN a translation was edited in production after the Snapshot, including shared boilerplate edited via another lesson.
+WHEN the restore applies.
+THEN that value is left untouched.
+THEN the string is listed in the report as a conflict for human review.
+
+;=============================================
+; Overwritten production values are preserved in history and remain reversible.
+;=============================================
+GIVEN a restored translation overwrote a production value.
+WHEN the restore applies.
+THEN the overwritten value is preserved in the string's history so the change is reversible in-app.
+
+;=============================================
+; Apply requires a prior human-reviewed dry-run diagnosis.
+;=============================================
+GIVEN apply mode is requested.
+WHEN no human has reviewed a dry-run report for the same diagnosis.
+THEN the operator workflow requires the dry-run review first as an explicit, separate step.
+
+;=============================================
+; Re-running the restore is idempotent and creates no duplicate rows.
+;=============================================
+GIVEN the restore has applied.
+WHEN it is re-run.
+THEN it makes no further changes.
+THEN it creates no duplicate rows.

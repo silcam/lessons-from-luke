@@ -1,0 +1,15 @@
+;=============================================
+; Verification reports before/after counts and outstanding conflicts per language.
+;=============================================
+GIVEN the restore has applied.
+WHEN verification runs.
+THEN per-language before and after translated-string counts for the affected lesson are reported.
+THEN the list of conflicts left for human review is included.
+
+;=============================================
+; Derived data is regenerated to match the restored state.
+;=============================================
+GIVEN the restore changed lesson content and translations.
+WHEN the aftermath step runs.
+THEN language progress figures are regenerated to match the restored state.
+THEN web previews are regenerated to match the restored state.

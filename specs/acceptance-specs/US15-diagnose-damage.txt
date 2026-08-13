@@ -1,0 +1,37 @@
+;=============================================
+; Diagnosis positively identifies production versus the Snapshot before doing anything else.
+;=============================================
+GIVEN access to production and the Snapshot.
+WHEN the diagnosis runs.
+THEN it positively identifies which side is production and which is the Snapshot before doing anything else.
+THEN it treats the Snapshot as strictly read-only.
+
+;=============================================
+; Diagnosis detects the affected lesson from data, not assumption.
+;=============================================
+GIVEN the incident occurred after the Snapshot was taken.
+WHEN the diagnosis runs.
+THEN it identifies the affected lesson from the data by comparing lesson version and modification time, not from assumption.
+THEN it reports how many times the lesson was re-uploaded since the Snapshot.
+
+;=============================================
+; Diagnosis reports per-language string status with counts and samples.
+;=============================================
+GIVEN the affected lesson.
+WHEN the diagnosis completes.
+THEN the report lists, per language, strings still intact, translations orphaned, and translations in conflict edited in production since the Snapshot.
+THEN each category carries counts and sample text.
+
+;=============================================
+; Diagnosis flags shared strings that also appear in other lessons.
+;=============================================
+GIVEN some affected strings are shared with other lessons through identical text reuse.
+WHEN the diagnosis completes.
+THEN those shared strings are flagged separately with the other lessons they appear in.
+
+;=============================================
+; Dry-run diagnosis makes no writes to either database.
+;=============================================
+GIVEN dry-run mode.
+WHEN the diagnosis runs.
+THEN no write of any kind is made to either database.
