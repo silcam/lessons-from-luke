@@ -243,6 +243,9 @@ Use subagents liberally and aggressively to conserve the main context window. Av
 
 ## Active Technologies
 
+- TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + `postgres@1` (domain driver via `Persistence`), existing `PGStorage`/`uploadEnglishDoc`/`webifyLesson`/`findTSubs`; no new runtime dependencies (018-lesson1-translation-restore)
+- PostgreSQL. Production via the deployed `secrets.json` (`db`, Unix socket). Snapshot via `SNAPSHOT_DATABASE_URL`/`--snapshot-url` over an SSH tunnel — **never** from `secrets.json`. **No schema changes, no migrations.** (018-lesson1-translation-restore)
+
 - TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + React 16 + Redux Toolkit, `react-router-dom` v6, Express, `postgres@1` (domain driver via `Persistence`) (012-language-archive-routing)
 - PostgreSQL `languages` table (domain data → through `Persistence`, Principle VI); new `archived boolean` column via a `migrations/` file (012-language-archive-routing)
 

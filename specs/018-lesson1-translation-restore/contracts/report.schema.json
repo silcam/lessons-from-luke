@@ -1,0 +1,301 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://lessons-from-luke/specs/018-lesson1-translation-restore/report.schema.json",
+  "title": "DiagnosisReport",
+  "description": "Durable artifact produced by `restoreLesson diagnose` and appended to by `restore-english`, `apply`, and `verify`. Its existence and matching diagnosisId are the machine-checked precondition for apply (FR-005).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "diagnosisId",
+    "generatedAt",
+    "toolVersion",
+    "mode",
+    "identity",
+    "affectedLessons",
+    "mappings",
+    "findings",
+    "perLanguageCounts",
+    "legacyLessonStringRowCounts",
+    "blastRadius",
+    "plannedWrites",
+    "conflicts"
+  ],
+  "properties": {
+    "diagnosisId": { "type": "string", "minLength": 8 },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "toolVersion": { "type": "string" },
+    "mode": { "enum": ["diagnose", "restore-english", "apply", "verify"] },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "productionMarkerPresent",
+        "snapshotConfirmationToken",
+        "productionLessonVersion",
+        "snapshotLessonVersion",
+        "snapshotIsOlder"
+      ],
+      "properties": {
+        "productionMarkerPresent": { "const": true },
+        "snapshotConfirmationToken": { "type": "string", "minLength": 1 },
+        "productionLessonVersion": { "type": "integer" },
+        "snapshotLessonVersion": { "type": "integer" },
+        "snapshotIsOlder": { "const": true }
+      }
+    },
+    "affectedLessons": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "book",
+          "series",
+          "lesson",
+          "productionLessonId",
+          "snapshotLessonId",
+          "productionVersion",
+          "snapshotVersion",
+          "bumpCount",
+          "mappingStrategy",
+          "candidateMasterDocuments"
+        ],
+        "properties": {
+          "book": { "type": "string" },
+          "series": { "type": "integer" },
+          "lesson": { "type": "integer" },
+          "productionLessonId": { "type": "integer" },
+          "snapshotLessonId": { "type": "integer" },
+          "productionVersion": { "type": "integer" },
+          "snapshotVersion": { "type": "integer" },
+          "bumpCount": { "type": "integer", "minimum": 1 },
+          "mappingStrategy": { "enum": ["findTSubsBridge", "snapshotAnchored"] },
+          "candidateMasterDocuments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["filepath", "version", "englishTextSetMatchesSnapshot"],
+              "properties": {
+                "filepath": { "type": "string" },
+                "version": { "type": ["integer", "null"] },
+                "englishTextSetMatchesSnapshot": { "type": "boolean" },
+                "missingFromDocument": { "type": "array", "items": { "type": "string" } },
+                "extraInDocument": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "mappings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "snapshotMasterId",
+          "productionMasterId",
+          "englishText",
+          "type",
+          "xpath",
+          "position",
+          "matchMethod",
+          "reachableInProduction",
+          "sharedWithLessons"
+        ],
+        "properties": {
+          "snapshotMasterId": { "type": "integer" },
+          "productionMasterId": { "type": ["integer", "null"] },
+          "englishText": { "type": "string" },
+          "type": { "type": "string" },
+          "xpath": { "type": "string" },
+          "position": { "type": "integer" },
+          "matchMethod": {
+            "enum": ["identicalText", "findTSubs", "typeXpath", "position", "unmatched"]
+          },
+          "reachableInProduction": { "type": "boolean" },
+          "sharedWithLessons": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["book", "series", "lesson"],
+              "properties": {
+                "book": { "type": "string" },
+                "series": { "type": "integer" },
+                "lesson": { "type": "integer" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "findings": { "$ref": "#/definitions/findingArray" },
+    "conflicts": {
+      "$ref": "#/definitions/findingArray",
+      "description": "Subset of findings with classification conflict or newerWork; left untouched, for human review (FR-008)."
+    },
+    "perLanguageCounts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "languageId",
+          "languageName",
+          "archived",
+          "snapshotReachable",
+          "productionReachableBefore",
+          "productionReachableAfter",
+          "restored",
+          "conflicts",
+          "newerWork",
+          "lost"
+        ],
+        "properties": {
+          "languageId": { "type": "integer" },
+          "languageName": { "type": "string" },
+          "archived": { "type": "boolean" },
+          "snapshotReachable": { "type": "integer" },
+          "productionReachableBefore": { "type": "integer" },
+          "productionReachableAfter": { "type": ["integer", "null"] },
+          "restored": { "type": "integer" },
+          "conflicts": { "type": "integer" },
+          "newerWork": { "type": "integer" },
+          "lost": { "type": "integer" }
+        }
+      }
+    },
+    "legacyLessonStringRowCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["production", "snapshot"],
+      "description": "count(*) FROM tstrings WHERE lessonstringid IS NOT NULL — the second orphan vector, counted rather than assumed inert.",
+      "properties": {
+        "production": { "type": "integer" },
+        "snapshot": { "type": "integer" }
+      }
+    },
+    "nullModifiedCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "production": { "type": "integer" },
+        "snapshot": { "type": "integer" }
+      }
+    },
+    "blastRadius": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sharedMasterIds", "lessons"],
+      "properties": {
+        "sharedMasterIds": { "type": "integer" },
+        "lessons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["book", "series", "lesson"],
+            "properties": {
+              "book": { "type": "string" },
+              "series": { "type": "integer" },
+              "lesson": { "type": "integer" }
+            }
+          }
+        }
+      }
+    },
+    "plannedWrites": { "$ref": "#/definitions/writeArray" },
+    "appliedWrites": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["languageId", "masterId", "text", "overwrote", "appliedAt"],
+        "properties": {
+          "languageId": { "type": "integer" },
+          "masterId": { "type": "integer" },
+          "text": { "type": "string" },
+          "overwrote": {
+            "type": ["string", "null"],
+            "description": "Prior production value, now first in history. Null when the row was inserted."
+          },
+          "appliedAt": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "englishRestore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "masterDocumentPath", "newLessonVersion", "restoredAt"],
+      "properties": {
+        "method": { "enum": ["upload", "relink"] },
+        "masterDocumentPath": { "type": ["string", "null"] },
+        "newLessonVersion": { "type": "integer" },
+        "restoredAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "preApplyDumpPath": { "type": "string" }
+  },
+  "definitions": {
+    "findingArray": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "languageId",
+          "languageName",
+          "languageArchived",
+          "snapshotMasterId",
+          "productionMasterId",
+          "classification",
+          "snapshotText",
+          "productionText",
+          "productionModified",
+          "legacyLessonStringId",
+          "sampleEnglishText"
+        ],
+        "properties": {
+          "languageId": { "type": "integer" },
+          "languageName": { "type": "string" },
+          "languageArchived": { "type": "boolean" },
+          "snapshotMasterId": { "type": "integer" },
+          "productionMasterId": { "type": ["integer", "null"] },
+          "classification": { "enum": ["restore", "intact", "conflict", "newerWork", "lost"] },
+          "snapshotText": { "type": ["string", "null"] },
+          "productionText": { "type": ["string", "null"] },
+          "productionModified": { "type": ["integer", "null"] },
+          "legacyLessonStringId": { "type": ["integer", "null"] },
+          "sampleEnglishText": { "type": "string" }
+        }
+      }
+    },
+    "writeArray": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["languageId", "masterId", "lessonStringId", "text", "history"],
+        "properties": {
+          "languageId": { "type": "integer" },
+          "masterId": { "type": "integer" },
+          "lessonStringId": {
+            "type": "null",
+            "description": "Always null — restored rows use the shape all current write paths use."
+          },
+          "text": { "type": "string" },
+          "history": {
+            "type": "array",
+            "maxItems": 0,
+            "description": "Always empty: saveTStrings routes non-empty-history rows to UPDATE, which no-ops for rows that do not yet exist (research D6)."
+          },
+          "sourceLanguageId": { "type": ["integer", "null"] },
+          "source": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}
