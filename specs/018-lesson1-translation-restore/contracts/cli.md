@@ -19,17 +19,44 @@ Built by the existing `tsc -b ./src/server`. Source:
 
 ## Global options
 
-| Option                     | Required | Description                                                                                                                                                                            |
-| -------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--snapshot-url <url>`     | yes\*    | Postgres URL for the snapshot (typically `postgres://…@127.0.0.1:5433/…` over an SSH tunnel). **Prefer `SNAPSHOT_DATABASE_URL`** — an argv password is world-readable in `ps`/`/proc`. |
-| `--report <path>`          | yes      | Path to the report file (written by `diagnose`, read by the write subcommands).                                                                                                        |
-| `--snapshot-confirmed <t>` | yes      | Operator's confirmation token proving the snapshot marker file was seen. Recorded verbatim in the report. MUST NOT contain a credential.                                               |
-| `--book <name>`            | no       | Restrict detection (default: all books).                                                                                                                                               |
-| `--json`                   | no       | Emit machine-readable output on stdout instead of the human summary. Redacted identically.                                                                                             |
-| `--no-color`               | no       | Suppress ANSI colour. Colour is auto-suppressed when stdout is not a TTY; status is always also carried by a word (`OK` / `ABORT` / `DRIFT`), never by colour alone.                   |
+| Option                     | Required in       | Description                                                                                                                                                                            |
+| -------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--snapshot-url <url>`     | `diagnose` only\* | Postgres URL for the snapshot (typically `postgres://…@127.0.0.1:5433/…` over an SSH tunnel). **Prefer `SNAPSHOT_DATABASE_URL`** — an argv password is world-readable in `ps`/`/proc`. |
+| `--report <path>`          | all               | Path to the report file (written by `diagnose`, read by the write subcommands).                                                                                                        |
+| `--snapshot-confirmed <t>` | `diagnose` only   | Operator's confirmation token proving the snapshot marker file was seen. Recorded verbatim in the report and re-read from it by every later subcommand.                                |
+| `--book <name>`            | no (`diagnose`)   | Restrict detection (default: all books).                                                                                                                                               |
+| `--json`                   | no                | Emit machine-readable output on stdout instead of the human summary. Redacted identically.                                                                                             |
+| `--no-color`               | no                | Suppress ANSI colour. Colour is auto-suppressed when stdout is not a TTY; status is always also carried by a word (`OK` / `ABORT` / `DRIFT`), never by colour alone.                   |
 
 \* `--snapshot-url` and `SNAPSHOT_DATABASE_URL` are alternatives; the env var is
-the documented path and the flag emits a warning when used.
+the documented path and the flag emits a warning when used. `verify` accepts it
+optionally (a snapshot comparison unless `--offline`); `restore-english` and
+`apply` **do not accept it at all** — see the precondition split below.
+
+### Which preconditions each subcommand can actually check
+
+`diagnose`'s preconditions are of two kinds, and later subcommands can only
+re-execute one kind. Conflating them makes `restore-english`'s and `apply`'s
+"all `diagnose` preconditions" unsatisfiable as written, since neither holds a
+snapshot connection.
+
+- **Host-local preconditions — re-checked by every subcommand**: the
+  `THIS_IS_THE_PRODUCTION_SERVER` marker file (10), report path/permissions
+  (14), and the report checksum/database-name gate (20).
+- **Snapshot-dependent preconditions — established once, at `diagnose`, and
+  thereafter carried in the checksum-gated report**: the snapshot connection and
+  `snapshotVersion < productionVersion` (11/12), and the I22 cross-database
+  language-identity check (15). `restore-english` and `apply` re-verify them by
+  asserting the report records them as passed (`identity.snapshotIsOlder`,
+  a non-empty `languageIdentityChecks` with every entry `agrees: true`), not by
+  reopening the snapshot. The frozen `diagnosisChecksum` is what makes reading
+  them out of the report as trustworthy as recomputing them.
+
+Consequence, stated plainly because it is a real operational property: **the
+snapshot server only needs to be reachable during `diagnose` (and during a
+non-`--offline` `verify`)**. If it is torn down after diagnosis, the restore
+still completes. That is a strengthening of the external assumption the spec
+carries, not a weakening.
 
 Production connection comes from the deployed `secrets.json` (`db`), unchanged.
 The snapshot credential is **never** read from `secrets.json`, and the tool
@@ -61,9 +88,12 @@ cli.js diagnose --snapshot-url <url> --report <path> --snapshot-confirmed <token
        [--prior-report <path>] [--force-report]
 ```
 
-`--prior-report` carries `knownBadVersions` and this tool's bump accounting
-forward from an earlier report, and records its `diagnosisId` as
-`priorDiagnosisId`. It is **required on the drift-recovery re-diagnosis**: that
+`--prior-report` carries `knownBadVersions`, this tool's bump accounting, and
+the prior `englishRestore` record forward from an earlier report, and records
+its `diagnosisId` as `priorDiagnosisId`. The `englishRestore` carry-forward is
+what keeps `apply`'s precondition 8 satisfiable on the drift-recovery path (see
+`apply` below); the carried entry is marked `carriedFromDiagnosisId` so it is
+never read as this run's own work. It is **required on the drift-recovery re-diagnosis**: that
 run writes to a new report path so it cannot clobber the audit artifact, and
 without the flag it silently loses the cover-file denial and mis-warns on
 `bumpCount` (I20). When it is omitted and a report already exists in the same
@@ -107,10 +137,22 @@ with exit 20 on mismatch — the same gate the write subcommands apply.
 
 4. `--report <path>` is writable and does not already exist (use
    `--force-report` to overwrite). **`--force-report` MUST refuse** to
-   overwrite a report that already contains `englishRestore` or
-   `appliedWrites`, or beside which a non-empty `report.journal.jsonl` exists —
-   those are the record of what was done to production and the pointer to the
-   pre-apply dump.
+   overwrite a report that already contains a **self-produced** `englishRestore`
+   (not one carried from `--prior-report`) or `appliedWrites`, or beside which
+   **that report's own** non-empty journal exists — those are the record of what
+   was done to production and the pointer to the pre-apply dump.
+
+   **The journal name is derived from the report filename**, not fixed:
+   `<report-basename-without-extension>.journal.jsonl`, so
+   `/rec/report.json` → `/rec/report.journal.jsonl` and
+   `/rec/report-2.json` → `/rec/report-2.journal.jsonl`. A fixed
+   `report.journal.jsonl` breaks on the drift-recovery path, which mandates a
+   second report **in the same directory**: two runs would append to one journal,
+   destroying the per-report "the journal wins" reconciliation that SC-004's
+   audit trail depends on, and the refusal above would fire on the first report's
+   journal and make the second report unusable. Every journal line also carries
+   its `diagnosisId`, so a journal that is somehow shared is still separable.
+
 5. `--report`'s directory is mode `0700` (created so, or aborted on).
 6. `--prior-report` is supplied, **or** no report already exists in
    `--report`'s directory. Proceeding blind beside an existing report loses the
@@ -176,7 +218,12 @@ cli.js restore-english --report <path> --diagnosis-id <id> \
 
 **Preconditions**
 
-1. All `diagnose` preconditions.
+1. All of `diagnose`'s **host-local** preconditions (marker file, report
+   path/permissions), plus the **snapshot-dependent** ones asserted from the
+   report rather than re-executed: `identity.snapshotIsOlder === true` and every
+   `languageIdentityChecks` entry `agrees: true`. This subcommand takes no
+   `--snapshot-url` and opens no snapshot connection; requiring it to re-run
+   checks that need one would make this precondition unsatisfiable.
 2. The report exists, its `diagnosisId` matches `--diagnosis-id`, its
    frozen `diagnosisChecksum` **and** its `reportChecksum` verify, its
    `productionFingerprint.databaseName` matches the live database, and the
@@ -251,14 +298,45 @@ failed — **Lesson 1 may be unreadable, follow the printed fix command**;
 ## `apply` — US3 (FR-007..FR-011, FR-014)
 
 ```
-cli.js apply --snapshot-url <url> --report <path> --diagnosis-id <id> \
+cli.js apply --report <path> --diagnosis-id <id> \
       [--dump <dir>] [--languages <ids>] [--max-writes <n>]
 ```
 
+`apply` takes **no `--snapshot-url`**. Everything it needs from the snapshot is
+already in the checksum-gated report: the planned text (`plannedWrites[].text`),
+the mappings the re-check reuses verbatim, and the reachable count that bounds
+the computed `--max-writes` default (`perLanguageCounts[].snapshotReachable`).
+The I11 re-classification compares those against **live production** only.
+Opening a second connection here would add a credential on the command line, a
+dependency on the snapshot still being up, and a second chance to point at the
+wrong database — for no fact the report does not already carry under a frozen
+checksum.
+
 **Preconditions** — all seven of `restore-english`'s, plus:
 
-8. The English master has been restored (the report records an `englishRestore`
-   entry) — otherwise there is no spine to attach to.
+8. The English master has been restored — the report records an `englishRestore`
+   entry, **or carries one forward from `--prior-report`** (see below).
+   Otherwise there is no spine to attach to.
+
+   **The drift-recovery path depends on the carry-forward.** After exit 27 or
+   32, the runbook re-diagnoses to a _new_ report path. English was restored
+   under the _earlier_ report, so the new report has no `englishRestore` of its
+   own and this precondition would abort with 24 — on precisely the path the
+   whole `--prior-report` mechanism exists to serve, and with the misleading
+   message "English master not yet restored" about a lesson that has been
+   correctly restored. `diagnose --prior-report` therefore carries the prior
+   `englishRestore` record forward alongside `knownBadVersions` and the bump
+   accounting. It is a trusted source: the prior report's `diagnosisChecksum`,
+   `reportChecksum`, and database name are all verified (20) before anything is
+   read out of it.
+
+   A carried entry is marked `carriedFromDiagnosisId`, so nothing downstream
+   mistakes it for work this run performed: `verify` reports the English restore
+   as having happened under that earlier report, and `--force-report`'s refusal
+   to clobber an audit artifact keys on a **self-produced** `englishRestore`,
+   never on a carried one — otherwise the second report becomes unoverwritable
+   the moment it is created.
+
 9. `--diagnosis-id` is supplied explicitly. Apply never runs off a report the
    operator did not name. This is the machine-checked form of FR-005's
    "human reviewed the dry run".
@@ -307,9 +385,10 @@ _someone else_ changed the lesson between our steps.
 - Flushes `applyState`, `appliedWrites`, and `driftSkips` to the report
   **after every per-language batch**, atomically (temp file in the **same
   directory** → `fsync` → rename), so an interruption still leaves a complete
-  record (I12). Each write is also appended to a sibling
-  `report.journal.jsonl`, which is never rewritten; `appliedWrites` is
-  reconciled from it at the end and the journal wins on disagreement.
+  record (I12). Each write is also appended to this report's own journal
+  (`<report-basename>.journal.jsonl`, derived — never a fixed name), which is
+  never rewritten; `appliedWrites` is reconciled from it at the end and the
+  journal wins on disagreement.
 - Appends per-language after-counts and the outstanding conflict list, and
   recomputes `reportChecksum` (never `diagnosisChecksum`, which stays frozen).
 
@@ -375,6 +454,17 @@ its `reportChecksum` verify; and its `productionFingerprint.databaseName`
 matches the live database. All three checks, not just `reportChecksum` — verify
 mutates the report and produces the artifact the client reads, so it has more
 reason to prove the report's provenance than less (I13). Mismatch exits 20.
+
+**`verify` also takes the advisory lock** (reserved connection, exit 28 if held),
+on the same terms as the write subcommands. It is not read-only: it calls
+`updateProgress()`, which **writes `languages.progress` on production**, and it
+appends a `verification` record to the report and recomputes `reportChecksum`.
+Run concurrently with `apply` — two terminals, or an operator verifying while a
+stalled apply still holds its lock — the two rewrite `report.json` through
+independent atomic renames, and whichever lands last silently discards the
+other's record. That is a lost update on the one artifact SC-004 relies on.
+Verify's exemption was never justified by anything except the phrase "no
+translation writes", which is true and beside the point.
 
 `--offline` drops the snapshot requirement and computes before/after figures
 from the report's stored `perLanguageCounts` plus live production. The snapshot
@@ -446,6 +536,7 @@ version bump to 159):
 
 **Exit codes**: 0 success, no new duplicates; 20 report
 checksum/diagnosis-id/database mismatch; 26 no apply recorded in the report;
+28 another subcommand holds the advisory lock (or it was lost mid-run);
 **30 new duplicate rows found against the baseline — resolve by hand before
 sending the client report; the Markdown carries a DO-NOT-SEND banner**;
 1 unexpected.

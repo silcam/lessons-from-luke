@@ -484,7 +484,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["startedAt", "languageBatches", "completedAt", "scopedLanguageIds"],
-      "description": "Batch journal flushed atomically after EVERY per-language batch, so an interrupted apply still leaves a complete record of what was written (SC-004, I12). The temp file MUST be created in the SAME directory as the report \u2014 rename(2) is atomic only within a filesystem. The per-write log is also appended to a sibling report.journal.jsonl which is never rewritten; appliedWrites is reconciled from it at the end and the journal wins on disagreement.",
+      "description": "Batch journal flushed atomically after EVERY per-language batch, so an interrupted apply still leaves a complete record of what was written (SC-004, I12). The temp file MUST be created in the SAME directory as the report \u2014 rename(2) is atomic only within a filesystem. The per-write log is also appended to a sibling journal which is never rewritten; appliedWrites is reconciled from it at the end and the journal wins on disagreement. The journal's path is DERIVED from the report's basename (<report-basename>.journal.jsonl), never the fixed name report.journal.jsonl (I27): the drift-recovery loop puts a second report in the same directory, so a fixed name would have two runs appending to one file — reconciling one run's writes into the other's report, and making --force-report's journal check refuse to create the second report at all. Every journal line carries its diagnosisId.",
       "properties": {
         "startedAt": {
           "type": "string",
@@ -547,7 +547,15 @@
     "englishRestore": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["method", "masterDocumentPath", "newLessonVersion", "restoredAt", "dumpPath"],
+      "description": "Written by restore-english, OR carried forward by diagnose --prior-report so that apply's precondition 8 stays satisfiable on the drift-recovery path (I26): English was restored under the earlier report, and the re-diagnosis writes to a new report path. Without the carry-forward, apply aborts 24 (\"English master not yet restored\") on a lesson that has been correctly restored.",
+      "required": [
+        "method",
+        "masterDocumentPath",
+        "newLessonVersion",
+        "restoredAt",
+        "dumpPath",
+        "carriedFromDiagnosisId"
+      ],
       "properties": {
         "method": {
           "enum": ["upload", "relink"]
@@ -565,6 +573,10 @@
         "masterDocumentSha256": {
           "type": ["string", "null"],
           "description": "The bytes actually consumed (I23)."
+        },
+        "carriedFromDiagnosisId": {
+          "type": ["string", "null"],
+          "description": "Null when this report's own restore-english produced the entry; the earlier report's diagnosisId when diagnose --prior-report carried it forward (I26). verify must not present a carried restore as this run's work, and --force-report's refusal to clobber an audit artifact keys on a SELF-PRODUCED entry only — keyed on presence alone, a drift-recovery report would be unoverwritable from the moment it is created while recording no writes of its own."
         },
         "dumpPath": {
           "type": "string",

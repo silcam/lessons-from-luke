@@ -252,6 +252,42 @@ This also subsumes the "stale write plan after the English restore" hazard:
 production, and the re-check sees the post-upload landscape rather than the
 diagnosis-time one.
 
+### Which preconditions a subcommand can actually check (I25)
+
+`restore-english` and `apply` are specified as requiring "all `diagnose`
+preconditions". Two of those preconditions need a **snapshot connection** —
+`snapshotVersion < productionVersion`, and the I22 cross-database language
+join — and neither subcommand has one: the snapshot credential is a `diagnose`
+input, and handing it to the write subcommands would put a password on the
+command line at exactly the moment the tool is writing to production. As
+written, the requirement is unsatisfiable, and an implementer resolving it
+alone would either add a snapshot connection nobody designed or quietly drop
+the checks.
+
+**Resolution**: split the preconditions by what establishes them.
+
+- **Host-local** — marker file, report path and directory permissions, report
+  checksum and database-name gate. Cheap, and re-executed by every subcommand.
+- **Snapshot-dependent** — established once at `diagnose` and thereafter
+  **asserted from the report**, not recomputed: `identity.snapshotIsOlder ===
+true`, and a non-empty `languageIdentityChecks` in which every entry has
+  `agrees: true`. The frozen `diagnosisChecksum` is precisely what makes reading
+  a fact out of the report equivalent to recomputing it; that is the same
+  reasoning that lets `apply` reuse the report's `mappings` verbatim (I11).
+
+`apply` therefore takes **no `--snapshot-url`** either. Everything it needs is
+already in the report under that checksum — planned text, mappings, and the
+`snapshotReachable` count bounding the computed `--max-writes` cap — and the
+I11 re-check reads live **production**. Dropping the flag removes a credential
+from the command line, a liveness dependency, and one more chance to point a
+connection at the wrong database.
+
+This yields a property worth stating: **the snapshot server only has to be
+reachable during `diagnose`** (and during a non-`--offline` `verify`). The spec
+carries the snapshot's continued availability as an external assumption held by
+the client's technical contact; this narrows the window that assumption has to
+hold from "until restoration completes" to "until diagnosis completes".
+
 ### Cross-database language identity (CRITICAL — I22)
 
 `lessonId` is a serial and the design already refuses to assume it is equal
@@ -442,10 +478,20 @@ Two constraints the atomic-rename claim depends on:
   copy, not a rename, and can leave a truncated report.
 - The whole report (findings for ~10²–10³ strings × ~10–30 languages) is
   rewritten on every flush. To keep the audit trail cheap and append-only, the
-  per-write log is **also** appended line-by-line to a sibling
-  `report.journal.jsonl` as each batch completes, and the report's
-  `appliedWrites` is reconciled from it at the end. If the two ever disagree,
-  the journal wins — it is the one artifact that is never rewritten.
+  per-write log is **also** appended line-by-line to a sibling journal as each
+  batch completes, and the report's `appliedWrites` is reconciled from it at the
+  end. If the two ever disagree, the journal wins — it is the one artifact that
+  is never rewritten.
+- **The journal's name is derived from the report's, never fixed.**
+  `<report-basename-without-extension>.journal.jsonl`. A literal
+  `report.journal.jsonl` collides on the drift-recovery path, which requires a
+  second report **in the same directory**: two diagnoses would append to one
+  file, so "the journal wins" reconciles the wrong run's writes into the wrong
+  report — silently, in the artifact that exists to be the incorruptible one.
+  The same fixed name also makes `--force-report`'s journal check fire on the
+  first report's journal and refuse to write the second report at all. Each
+  journal line additionally carries its `diagnosisId`, so even a journal that is
+  somehow shared remains separable by run.
 
 ### Report integrity and identity
 
@@ -484,6 +530,18 @@ how duplicate rows get created in a table with no unique constraint.
 **Mitigation (I14)**: every write subcommand takes a Postgres advisory lock
 (`pg_try_advisory_lock` on a constant derived from the tool name) for its whole
 run, and aborts with exit 28 if the lock is held.
+
+**`verify` is a write subcommand for this purpose.** It was exempted on the
+strength of "no translation writes", which is true and beside the point: it
+calls `updateProgress()`, which writes `languages.progress` on production, and
+it appends a `verification` record to the report and recomputes
+`reportChecksum`. Run alongside `apply` — two terminals, or an operator
+verifying while a stalled apply still holds its own lock — both processes
+rewrite `report.json` through independent atomic renames, and the later rename
+silently discards the earlier record. Losing `applyState`/`appliedWrites` that
+way is a direct SC-004 failure in the one artifact that is supposed to be the
+evidence. `verify` therefore takes the same lock on the same terms (reserved
+connection, exit 28 on contention or loss).
 
 **The lock MUST be taken on a dedicated, explicitly reserved connection** —
 `sql.reserve()` in `postgres@1` — held for the process lifetime. `PGStorage`
@@ -575,6 +633,33 @@ exists for. `diagnose --prior-report` therefore verifies the prior report's
 `diagnosisChecksum` **and** `reportChecksum` and its
 `productionFingerprint.databaseName` before reading anything out of it, aborting
 with exit 20 on any mismatch, exactly as the write subcommands do.
+
+**The prior `englishRestore` must be carried forward too, or the recovery path
+dead-ends (I26).** `apply`'s precondition 8 requires the report to record an
+`englishRestore` entry. On the drift-recovery loop the English master was
+restored under the _first_ report, and the re-diagnosis deliberately writes to a
+_new_ report path — which has no `englishRestore` of its own. `apply` against
+that second report aborts with exit 24, "English master not yet restored",
+about a lesson that has in fact been correctly restored. The failure lands on
+the exact path `--prior-report` was invented to serve, and its message points
+the operator at the one action that would be actively harmful: re-running
+`restore-english` to bump production to v160 for no reason.
+
+So `diagnose --prior-report` carries the prior `englishRestore` record forward
+alongside `knownBadVersions` and the bump accounting. The prior report is
+already a verified trust input (checksums plus database name, above), so this
+adds no new trust surface. Two consequences handled with it, because both are
+reachable the moment the carry-forward exists:
+
+- The carried entry is marked `carriedFromDiagnosisId`. Without it, `verify` on
+  the second report presents an earlier run's English restore as this run's
+  work, and the client-facing artifact overstates what this pass did.
+- `--force-report`'s refusal to clobber an audit artifact keys on a
+  **self-produced** `englishRestore`, never on a carried one. Keying on presence
+  alone would make the drift-recovery report unoverwritable from the instant it
+  is created, which is the opposite of the intent — the refusal exists to
+  protect the record of writes made to production, and a carried entry records
+  no writes made by this report's run.
 
 ### Aborting after the upload has already happened
 
