@@ -503,9 +503,15 @@ name plus a stable count/max-id signature) and **two** checksums, because they
 answer different questions:
 
 - `diagnosisChecksum` — SHA-256 over **only the diagnosis-produced fields**
-  (identity, affectedLessons, mappings, findings, perLanguageCounts,
-  blastRadius, plannedWrites, conflicts), computed once by `diagnose` and
-  **never recomputed**. This is the real human-review gate: it proves the
+  (identity, affectedLessons, **languageIdentityChecks**, mappings, findings,
+  perLanguageCounts, blastRadius, plannedWrites, conflicts), computed once by
+  `diagnose` and **never recomputed**. `languageIdentityChecks` belongs in the
+  list because I25 has `restore-english` and `apply` **assert** it from the
+  report instead of re-running the cross-database join. Left out, the one guard
+  against writing a language's corpus into another language's rows would rest on
+  `reportChecksum` alone — which is recomputed on every append and therefore
+  detects only tampering since the last tool write, exactly the weakness that
+  made a second checksum necessary. This is the real human-review gate: it proves the
   diagnosis being applied is byte-for-byte the diagnosis that was reviewed at
   step 4 of the runbook.
 - `reportChecksum` — SHA-256 over the whole body, recomputed on every append.

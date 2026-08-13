@@ -33,7 +33,7 @@
     "diagnosisChecksum": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$",
-      "description": "SHA-256 over ONLY the diagnosis-produced fields (identity, affectedLessons, mappings, findings, perLanguageCounts, blastRadius, plannedWrites, conflicts). Computed once by `diagnose` and NEVER recomputed. This is the human-review gate: it proves the diagnosis being applied is the one reviewed at the runbook's step-4 gate (I13)."
+      "description": "SHA-256 over ONLY the diagnosis-produced fields (identity, affectedLessons, languageIdentityChecks, mappings, findings, perLanguageCounts, blastRadius, plannedWrites, conflicts). Computed once by `diagnose` and NEVER recomputed. languageIdentityChecks is in the frozen set because restore-english and apply ASSERT it from the report rather than re-running the cross-database join (I25); covered by reportChecksum alone, the I22 guard would rest on a checksum recomputed at every append. This is the human-review gate: it proves the diagnosis being applied is the one reviewed at the runbook's step-4 gate (I13)."
     },
     "reportChecksum": {
       "type": "string",

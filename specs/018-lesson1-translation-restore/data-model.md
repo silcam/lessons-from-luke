@@ -619,10 +619,17 @@ hard-gating, since legitimate translator activity moves them.
 The two checksums are not redundant. `reportChecksum` covers the whole file and
 is recomputed on every append, so it only detects tampering since the last tool
 write. `diagnosisChecksum` covers **only the diagnosis-produced fields**
-(`identity`, `affectedLessons`, `mappings`, `findings`, `perLanguageCounts`,
-`blastRadius`, `plannedWrites`, `conflicts`) and is frozen at `diagnose` time —
-it is the one that proves the diagnosis being applied is the diagnosis a human
-reviewed at the runbook's step-4 gate.
+(`identity`, `affectedLessons`, `languageIdentityChecks`, `mappings`,
+`findings`, `perLanguageCounts`, `blastRadius`, `plannedWrites`, `conflicts`)
+and is frozen at `diagnose` time — it is the one that proves the diagnosis being
+applied is the diagnosis a human reviewed at the runbook's step-4 gate.
+
+`languageIdentityChecks` is in the frozen set because I25 has `restore-english`
+and `apply` assert it from the report rather than re-running the cross-database
+join. Covered only by `reportChecksum`, the I22 guard — the single check
+standing between the tool and writing one language's corpus into another
+language's rows — would be verified by a checksum that is recomputed on every
+append, and so proves nothing about what the human reviewed.
 
 ### `LanguageCounts`
 
