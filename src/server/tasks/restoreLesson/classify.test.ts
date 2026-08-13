@@ -177,6 +177,42 @@ describe("classifyFindings — unmatched mapping (no production counterpart)", (
     expect(findings[0].classification).not.toBe("restore");
     expect(findings[0].productionMasterId).toBeNull();
   });
+
+  // FR-008: "any translation value edited in production after the Snapshot
+  // timestamp ... MUST be left untouched and reported for human review" —
+  // this holds "regardless of reachability" through the current lesson
+  // structure. In the `findTSubsBridge` regime (bumpCount === 1), production
+  // and the Snapshot share the same masterId identity space, so a master
+  // string's own now-orphaned `tstrings` row (keyed by its `snapshotMasterId`,
+  // still fetched via `cli.ts`'s `candidateMasterIds`) can carry real,
+  // divergent evidence even when `mapMasterStrings` found no live
+  // counterpart to re-attach into. That divergence must surface as
+  // `conflict`, never be silently dropped as `lost`.
+  test("unmatched mapping whose own orphaned production row diverges from the Snapshot classifies as conflict, not lost", () => {
+    const findings = classifyFindings({
+      mappings: [mapping({ productionMasterId: null, matchMethod: "unmatched" })],
+      languages: [language()],
+      snapshotTStrings: [snapRow(100, WEBU_LANGUAGE_ID, "au commencement")],
+      productionTStrings: [
+        prodRow(100, WEBU_LANGUAGE_ID, { text: "post-incident production edit" }),
+      ],
+    });
+
+    expect(findings[0].classification).toBe("conflict");
+    expect(findings[0].productionText).toBe("post-incident production edit");
+    expect(findings[0].productionMasterId).toBeNull();
+  });
+
+  test("unmatched mapping whose own orphaned production row is unchanged from the Snapshot still classifies as lost", () => {
+    const findings = classifyFindings({
+      mappings: [mapping({ productionMasterId: null, matchMethod: "unmatched" })],
+      languages: [language()],
+      snapshotTStrings: [snapRow(100, WEBU_LANGUAGE_ID, "au commencement")],
+      productionTStrings: [prodRow(100, WEBU_LANGUAGE_ID, { text: "au commencement" })],
+    });
+
+    expect(findings[0].classification).toBe("lost");
+  });
 });
 
 describe("classifyFindings — client-reported claims verification (plan.md ~109-131)", () => {

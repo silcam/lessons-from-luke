@@ -37,9 +37,13 @@
  * specs/018-lesson1-translation-restore/spec.md §User Story 1 Acceptance
  * Scenarios, specs/018-lesson1-translation-restore/research.md D11.
  */
+import fs from "fs";
+import os from "os";
+import path from "path";
 import request from "supertest";
 import postgres, { SqlFunc } from "postgres";
 import secrets from "../../util/secrets";
+import { transformCol } from "../../storage/PGStorage";
 import { ENGLISH_ID, Language } from "../../../core/models/Language";
 import { BaseLesson } from "../../../core/models/Lesson";
 import { TString } from "../../../core/models/TString";
@@ -50,6 +54,18 @@ import {
   fetchLegacyScopedCount,
 } from "./gateway";
 import { DiagnosisReport } from "./types";
+import { PRODUCTION_MARKER_FILENAME } from "./identity";
+
+/** A throwaway home directory carrying the production marker file
+ * (`cli.ts`'s `diagnose()` precondition 1), mirroring `cli.test.ts`'s
+ * `homeDirWithMarker()`. Real production-host detection is exercised there;
+ * this integration test only needs the precondition satisfied so it can
+ * reach the diagnose logic under test. */
+function homeDirWithMarker(): string {
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "restore-lesson-integration-home-"));
+  fs.writeFileSync(path.join(homeDir, PRODUCTION_MARKER_FILENAME), "");
+  return homeDir;
+}
 
 /** The pre-incident Snapshot state, captured as data (research D11) rather
  * than a second live database connection — see file header. This is the
@@ -68,6 +84,7 @@ interface DiagnoseOptions {
   snapshotConfirmed: string;
   book?: string;
   dryRun: boolean;
+  homeDir?: string;
 }
 
 /**
@@ -125,9 +142,11 @@ let preIncidentTranslations: {
   conflictPost: string;
 };
 let snapshot: SnapshotBundle;
+let homeDir: string;
 
 beforeAll(async () => {
-  sql = postgres({ ...secrets.testDb });
+  homeDir = homeDirWithMarker();
+  sql = postgres({ ...secrets.testDb, transform: { column: transformCol } });
   const admin = await signedInAdminAgent();
 
   // ── 1. Build the lesson via the app's own real upload path ──────────
@@ -267,6 +286,7 @@ test("Diagnosis positively identifies production versus the Snapshot before doin
     snapshotConfirmed: "test-harness-confirmed",
     book: BOOK,
     dryRun: true,
+    homeDir,
   });
 
   expect(report.identity.productionMarkerPresent).toBe(true);
@@ -284,6 +304,7 @@ test("Diagnosis detects the affected lesson from data, not assumption", async ()
     snapshotConfirmed: "test-harness-confirmed",
     book: BOOK,
     dryRun: true,
+    homeDir,
   });
 
   const affected = report.affectedLessons.find(
@@ -303,6 +324,7 @@ test("Diagnosis reports per-language string status with counts and samples", asy
     snapshotConfirmed: "test-harness-confirmed",
     book: BOOK,
     dryRun: true,
+    homeDir,
   });
 
   const restoredFinding = report.findings.find(
@@ -332,6 +354,7 @@ test("Diagnosis flags shared strings that also appear in other lessons", async (
     snapshotConfirmed: "test-harness-confirmed",
     book: BOOK,
     dryRun: true,
+    homeDir,
   });
 
   expect(report.blastRadius.sharedMasterIds).toBeGreaterThanOrEqual(1);
@@ -365,6 +388,7 @@ test("Dry-run diagnosis makes no writes to either database", async () => {
     snapshotConfirmed: "test-harness-confirmed",
     book: BOOK,
     dryRun: true,
+    homeDir,
   });
   expect(report.plannedWrites.length).toBeGreaterThanOrEqual(1);
 

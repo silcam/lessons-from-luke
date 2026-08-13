@@ -8,11 +8,15 @@
  * finding only — a NULL `modified` on either side never aborts or skips a
  * pair, it simply falls back to the text comparison that already drives the
  * decision. A mapping with no production counterpart (`matchMethod ===
- * "unmatched"`, `productionMasterId === null`) always classifies as `lost`:
- * data-model.md's `MasterStringMapping` validation states unmatched entries
- * "are reported and never written", and `RestoreWrite.masterId` is
- * non-nullable, so there is no valid write target to restore into regardless
- * of what the Snapshot holds.
+ * "unmatched"`, `productionMasterId === null`) can never classify as
+ * `restore`: data-model.md's `MasterStringMapping` validation states
+ * unmatched entries "are reported and never written", and
+ * `RestoreWrite.masterId` is non-nullable, so there is no valid write target
+ * regardless of what the Snapshot holds. It CAN still classify as `conflict`
+ * (FR-008: a divergence "regardless of reachability") when the master
+ * string's own now-orphaned `tstrings` row — still keyed by
+ * `snapshotMasterId` in the same-id-space `findTSubsBridge` regime — was
+ * edited after the Snapshot; absent that evidence, it falls back to `lost`.
  *
  * `assembleBlastRadius` turns `gateway.ts`'s `fetchLessonsSharingMasterIds`
  * result into `DiagnosisReport.blastRadius` (FR-004): the count of the
@@ -109,6 +113,29 @@ function classifyOne(
     if (legacy) {
       legacyLessonStringId = legacy.lessonStringId ?? null;
     }
+  } else {
+    // No live counterpart was found to re-attach into (no valid
+    // `RestoreWrite` target — FR-007), but FR-008 requires surfacing a
+    // genuine value divergence "regardless of reachability": the master
+    // string's own now-orphaned `tstrings` row, still keyed by
+    // `snapshotMasterId` in the `findTSubsBridge` same-id-space regime (and
+    // still present among `productionTStrings` via `cli.ts`'s
+    // `candidateMasterIds`), can carry real evidence that it was edited in
+    // production after the Snapshot even though nothing currently maps to
+    // it. A divergence there must classify as `conflict`, not be silently
+    // dropped as `lost`.
+    const orphanedMatches = productionTStrings.filter(
+      (t) => t.masterId === mapping.snapshotMasterId && t.languageId === language.languageId
+    );
+    const canonical = orphanedMatches.find((t) => t.lessonStringId == null) ?? orphanedMatches[0];
+    if (canonical) {
+      productionText = canonical.text;
+      productionModified = canonical.modified;
+    }
+    const legacy = orphanedMatches.find((t) => t.lessonStringId != null);
+    if (legacy) {
+      legacyLessonStringId = legacy.lessonStringId ?? null;
+    }
   }
 
   const classification = classifyPair(mapping.productionMasterId, productionText, snapshotText);
@@ -133,7 +160,16 @@ function classifyPair(
   productionText: string | null,
   snapshotText: string | null
 ): TranslationClassification {
-  if (productionMasterId === null) return "lost";
+  if (productionMasterId === null) {
+    // Still no valid write target (RestoreWrite.masterId is non-nullable),
+    // so this can never become `restore` — but a divergence recorded on the
+    // orphaned original row is real evidence of a conflicting edit (FR-008)
+    // and must be reported as such rather than silently as `lost`.
+    if (productionText !== null && snapshotText !== null && productionText !== snapshotText) {
+      return "conflict";
+    }
+    return "lost";
+  }
   if (productionText === null && snapshotText !== null) return "restore";
   if (productionText !== null && snapshotText !== null) {
     return productionText === snapshotText ? "intact" : "conflict";
