@@ -106,6 +106,30 @@ Consequences the design must honour:
   why apply-time re-validation (below) must **reuse the report's mapping** and
   never recompute it.
 
+### Client-reported claims (unverified until diagnose)
+
+The client's technical counterpart, working from timestamp analysis, reports
+that exactly 3 translations were made against the wrong (v158 cover) text, all
+in the language "World English Bible Updated":
+
+| masterId | English source      | Stored translation    |
+| -------- | ------------------- | --------------------- |
+| 21558    | "Publisher address" | "Teacher's Guide"     |
+| 21559    | "City, Region"      | "Teacher's Guide"     |
+| 21751    | "Teacher's Guide"   | "Year of publication" |
+
+These are **claims, not facts** — they are predictions for `diagnose` to
+confirm or refute against the snapshot, never inputs that skip verification.
+If confirmed, the expected outcome is: the v157 re-upload re-attaches all
+translations via masterId reuse, `apply` has no restore writes, and these 3
+rows surface as conflict/newer-work findings for operator review (the
+classifier must **not** auto-overwrite them, since they are newer than the
+snapshot).
+
+Note these 3 masterIds are shared meta strings appearing in other lessons'
+documents for that language, so the bad translations affect more than Lesson
+1's rendering.
+
 ### Scope Boundaries (explicit non-goals)
 
 - No schema changes, migrations, or constraint additions — including the
