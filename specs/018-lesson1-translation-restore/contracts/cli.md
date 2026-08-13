@@ -121,13 +121,20 @@ cli.js apply --snapshot-url <url> --report <path> --diagnosis-id <id> \
 
 **Preconditions** — all of `restore-english`'s, plus:
 
-5. The English master has been restored (the report records it) — otherwise
-   there is no spine to attach to.
-6. `--diagnosis-id` is supplied explicitly. Apply never runs off a report the
-   operator did not name. This is the machine-checked form of FR-005's
-   "human reviewed the dry run".
-7. `--max-writes` (if given) is not exceeded by the plan; exceeding it aborts
-   before any write.
+5. The English master has been restored (the report records an `englishRestore`
+   entry) — otherwise there is no spine to attach to.
+
+**Expected-version rule (applies to `apply` and `verify`)**: precondition 2's
+"production version still matches the report" is checked against
+`englishRestore.newLessonVersion` when the report contains an `englishRestore`
+entry, and against the diagnosis-time `productionVersion` otherwise.
+`restore-english` deliberately bumps the lesson version, so checking against
+the diagnosis-time value alone would make `apply` unsatisfiable after a
+successful English restore. The check still catches the case that matters:
+_someone else_ changed the lesson between our steps. 6. `--diagnosis-id` is supplied explicitly. Apply never runs off a report the
+operator did not name. This is the machine-checked form of FR-005's
+"human reviewed the dry run". 7. `--max-writes` (if given) is not exceeded by the plan; exceeding it aborts
+before any write.
 
 **Side effects**
 
