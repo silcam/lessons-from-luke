@@ -296,6 +296,14 @@ that was written to catch it. So `diagnose`:
 A matched pair whose `name` differs across the databases is recorded as
 evidence, not treated as fatal — languages get renamed.
 
+That tolerance is only available under a `code` join. **When the key falls back
+to `name`, a language renamed since the snapshot is indistinguishable from a
+language that does not exist in production**, and the tool would abort (15) on a
+perfectly healthy database. The abort message MUST therefore name the fallback
+explicitly and say what to do: populate `languages.code` uniquely and re-run,
+rather than leaving the operator to conclude the snapshot is wrong. `matchedBy`
+is reported at step 4 of the runbook for the same reason.
+
 This is verify-and-abort, **not** remap. Divergent ids mean the operator has the
 wrong snapshot, and the tool's doctrine everywhere else is to stop on a
 surprise rather than adapt to it. A remapping layer would add complexity in
@@ -375,7 +383,11 @@ SC-002**, which is stated over every active language. `verify` must not produce
 an artifact that reads as a completed recovery when languages with planned
 writes remain unapplied. It records `verification.coverage: "complete" |
 "partial"` and, when partial, heads the client Markdown with an `INTERIM` label
-naming the languages still outstanding. The same reasoning as exit 27 and the
+naming the languages still outstanding. Coverage is computed over **this
+report's** plan; on a drift-recovery report (`priorDiagnosisId` set) the label
+must say it describes the remainder this run planned, because the earlier
+report's applied languages are recorded in that earlier report, not this one.
+The per-language counts are unaffected — they are read from live production. The same reasoning as exit 27 and the
 `DRAFT — DO NOT SEND` banner: the artifact states its own limits rather than
 depending on the operator recalling what they typed hours earlier.
 

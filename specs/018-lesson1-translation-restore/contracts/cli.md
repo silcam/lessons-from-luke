@@ -100,7 +100,10 @@ with exit 20 on mismatch — the same gate the write subcommands apply.
    divergence pass. `diagnose` tests `code` on **both** databases for non-null
    and unique, falls back to testing `name` identically, and aborts (15) naming
    the offending rows when neither qualifies. `matchedBy` records which was
-   used.
+   used. Under a `name` fallback, a language renamed since the snapshot is
+   indistinguishable from an absent one, so the abort message MUST name the
+   fallback and tell the operator to populate `languages.code` uniquely and
+   re-run — otherwise a healthy database reads as a wrong snapshot.
 
 4. `--report <path>` is writable and does not already exist (use
    `--force-report` to overwrite). **`--force-report` MUST refuse** to
@@ -392,7 +395,10 @@ labelled as snapshot-independent so nobody mistakes it for a fresh comparison.
 - **Heads the client Markdown `INTERIM` when `coverage` is `"partial"`**,
   naming the outstanding languages. A `--languages`-scoped apply does not
   satisfy SC-002, which is stated over every active language, so the artifact
-  must not read as a completed recovery. Without it, a later
+  must not read as a completed recovery. Coverage is computed over **this
+  report's** plan; on a drift-recovery report (`priorDiagnosisId` set) the label
+  says so, since the earlier run's applied languages are recorded in the earlier
+  report. The counts themselves come from live production and are unaffected. Without it, a later
   reader of `report.json` cannot tell whether the after-figures came from a live
   snapshot comparison or from stored counts — the honesty `--offline` buys on
   the console evaporates once the scrollback is gone.

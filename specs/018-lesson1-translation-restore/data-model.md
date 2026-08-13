@@ -169,7 +169,11 @@ naming the offending rows when neither qualifies. `name` is the same bare `text`
 type, so it gets the same test rather than being trusted as a backstop.
 
 A matched pair whose `name` differs across databases is recorded as evidence,
-not treated as fatal — languages get renamed.
+not treated as fatal — languages get renamed. That tolerance exists only under a
+`code` join: when `matchedBy === "name"`, a language renamed since the snapshot
+is indistinguishable from one absent in production, so the abort message must
+name the fallback and tell the operator to populate `languages.code` uniquely
+and re-run, rather than leave them concluding the snapshot is wrong.
 
 `languages.languageId` is a **serial**, exactly like `lessonId` (which the
 design refuses to assume equal across databases) and `masterId` (which gets a
@@ -490,6 +494,11 @@ Verification {
 `mode` must be durable, not just a console label: a later reader of
 `report.json` otherwise cannot tell whether the after-figures came from a live
 snapshot comparison or from the report's stored `perLanguageCounts`.
+
+`coverage` is computed over **this report's** plan. On a drift-recovery report
+(`priorDiagnosisId` set) the label states that it describes the remainder this
+run planned; the earlier report's applied languages live in that earlier report.
+Per-language counts are unaffected — they come from live production.
 
 `coverage` exists because a `--languages`-scoped apply **does not satisfy
 SC-002**, which is stated over every active language. When it is `"partial"` the
