@@ -46,8 +46,14 @@ re-review** — something moved since this runbook was written.
 
 ```bash
 mkdir -p ~/recovery && chmod 700 ~/recovery
-umask 077                     # dumps and reports land 0600
 ```
+
+Do **not** set a restrictive `umask` in your shell before running the tool. The
+tool applies one around its own dump and report writes; a shell-wide `umask 077`
+would also apply to the master document and web preview `restore-english`
+writes into `docs/`, which the **web server** reads — leaving Lesson 1
+unreadable, which is worse than the incident. The tool checks those file modes
+after the upload and aborts if they do not match their siblings.
 
 ## 1. Positively identify both servers
 
@@ -197,6 +203,12 @@ landed and are journaled — but the restore is incomplete. Read the `driftSkips
 list, then re-run `diagnose` (to a **new** report path) and repeat steps 4 and 6
 for the remainder.
 
+On that re-diagnosis, `bumpCount` will be **2** and the strategy
+`snapshotAnchored`, because `restore-english` bumped production to 159. That is
+correct and expected — the tool compares against `expectedBumpCount`, so it
+will not raise the step-4 alarm. Benign drift (someone typed the exact text we
+were going to write) is recorded but does not cause exit 27.
+
 If it fails midway: the dump taken at the start of this step restores
 production wholesale. Re-running `diagnose` will also show you exactly how far
 the apply got, and the report's `applyState` names the last completed batch.
@@ -225,6 +237,11 @@ the app:
 - [ ] Lesson 1's TSub substitution suggestions are sane. They now diff v159
       against v158 (the cover page), so they may be nonsense. Note what you see
       in the client report rather than letting a translator find it.
+- [ ] `duplicateRows` in the report is **empty**. `tstrings` has no unique
+      constraint, so a translator saving the same string in the sub-second
+      window between the tool's re-check and its write could produce a duplicate
+      row. `verify` sweeps for this. If it finds any, resolve them by hand
+      before sending the client report — do not ship a known duplicate.
 
 Read `client-report.md` before sending it. It must contain no server
 addresses, filesystem paths, database names, or credentials — only counts,
@@ -254,8 +271,9 @@ tokens, not just translations. Until then:
 shred -u ~/recovery/*.dump 2>/dev/null || rm -f ~/recovery/*.dump
 ```
 
-Keep `report.json` and `client-report.md` (also `0600`) as the record of the
-recovery.
+Keep `report.json`, `report.journal.jsonl`, and `client-report.md` (all `0600`)
+as the record of the recovery. The journal is the append-only write log — if it
+and the report ever disagree, the journal is the truth.
 
 ---
 

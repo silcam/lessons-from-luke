@@ -43,7 +43,13 @@ write side at the wrong database is unrepresentable.
   report stores no URL, password, or SSH host at all.
 - The report file is written mode `0600`; its directory must be mode `0700`
   (the tool creates it so, and aborts if an existing directory is group- or
-  world-readable). Dump files inherit the same treatment (`umask 077`).
+  world-readable). Dump files get the same treatment.
+- **The restrictive umask is scoped to dump and report writes only — never
+  process-wide.** `restore-english` also writes files the _web server_ reads
+  (`docs/…v159.odt`, `docs/web/{lessonId}-159.htm`); creating those `0600` under
+  the CLI user's ownership would leave Lesson 1 unreadable, which is worse than
+  the incident. After the upload the tool asserts the new ODT and preview match
+  the mode and owner of their pre-existing siblings in `docs/` (I18).
 - `secrets.json` content is never logged.
 
 ---
@@ -75,13 +81,15 @@ cli.js diagnose --snapshot-url <url> --report <path> --snapshot-confirmed <token
 
 - identified production/snapshot pair and the checks that passed
 - affected lesson(s), version bump count, selected mapping strategy — plus a
-  loud warning when `bumpCount !== 1`, since the known incident is a single bump
-  (v157 → v158) and anything else means reality moved
+  loud warning when `bumpCount !== expectedBumpCount`. Expected is 1 for the
+  first diagnosis (v157 → v158) and `1 + versions this tool bumped` for any
+  later one, so re-diagnosing after a legitimate `restore-english`
+  (`bumpCount` 2, `snapshotAnchored`) does **not** raise a false alarm on the
+  drift-recovery path
 - candidate master documents under `docs/`, each with its parsed version,
-  whether it matches the snapshot's English text set, and whether it is the
-  known-bad upload (version equal to the live production version — the cover
-  file). Expected for this incident: `docs/Luke-1-01v157.odt` matches,
-  `docs/Luke-1-01v158.odt` is known-bad
+  whether it matches the snapshot's English text set, and whether its version is
+  in the pinned `knownBadVersions` (the cover file). Expected for this incident:
+  `docs/Luke-1-01v157.odt` matches, `docs/Luke-1-01v158.odt` is known-bad
 - per language: intact / restore / conflict / newerWork / lost counts, with
   up to 3 sample texts per category
 - shared-master-string blast radius (which other lessons are touched)
@@ -115,13 +123,14 @@ cli.js restore-english --report <path> --diagnosis-id <id> \
 
 1. All `diagnose` preconditions.
 2. The report exists, its `diagnosisId` matches `--diagnosis-id`, its
-   `reportChecksum` verifies, its `productionFingerprint.databaseName` matches
-   the live database, and the production lesson version recorded in it still
-   matches live production.
+   frozen `diagnosisChecksum` **and** its `reportChecksum` verify, its
+   `productionFingerprint.databaseName` matches the live database, and the
+   production lesson version recorded in it still matches live production.
 3. `--master-document` is one of the report's `candidateMasterDocuments` with
    `englishTextSetMatchesSnapshot === true`, unless `--force-relink` selects the
-   direct re-link fallback. A candidate with `isKnownBadUpload === true` (the
-   cover file, `Luke-1-01v158.odt`) is **hard-denied with no override** —
+   direct re-link fallback. A candidate whose version is in the report's pinned
+   `knownBadVersions` (`isKnownBadUpload === true` — the cover file,
+   `Luke-1-01v158.odt`) is **hard-denied with no override** —
    `--force-relink` selects the fallback mechanism, it does not authorise an
    unverified document.
 4. `resolve(--master-document)` differs from the destination path the upload
@@ -130,7 +139,10 @@ cli.js restore-english --report <path> --diagnosis-id <id> \
 5. A production `pg_dump -Fc` succeeds into `--dump` (default: the report's
    directory) with at least 3× the database size free **after** accounting for
    dumps already present there from earlier steps of this recovery.
-6. The advisory lock is free (no other write subcommand running).
+6. The advisory lock is free (no other write subcommand running). It is taken
+   on a **reserved, non-pooled** connection (`sql.reserve()`) held for the whole
+   run — `PGStorage` pools its connections, and a session-level lock on a pooled
+   connection is released the moment that connection is recycled.
 
 **Side effects**
 
@@ -178,7 +190,8 @@ cli.js apply --snapshot-url <url> --report <path> --diagnosis-id <id> \
    recovery.
 8. The report's `affectedLessons` contains only the lesson the operator named;
    a detection surprise cannot quietly widen the blast radius.
-9. The advisory lock is free.
+9. The advisory lock is free, taken on a reserved connection, and re-asserted
+   as still held before each batch.
 
 **Expected-version rule (applies to `apply` and `verify`)**: precondition 2's
 "production version still matches the report" is checked against
@@ -198,10 +211,13 @@ _someone else_ changed the lesson between our steps.
   at a time**, all through `saveTStrings` (I4).
 - Awaits progress recomputation (I10).
 - Flushes `applyState`, `appliedWrites`, and `driftSkips` to the report
-  **after every per-language batch**, atomically (temp file → `fsync` →
-  rename), so an interruption still leaves a complete record (I12).
+  **after every per-language batch**, atomically (temp file in the **same
+  directory** → `fsync` → rename), so an interruption still leaves a complete
+  record (I12). Each write is also appended to a sibling
+  `report.journal.jsonl`, which is never rewritten; `appliedWrites` is
+  reconciled from it at the end and the journal wins on disagreement.
 - Appends per-language after-counts and the outstanding conflict list, and
-  recomputes `reportChecksum`.
+  recomputes `reportChecksum` (never `diagnosisChecksum`, which stays frozen).
 
 **Apply-time re-validation (I11)** — the reason a stale plan cannot corrupt
 production. Immediately before each per-language batch, apply re-fetches the
@@ -213,24 +229,35 @@ re-check **reuses the report's `mappings` verbatim** and never recomputes the
 mapping: after `restore-english` the production-vs-snapshot `bumpCount` is 2 and
 recomputation would flip the mapping strategy.
 
+Drift where the live row now holds the _identical_ text
+(`reclassifiedAs: "intact"`) is marked `benign: true`: recorded, but it does
+**not** trigger exit 27. Only `conflict`, `newerWork`, and `lost` do.
+
 **Guarantees**
 
 - No row whose live production text differs from the snapshot is touched, even
   if it changed after the diagnosis (I3, I11).
-- No duplicate rows created (I4, no bare INSERT; the drift re-check closes the
-  window where a concurrently-created row would have been re-inserted).
+- No duplicate rows created **by this tool** (I4, no bare INSERT; the drift
+  re-check closes all but the sub-second window between the re-read and the
+  write). That last window cannot be closed without a unique constraint, which
+  is outside this feature's scope — see the residual-risk note below.
 - Re-running `apply` with the same report writes nothing (I5).
 - Every overwritten value is retained in `history` (I6).
 - An interrupted apply leaves a complete record of what it wrote (I12).
 - Two applies cannot overlap (I14).
 
-**Exit codes**: 0 success, no drift; 20 report/diagnosis-id/checksum/database
+**Known residual risk**: `tstrings` has no unique constraint, so an absent row
+cannot be locked and the last sub-second race between re-read and write stays
+open. It is compensated by detection, not by a false guarantee — `verify` runs
+a duplicate sweep (I19) and reports any hit prominently.
+
+**Exit codes**: 0 success, no non-benign drift; 20 report/diagnosis-id/checksum/database
 mismatch; 21 production changed since diagnosis; 23 dump failed, insufficient
 disk, or unsafe dump directory permissions; 24 English master not yet restored;
 25 write plan exceeds `--max-writes` (explicit or the computed default);
 29 report's `affectedLessons` does not match the named lesson; **27 completed
-with drift — one or more planned writes were withheld because production
-changed; re-run `diagnose`**; 28 another write subcommand holds the advisory
+with non-benign drift — one or more planned writes were withheld because
+production changed; re-run `diagnose`**; 28 another write subcommand holds the advisory
 lock; 1 unexpected.
 
 Exit 27 is a **completion-with-caveat**, not a failure: the writes that were
@@ -276,6 +303,13 @@ plain language, suitable to forward to the client.
   paths, database names, stack traces, `masterId`/`lessonStringId` internals.
 - Structure uses real Markdown headings and tables (not ASCII art), so it
   survives an email client and a screen reader.
+
+**Duplicate-row sweep (I19)**: `verify` runs
+`SELECT languageid, masterid, lessonstringid, count(*) … HAVING count(*) > 1`
+over the affected lesson's master strings and records any hit in
+`duplicateRows`, surfacing it prominently in the client-facing Markdown. This is
+the detection that compensates for the residual write race apply cannot close.
+Any duplicate is a data defect a human must resolve.
 
 **Post-restore checks verify MUST report on** (both are consequences of the
 version bump to 159):

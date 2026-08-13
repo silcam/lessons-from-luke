@@ -7,6 +7,7 @@
   "additionalProperties": false,
   "required": [
     "diagnosisId",
+    "diagnosisChecksum",
     "reportChecksum",
     "generatedAt",
     "toolVersion",
@@ -24,10 +25,15 @@
   ],
   "properties": {
     "diagnosisId": { "type": "string", "minLength": 8 },
+    "diagnosisChecksum": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 over ONLY the diagnosis-produced fields (identity, affectedLessons, mappings, findings, perLanguageCounts, blastRadius, plannedWrites, conflicts). Computed once by `diagnose` and NEVER recomputed. This is the human-review gate: it proves the diagnosis being applied is the one reviewed at the runbook's step-4 gate (I13)."
+    },
     "reportChecksum": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$",
-      "description": "SHA-256 over the canonical serialisation of the report body with this field excluded. Re-verified by every write subcommand (I13); mismatch aborts with exit 20."
+      "description": "SHA-256 over the canonical serialisation of the whole report body with this field excluded. Recomputed on every append, so it only detects tampering since the last tool write — it cannot serve as the review gate on its own. Re-verified by every write subcommand (I13); mismatch aborts with exit 20."
     },
     "productionFingerprint": {
       "type": "object",
@@ -77,7 +83,9 @@
           "productionVersion",
           "snapshotVersion",
           "bumpCount",
+          "expectedBumpCount",
           "mappingStrategy",
+          "knownBadVersions",
           "candidateMasterDocuments"
         ],
         "properties": {
@@ -89,7 +97,17 @@
           "productionVersion": { "type": "integer" },
           "snapshotVersion": { "type": "integer" },
           "bumpCount": { "type": "integer", "minimum": 1 },
+          "expectedBumpCount": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "1 for the first diagnosis; 1 + versions bumped by this tool for any later one (read from the prior report's englishRestore). The stop-and-re-review warning fires when bumpCount !== expectedBumpCount, so re-diagnosing after a legitimate English restore (bumpCount 2, snapshotAnchored) does not alarm on its own happy path."
+          },
           "mappingStrategy": { "enum": ["findTSubsBridge", "snapshotAnchored"] },
+          "knownBadVersions": {
+            "type": "array",
+            "items": { "type": "integer" },
+            "description": "Lesson versions that must never be re-uploaded — [158] for this incident. PINNED at first diagnosis and carried forward; never derived from the live production version, which after the restore-english bump to 159 would stop flagging the cover file and start flagging the file just correctly restored."
+          },
           "candidateMasterDocuments": {
             "type": "array",
             "items": {
@@ -110,7 +128,7 @@
                 "englishTextSetMatchesSnapshot": { "type": "boolean" },
                 "isKnownBadUpload": {
                   "type": "boolean",
-                  "description": "True when this document's version equals the live production lesson version — i.e. it is the cover file that caused the incident (v158 for Luke 1-1). Hard-denied as --master-document with no override flag."
+                  "description": "True when this document's version is in the enclosing lesson's pinned knownBadVersions — i.e. it is the cover file that caused the incident (v158 for Luke 1-1). Hard-denied as --master-document with no override flag."
                 },
                 "missingFromDocument": { "type": "array", "items": { "type": "string" } },
                 "extraInDocument": { "type": "array", "items": { "type": "string" } }
@@ -266,7 +284,7 @@
     },
     "driftSkips": {
       "type": "array",
-      "description": "Apply only. Planned writes withheld because the live production row no longer matches the diagnosis-time classification (I11). A non-empty array makes apply exit 27.",
+      "description": "Apply only. Planned writes withheld because the live production row no longer matches the diagnosis-time classification (I11). Any entry with benign === false makes apply exit 27; benign (intact) drift is recorded but does not.",
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -276,6 +294,7 @@
           "plannedText",
           "liveProductionText",
           "reclassifiedAs",
+          "benign",
           "detectedAt"
         ],
         "properties": {
@@ -284,7 +303,27 @@
           "plannedText": { "type": "string" },
           "liveProductionText": { "type": ["string", "null"] },
           "reclassifiedAs": { "enum": ["intact", "conflict", "newerWork", "lost"] },
+          "benign": {
+            "type": "boolean",
+            "description": "True iff reclassifiedAs === 'intact' — someone re-typed the exact text we were going to write. Recorded for the audit trail; does not trigger exit 27."
+          },
           "detectedAt": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "duplicateRows": {
+      "type": "array",
+      "description": "Verify only. Result of the duplicate sweep over the affected lesson's master strings (I19). The apply-time re-check narrows but cannot close the write race — tstrings has no unique constraint, so an absent row cannot be locked and adding one is outside this feature's scope. Detection is the honest compensation; any hit is a data defect a human must resolve, and is surfaced in the client-facing report.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["languageId", "masterId", "lessonStringId", "rowCount", "texts"],
+        "properties": {
+          "languageId": { "type": "integer" },
+          "masterId": { "type": "integer" },
+          "lessonStringId": { "type": ["integer", "null"] },
+          "rowCount": { "type": "integer", "minimum": 2 },
+          "texts": { "type": "array", "items": { "type": "string" } }
         }
       }
     },
@@ -292,7 +331,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["startedAt", "languageBatches", "completedAt"],
-      "description": "Batch journal flushed atomically (temp file → fsync → rename) after EVERY per-language batch, so an interrupted apply still leaves a complete record of what was written (SC-004, I12).",
+      "description": "Batch journal flushed atomically after EVERY per-language batch, so an interrupted apply still leaves a complete record of what was written (SC-004, I12). The temp file MUST be created in the SAME directory as the report — rename(2) is atomic only within a filesystem. The per-write log is also appended to a sibling report.journal.jsonl which is never rewritten; appliedWrites is reconciled from it at the end and the journal wins on disagreement.",
       "properties": {
         "startedAt": { "type": "string", "format": "date-time" },
         "completedAt": { "type": ["string", "null"], "format": "date-time" },

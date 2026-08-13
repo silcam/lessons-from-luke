@@ -267,6 +267,15 @@ are equal, so a version-arithmetic error can never delete the source file.
 
 ### Known-bad document guard (misuse)
 
+The known-bad version MUST be **pinned in the report**, not derived from the
+live production version. `isKnownBadUpload = (version === live production
+version)` is correct only until `restore-english` bumps production to 159 — at
+which point a re-diagnosis would stop flagging v158, the actual cover file, and
+start flagging v159, the file we just correctly restored. `diagnose` records
+`knownBadVersions: [158]` (the production version at first diagnosis, plus any
+carried forward from a prior report) and every later command reads the pinned
+list.
+
 The incident _was_ an operator uploading the wrong file. The tool must make
 repeating it impossible rather than unlikely:
 
@@ -300,16 +309,41 @@ batch**, atomically (write temp file, `fsync`, rename). The report carries an
 `applyState` recording which language batches have completed, so a resumed or
 re-diagnosed run can see exactly how far the previous attempt got.
 
+Two constraints the atomic-rename claim depends on:
+
+- The temp file MUST be created **in the same directory** as the report.
+  `rename(2)` is only atomic within a filesystem; a temp file in `/tmp` gives a
+  copy, not a rename, and can leave a truncated report.
+- The whole report (findings for ~10²–10³ strings × ~10–30 languages) is
+  rewritten on every flush. To keep the audit trail cheap and append-only, the
+  per-write log is **also** appended line-by-line to a sibling
+  `report.journal.jsonl` as each batch completes, and the report's
+  `appliedWrites` is reconciled from it at the end. If the two ever disagree,
+  the journal wins — it is the one artifact that is never rewritten.
+
 ### Report integrity and identity
 
 The `diagnosisId` gate assumes the report file is trustworthy. It is a plain
 JSON file on a shared server that a well-meaning operator can edit.
 
-**Mitigation (I13)**: the report records a `reportChecksum` (SHA-256 over the
-canonical serialisation of the body, excluding the checksum field) and a
-`productionFingerprint` (database name plus a stable count/max-id signature).
-Write commands verify both before doing anything; a mismatch aborts with exit 20. This makes "the report I reviewed is the report being applied" a checked
-fact rather than a filename convention.
+**Mitigation (I13)**: the report records a `productionFingerprint` (database
+name plus a stable count/max-id signature) and **two** checksums, because they
+answer different questions:
+
+- `diagnosisChecksum` — SHA-256 over **only the diagnosis-produced fields**
+  (identity, affectedLessons, mappings, findings, perLanguageCounts,
+  blastRadius, plannedWrites, conflicts), computed once by `diagnose` and
+  **never recomputed**. This is the real human-review gate: it proves the
+  diagnosis being applied is byte-for-byte the diagnosis that was reviewed at
+  step 4 of the runbook.
+- `reportChecksum` — SHA-256 over the whole body, recomputed on every append.
+  This only detects tampering since the last tool write, which is why it cannot
+  serve as the review gate on its own.
+
+Every write subcommand verifies both plus `productionFingerprint.databaseName`
+before doing anything; a mismatch aborts with exit 20. This makes "the report I
+reviewed is the report being applied" a checked fact rather than a filename
+convention.
 
 ### Concurrent invocations
 
@@ -317,9 +351,54 @@ Nothing prevents two operators — or an operator and a forgotten background
 shell — from running `restore-english` or `apply` at the same time, which is
 how duplicate rows get created in a table with no unique constraint.
 
-**Mitigation (I14)**: every write subcommand takes a Postgres session-level
-advisory lock (`pg_try_advisory_lock` on a constant derived from the tool name)
-for its whole run, and aborts with exit 28 if the lock is held.
+**Mitigation (I14)**: every write subcommand takes a Postgres advisory lock
+(`pg_try_advisory_lock` on a constant derived from the tool name) for its whole
+run, and aborts with exit 28 if the lock is held.
+
+**The lock MUST be taken on a dedicated, explicitly reserved connection** —
+`sql.reserve()` in `postgres@1` — held for the process lifetime. `PGStorage`
+pools its connections; a session-level advisory lock taken on a pooled
+connection is released the moment that connection is recycled, which would make
+the guard silently useless exactly when concurrency is highest. The tool asserts
+it still holds the lock before each batch.
+
+### The residual write race, and detecting what it costs
+
+Apply-time re-classification (I11) narrows the drift window from "hours" to
+"the gap between the re-fetch and the write", but it does not close it. It
+cannot: `tstrings` has **no unique constraint**, so an absent row cannot be
+locked, and adding one is outside this feature's scope boundary.
+
+Two honest compensations rather than a false guarantee:
+
+- The dumps and the apply run in a low-traffic window for the client's timezone,
+  which is when concurrent edits are least likely.
+- **`verify` runs a duplicate-row sweep** over the affected lesson's master
+  strings: `SELECT languageid, masterid, lessonstringid, count(*) … HAVING
+count(*) > 1`. Any duplicate is reported prominently with its rows, in both
+  the JSON report (`duplicateRows`) and the client-facing Markdown. A duplicate
+  is a data defect a human must resolve; the tool detects it rather than
+  pretending it cannot happen.
+
+This is recorded as a **known residual risk**, not as a solved problem.
+
+### Drift severity, and re-diagnosing after drift
+
+Two refinements to I11 that only become visible once it exists:
+
+- **Not all drift is bad drift.** A planned write whose live row now holds the
+  _identical_ text (`reclassifiedAs: "intact"`) is a benign no-op — someone
+  re-typed what we were going to write. It is recorded but MUST NOT trigger
+  exit 27. Only `conflict`, `newerWork`, and `lost` reclassifications do.
+  Making a benign case alarm is how operators learn to ignore the alarm.
+- **Re-diagnosing after a partial apply legitimately changes the strategy.**
+  Once `restore-english` has bumped production to v159, a fresh `diagnose`
+  computes `bumpCount = 2` and selects `snapshotAnchored`. That is correct, not
+  a red flag. The "`bumpCount !== 1`, stop and re-review" warning MUST therefore
+  be conditional: expected `bumpCount` is 1 before any English restore and
+  `1 + (versions bumped by this tool)` afterwards, read from the prior report's
+  `englishRestore`. The runbook's drift-recovery loop would otherwise fire a
+  scary warning on its own happy path.
 
 ### Overwriting the audit artifact
 
@@ -374,8 +453,17 @@ tables (Argon2id password hashes), `session` (live session tokens), and
 Requirements:
 
 - The dump directory MUST be created `0700` and the tool MUST verify its mode
-  before writing; dump files MUST be written with mode `0600` (set `umask 077`
-  for the process).
+  before writing; dump files MUST be written with mode `0600`.
+- **The restrictive umask MUST be scoped to the dump and report writes only —
+  never process-wide.** `restore-english` also writes files the _web server_
+  reads: the copied master document (`docs/Luke-1-01v159.odt`) and the
+  regenerated web preview (`docs/web/{lessonId}-159.htm`). A process-wide
+  `umask 077` would create those `0600` owned by the CLI user, and if the app
+  runs as a different user Lesson 1 breaks **worse than the incident** —
+  unreadable instead of merely wrong. The umask is set immediately before and
+  restored immediately after each dump/report write. After the upload, the tool
+  MUST assert the new ODT and preview have the same mode and owner as their
+  pre-existing siblings in `docs/`, and abort loudly if not.
 - Dumps MUST NOT be copied off the production host — not to a laptop, not to
   cloud storage, not attached to anything sent to the client.
 - The runbook MUST include an explicit **retention and destruction** step:
