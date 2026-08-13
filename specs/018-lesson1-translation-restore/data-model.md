@@ -455,7 +455,7 @@ one-language run.
 
 ### `EnglishRestore`
 
-Recorded by `restore-english`; its presence is `apply`'s precondition 5 and the
+Recorded by `restore-english`; its presence is `apply`'s precondition 8 and the
 source of the expected-version rule.
 
 ```

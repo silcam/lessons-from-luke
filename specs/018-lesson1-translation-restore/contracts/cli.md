@@ -153,17 +153,17 @@ with exit 20 on mismatch — the same gate the write subcommands apply.
 
 **Exit codes**
 
-| Code | Meaning                                                                                                                                      |
-| ---- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0    | Diagnosis complete; report written                                                                                                           |
-| 10   | Production marker file missing / identity unverified                                                                                         |
-| 11   | Snapshot is not older than production (aborted)                                                                                              |
-| 12   | Snapshot connection failed or is writable when it must not be                                                                                |
-| 13   | No affected lesson detected                                                                                                                  |
-| 14   | Report path unwritable, already exists, its directory is group/world-readable, or a report exists beside it and `--prior-report` was omitted |
-| 15   | **Language identity diverges between the databases — wrong snapshot** (I22)                                                                  |
-| 20   | `--prior-report`'s checksums or database name do not verify                                                                                  |
-| 1    | Unexpected error                                                                                                                             |
+| Code | Meaning                                                                                                                                                                                                                    |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0    | Diagnosis complete; report written                                                                                                                                                                                         |
+| 10   | Production marker file missing / identity unverified                                                                                                                                                                       |
+| 11   | Snapshot is not older than production (aborted)                                                                                                                                                                            |
+| 12   | Snapshot connection failed or is writable when it must not be                                                                                                                                                              |
+| 13   | No affected lesson detected                                                                                                                                                                                                |
+| 14   | Report path unwritable, already exists, its directory is group/world-readable, or a report exists beside it and `--prior-report` was omitted                                                                               |
+| 15   | **Language identity unusable (I22)** — either the ids diverge (wrong snapshot) or neither `code` nor `name` qualifies as a join key (healthy database; fix the named `languages` rows and re-run). The message says which. |
+| 20   | `--prior-report`'s checksums or database name do not verify                                                                                                                                                                |
+| 1    | Unexpected error                                                                                                                                                                                                           |
 
 ---
 
@@ -255,24 +255,24 @@ cli.js apply --snapshot-url <url> --report <path> --diagnosis-id <id> \
       [--dump <dir>] [--languages <ids>] [--max-writes <n>]
 ```
 
-**Preconditions** — all of `restore-english`'s, plus:
+**Preconditions** — all seven of `restore-english`'s, plus:
 
-5. The English master has been restored (the report records an `englishRestore`
+8. The English master has been restored (the report records an `englishRestore`
    entry) — otherwise there is no spine to attach to.
-6. `--diagnosis-id` is supplied explicitly. Apply never runs off a report the
+9. `--diagnosis-id` is supplied explicitly. Apply never runs off a report the
    operator did not name. This is the machine-checked form of FR-005's
    "human reviewed the dry run".
-7. `--max-writes` is not exceeded by the plan; exceeding it aborts before any
-   write. **When omitted it defaults to a computed sanity cap** — the
-   snapshot's reachable translation count for the affected lesson × 1.2 — not
-   to unbounded. A plan larger than that is a mapping failure, not a big
-   recovery. When `--languages` is given, the cap is computed **over the scoped
-   languages only**; a whole-corpus cap is no cap at all for a one-language run.
-8. The report's `affectedLessons` contains only the lesson the operator named;
-   a detection surprise cannot quietly widen the blast radius.
-9. The advisory lock is free, taken on a reserved connection before the dump,
-   and re-asserted as still held before each batch — aborting with 28 on loss,
-   never re-acquiring.
+10. `--max-writes` is not exceeded by the plan; exceeding it aborts before any
+    write. **When omitted it defaults to a computed sanity cap** — the
+    snapshot's reachable translation count for the affected lesson × 1.2 — not
+    to unbounded. A plan larger than that is a mapping failure, not a big
+    recovery. When `--languages` is given, the cap is computed **over the scoped
+    languages only**; a whole-corpus cap is no cap at all for a one-language run.
+11. The report's `affectedLessons` contains only the lesson the operator named;
+    a detection surprise cannot quietly widen the blast radius.
+12. The advisory lock is free, taken on a reserved connection before the dump,
+    and re-asserted as still held before each batch — aborting with 28 on loss,
+    never re-acquiring.
 
 **Expected-version rule (applies to `apply` and `verify`)**: precondition 2's
 "production version still matches the report" is checked against
