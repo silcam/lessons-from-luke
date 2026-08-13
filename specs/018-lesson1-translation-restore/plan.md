@@ -20,7 +20,7 @@ apply. English is restored by re-uploading the historical master document
 through the app's own upload pathway **after** the report is durable — which
 reuses the original master-string ids and re-attaches most translations for
 free. Remaining orphans are copied through `saveTStrings` one language at a
-time, and any production value that differs from the snapshot is left untouched
+time, and any production value that differs from the Snapshot is left untouched
 and reported as a conflict.
 
 ## Technical Context
@@ -62,14 +62,14 @@ human-reviewed dry-run gate before any write; `cleanDB.ts` must not run.
 
 | Deferred question                                          | Resolution                                                                                                                                                                                                                                                           |
 | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| How many version bumps since the snapshot?                 | **Measured at runtime, not assumed.** Both mapping strategies are built; `bumpCount` selects one (research D3). The snapshot's own `lessonstrings` generation is the primary source of pre-incident linkage, which makes the one-bump `findTSubs` limit non-binding. |
+| How many version bumps since the Snapshot?                 | **Measured at runtime, not assumed.** Both mapping strategies are built; `bumpCount` selects one (research D3). The snapshot's own `lessonstrings` generation is the primary source of pre-incident linkage, which makes the one-bump `findTSubs` limit non-binding. |
 | Do legacy `lessonStringId`-scoped rows exist?              | **Counted, not assumed inert.** The diagnosis reports `count(*) FROM tstrings WHERE lessonstringid IS NOT NULL` on both sides and per finding (research D4).                                                                                                         |
 | Conflict detection when `modified` is NULL                 | Value comparison is primary; a difference is a conflict regardless of timestamps. NULL-`modified` counts are reported (research D7).                                                                                                                                 |
 | Write via `saveTStrings` or hand-rolled SQL?               | `saveTStrings`, wrapped — **one language per batch** (it dedupes by `masterId` ignoring `languageId`) and **`history: []` on inserts** (it routes non-empty-history rows to an UPDATE that no-ops for absent rows). Research D6.                                     |
 | Should restored rows propagate to desktop clients?         | **Yes, deliberately** — `saveTStrings` stamps `modified = now`; back-dating would also corrupt future conflict evidence (research D8).                                                                                                                               |
 | Connection topology                                        | Tool runs on production (socket-only DB); snapshot reached over `ssh -L 5433` (research D1, quickstart step 2).                                                                                                                                                      |
 | Where to store the pre-apply dump                          | Operator-supplied `--dump <dir>`; the tool checks writability and ≥3× free space and aborts otherwise (research D9).                                                                                                                                                 |
-| Restore English via the upload pathway, or direct re-link? | **Upload pathway, after diagnosis is durable** — resolving the spec/brainstorm tension by ordering. Preflight verifies the candidate ODT's English text set against the snapshot before use; direct re-link is the fallback (research D5).                           |
+| Restore English via the upload pathway, or direct re-link? | **Upload pathway, after diagnosis is durable** — resolving the spec/brainstorm tension by ordering. Preflight verifies the candidate ODT's English text set against the Snapshot before use; direct re-link is the fallback (research D5).                           |
 
 ### Known incident version facts (supplied by the operator, 2026-08-13)
 
@@ -80,7 +80,7 @@ runtime and aborts on mismatch rather than trusting them (Principle Zeroth).
 | ---------------------------------------------------------- | --------------------------------------- | ---------------------------------------------------------------- |
 | Affected lesson                                            | Luke, series 1, lesson 1                | `(book, series, lesson)` join across both databases (FR-002)     |
 | Mistaken cover-file upload                                 | lesson **version 158**                  | live `lessons.version` on production                             |
-| Correct pre-incident master                                | lesson **version 157**                  | `lessons.version` in the snapshot                                |
+| Correct pre-incident master                                | lesson **version 157**                  | `lessons.version` in the Snapshot                                |
 | Expected `bumpCount`                                       | **1** (158 − 157)                       | computed; drives strategy selection                              |
 | Expected mapping strategy                                  | **`findTSubsBridge`** (bumpCount === 1) | selected from the measured `bumpCount` (research D3)             |
 | Expected restore-source document, still on the prod server | `docs/Luke-1-01v157.odt`                | `docStorage.docFilepath` naming; verified against snapshot text  |
@@ -119,7 +119,7 @@ in the language "World English Bible Updated":
 | 21751    | "Teacher's Guide"   | "Year of publication" |
 
 These are **claims, not facts** — they are predictions for `diagnose` to
-confirm or refute against the snapshot, never inputs that skip verification.
+confirm or refute against the Snapshot, never inputs that skip verification.
 If confirmed, the expected outcome is: the v157 re-upload re-attaches all
 translations via masterId reuse, `apply` has no restore writes, and these 3
 rows surface as conflict/newer-work findings for operator review (the
@@ -183,7 +183,7 @@ specs/018-lesson1-translation-restore/
 ```text
 src/server/
 ├── storage/
-│   └── PGSnapshotStorage.ts             # NEW: read-only PGStorage subclass for the snapshot
+│   └── PGSnapshotStorage.ts             # NEW: read-only PGStorage subclass for the Snapshot
 │                                        #      (mutators throw; session read-only)
 └── tasks/
     └── restoreLesson/                   # NEW
@@ -228,7 +228,7 @@ established the "subclass, swap `this.sql`" pattern. Nothing is added to
 
 The harness for all four is the incident re-creation described in research D11:
 inside the test environment, build a lesson with translations through the app's
-own upload path, capture that state as the snapshot side, upload a different
+own upload path, capture that state as the Snapshot side, upload a different
 document to orphan the translations, then exercise diagnose → restore-english →
 apply → verify.
 
@@ -266,7 +266,7 @@ Two constraints on the re-check:
 
 - It reuses the report's `mappings` verbatim. It must **not** recompute the
   master-string mapping, because after `restore-english` the production
-  `bumpCount` relative to the snapshot is 2 and the strategy would flip.
+  `bumpCount` relative to the Snapshot is 2 and the strategy would flip.
 - The re-fetch uses the same unfiltered raw SQL as diagnosis (research D4), not
   the `Persistence` read methods, or archived languages and legacy
   `lessonStringId` rows go invisible again and drift is under-detected.
@@ -281,7 +281,7 @@ diagnosis-time one.
 `restore-english` and `apply` are specified as requiring "all `diagnose`
 preconditions". Two of those preconditions need a **snapshot connection** —
 `snapshotVersion < productionVersion`, and the I22 cross-database language
-join — and neither subcommand has one: the snapshot credential is a `diagnose`
+join — and neither subcommand has one: the Snapshot credential is a `diagnose`
 input, and handing it to the write subcommands would put a password on the
 command line at exactly the moment the tool is writing to production. As
 written, the requirement is unsatisfiable, and an implementer resolving it
@@ -306,9 +306,9 @@ I11 re-check reads live **production**. Dropping the flag removes a credential
 from the command line, a liveness dependency, and one more chance to point a
 connection at the wrong database.
 
-This yields a property worth stating: **the snapshot server only has to be
+This yields a property worth stating: **the Snapshot server only has to be
 reachable during `diagnose`** (and during a non-`--offline` `verify`). The spec
-carries the snapshot's continued availability as an external assumption held by
+carries the Snapshot's continued availability as an external assumption held by
 the client's technical contact; this narrows the window that assumption has to
 hold from "until restoration completes" to "until diagnosis completes".
 
@@ -326,7 +326,7 @@ pre-incident translations into a **different language's** rows — a silent
 corruption worse than the incident, invisible to every other guard, because
 each individual write still looks like a legitimate `restore` of an absent row.
 
-The ids probably do agree (the snapshot is meant to be a lineal ancestor of
+The ids probably do agree (the Snapshot is meant to be a lineal ancestor of
 production). "Probably" is exactly what Principle Zeroth forbids, and the
 failure mode is unrecoverable-by-inspection.
 
@@ -357,11 +357,11 @@ A matched pair whose `name` differs across the databases is recorded as
 evidence, not treated as fatal — languages get renamed.
 
 That tolerance is only available under a `code` join. **When the key falls back
-to `name`, a language renamed since the snapshot is indistinguishable from a
+to `name`, a language renamed since the Snapshot is indistinguishable from a
 language that does not exist in production**, and the tool would abort (15) on a
 perfectly healthy database. The abort message MUST therefore name the fallback
 explicitly and say what to do: populate `languages.code` uniquely and re-run,
-rather than leaving the operator to conclude the snapshot is wrong. `matchedBy`
+rather than leaving the operator to conclude the Snapshot is wrong. `matchedBy`
 is reported at step 4 of the runbook for the same reason.
 
 This is verify-and-abort, **not** remap. Divergent ids mean the operator has the
@@ -712,7 +712,7 @@ sibling `report.journal.jsonl` exists with entries. That file is the record of w
 to production and the pointer to the pre-apply dump; clobbering it destroys the
 evidence for SC-004 and the operator's route back.
 
-### `verify` when the snapshot is gone
+### `verify` when the Snapshot is gone
 
 The snapshot server's availability is an external assumption held by the
 client's technical contact. If it is torn down between `apply` and `verify`,
@@ -835,7 +835,7 @@ Requirements:
 ### Report artifacts contain the corpus
 
 `report.json` contains the full text of every affected translation in every
-language, plus internal paths, database names, and the snapshot server's role.
+language, plus internal paths, database names, and the Snapshot server's role.
 It is a working artifact for the operator, not a deliverable.
 
 Requirements:
@@ -868,7 +868,7 @@ This is an operator tool on a trusted host, so the threat model is
 **operator error under time pressure**, not an external attacker. The guards
 that matter are the ones above plus:
 
-- `--max-writes` defaults to a computed sanity cap (the snapshot's reachable
+- `--max-writes` defaults to a computed sanity cap (the Snapshot's reachable
   translation count for the affected lesson, times 1.2) rather than being
   unbounded when omitted. A write plan larger than that is a mapping failure,
   not a big recovery, and MUST abort before any write.
@@ -921,5 +921,5 @@ this feature.
 | Violation                                                                                             | Why Needed                                                                                                                                                                                                      | Simpler Alternative Rejected Because                                                                                                                                                                                                      |
 | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Raw SQL for diagnosis reads (inside `PGStorage` subclasses, not through the interface's read methods) | `Persistence.languages()`/`tStrings()` filter out archived languages, and `tStrings({lessonId})` filters out legacy `lessonStringId`-scoped rows — exactly the rows the diagnosis exists to find (research D4). | Using the interface reads would silently under-report orphans and could lose an archived language's translations entirely — a correctness failure, not a style preference. The SQL stays inside the storage layer, matching `cleanDB.ts`. |
-| Two master-string mapping strategies rather than one                                                  | The number of version bumps since the snapshot cannot be read from this repo; both branches are reachable in production (research D3).                                                                          | Picking one at planning time is a guess that fails silently on the wrong branch; the tool measures `bumpCount` and selects, reporting which it used.                                                                                      |
+| Two master-string mapping strategies rather than one                                                  | The number of version bumps since the Snapshot cannot be read from this repo; both branches are reachable in production (research D3).                                                                          | Picking one at planning time is a guess that fails silently on the wrong branch; the tool measures `bumpCount` and selects, reporting which it used.                                                                                      |
 | A wrapper around `saveTStrings` instead of calling it directly                                        | Two defects in `saveTStrings` (masterId-only dedupe across languages; "has history" used as "row exists") would silently drop restored rows on exactly this feature's copy path (research D6).                  | Calling it directly loses data silently. Patching `saveTStrings` itself is out of scope during an incident recovery — it is the live app's shared write path; both defects are logged as follow-up work.                                  |
