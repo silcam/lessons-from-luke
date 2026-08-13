@@ -145,14 +145,31 @@ sides (invariant I22). One entry per language seen in either database.
 
 ```
 LanguageIdentityCheck {
-  code: string                          // the join key
+  matchedBy: "code" | "name"            // the key chosen at runtime
+  key: string                           // its value
   snapshotLanguageId: number | null     // null = production-only language
   productionLanguageId: number | null   // null = snapshot-only language
+  snapshotCode: string | null
+  productionCode: string | null
   snapshotName: string | null
   productionName: string | null
   agrees: boolean                       // ids equal, or production-only
 }
 ```
+
+**The join key is chosen at runtime, not assumed.**
+`migrations/1582711758713-LoadSchema.js` declares `languages.code` as bare
+`text` — **nullable and not unique** (`code text`, no constraint). Joining on it
+unconditionally would rest this guard on exactly the kind of unchecked
+assumption it exists to remove: NULL codes collapse into one group and duplicate
+codes make the pairing arbitrary, so a real divergence could pass the check
+written to catch it. `diagnose` therefore tests `code` on **both** databases for
+non-null and unique, falls back to testing `name` the same way, and aborts (15)
+naming the offending rows when neither qualifies. `name` is the same bare `text`
+type, so it gets the same test rather than being trusted as a backstop.
+
+A matched pair whose `name` differs across databases is recorded as evidence,
+not treated as fatal — languages get renamed.
 
 `languages.languageId` is a **serial**, exactly like `lessonId` (which the
 design refuses to assume equal across databases) and `masterId` (which gets a
@@ -165,10 +182,12 @@ row. It is the one corruption in this design that no downstream check catches.
 
 Validation — `diagnose` aborts with exit 15 when any of these hold:
 
+- Neither `code` nor `name` qualifies as a key (non-null and unique) on both
+  databases — identity cannot be established from the data at all.
 - A matched pair has `snapshotLanguageId !== productionLanguageId`.
 - Two snapshot languages map to one production language (or vice versa).
 - A snapshot language with translations of the affected lesson has no
-  production counterpart by `code`.
+  production counterpart under the chosen key.
 
 Production-only languages are recorded with `agrees: true` — they are
 post-snapshot additions with nothing to restore.
@@ -460,6 +479,8 @@ Recorded by `verify`.
 ```
 Verification {
   mode: "snapshot" | "offline"
+  coverage: "complete" | "partial"      // partial when apply was --languages-scoped
+  unappliedLanguageIds: number[]        // languages with planned writes not yet applied
   verifiedAt: string                    // ISO 8601
   clientReportPath: string
   clientReportWithheld: boolean         // true when the duplicate delta is non-empty
@@ -469,6 +490,12 @@ Verification {
 `mode` must be durable, not just a console label: a later reader of
 `report.json` otherwise cannot tell whether the after-figures came from a live
 snapshot comparison or from the report's stored `perLanguageCounts`.
+
+`coverage` exists because a `--languages`-scoped apply **does not satisfy
+SC-002**, which is stated over every active language. When it is `"partial"` the
+client Markdown is headed `INTERIM` and names the outstanding languages, so the
+artifact cannot be mistaken for a completed recovery — the same reasoning as
+exit 27 and the `DRAFT — DO NOT SEND` banner.
 
 `clientReportWithheld` pairs with exit 30. The Markdown is **always** written —
 withholding it invites a hand-written substitute — but on a non-empty duplicate

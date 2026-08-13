@@ -81,17 +81,27 @@ with exit 20 on mismatch — the same gate the write subcommands apply.
 2. The snapshot connection opens and is older than production for the affected
    lesson (`snapshotVersion < productionVersion`).
 3. **Language identity agrees across the two databases (I22).** `languages` is
-   joined on `code` (unfiltered raw SQL, so archived languages participate) and
-   every matched pair must satisfy
+   joined across the databases (unfiltered raw SQL, so archived languages
+   participate) and every matched pair must satisfy
    `snapshotLanguageId === productionLanguageId`. `languageId` is a serial,
    exactly like `lessonId` and `masterId`, and every finding and write carries
    one bare value used on both sides — a divergence would write one language's
    translations into another language's rows. Also fatal: two snapshot
    languages mapping to one production language, and a snapshot language with
-   affected-lesson translations having no production counterpart by `code`.
-   Verified and aborted on (15), **never remapped** — divergence means the
-   operator has the wrong snapshot. Languages present only in production are
-   recorded, not fatal.
+   affected-lesson translations having no production counterpart under the
+   chosen key. Verified and aborted on (15), **never remapped** — divergence
+   means the operator has the wrong snapshot. Languages present only in
+   production are recorded, not fatal.
+
+   **The join key is chosen at runtime.** `languages.code` is declared bare
+   `text` — nullable and not unique — so joining on it unconditionally would
+   rest this guard on an unchecked assumption: NULL codes collapse into one
+   group and duplicate codes make the pairing arbitrary, letting a real
+   divergence pass. `diagnose` tests `code` on **both** databases for non-null
+   and unique, falls back to testing `name` identically, and aborts (15) naming
+   the offending rows when neither qualifies. `matchedBy` records which was
+   used.
+
 4. `--report <path>` is writable and does not already exist (use
    `--force-report` to overwrite). **`--force-report` MUST refuse** to
    overwrite a report that already contains `englishRestore` or
@@ -175,9 +185,10 @@ cli.js restore-english --report <path> --diagnosis-id <id> \
    `Luke-1-01v158.odt`) is **hard-denied with no override** —
    `--force-relink` selects the fallback mechanism, it does not authorise an
    unverified document.
-4. **The bytes still match the bytes that were verified (I23).** The file is
-   re-hashed and must equal the candidate's recorded `sha256` and `sizeBytes`,
-   and its resolved real path must lie inside the `docs/` root. The report is
+4. **The bytes still match the bytes that were verified (I23)** — applies to
+   the upload path; `--force-relink` uses no document and skips 3, 4, and 5.
+   The file is re-hashed and must equal the candidate's recorded `sha256` and
+   `sizeBytes`, and its resolved real path must lie inside the `docs/` root. The report is
    checksum-gated but the ODT on disk is not; without this, anything that
    replaces or symlinks `docs/Luke-1-01v157.odt` between diagnosis and restore
    passes every other gate and gets uploaded as the master. Mismatch aborts
@@ -375,8 +386,13 @@ labelled as snapshot-independent so nobody mistakes it for a fresh comparison.
 - Writes a client-facing Markdown report at `--out`
   (default: alongside the JSON report).
 - Appends a `verification` record to the JSON report
-  (`mode: "snapshot" | "offline"`, `verifiedAt`, `clientReportPath`,
-  `clientReportWithheld`) and recomputes `reportChecksum`. Without it, a later
+  (`mode: "snapshot" | "offline"`, `coverage: "complete" | "partial"`,
+  `unappliedLanguageIds`, `verifiedAt`, `clientReportPath`,
+  `clientReportWithheld`) and recomputes `reportChecksum`.
+- **Heads the client Markdown `INTERIM` when `coverage` is `"partial"`**,
+  naming the outstanding languages. A `--languages`-scoped apply does not
+  satisfy SC-002, which is stated over every active language, so the artifact
+  must not read as a completed recovery. Without it, a later
   reader of `report.json` cannot tell whether the after-figures came from a live
   snapshot comparison or from stored counts — the honesty `--offline` buys on
   the console evaporates once the scrollback is gone.

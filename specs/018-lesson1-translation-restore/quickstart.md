@@ -142,9 +142,12 @@ without the dump. Confirm:
       it by default at 1.2× the snapshot's reachable count and aborts above
       that, but a plan much smaller than expected is also a signal.
 - [ ] `languageIdentityChecks` shows every language agreeing on `languageId`
-      across the two databases. The tool aborts with **exit 15** if not — that
-      means the snapshot is not an ancestor of this production database, and
-      applying it would write one language's translations into another's.
+      across the two databases, and `matchedBy` names the key it could actually
+      use. The tool aborts with **exit 15** if the ids disagree (the snapshot is
+      not an ancestor of this production database, and applying it would write
+      one language's translations into another's) or if neither `code` nor
+      `name` is non-null and unique on both sides — in that case, tidy the
+      `languages` rows it names and re-run.
 - [ ] The blast radius (other lessons sharing strings) is understood and
       acceptable.
 

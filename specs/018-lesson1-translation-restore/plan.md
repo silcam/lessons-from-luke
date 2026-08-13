@@ -270,14 +270,31 @@ The ids probably do agree (the snapshot is meant to be a lineal ancestor of
 production). "Probably" is exactly what Principle Zeroth forbids, and the
 failure mode is unrecoverable-by-inspection.
 
-**Mitigation (I22)**: `diagnose` joins `languages` across the two databases on
-`code` (with `name` as corroborating evidence, read with the same unfiltered raw
-SQL so archived languages participate) and asserts, per pair, that
-`snapshotLanguageId === productionLanguageId`. The result is recorded in the
-report as `languageIdentityChecks`. The run **aborts with exit 15** if any
+**Mitigation (I22)**: `diagnose` joins `languages` across the two databases
+(unfiltered raw SQL, so archived languages participate) and asserts, per pair,
+that `snapshotLanguageId === productionLanguageId`. The result is recorded in
+the report as `languageIdentityChecks`. The run **aborts with exit 15** if any
 matched pair disagrees on id, if two snapshot languages map to one production
 language, or if a snapshot language with translations of the affected lesson has
-no production counterpart by `code`.
+no production counterpart.
+
+**The join key is chosen at runtime, not assumed.** `migrations/1582711758713-LoadSchema.js`
+declares `languages.code` as bare `text` — **nullable and not unique**. Joining
+on it unconditionally would make this guard depend on the same kind of unchecked
+assumption it exists to eliminate: NULL codes collapse into one group and
+duplicate codes make the pairing arbitrary, so a divergence could pass the check
+that was written to catch it. So `diagnose`:
+
+1. Tests `code` on **both** databases for non-null and unique across all
+   languages. If it qualifies, that is the key (`matchedBy: "code"`).
+2. Otherwise tests `name` the same way (`matchedBy: "name"`).
+3. If neither qualifies, cross-database language identity cannot be established
+   from the data at all — **abort with exit 15**, naming the languages that
+   spoil the key. That is a two-minute manual fix in the `languages` table, and
+   it is far cheaper than a silent mis-attribution of a language's corpus.
+
+A matched pair whose `name` differs across the databases is recorded as
+evidence, not treated as fatal — languages get renamed.
 
 This is verify-and-abort, **not** remap. Divergent ids mean the operator has the
 wrong snapshot, and the tool's doctrine everywhere else is to stop on a
@@ -352,6 +369,15 @@ the design did not state:
 **Mitigation**: `applyState` records `scopedLanguageIds` (null when unscoped).
 `verify` reads it and reports unscoped languages as **not yet applied**, plainly
 labelled, rather than as zero-restore outcomes.
+
+A third consequence follows from that: **a scoped apply does not satisfy
+SC-002**, which is stated over every active language. `verify` must not produce
+an artifact that reads as a completed recovery when languages with planned
+writes remain unapplied. It records `verification.coverage: "complete" |
+"partial"` and, when partial, heads the client Markdown with an `INTERIM` label
+naming the languages still outstanding. The same reasoning as exit 27 and the
+`DRAFT — DO NOT SEND` banner: the artifact states its own limits rather than
+depending on the operator recalling what they typed hours earlier.
 
 ### Known-bad document guard (misuse)
 

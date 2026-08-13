@@ -578,13 +578,16 @@
     },
     "languageIdentityChecks": {
       "type": "array",
-      "description": "I22. Cross-database evidence that a languageId denotes the same language on both sides. languages.languageId is a serial, like lessonId and masterId, yet every finding and write carries one bare value used on both sides; divergence would write one language's translations into another language's rows and no downstream guard would catch it. diagnose joins on code (unfiltered raw SQL so archived languages participate) and aborts with exit 15 on any id disagreement, many-to-one mapping, or snapshot language with affected-lesson translations and no production counterpart. Verify-and-abort, never remap.",
+      "description": "I22. Cross-database evidence that a languageId denotes the same language on both sides. languages.languageId is a serial, like lessonId and masterId, yet every finding and write carries one bare value used on both sides; divergence would write one language's translations into another language's rows and no downstream guard would catch it. The join key is chosen at runtime, never assumed: languages.code is declared bare text (nullable, not unique), so diagnose tests code on BOTH databases for non-null and unique, falls back to testing name identically, and aborts (15) naming the offending rows when neither qualifies. Also fatal: id disagreement, many-to-one mapping, or a snapshot language with affected-lesson translations and no production counterpart. Verify-and-abort, never remap.",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["code", "snapshotLanguageId", "productionLanguageId", "agrees"],
+        "required": ["matchedBy", "key", "snapshotLanguageId", "productionLanguageId", "agrees"],
         "properties": {
-          "code": {
+          "matchedBy": {
+            "enum": ["code", "name"]
+          },
+          "key": {
             "type": "string"
           },
           "snapshotLanguageId": {
@@ -592,6 +595,12 @@
           },
           "productionLanguageId": {
             "type": ["integer", "null"]
+          },
+          "snapshotCode": {
+            "type": ["string", "null"]
+          },
+          "productionCode": {
+            "type": ["string", "null"]
           },
           "snapshotName": {
             "type": ["string", "null"]
@@ -608,7 +617,14 @@
     "verification": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mode", "verifiedAt", "clientReportPath", "clientReportWithheld"],
+      "required": [
+        "mode",
+        "coverage",
+        "unappliedLanguageIds",
+        "verifiedAt",
+        "clientReportPath",
+        "clientReportWithheld"
+      ],
       "description": "Written by verify. mode must be durable, not just a console label: a later reader otherwise cannot tell whether after-figures came from a live snapshot comparison or from stored perLanguageCounts. clientReportWithheld pairs with exit 30 \u2014 the Markdown is always written, but on a non-empty duplicate delta its first heading is a DRAFT - DO NOT SEND banner.",
       "properties": {
         "mode": {
@@ -623,6 +639,16 @@
         },
         "clientReportWithheld": {
           "type": "boolean"
+        },
+        "coverage": {
+          "enum": ["complete", "partial"],
+          "description": "partial when apply was --languages-scoped and languages with planned writes remain unapplied. A scoped apply does not satisfy SC-002, which is stated over every active language, so the client Markdown is headed INTERIM."
+        },
+        "unappliedLanguageIds": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
         }
       }
     }
