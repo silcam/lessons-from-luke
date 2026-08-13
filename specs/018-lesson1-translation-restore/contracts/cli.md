@@ -19,16 +19,32 @@ Built by the existing `tsc -b ./src/server`. Source:
 
 ## Global options
 
-| Option                     | Required | Description                                                                                                                                    |
-| -------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--snapshot-url <url>`     | yes      | Postgres URL for the snapshot (typically `postgres://…@127.0.0.1:5433/…` over an SSH tunnel). May also be supplied as `SNAPSHOT_DATABASE_URL`. |
-| `--report <path>`          | yes      | Path to the report file (written by `diagnose`, read by `apply`/`verify`).                                                                     |
-| `--snapshot-confirmed <t>` | yes      | Operator's confirmation token proving the snapshot marker file was seen. Recorded verbatim in the report.                                      |
-| `--book <name>`            | no       | Restrict detection (default: all books).                                                                                                       |
-| `--json`                   | no       | Emit machine-readable output on stdout instead of the human summary.                                                                           |
+| Option                     | Required | Description                                                                                                                                                                            |
+| -------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--snapshot-url <url>`     | yes\*    | Postgres URL for the snapshot (typically `postgres://…@127.0.0.1:5433/…` over an SSH tunnel). **Prefer `SNAPSHOT_DATABASE_URL`** — an argv password is world-readable in `ps`/`/proc`. |
+| `--report <path>`          | yes      | Path to the report file (written by `diagnose`, read by the write subcommands).                                                                                                        |
+| `--snapshot-confirmed <t>` | yes      | Operator's confirmation token proving the snapshot marker file was seen. Recorded verbatim in the report. MUST NOT contain a credential.                                               |
+| `--book <name>`            | no       | Restrict detection (default: all books).                                                                                                                                               |
+| `--json`                   | no       | Emit machine-readable output on stdout instead of the human summary. Redacted identically.                                                                                             |
+| `--no-color`               | no       | Suppress ANSI colour. Colour is auto-suppressed when stdout is not a TTY; status is always also carried by a word (`OK` / `ABORT` / `DRIFT`), never by colour alone.                   |
+
+\* `--snapshot-url` and `SNAPSHOT_DATABASE_URL` are alternatives; the env var is
+the documented path and the flag emits a warning when used.
 
 Production connection comes from the deployed `secrets.json` (`db`), unchanged.
-The snapshot credential is **never** read from `secrets.json`.
+The snapshot credential is **never** read from `secrets.json`, and the tool
+**never** accepts a production connection string as an argument — pointing the
+write side at the wrong database is unrepresentable.
+
+### Output redaction and file modes (all subcommands)
+
+- Every connection string echoed to stdout, `--json`, a log line, an error
+  message, or the report is redacted to `postgres://user:***@host:port/db`. The
+  report stores no URL, password, or SSH host at all.
+- The report file is written mode `0600`; its directory must be mode `0700`
+  (the tool creates it so, and aborts if an existing directory is group- or
+  world-readable). Dump files inherit the same treatment (`umask 077`).
+- `secrets.json` content is never logged.
 
 ---
 
@@ -44,7 +60,11 @@ cli.js diagnose --snapshot-url <url> --report <path> --snapshot-confirmed <token
 2. The snapshot connection opens and is older than production for the affected
    lesson (`snapshotVersion < productionVersion`).
 3. `--report <path>` is writable and does not already exist (use
-   `--force-report` to overwrite).
+   `--force-report` to overwrite). **`--force-report` MUST refuse** to
+   overwrite a report that already contains `englishRestore` or
+   `appliedWrites` — that file is the record of what was done to production and
+   the pointer to the pre-apply dump.
+4. `--report`'s directory is mode `0700` (created so, or aborted on).
 
 **Side effects**
 
@@ -54,8 +74,14 @@ cli.js diagnose --snapshot-url <url> --report <path> --snapshot-confirmed <token
 **Output** — human summary on stdout:
 
 - identified production/snapshot pair and the checks that passed
-- affected lesson(s), version bump count, selected mapping strategy
-- candidate master documents under `docs/` and which matches the snapshot
+- affected lesson(s), version bump count, selected mapping strategy — plus a
+  loud warning when `bumpCount !== 1`, since the known incident is a single bump
+  (v157 → v158) and anything else means reality moved
+- candidate master documents under `docs/`, each with its parsed version,
+  whether it matches the snapshot's English text set, and whether it is the
+  known-bad upload (version equal to the live production version — the cover
+  file). Expected for this incident: `docs/Luke-1-01v157.odt` matches,
+  `docs/Luke-1-01v158.odt` is known-bad
 - per language: intact / restore / conflict / newerWork / lost counts, with
   up to 3 sample texts per category
 - shared-master-string blast radius (which other lessons are touched)
@@ -66,15 +92,15 @@ cli.js diagnose --snapshot-url <url> --report <path> --snapshot-confirmed <token
 
 **Exit codes**
 
-| Code | Meaning                                                       |
-| ---- | ------------------------------------------------------------- |
-| 0    | Diagnosis complete; report written                            |
-| 10   | Production marker file missing / identity unverified          |
-| 11   | Snapshot is not older than production (aborted)               |
-| 12   | Snapshot connection failed or is writable when it must not be |
-| 13   | No affected lesson detected                                   |
-| 14   | Report path unwritable or already exists                      |
-| 1    | Unexpected error                                              |
+| Code | Meaning                                                                          |
+| ---- | -------------------------------------------------------------------------------- |
+| 0    | Diagnosis complete; report written                                               |
+| 10   | Production marker file missing / identity unverified                             |
+| 11   | Snapshot is not older than production (aborted)                                  |
+| 12   | Snapshot connection failed or is writable when it must not be                    |
+| 13   | No affected lesson detected                                                      |
+| 14   | Report path unwritable, already exists, or its directory is group/world-readable |
+| 1    | Unexpected error                                                                 |
 
 ---
 
@@ -88,27 +114,46 @@ cli.js restore-english --report <path> --diagnosis-id <id> \
 **Preconditions**
 
 1. All `diagnose` preconditions.
-2. The report exists, its `diagnosisId` matches `--diagnosis-id`, and the
-   production lesson version recorded in it still matches live production.
-3. `--master-document` is one of the report's
-   `candidateMasterDocuments` with `englishTextSetMatchesSnapshot === true`,
-   unless `--force-relink` selects the direct re-link fallback.
-4. A production `pg_dump -Fc` succeeds into `--dump` (default: the report's
-   directory) with at least 3× the database size free.
+2. The report exists, its `diagnosisId` matches `--diagnosis-id`, its
+   `reportChecksum` verifies, its `productionFingerprint.databaseName` matches
+   the live database, and the production lesson version recorded in it still
+   matches live production.
+3. `--master-document` is one of the report's `candidateMasterDocuments` with
+   `englishTextSetMatchesSnapshot === true`, unless `--force-relink` selects the
+   direct re-link fallback. A candidate with `isKnownBadUpload === true` (the
+   cover file, `Luke-1-01v158.odt`) is **hard-denied with no override** —
+   `--force-relink` selects the fallback mechanism, it does not authorise an
+   unverified document.
+4. `resolve(--master-document)` differs from the destination path the upload
+   will write (`docs/{book}-{series}-{lesson}v{version+1}.odt`). `saveDoc`
+   unlinks its destination first, so equality would delete the source.
+5. A production `pg_dump -Fc` succeeds into `--dump` (default: the report's
+   directory) with at least 3× the database size free **after** accounting for
+   dumps already present there from earlier steps of this recovery.
+6. The advisory lock is free (no other write subcommand running).
 
 **Side effects**
 
-- One production dump file.
-- Re-uploads the verified historical master document through
-  `uploadEnglishDoc` (or, with `--force-relink`, writes the snapshot's
-  `lessonstrings` generation directly). Bumps the lesson version.
+- One production dump file, mode `0600` in a `0700` directory. It contains the
+  **whole** database, including better-auth `user`/`account` (Argon2id hashes),
+  `session`, and `invitation` tables — it must not leave the production host and
+  must be deleted once the client confirms restoration.
+- Re-uploads the verified historical master document through `uploadEnglishDoc`
+  (or, with `--force-relink`, writes the snapshot's `lessonstrings` generation
+  directly). Bumps the lesson version (157 → … → 159 for this incident, since
+  the current production version is the 158 cover upload).
+- **Copies, never moves,** the source document: the `UploadedFile` shim handed
+  to `uploadEnglishDoc` implements `mv` as a copy so
+  `docs/Luke-1-01v157.odt` — the only recovery source — survives.
 - Regenerates the lesson's web preview (`webifyLesson` runs inside the upload
   path; the relink fallback calls it explicitly).
-- Appends the result to the report.
+- Appends the result to the report and recomputes `reportChecksum`.
 
-**Exit codes**: 0 success; 20 report/diagnosis-id mismatch; 21 production
-changed since diagnosis; 22 master document not verified against the snapshot;
-23 dump failed or insufficient disk; 1 unexpected.
+**Exit codes**: 0 success; 20 report/diagnosis-id/checksum/database mismatch;
+21 production changed since diagnosis; 22 master document not verified against
+the snapshot, is the known-bad upload, or collides with its destination path;
+23 dump failed, insufficient disk, or unsafe dump directory permissions;
+28 another write subcommand holds the advisory lock; 1 unexpected.
 
 ---
 
@@ -126,8 +171,14 @@ cli.js apply --snapshot-url <url> --report <path> --diagnosis-id <id> \
 6. `--diagnosis-id` is supplied explicitly. Apply never runs off a report the
    operator did not name. This is the machine-checked form of FR-005's
    "human reviewed the dry run".
-7. `--max-writes` (if given) is not exceeded by the plan; exceeding it aborts
-   before any write.
+7. `--max-writes` is not exceeded by the plan; exceeding it aborts before any
+   write. **When omitted it defaults to a computed sanity cap** — the
+   snapshot's reachable translation count for the affected lesson × 1.2 — not
+   to unbounded. A plan larger than that is a mapping failure, not a big
+   recovery.
+8. The report's `affectedLessons` contains only the lesson the operator named;
+   a detection surprise cannot quietly widen the blast radius.
+9. The advisory lock is free.
 
 **Expected-version rule (applies to `apply` and `verify`)**: precondition 2's
 "production version still matches the report" is checked against
@@ -140,34 +191,70 @@ _someone else_ changed the lesson between our steps.
 
 **Side effects**
 
-- One production dump before any write.
-- Writes only `plannedWrites` (classification `restore`), batched **one
-  language at a time**, all through `saveTStrings` (I4).
+- One production dump before any write (same `0600`/`0700`, whole-database
+  credential-bearing caveat as `restore-english`).
+- Writes only `plannedWrites` (classification `restore`) that **still classify
+  as `restore` against live production at write time**, batched **one language
+  at a time**, all through `saveTStrings` (I4).
 - Awaits progress recomputation (I10).
-- Appends `appliedWrites`, per-language after-counts, and the outstanding
-  conflict list to the report.
+- Flushes `applyState`, `appliedWrites`, and `driftSkips` to the report
+  **after every per-language batch**, atomically (temp file → `fsync` →
+  rename), so an interruption still leaves a complete record (I12).
+- Appends per-language after-counts and the outstanding conflict list, and
+  recomputes `reportChecksum`.
+
+**Apply-time re-validation (I11)** — the reason a stale plan cannot corrupt
+production. Immediately before each per-language batch, apply re-fetches the
+live production rows for that batch's `(languageId, masterId)` pairs — using
+the same unfiltered raw SQL as diagnosis, so archived languages and legacy
+`lessonStringId` rows stay visible — and re-runs the D7 classification.
+Anything no longer `restore` is skipped and recorded as a `DriftSkip`. The
+re-check **reuses the report's `mappings` verbatim** and never recomputes the
+mapping: after `restore-english` the production-vs-snapshot `bumpCount` is 2 and
+recomputation would flip the mapping strategy.
 
 **Guarantees**
 
-- No row whose production text differs from the snapshot is touched (I3).
-- No duplicate rows created (I4, no bare INSERT).
+- No row whose live production text differs from the snapshot is touched, even
+  if it changed after the diagnosis (I3, I11).
+- No duplicate rows created (I4, no bare INSERT; the drift re-check closes the
+  window where a concurrently-created row would have been re-inserted).
 - Re-running `apply` with the same report writes nothing (I5).
 - Every overwritten value is retained in `history` (I6).
+- An interrupted apply leaves a complete record of what it wrote (I12).
+- Two applies cannot overlap (I14).
 
-**Exit codes**: 0 success; 20 report/diagnosis-id mismatch; 21 production
-changed since diagnosis; 23 dump failed or insufficient disk; 24 English master
-not yet restored; 25 write plan exceeds `--max-writes`; 1 unexpected.
+**Exit codes**: 0 success, no drift; 20 report/diagnosis-id/checksum/database
+mismatch; 21 production changed since diagnosis; 23 dump failed, insufficient
+disk, or unsafe dump directory permissions; 24 English master not yet restored;
+25 write plan exceeds `--max-writes` (explicit or the computed default);
+29 report's `affectedLessons` does not match the named lesson; **27 completed
+with drift — one or more planned writes were withheld because production
+changed; re-run `diagnose`**; 28 another write subcommand holds the advisory
+lock; 1 unexpected.
+
+Exit 27 is a **completion-with-caveat**, not a failure: the writes that were
+safe were applied and journaled. It is non-zero so that no script and no tired
+operator reads a partial restore as a complete one.
 
 ---
 
 ## `verify` — US4 (FR-012, FR-013)
 
 ```
-cli.js verify --snapshot-url <url> --report <path> --diagnosis-id <id> \
-       [--out <path.md>]
+cli.js verify [--snapshot-url <url>] --report <path> --diagnosis-id <id> \
+       [--out <path.md>] [--offline]
 ```
 
-**Preconditions**: report exists with `appliedWrites` recorded.
+**Preconditions**: report exists with `appliedWrites` recorded; its
+`reportChecksum` verifies.
+
+`--offline` drops the snapshot requirement and computes before/after figures
+from the report's stored `perLanguageCounts` plus live production. The snapshot
+server's availability is an **external** assumption held by the client's
+technical contact; if it is torn down between `apply` and `verify`, the client
+must still get the report the engagement is judged on. Offline output is
+labelled as snapshot-independent so nobody mistakes it for a fresh comparison.
 
 **Side effects**
 
@@ -177,10 +264,31 @@ cli.js verify --snapshot-url <url> --report <path> --diagnosis-id <id> \
 - **No translation writes.**
 
 **Output**: per-language before/after reachable-translation counts for the
-affected lesson, the restored count, and the outstanding conflict list with
-sample text — written in plain language, suitable to forward to the client.
+affected lesson, the **applied** restored count (not the planned one), any
+`driftSkipped` count, and the outstanding conflict list with sample text —
+plain language, suitable to forward to the client.
 
-**Exit codes**: 0 success; 26 no apply recorded in the report; 1 unexpected.
+**Client-report content rules** — this file leaves the building:
+
+- Permitted: counts, language names, lesson identity, conflict sample text
+  (translation content the client owns), the `diagnosisId`, dates.
+- Forbidden: credentials, connection strings, server IP addresses, filesystem
+  paths, database names, stack traces, `masterId`/`lessonStringId` internals.
+- Structure uses real Markdown headings and tables (not ASCII art), so it
+  survives an email client and a screen reader.
+
+**Post-restore checks verify MUST report on** (both are consequences of the
+version bump to 159):
+
+- Lesson 1's TSub substitution suggestions now diff v159 against v158 — the
+  cover page — so the suggestions offered to translators may be cover-page
+  churn. State what they look like rather than letting a translator discover it.
+- The web preview for the new version exists and is what the app serves
+  (`webifiedHtmPath` is keyed `${lessonId}-${version}.htm`, so the v158 cover
+  preview lingers on disk).
+
+**Exit codes**: 0 success; 20 report checksum/diagnosis-id mismatch; 26 no
+apply recorded in the report; 1 unexpected.
 
 Web previews are regenerated by the existing task and are **not** re-implemented
 here:

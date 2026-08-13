@@ -71,6 +71,41 @@ human-reviewed dry-run gate before any write; `cleanDB.ts` must not run.
 | Where to store the pre-apply dump                          | Operator-supplied `--dump <dir>`; the tool checks writability and ≥3× free space and aborts otherwise (research D9).                                                                                                                                                 |
 | Restore English via the upload pathway, or direct re-link? | **Upload pathway, after diagnosis is durable** — resolving the spec/brainstorm tension by ordering. Preflight verifies the candidate ODT's English text set against the snapshot before use; direct re-link is the fallback (research D5).                           |
 
+### Known incident version facts (supplied by the operator, 2026-08-13)
+
+These are **facts, not assumptions** — but the tool still measures each one at
+runtime and aborts on mismatch rather than trusting them (Principle Zeroth).
+
+| Fact                                                       | Value                                   | How the tool re-derives it                                       |
+| ---------------------------------------------------------- | --------------------------------------- | ---------------------------------------------------------------- |
+| Affected lesson                                            | Luke, series 1, lesson 1                | `(book, series, lesson)` join across both databases (FR-002)     |
+| Mistaken cover-file upload                                 | lesson **version 158**                  | live `lessons.version` on production                             |
+| Correct pre-incident master                                | lesson **version 157**                  | `lessons.version` in the snapshot                                |
+| Expected `bumpCount`                                       | **1** (158 − 157)                       | computed; drives strategy selection                              |
+| Expected mapping strategy                                  | **`findTSubsBridge`** (bumpCount === 1) | selected from the measured `bumpCount` (research D3)             |
+| Expected restore-source document, still on the prod server | `docs/Luke-1-01v157.odt`                | `docStorage.docFilepath` naming; verified against snapshot text  |
+| Known-bad document (the cover file)                        | `docs/Luke-1-01v158.odt`                | version equals live production version → hard-denied (see below) |
+| Version after a successful `restore-english`               | **159** (`docs/Luke-1-01v159.odt`)      | `uploadEnglishDoc` bumps `lesson.version + 1`                    |
+
+Consequences the design must honour:
+
+- **Historical masters survive.** `docStorage.saveDoc` writes to a
+  version-suffixed path and only unlinks _that_ path, so v157 was never
+  overwritten by the v158 upload. The v157 file is the expected recovery source,
+  and its continued existence is a **precondition the tool checks**, not a hope.
+- **`bumpCount === 1` is the expected branch**, so the `findTSubsBridge`
+  strategy is the one that will actually run. `snapshotAnchored` remains built
+  and tested as the fallback the runtime selects if reality differs (e.g. a
+  further re-upload lands before we run) — but the report must state which
+  branch it took, and a `bumpCount !== 1` result is a **stop-and-re-review
+  signal for the operator**, not a silent path switch.
+- **`restore-english` consumes the one-bump lookback.** After the v159 upload,
+  production's `version - 1` generation is the cover page, so `findTSubs` /
+  `diffLesson` can no longer bridge to v157. This is exactly why the mapping is
+  persisted to the report before the English restore (research D5), and it is
+  why apply-time re-validation (below) must **reuse the report's mapping** and
+  never recompute it.
+
 ### Scope Boundaries (explicit non-goals)
 
 - No schema changes, migrations, or constraint additions — including the
@@ -175,6 +210,279 @@ apply → verify.
 
 **Pipeline**: `specs/acceptance-specs/*.txt` → `acceptance/parse-specs.ts` →
 `acceptance/generate-tests.ts` → `generated-acceptance-tests/*.spec.ts`
+
+## Edge Cases & Error Handling
+
+### Concurrency drift between `diagnose` and `apply` (CRITICAL — I11)
+
+The write plan is computed at diagnosis time and executed minutes-to-hours
+later, on a system whose defining premise is that **translators are actively
+working**. The only staleness check in the original design is the lesson
+version, which catches another master upload but is blind to translation edits.
+
+Both outcomes of the drift break a hard invariant:
+
+- A row classified `restore` (production absent) that a translator has since
+  created with different text: the wrapper submits it with `history: []`, so
+  `saveTStrings` routes it to `toAdd`, which either **overwrites newer work**
+  (violating FR-008 / SC-003) or **inserts a duplicate row** (violating FR-011 —
+  `tstrings` has no unique constraint). Which of the two happens does not
+  matter; both are unacceptable.
+- A row classified `conflict` that the translator has since reverted is a
+  missed restore — harmless, and stays a reported conflict.
+
+**Mitigation (I11)**: `apply` re-fetches live production rows for the exact
+`(languageId, masterId)` pairs in the planned batch, **immediately before each
+per-language batch**, and re-runs the D7 classification against them. Only rows
+still classifying as `restore` are written. Anything that drifted is skipped,
+recorded as a `DriftSkip`, and reported. Apply exits non-zero (27) when any
+drift is detected so the operator re-diagnoses rather than assuming completeness.
+
+Two constraints on the re-check:
+
+- It reuses the report's `mappings` verbatim. It must **not** recompute the
+  master-string mapping, because after `restore-english` the production
+  `bumpCount` relative to the snapshot is 2 and the strategy would flip.
+- The re-fetch uses the same unfiltered raw SQL as diagnosis (research D4), not
+  the `Persistence` read methods, or archived languages and legacy
+  `lessonStringId` rows go invisible again and drift is under-detected.
+
+This also subsumes the "stale write plan after the English restore" hazard:
+`restore-english` can mint new `masterId`s for any text not already present in
+production, and the re-check sees the post-upload landscape rather than the
+diagnosis-time one.
+
+### The restore-source document must survive being used
+
+`uploadEnglishDoc` → `docStorage.saveDoc` calls `file.mv(filepath)` on an
+`express-fileupload` `UploadedFile`. The CLI has a filesystem path, not an HTTP
+upload, so it must supply a shim. **That shim's `mv` MUST copy, not rename.** A
+renaming shim would consume `docs/Luke-1-01v157.odt` — the only recovery source
+— as a side effect of using it, leaving no second attempt if the upload fails
+midway.
+
+Additionally: `saveDoc` unlinks its destination before writing. The tool MUST
+assert `path.resolve(source) !== path.resolve(destination)` and abort if they
+are equal, so a version-arithmetic error can never delete the source file.
+
+### Known-bad document guard (misuse)
+
+The incident _was_ an operator uploading the wrong file. The tool must make
+repeating it impossible rather than unlikely:
+
+- `--master-document` is rejected when its parsed version equals the live
+  production lesson version (that is the cover file, v158) — with **no
+  `--force` escape**.
+- `--master-document` is rejected unless the report lists it as a candidate
+  with `englishTextSetMatchesSnapshot === true`. `--force-relink` selects the
+  direct-relink fallback; it does **not** authorise an unverified document.
+- The human summary names the resolved document and its version explicitly, so
+  the step-4 review gate has something concrete to check.
+
+### Version parsing is variable-width
+
+`docStorage.docFilepath` builds names with `zeroPad(version, 2)`, which pads to
+a **minimum** of two digits and does not truncate: `v03`, but also `v157`. A
+fixed two-digit regex parses `Luke-1-01v157.odt` as version 15 and would
+silently mis-rank candidates. The candidate scanner MUST anchor on
+`^{book}-{series}-{lesson:2}v(\d+)\.odt$` and MUST ignore the `*_odt`
+extraction directories that exist alongside the documents in `docs/`.
+
+### Crash mid-apply must not lose the audit trail
+
+SC-004 requires every change to be enumerable. If `appliedWrites` is written to
+the report only after the last batch, a crash, OOM, or dropped SSH session
+leaves rows written on production and **no record of which**. The dump is still
+the wholesale rollback, but the per-change evidence is gone.
+
+**Mitigation (I12)**: the report is flushed to disk after **each per-language
+batch**, atomically (write temp file, `fsync`, rename). The report carries an
+`applyState` recording which language batches have completed, so a resumed or
+re-diagnosed run can see exactly how far the previous attempt got.
+
+### Report integrity and identity
+
+The `diagnosisId` gate assumes the report file is trustworthy. It is a plain
+JSON file on a shared server that a well-meaning operator can edit.
+
+**Mitigation (I13)**: the report records a `reportChecksum` (SHA-256 over the
+canonical serialisation of the body, excluding the checksum field) and a
+`productionFingerprint` (database name plus a stable count/max-id signature).
+Write commands verify both before doing anything; a mismatch aborts with exit 20. This makes "the report I reviewed is the report being applied" a checked
+fact rather than a filename convention.
+
+### Concurrent invocations
+
+Nothing prevents two operators — or an operator and a forgotten background
+shell — from running `restore-english` or `apply` at the same time, which is
+how duplicate rows get created in a table with no unique constraint.
+
+**Mitigation (I14)**: every write subcommand takes a Postgres session-level
+advisory lock (`pg_try_advisory_lock` on a constant derived from the tool name)
+for its whole run, and aborts with exit 28 if the lock is held.
+
+### Overwriting the audit artifact
+
+`--force-report` must refuse to overwrite a report file that already contains
+`englishRestore` or `appliedWrites`. That file is the record of what was done
+to production and the pointer to the pre-apply dump; clobbering it destroys the
+evidence for SC-004 and the operator's route back.
+
+### `verify` when the snapshot is gone
+
+The snapshot server's availability is an external assumption held by the
+client's technical contact. If it is torn down between `apply` and `verify`,
+the client never gets the report the whole engagement is being judged on.
+
+**Mitigation**: `verify` accepts `--offline`, computing before/after counts from
+the report's stored `perLanguageCounts` and live production only. It labels the
+output as snapshot-independent so nobody mistakes it for a fresh comparison.
+
+### After-effects of the English restore
+
+- **TSub suggestions**: `findTSubs` → `diffLesson` diffs the live lesson against
+  `oldlessonstrings` at `version - 1`. After the v159 restore that prior
+  generation is the **cover page**, so the substitution suggestions offered to
+  translators will be cover-page-to-lesson churn. `computeLessonDiffs` is
+  currently commented out, so nothing is persisted — but the live path is
+  reachable. The verification step MUST check what Lesson 1's TSub suggestions
+  look like post-restore and note the result for the client; if they are
+  nonsense, saying so beats a translator discovering it.
+- **Web previews**: `webifiedHtmPath` is keyed `${lessonId}-${version}.htm`, so
+  the v159 preview is a new file and the v158 (cover) preview lingers on disk.
+  Verification MUST confirm the app serves the v159 preview and that Lesson 1
+  no longer renders the cover page.
+
+### Existing edge cases, unchanged
+
+The spec's edge-case list (multi-bump, snapshot post-dates the incident, legacy
+`lessonStringId` rows, NULL `modified`, no uniqueness constraint, interrupted
+apply, shared strings, wrong-server confusion) is already answered in research
+D2–D9 and is not restated here.
+
+## Security & Privacy Considerations
+
+### The pre-apply dump is a full credential dump
+
+`pg_dump -Fc lessons-from-luke` captures **the entire database**, not the
+translation tables. That includes the better-auth-owned `user` and `account`
+tables (Argon2id password hashes), `session` (live session tokens), and
+`invitation` (AES-256-GCM-encrypted invite tokens). Two such dumps are produced
+(`restore-english` and `apply`) and the runbook currently leaves them in
+`~/recovery` indefinitely, with whatever the ambient umask gives them.
+
+Requirements:
+
+- The dump directory MUST be created `0700` and the tool MUST verify its mode
+  before writing; dump files MUST be written with mode `0600` (set `umask 077`
+  for the process).
+- Dumps MUST NOT be copied off the production host — not to a laptop, not to
+  cloud storage, not attached to anything sent to the client.
+- The runbook MUST include an explicit **retention and destruction** step:
+  delete the dumps once the client confirms the restoration (SC-006), and state
+  the deletion in the closing note.
+- The tool MUST refuse to write a dump into a world- or group-readable
+  directory.
+
+### Snapshot credentials must not leak
+
+`--snapshot-url` carries a password. Passed on the command line it is visible
+in `ps` and `/proc/<pid>/cmdline` to every other user on the production host,
+and it lands in shell history. `SNAPSHOT_DATABASE_URL` is better but still
+appears in the process environment.
+
+Requirements:
+
+- The env var is the **documented** path; `--snapshot-url` remains supported
+  but the tool prints a warning when it is used.
+- The connection URL MUST be redacted (`postgres://user:***@host:port/db`)
+  everywhere it is echoed: stdout, `--json` output, error messages, and the
+  report. The report MUST NOT store the URL, password, or the SSH hop details.
+- The runbook MUST tell the operator to prefix the `export` with a space (or
+  use `read -s`) so the password stays out of shell history, and to close the
+  SSH tunnel when finished.
+
+### Report artifacts contain the corpus
+
+`report.json` contains the full text of every affected translation in every
+language, plus internal paths, database names, and the snapshot server's role.
+It is a working artifact for the operator, not a deliverable.
+
+Requirements:
+
+- `report.json` and the pre-apply dumps are written `0600` into a `0700`
+  directory.
+- The client-facing Markdown (`--out`) MUST contain **no** credentials, server
+  IP addresses, filesystem paths, database names, or stack traces. Counts,
+  language names, lesson identity, conflict sample text, and the `diagnosisId`
+  are the permitted content.
+- Conflict sample text in the client report is translation content the client
+  owns; it stays. Nothing else internal does.
+
+### Least privilege and blast radius
+
+- The snapshot connection SHOULD use a Postgres role with only `SELECT`, in
+  addition to the `default_transaction_read_only` session setting and the
+  throwing `PGSnapshotStorage` overrides (research D1). Three independent
+  guards, none of which is trusted alone.
+- The tool never accepts a production connection string as an argument; it
+  reads production from the deployed `secrets.json` only. This makes
+  "accidentally pointed the write side at the wrong database" unrepresentable.
+- The tool MUST never log the contents of `secrets.json` or any part of it.
+
+### Misuse and abuse
+
+This is an operator tool on a trusted host, so the threat model is
+**operator error under time pressure**, not an external attacker. The guards
+that matter are the ones above plus:
+
+- `--max-writes` defaults to a computed sanity cap (the snapshot's reachable
+  translation count for the affected lesson, times 1.2) rather than being
+  unbounded when omitted. A write plan larger than that is a mapping failure,
+  not a big recovery, and MUST abort before any write.
+- `apply` refuses to run against a report whose `affectedLessons` contains more
+  than the lesson the operator named, so a detection surprise cannot quietly
+  widen the blast radius.
+- Every abort path exits non-zero with a distinct code and a sentence saying
+  what to do next. Silent success on a partial run is the failure mode that
+  costs the client's trust.
+
+## Performance & Resource Considerations
+
+- **Disk headroom is cumulative, not per-command.** `restore-english` and
+  `apply` each take a full dump, so the 3× free-space check MUST account for
+  dumps already present in `--dump` from earlier steps of the same recovery
+  (effectively 4× the database size across the run). The check runs immediately
+  before each dump, not once at the start.
+- **Filling the production disk takes the app down.** The free-space check is a
+  hard abort, and the runbook states the dump directory must not be on a
+  partition shared with `docs/` if that can be avoided.
+- **`pg_dump` on a live production database** adds I/O load and holds a long
+  transaction. Both dumps SHOULD be taken during a low-traffic window for the
+  client's timezone (WAT), which is also the window with the fewest concurrent
+  translator edits — the same window that minimises the drift handled by I11.
+- **Reads are bulk, not per-string.** Diagnosis and the apply-time re-check
+  fetch rows per language in single queries keyed by the mapped `masterId` set.
+  At ~10²–10³ master strings × ~10–30 languages this is tens of queries, not
+  tens of thousands.
+- **`updateProgress()` over all languages** is the expensive tail. It is awaited
+  once at the end of apply and once in verify, not per batch.
+
+## Accessibility
+
+Analyzed; **no material findings**. The feature's entire surface is a CLI run
+over SSH by one developer plus a Markdown report. Two requirements carried
+anyway because they are cheap and concrete:
+
+- CLI output MUST NOT rely on colour alone to distinguish pass from fail —
+  every status line carries a word (`OK`, `ABORT`, `DRIFT`), and colour is
+  suppressed when stdout is not a TTY.
+- The client-facing Markdown uses real heading levels and real tables (not
+  ASCII art or indentation), so it stays readable in an email client and to a
+  screen reader.
+
+No UI, no forms, no keyboard navigation, no colour contrast surface exists in
+this feature.
 
 ## Complexity Tracking
 

@@ -2,15 +2,17 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://lessons-from-luke/specs/018-lesson1-translation-restore/report.schema.json",
   "title": "DiagnosisReport",
-  "description": "Durable artifact produced by `restoreLesson diagnose` and appended to by `restore-english`, `apply`, and `verify`. Its existence and matching diagnosisId are the machine-checked precondition for apply (FR-005).",
+  "description": "Durable artifact produced by `restoreLesson diagnose` and appended to by `restore-english`, `apply`, and `verify`. Its existence, matching diagnosisId, and verified reportChecksum are the machine-checked precondition for apply (FR-005). MUST NOT contain credentials: no connection URL, password, SSH host, or secrets.json content. Written mode 0600 into a 0700 directory.",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "diagnosisId",
+    "reportChecksum",
     "generatedAt",
     "toolVersion",
     "mode",
     "identity",
+    "productionFingerprint",
     "affectedLessons",
     "mappings",
     "findings",
@@ -22,6 +24,23 @@
   ],
   "properties": {
     "diagnosisId": { "type": "string", "minLength": 8 },
+    "reportChecksum": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 over the canonical serialisation of the report body with this field excluded. Re-verified by every write subcommand (I13); mismatch aborts with exit 20."
+    },
+    "productionFingerprint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["databaseName", "lessonCount", "maxMasterId", "maxLessonStringId"],
+      "description": "Identity evidence for the production database the diagnosis ran against (I13). databaseName is hard-gated; the count/max fields are evidence and are reported on change, since translator activity legitimately moves them.",
+      "properties": {
+        "databaseName": { "type": "string" },
+        "lessonCount": { "type": "integer" },
+        "maxMasterId": { "type": "integer" },
+        "maxLessonStringId": { "type": "integer" }
+      }
+    },
     "generatedAt": { "type": "string", "format": "date-time" },
     "toolVersion": { "type": "string" },
     "mode": { "enum": ["diagnose", "restore-english", "apply", "verify"] },
@@ -76,11 +95,23 @@
             "items": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["filepath", "version", "englishTextSetMatchesSnapshot"],
+              "required": [
+                "filepath",
+                "version",
+                "englishTextSetMatchesSnapshot",
+                "isKnownBadUpload"
+              ],
               "properties": {
                 "filepath": { "type": "string" },
-                "version": { "type": ["integer", "null"] },
+                "version": {
+                  "type": ["integer", "null"],
+                  "description": "Parsed from the versioned filename. zeroPad(version, 2) pads to a MINIMUM width and never truncates, so the segment is variable width (v03, v157). Parse with v(\\d+)\\.odt$, not a fixed two-digit pattern."
+                },
                 "englishTextSetMatchesSnapshot": { "type": "boolean" },
+                "isKnownBadUpload": {
+                  "type": "boolean",
+                  "description": "True when this document's version equals the live production lesson version — i.e. it is the cover file that caused the incident (v158 for Luke 1-1). Hard-denied as --master-document with no override flag."
+                },
                 "missingFromDocument": { "type": "array", "items": { "type": "string" } },
                 "extraInDocument": { "type": "array", "items": { "type": "string" } }
               }
@@ -161,10 +192,17 @@
           "snapshotReachable": { "type": "integer" },
           "productionReachableBefore": { "type": "integer" },
           "productionReachableAfter": { "type": ["integer", "null"] },
-          "restored": { "type": "integer" },
+          "restored": {
+            "type": "integer",
+            "description": "Writes ACTUALLY applied, not planned. restored + driftSkipped equals this language's plannedWrites count."
+          },
           "conflicts": { "type": "integer" },
           "newerWork": { "type": "integer" },
-          "lost": { "type": "integer" }
+          "lost": { "type": "integer" },
+          "driftSkipped": {
+            "type": "integer",
+            "description": "Apply only. Planned writes withheld because live production changed after the diagnosis (I11)."
+          }
         }
       }
     },
@@ -226,6 +264,63 @@
         }
       }
     },
+    "driftSkips": {
+      "type": "array",
+      "description": "Apply only. Planned writes withheld because the live production row no longer matches the diagnosis-time classification (I11). A non-empty array makes apply exit 27.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "languageId",
+          "masterId",
+          "plannedText",
+          "liveProductionText",
+          "reclassifiedAs",
+          "detectedAt"
+        ],
+        "properties": {
+          "languageId": { "type": "integer" },
+          "masterId": { "type": "integer" },
+          "plannedText": { "type": "string" },
+          "liveProductionText": { "type": ["string", "null"] },
+          "reclassifiedAs": { "enum": ["intact", "conflict", "newerWork", "lost"] },
+          "detectedAt": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "applyState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startedAt", "languageBatches", "completedAt"],
+      "description": "Batch journal flushed atomically (temp file → fsync → rename) after EVERY per-language batch, so an interrupted apply still leaves a complete record of what was written (SC-004, I12).",
+      "properties": {
+        "startedAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": ["string", "null"], "format": "date-time" },
+        "languageBatches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "languageId",
+              "status",
+              "writesAttempted",
+              "writesApplied",
+              "driftSkipped",
+              "completedAt"
+            ],
+            "properties": {
+              "languageId": { "type": "integer" },
+              "status": { "enum": ["pending", "completed", "failed"] },
+              "writesAttempted": { "type": "integer" },
+              "writesApplied": { "type": "integer" },
+              "driftSkipped": { "type": "integer" },
+              "completedAt": { "type": ["string", "null"], "format": "date-time" }
+            }
+          }
+        }
+      }
+    },
     "englishRestore": {
       "type": "object",
       "additionalProperties": false,
@@ -237,7 +332,10 @@
         "restoredAt": { "type": "string", "format": "date-time" }
       }
     },
-    "preApplyDumpPath": { "type": "string" }
+    "preApplyDumpPath": {
+      "type": "string",
+      "description": "Path to the pg_dump -Fc file. The dump contains the WHOLE database, including better-auth user/account (Argon2id hashes), session, and invitation tables — written mode 0600 into a 0700 directory, never copied off the production host, deleted once the client confirms restoration."
+    }
   },
   "definitions": {
     "findingArray": {
