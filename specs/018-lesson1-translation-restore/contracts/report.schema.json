@@ -21,7 +21,8 @@
     "legacyLessonStringRowCounts",
     "blastRadius",
     "plannedWrites",
-    "conflicts"
+    "conflicts",
+    "duplicateRowsBaseline"
   ],
   "properties": {
     "diagnosisId": { "type": "string", "minLength": 8 },
@@ -311,21 +312,17 @@
         }
       }
     },
+    "duplicateRowsBaseline": {
+      "$ref": "#/definitions/duplicateRowArray",
+      "description": "Diagnose. Duplicates that already existed before this tool touched anything — tstrings has had no unique constraint for the life of the database. Without this baseline, verify cannot tell a duplicate this tool created from one that was already there, and would default to blaming the restore in a document the client reads."
+    },
     "duplicateRows": {
-      "type": "array",
-      "description": "Verify only. Result of the duplicate sweep over the affected lesson's master strings (I19). The apply-time re-check narrows but cannot close the write race — tstrings has no unique constraint, so an absent row cannot be locked and adding one is outside this feature's scope. Detection is the honest compensation; any hit is a data defect a human must resolve, and is surfaced in the client-facing report.",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["languageId", "masterId", "lessonStringId", "rowCount", "texts"],
-        "properties": {
-          "languageId": { "type": "integer" },
-          "masterId": { "type": "integer" },
-          "lessonStringId": { "type": ["integer", "null"] },
-          "rowCount": { "type": "integer", "minimum": 2 },
-          "texts": { "type": "array", "items": { "type": "string" } }
-        }
-      }
+      "$ref": "#/definitions/duplicateRowArray",
+      "description": "Verify only. Result of the post-restore duplicate sweep (I19). The apply-time re-check narrows but cannot close the write race — tstrings has no unique constraint, so an absent row cannot be locked and adding one is outside this feature's scope. Detection is the honest compensation. Verify reports the DELTA against duplicateRowsBaseline; a non-empty delta exits 30."
+    },
+    "priorDiagnosisId": {
+      "type": "string",
+      "description": "Set when this diagnosis was run with --prior-report, carrying forward knownBadVersions and bump accounting from an earlier report (I20). Provenance for the drift-recovery loop."
     },
     "applyState": {
       "type": "object",
@@ -377,6 +374,21 @@
     }
   },
   "definitions": {
+    "duplicateRowArray": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["languageId", "masterId", "lessonStringId", "rowCount", "texts"],
+        "properties": {
+          "languageId": { "type": "integer" },
+          "masterId": { "type": "integer" },
+          "lessonStringId": { "type": ["integer", "null"] },
+          "rowCount": { "type": "integer", "minimum": 2 },
+          "texts": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
     "findingArray": {
       "type": "array",
       "items": {

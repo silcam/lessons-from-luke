@@ -125,10 +125,18 @@ Validation: `bumpCount >= 1` (else abort). `mappingStrategy` is
 
 `expectedBumpCount` exists so the "stop and re-review" warning does not fire on
 its own happy path. It is `1` for the first diagnosis, and
-`1 + versions bumped by this tool` for any later one (read from the prior
-report's `englishRestore`). Re-diagnosing after the English restore legitimately
-yields `bumpCount === 2` and `snapshotAnchored`; the warning fires only when
-`bumpCount !== expectedBumpCount`.
+`1 + versions bumped by this tool` for any later one. Re-diagnosing after the
+English restore legitimately yields `bumpCount === 2` and `snapshotAnchored`;
+the warning fires only when `bumpCount !== expectedBumpCount`.
+
+Both `knownBadVersions` and `expectedBumpCount` are carried forward through
+`diagnose --prior-report <path>`. The drift-recovery loop sends the second
+diagnosis to a **new** report path so it cannot clobber the audit artifact,
+which means it has no other way to reach these two facts — omit the flag and the
+re-diagnosis silently loses the cover-file denial and mis-warns on `bumpCount`,
+on precisely the path they were written for. When `--prior-report` is omitted
+and a report already exists in the same directory, the tool says so rather than
+proceeding blind. The prior `diagnosisId` is recorded as provenance.
 
 ### `MasterDocumentCandidate`
 
@@ -176,7 +184,11 @@ Validation:
   mode and owner as their pre-existing siblings in `docs/`. These files are read
   by the **web server**, so a restrictive umask applied process-wide would leave
   Lesson 1 unreadable — worse than the incident. The restrictive umask is scoped
-  to dump and report writes only.
+  to dump and report writes only. Because this check runs **after** production
+  has been modified, the tool attempts repair (`chmod`/`chown` to match the
+  siblings) and re-checks before aborting; the abort message states that Lesson
+  1 may currently be unreadable, names the files with actual vs expected modes,
+  and prints the exact fix command.
 
 ### `MasterStringMapping`
 
@@ -305,10 +317,20 @@ DuplicateRow {
 }
 ```
 
-`verify` sweeps the affected lesson's master strings with
-`SELECT languageid, masterid, lessonstringid, count(*) … HAVING count(*) > 1`
-and reports any hit prominently in both the JSON report and the client-facing
-Markdown. A duplicate is a data defect a human must resolve.
+The sweep is `SELECT languageid, masterid, lessonstringid, count(*) … HAVING
+count(*) > 1` over the affected lesson's master strings, and it runs **twice**:
+
+- `diagnose` records `duplicateRowsBaseline` — `tstrings` has had no unique
+  constraint for the life of the database, so pre-existing duplicates are
+  plausible. Without the baseline, `verify` cannot distinguish a duplicate this
+  tool created from one that was already there, and would default to blaming the
+  restore in a document the client reads.
+- `verify` records `duplicateRows` and reports the **delta** against the
+  baseline. Baseline entries are listed separately as pre-existing.
+
+Any duplicate is surfaced prominently in both the JSON report and the
+client-facing Markdown; a non-empty delta makes `verify` exit 30. A duplicate is
+a data defect a human must resolve.
 
 ### `ApplyState`
 
@@ -366,7 +388,9 @@ DiagnosisReport {
   applyState?: ApplyState          // apply only; flushed after every batch
   appliedWrites?: AppliedWrite[]   // apply only; reconciled from the journal
   driftSkips?: DriftSkip[]         // apply only
+  duplicateRowsBaseline: DuplicateRow[]  // diagnose; pre-existing, not caused here
   duplicateRows?: DuplicateRow[]   // verify only; residual-race detection
+  priorDiagnosisId?: string        // set when --prior-report carried facts forward
   preApplyDumpPath?: string        // apply only
   conflicts: TranslationFinding[]  // classification === "conflict" | "newerWork"
 }
@@ -375,7 +399,9 @@ DiagnosisReport {
 **The report never stores credentials.** No connection URL, password, SSH host,
 or `secrets.json` content appears in it. Connection strings echoed anywhere are
 redacted to `postgres://user:***@host:port/db`. The file is written mode `0600`
-into a `0700` directory.
+into a `0700` directory, as is the sibling `report.journal.jsonl` — the journal
+carries the same translation text and is an operator artifact, never sent to the
+client.
 
 ### `ProductionFingerprint`
 
@@ -431,24 +457,26 @@ apply still exits 0.
 
 ## Part C — Invariants the implementation must uphold
 
-| #   | Invariant                                                                                 | Enforced by                                                                                                  |
-| --- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| I1  | The snapshot database receives zero writes, ever.                                         | `PGSnapshotStorage` overrides + read-only session                                                            |
-| I2  | Dry run performs zero writes to either database.                                          | No write call reachable from `diagnose`                                                                      |
-| I3  | A production value differing from the snapshot is never overwritten.                      | D7 table; `RestoreWrite` emission rule                                                                       |
-| I4  | Every write goes through `saveTStrings` (never a bare INSERT).                            | `restoreWrite` wrapper is the only writer                                                                    |
-| I5  | Re-running apply produces zero writes and zero new rows.                                  | `saveTStrings` equal-text short-circuit                                                                      |
-| I6  | Overwritten production values are retained in `history`.                                  | `saveTStrings` history append                                                                                |
-| I7  | Archived languages are enumerated in the diagnosis (not silently dropped).                | Raw SQL reads, bypassing `NOT archived`                                                                      |
-| I8  | Nothing outside the affected lesson's master strings is written.                          | Write plan derived only from `mappings`                                                                      |
-| I9  | Apply cannot run without a matching prior diagnosis report and a fresh production dump.   | Apply preconditions (research D9)                                                                            |
-| I10 | Language progress is recomputed with `await` before the process exits.                    | `awaitProgress: true` + terminal `await`                                                                     |
-| I11 | No planned write is submitted without re-validating it against **live** production first. | Apply-time re-classification per batch; `DriftSkip` + exit 27                                                |
-| I12 | An interrupted apply still leaves a complete record of what was written.                  | `ApplyState` flushed after every batch + append-only `report.journal.jsonl`; temp file in the same directory |
-| I13 | The report being applied is provably the report that was reviewed.                        | Frozen `diagnosisChecksum` + `reportChecksum` + `productionFingerprint.databaseName` re-verified             |
-| I14 | Two write runs cannot overlap.                                                            | `pg_try_advisory_lock` on a **reserved** (non-pooled) connection held for the whole run; exit 28             |
-| I15 | The historical master document survives being used as the restore source.                 | Copying `mv` shim; source ≠ destination assertion                                                            |
-| I16 | The cover file can never be re-uploaded.                                                  | `knownBadVersions` pinned at first diagnosis; hard denial, no override                                       |
-| I17 | Credentials never reach the report, stdout, logs, or the client-facing Markdown.          | URL redaction; report/dump `0600` in a `0700` dir                                                            |
-| I18 | Files the web server reads keep app-readable modes.                                       | Umask scoped to dump/report writes; post-upload mode/owner assertion on the new ODT and preview              |
-| I19 | Rows duplicated through the residual write race are detected, not hidden.                 | `verify` duplicate sweep → `duplicateRows`, surfaced in the client report                                    |
+| #   | Invariant                                                                                                          | Enforced by                                                                                                                  |
+| --- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| I1  | The snapshot database receives zero writes, ever.                                                                  | `PGSnapshotStorage` overrides + read-only session                                                                            |
+| I2  | Dry run performs zero writes to either database.                                                                   | No write call reachable from `diagnose`                                                                                      |
+| I3  | A production value differing from the snapshot is never overwritten.                                               | D7 table; `RestoreWrite` emission rule                                                                                       |
+| I4  | Every write goes through `saveTStrings` (never a bare INSERT).                                                     | `restoreWrite` wrapper is the only writer                                                                                    |
+| I5  | Re-running apply produces zero writes and zero new rows.                                                           | `saveTStrings` equal-text short-circuit                                                                                      |
+| I6  | Overwritten production values are retained in `history`.                                                           | `saveTStrings` history append                                                                                                |
+| I7  | Archived languages are enumerated in the diagnosis (not silently dropped).                                         | Raw SQL reads, bypassing `NOT archived`                                                                                      |
+| I8  | Nothing outside the affected lesson's master strings is written.                                                   | Write plan derived only from `mappings`                                                                                      |
+| I9  | Apply cannot run without a matching prior diagnosis report and a fresh production dump.                            | Apply preconditions (research D9)                                                                                            |
+| I10 | Language progress is recomputed with `await` before the process exits.                                             | `awaitProgress: true` + terminal `await`                                                                                     |
+| I11 | No planned write is submitted without re-validating it against **live** production first.                          | Apply-time re-classification per batch; `DriftSkip` + exit 27                                                                |
+| I12 | An interrupted apply still leaves a complete record of what was written.                                           | `ApplyState` flushed after every batch + append-only `report.journal.jsonl`; temp file in the same directory                 |
+| I13 | The report being applied is provably the report that was reviewed.                                                 | Frozen `diagnosisChecksum` + `reportChecksum` + `productionFingerprint.databaseName` re-verified                             |
+| I14 | Two write runs cannot overlap.                                                                                     | `pg_try_advisory_lock` on a **reserved** (non-pooled) connection held for the whole run; exit 28                             |
+| I15 | The historical master document survives being used as the restore source.                                          | Copying `mv` shim; source ≠ destination assertion                                                                            |
+| I16 | The cover file can never be re-uploaded.                                                                           | `knownBadVersions` pinned at first diagnosis; hard denial, no override                                                       |
+| I17 | Credentials never reach the report, stdout, logs, or the client-facing Markdown.                                   | URL redaction; report/dump `0600` in a `0700` dir                                                                            |
+| I18 | Files the web server reads keep app-readable modes.                                                                | Umask scoped to dump/report writes; post-upload mode/owner assertion on the new ODT and preview                              |
+| I19 | Rows duplicated through the residual write race are detected, not hidden, and not confused with pre-existing ones. | Duplicate sweep at **both** `diagnose` (`duplicateRowsBaseline`) and `verify` (`duplicateRows`); non-empty delta → exit 30   |
+| I20 | The pinned facts survive a drift-recovery re-diagnosis.                                                            | `diagnose --prior-report` carries `knownBadVersions` + bump accounting forward; warns when omitted beside an existing report |
+| I21 | No abort leaves production mid-change without a recovery instruction.                                              | Post-upload check repairs, re-checks, then aborts naming files, actual vs expected modes, and the fix command                |

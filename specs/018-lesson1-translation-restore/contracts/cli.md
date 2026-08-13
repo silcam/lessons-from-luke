@@ -57,8 +57,17 @@ write side at the wrong database is unrepresentable.
 ## `diagnose` — US1 (FR-001..FR-005, FR-014)
 
 ```
-cli.js diagnose --snapshot-url <url> --report <path> --snapshot-confirmed <token>
+cli.js diagnose --snapshot-url <url> --report <path> --snapshot-confirmed <token> \
+       [--prior-report <path>] [--force-report]
 ```
+
+`--prior-report` carries `knownBadVersions` and this tool's bump accounting
+forward from an earlier report, and records its `diagnosisId` as
+`priorDiagnosisId`. It is **required on the drift-recovery re-diagnosis**: that
+run writes to a new report path so it cannot clobber the audit artifact, and
+without the flag it silently loses the cover-file denial and mis-warns on
+`bumpCount` (I20). When it is omitted and a report already exists in the same
+directory, the tool says so rather than proceeding blind.
 
 **Preconditions**
 
@@ -68,14 +77,18 @@ cli.js diagnose --snapshot-url <url> --report <path> --snapshot-confirmed <token
 3. `--report <path>` is writable and does not already exist (use
    `--force-report` to overwrite). **`--force-report` MUST refuse** to
    overwrite a report that already contains `englishRestore` or
-   `appliedWrites` — that file is the record of what was done to production and
-   the pointer to the pre-apply dump.
+   `appliedWrites`, or beside which a non-empty `report.journal.jsonl` exists —
+   those are the record of what was done to production and the pointer to the
+   pre-apply dump.
 4. `--report`'s directory is mode `0700` (created so, or aborted on).
 
 **Side effects**
 
-- Writes exactly one file: the report at `--report`.
+- Writes exactly one file: the report at `--report`, mode `0600`.
 - **Zero database writes on either side** (I2, SC-005).
+- Records `duplicateRowsBaseline` — duplicates that already exist before this
+  tool touches anything, so `verify` can report a delta instead of blaming the
+  restore for pre-existing data defects (I19).
 
 **Output** — human summary on stdout:
 
@@ -95,6 +108,7 @@ cli.js diagnose --snapshot-url <url> --report <path> --snapshot-confirmed <token
 - shared-master-string blast radius (which other lessons are touched)
 - legacy `lessonStringId IS NOT NULL` row counts, both databases
 - count of rows with `modified IS NULL` (timestamp coverage)
+- pre-existing duplicate rows found by the baseline sweep, if any
 - a closing line stating the exact `apply` command, including the
   `--diagnosis-id` produced
 
@@ -140,9 +154,12 @@ cli.js restore-english --report <path> --diagnosis-id <id> \
    directory) with at least 3× the database size free **after** accounting for
    dumps already present there from earlier steps of this recovery.
 6. The advisory lock is free (no other write subcommand running). It is taken
-   on a **reserved, non-pooled** connection (`sql.reserve()`) held for the whole
-   run — `PGStorage` pools its connections, and a session-level lock on a pooled
-   connection is released the moment that connection is recycled.
+   **first, before the dump**, on a **reserved, non-pooled** connection
+   (`sql.reserve()`) held for the whole run — `PGStorage` pools its connections,
+   and a session-level lock on a pooled connection is released the moment that
+   connection is recycled. If the lock is later found lost, the tool aborts
+   (28); it never silently re-acquires, because re-acquiring would hide the
+   interval in which someone else may have held it.
 
 **Side effects**
 
@@ -157,6 +174,12 @@ cli.js restore-english --report <path> --diagnosis-id <id> \
 - **Copies, never moves,** the source document: the `UploadedFile` shim handed
   to `uploadEnglishDoc` implements `mv` as a copy so
   `docs/Luke-1-01v157.odt` — the only recovery source — survives.
+- Asserts the new ODT and preview match the mode and owner of their
+  pre-existing siblings in `docs/` (I18). This check runs **after** production
+  has changed, so the tool attempts repair (`chmod`/`chown`) and re-checks
+  first; only then does it abort — stating that Lesson 1 may currently be
+  unreadable, naming the files with actual vs expected modes, and printing the
+  exact fix command (exit 31).
 - Regenerates the lesson's web preview (`webifyLesson` runs inside the upload
   path; the relink fallback calls it explicitly).
 - Appends the result to the report and recomputes `reportChecksum`.
@@ -165,7 +188,10 @@ cli.js restore-english --report <path> --diagnosis-id <id> \
 21 production changed since diagnosis; 22 master document not verified against
 the snapshot, is the known-bad upload, or collides with its destination path;
 23 dump failed, insufficient disk, or unsafe dump directory permissions;
-28 another write subcommand holds the advisory lock; 1 unexpected.
+28 another write subcommand holds the advisory lock (or it was lost mid-run);
+31 the uploaded document or preview does not have app-readable modes and repair
+failed — **Lesson 1 may be unreadable, follow the printed fix command**;
+1 unexpected.
 
 ---
 
@@ -190,8 +216,9 @@ cli.js apply --snapshot-url <url> --report <path> --diagnosis-id <id> \
    recovery.
 8. The report's `affectedLessons` contains only the lesson the operator named;
    a detection surprise cannot quietly widen the blast radius.
-9. The advisory lock is free, taken on a reserved connection, and re-asserted
-   as still held before each batch.
+9. The advisory lock is free, taken on a reserved connection before the dump,
+   and re-asserted as still held before each batch — aborting with 28 on loss,
+   never re-acquiring.
 
 **Expected-version rule (applies to `apply` and `verify`)**: precondition 2's
 "production version still matches the report" is checked against
@@ -304,12 +331,14 @@ plain language, suitable to forward to the client.
 - Structure uses real Markdown headings and tables (not ASCII art), so it
   survives an email client and a screen reader.
 
-**Duplicate-row sweep (I19)**: `verify` runs
-`SELECT languageid, masterid, lessonstringid, count(*) … HAVING count(*) > 1`
-over the affected lesson's master strings and records any hit in
-`duplicateRows`, surfacing it prominently in the client-facing Markdown. This is
-the detection that compensates for the residual write race apply cannot close.
-Any duplicate is a data defect a human must resolve.
+**Duplicate-row sweep (I19)**: `verify` re-runs the sweep
+(`SELECT languageid, masterid, lessonstringid, count(*) … HAVING count(*) > 1`)
+over the affected lesson's master strings, records the result in
+`duplicateRows`, and reports the **delta against `duplicateRowsBaseline`** —
+duplicates that predate the recovery are listed separately as pre-existing, not
+blamed on the restore. This is the detection that compensates for the residual
+write race apply cannot close. Any duplicate is a data defect a human must
+resolve; a non-empty delta exits 30.
 
 **Post-restore checks verify MUST report on** (both are consequences of the
 version bump to 159):
@@ -321,8 +350,10 @@ version bump to 159):
   (`webifiedHtmPath` is keyed `${lessonId}-${version}.htm`, so the v158 cover
   preview lingers on disk).
 
-**Exit codes**: 0 success; 20 report checksum/diagnosis-id mismatch; 26 no
-apply recorded in the report; 1 unexpected.
+**Exit codes**: 0 success, no new duplicates; 20 report checksum/diagnosis-id
+mismatch; 26 no apply recorded in the report; **30 new duplicate rows found
+against the baseline — resolve by hand before sending the client report**;
+1 unexpected.
 
 Web previews are regenerated by the existing task and are **not** re-implemented
 here:

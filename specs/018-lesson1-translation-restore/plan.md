@@ -359,8 +359,19 @@ run, and aborts with exit 28 if the lock is held.
 `sql.reserve()` in `postgres@1` — held for the process lifetime. `PGStorage`
 pools its connections; a session-level advisory lock taken on a pooled
 connection is released the moment that connection is recycled, which would make
-the guard silently useless exactly when concurrency is highest. The tool asserts
-it still holds the lock before each batch.
+the guard silently useless exactly when concurrency is highest.
+
+Two consequences of holding a lock across a long run:
+
+- **Take it first, before the `pg_dump`.** The dump takes minutes; two
+  concurrent dumps are also bad, and a lock acquired after the dump leaves the
+  expensive window unguarded.
+- **The reserved connection sits idle through the dump**, so a server-side idle
+  timeout or a network blip can drop it and silently release the lock. The tool
+  re-asserts the lock before each batch and, on finding it lost, **aborts with
+  exit 28 — it never silently re-acquires**. Re-acquiring would hide the fact
+  that another process may have held it in the interval, which is the exact
+  scenario the lock exists to prevent.
 
 ### The residual write race, and detecting what it costs
 
@@ -373,12 +384,24 @@ Two honest compensations rather than a false guarantee:
 
 - The dumps and the apply run in a low-traffic window for the client's timezone,
   which is when concurrent edits are least likely.
-- **`verify` runs a duplicate-row sweep** over the affected lesson's master
-  strings: `SELECT languageid, masterid, lessonstringid, count(*) … HAVING
-count(*) > 1`. Any duplicate is reported prominently with its rows, in both
-  the JSON report (`duplicateRows`) and the client-facing Markdown. A duplicate
-  is a data defect a human must resolve; the tool detects it rather than
-  pretending it cannot happen.
+- **A duplicate-row sweep** over the affected lesson's master strings:
+  `SELECT languageid, masterid, lessonstringid, count(*) … HAVING count(*) > 1`.
+  Any duplicate is reported prominently with its rows, in both the JSON report
+  (`duplicateRows`) and the client-facing Markdown. A duplicate is a data defect
+  a human must resolve; the tool detects it rather than pretending it cannot
+  happen.
+
+**The sweep MUST run at `diagnose` time too, as a baseline.** `tstrings` has
+had no unique constraint for the life of the database, so pre-existing
+duplicates are entirely plausible. Without a baseline, `verify` cannot tell a
+duplicate this tool created from one that was already there — and the honest
+answer would default to blaming the restore, in a report the client reads.
+`diagnose` records `duplicateRowsBaseline`; `verify` reports the delta and
+lists the baseline separately as pre-existing, not caused here.
+
+A non-empty **new** duplicate set makes `verify` exit 30, for the same reason
+drift makes `apply` exit 27: a data defect a human must resolve must not be
+readable as a clean run.
 
 This is recorded as a **known residual risk**, not as a solved problem.
 
@@ -400,10 +423,37 @@ Two refinements to I11 that only become visible once it exists:
   `englishRestore`. The runbook's drift-recovery loop would otherwise fire a
   scary warning on its own happy path.
 
+**The re-diagnosis needs a `--prior-report <path>`.** The runbook sends the
+drift-recovery `diagnose` to a _new_ report path (so it cannot clobber the
+audit artifact), which means the new run has no way to find the pinned
+`knownBadVersions` or the bumps this tool made — the two facts
+`expectedBumpCount` and `isKnownBadUpload` depend on. Without it, the second
+diagnosis silently loses the cover-file denial and mis-warns on `bumpCount`,
+i.e. the pass-2 mitigations evaporate on exactly the path they were written
+for. `diagnose --prior-report` reads the earlier report, carries forward
+`knownBadVersions` and `englishRestore`-derived bump accounting, and records the
+prior `diagnosisId` as provenance. When `--prior-report` is omitted and a report
+already exists in the same directory, the tool says so rather than proceeding
+blind.
+
+### Aborting after the upload has already happened
+
+The post-upload mode/owner assertion (I18) fires **after** production has been
+modified. A bare abort at that point leaves the operator with a lesson that may
+be unreadable in the app and no instruction — worse than not checking.
+
+So the sequence is: attempt repair first (`chmod`/`chown` the new ODT and
+preview to match their pre-existing siblings), re-check, and only then abort.
+The abort message MUST state plainly that Lesson 1 may currently be unreadable,
+name the offending files with their actual and expected modes, and print the
+exact command to fix them. Every abort that can leave production mid-change
+carries its own recovery instruction.
+
 ### Overwriting the audit artifact
 
 `--force-report` must refuse to overwrite a report file that already contains
-`englishRestore` or `appliedWrites`. That file is the record of what was done
+`englishRestore` or `appliedWrites`, and must apply the same refusal when a
+sibling `report.journal.jsonl` exists with entries. That file is the record of what was done
 to production and the pointer to the pre-apply dump; clobbering it destroys the
 evidence for SC-004 and the operator's route back.
 
@@ -498,8 +548,10 @@ It is a working artifact for the operator, not a deliverable.
 
 Requirements:
 
-- `report.json` and the pre-apply dumps are written `0600` into a `0700`
-  directory.
+- `report.json`, `report.journal.jsonl`, and the pre-apply dumps are written
+  `0600` into a `0700` directory. The journal carries the same translation text
+  as the report and is subject to the same handling — it is an operator
+  artifact, never sent to the client.
 - The client-facing Markdown (`--out`) MUST contain **no** credentials, server
   IP addresses, filesystem paths, database names, or stack traces. Counts,
   language names, lesson identity, conflict sample text, and the `diagnosisId`

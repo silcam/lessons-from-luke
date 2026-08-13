@@ -174,6 +174,11 @@ ls -l docs/Luke-1-01v157.odt docs/Luke-1-01v159.odt
 Check the app: Luke Lesson 1 in English should show the real lesson, not the
 cover page (SC-001).
 
+**Exit code 31 means the upload succeeded but the new files are not
+app-readable** — Lesson 1 may be broken right now. The tool tries to repair the
+modes itself first; if it still aborts, run the fix command it prints, then
+re-check the app before continuing to step 6.
+
 ## 6. Apply the translation restore
 
 ```bash
@@ -201,7 +206,19 @@ Guarantees, restated:
 because production changed under us. This is not a failure — the safe writes
 landed and are journaled — but the restore is incomplete. Read the `driftSkips`
 list, then re-run `diagnose` (to a **new** report path) and repeat steps 4 and 6
-for the remainder.
+for the remainder — and **pass `--prior-report` pointing at the first report**:
+
+```bash
+NODE_ENV=production node dist/server/tasks/restoreLesson/cli.js diagnose \
+  --snapshot-url "$SNAPSHOT_DATABASE_URL" \
+  --report ~/recovery/report-2.json \
+  --prior-report ~/recovery/report.json \
+  --snapshot-confirmed "marker-seen-$(date +%F)"
+```
+
+Without `--prior-report` the second diagnosis loses the pinned `knownBadVersions`
+(so the cover file stops being denied) and mis-warns on `bumpCount`. The tool
+warns if you omit it beside an existing report, but pass it deliberately.
 
 On that re-diagnosis, `bumpCount` will be **2** and the strategy
 `snapshotAnchored`, because `restore-english` bumped production to 159. That is
@@ -237,11 +254,13 @@ the app:
 - [ ] Lesson 1's TSub substitution suggestions are sane. They now diff v159
       against v158 (the cover page), so they may be nonsense. Note what you see
       in the client report rather than letting a translator find it.
-- [ ] `duplicateRows` in the report is **empty**. `tstrings` has no unique
-      constraint, so a translator saving the same string in the sub-second
-      window between the tool's re-check and its write could produce a duplicate
-      row. `verify` sweeps for this. If it finds any, resolve them by hand
-      before sending the client report — do not ship a known duplicate.
+- [ ] The duplicate **delta** is empty (`verify` exits 0, not 30). `tstrings`
+      has no unique constraint, so a translator saving the same string in the
+      sub-second window between the tool's re-check and its write could produce
+      a duplicate row. `verify` compares its sweep against the
+      `duplicateRowsBaseline` taken at diagnosis, so duplicates that predate the
+      recovery are listed as pre-existing rather than blamed on it. Resolve any
+      **new** ones by hand before sending the client report.
 
 Read `client-report.md` before sending it. It must contain no server
 addresses, filesystem paths, database names, or credentials — only counts,
