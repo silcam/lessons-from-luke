@@ -63,6 +63,30 @@
  * fails at runtime the first time it calls `apply()` ("cli.apply is not a
  * function"), loaded lazily the same way as `diagnose`/`restoreEnglish`
  * above and for the same typecheck reason (see `loadApply`).
+ *
+ * RED (task 5.9.1) additionally extends this same harness to cover the 2
+ * GWT scenarios of `specs/acceptance-specs/US18-verify-and-handback.txt`,
+ * asserted against a not-yet-implemented `verify()` entry point on `cli.ts`.
+ * `cli.ts` currently exports `diagnose`, `restoreEnglish`, and `apply`
+ * (tasks 5.6.7/5.7.3/5.8.4); it has no `verify` export yet — that is task
+ * 5.9.2. Every test in the "US18-verify-and-handback.txt" section below
+ * therefore fails at runtime the first time it calls `verify()`
+ * ("cli.verify is not a function"), loaded lazily the same way as
+ * `diagnose`/`restoreEnglish`/`apply` above and for the same typecheck
+ * reason (see `loadVerify`).
+ *
+ * Scenario 2's "web previews are regenerated" is scoped, per
+ * `contracts/cli.md` §verify, to what `verify()` itself is responsible
+ * for: reporting the new version's preview status in the client-facing
+ * Markdown (the "Post-restore checks verify MUST report on" bullet), not
+ * literally re-running `webifyLesson` — that stays the separate, pre-existing
+ * `yarn generate-previews` task the contract explicitly declines to
+ * re-implement here, and `webifyLesson` intentionally no-ops under
+ * `NODE_ENV=test` anyway (see the US16 block's `dumpPath`/`docsRoot`
+ * comment above for the same no-op). The assertion below therefore checks
+ * the Markdown mentions the preview for the restored version, and checks
+ * language progress — which `verify()` DOES recompute itself via
+ * `updateProgress()` (I10) — actually changed.
  */
 import fs from "fs";
 import os from "os";
@@ -71,7 +95,7 @@ import request from "supertest";
 import postgres, { SqlFunc } from "postgres";
 import secrets from "../../util/secrets";
 import { transformCol } from "../../storage/PGStorage";
-import { ENGLISH_ID, Language } from "../../../core/models/Language";
+import { ENGLISH_ID, Language, lessonProgress } from "../../../core/models/Language";
 import { BaseLesson } from "../../../core/models/Lesson";
 import { TString } from "../../../core/models/TString";
 import {
@@ -199,6 +223,38 @@ async function apply(options: ApplyOptions): Promise<DiagnosisReport> {
   const cliModulePath = ["." + "/", "cli"].join("");
   const cli = require(cliModulePath);
   return cli.apply(options);
+}
+
+/** Core options for the not-yet-implemented `verify()` (task 5.9.2), mirroring
+ * `ApplyOptions`'s "pure orchestration core, no argv" shape: given a
+ * checksum-gated report that already carries `appliedWrites` (this
+ * subcommand's precondition), it recomputes per-language before/after
+ * reachable-translation counts, recomputes language progress, writes the
+ * client-facing Markdown to `outPath`, and returns the report with
+ * `verification` appended (contract §verify). */
+interface VerifyOptions {
+  productionSql: SqlFunc;
+  report: DiagnosisReport;
+  diagnosisId: string;
+  outPath: string;
+  homeDir?: string;
+  offline?: boolean;
+}
+
+/**
+ * Lazily loads `cli.ts`'s `verify` export and calls it — same non-literal
+ * `require()` pattern as `diagnose`/`restoreEnglish`/`apply` above, and for
+ * the same reason (see file header): `cli.ts` exists (tasks
+ * 5.6.7/5.7.3/5.8.4 built it for `diagnose`/`restoreEnglish`/`apply`), so a
+ * static import would typecheck fine today, but `verify` is not yet
+ * exported. Calling `cli.verify(...)` therefore fails at runtime with
+ * "cli.verify is not a function" rather than a module-resolution error —
+ * still a real Jest failure, not a compile-time one.
+ */
+async function verify(options: VerifyOptions): Promise<DiagnosisReport> {
+  const cliModulePath = ["." + "/", "cli"].join("");
+  const cli = require(cliModulePath);
+  return cli.verify(options);
 }
 
 const serverUrl = process.env.INTEGRATION_SERVER_URL;
@@ -841,5 +897,142 @@ describe("US17-restore-translations.txt scenarios", () => {
     );
     // No duplicate rows created (I4): identical row set before and after.
     expect(afterRerunTStrings).toEqual(beforeRerunTStrings);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// US18-verify-and-handback.txt scenarios (task 5.9.1, US4)
+// ─────────────────────────────────────────────────────────────────────────
+
+describe("US18-verify-and-handback.txt scenarios", () => {
+  let verifyScratchDir: string;
+  let outPath: string;
+  let appliedReport: DiagnosisReport;
+
+  beforeAll(async () => {
+    verifyScratchDir = fs.mkdtempSync(path.join(os.tmpdir(), "restore-lesson-integration-verify-"));
+    outPath = path.join(verifyScratchDir, "client-report.md");
+
+    // Re-diagnose against current production (already carrying the English
+    // restores the US16 block performed) so `apply`'s precondition 8
+    // (`englishRestore` present) can be satisfied, then apply to produce a
+    // report carrying `appliedWrites` — `verify`'s own precondition (contract
+    // §verify: "report exists with `appliedWrites` recorded"). Mirrors the
+    // US17 block's `beforeAll` above.
+    const freshDiagnosis: DiagnosisReport = await diagnose({
+      productionSql: sql,
+      snapshot,
+      snapshotConfirmed: "test-harness-confirmed",
+      book: BOOK,
+      dryRun: true,
+      homeDir,
+      knownBadVersions: [incidentVersion],
+      docsRoot,
+    });
+    const affectedLesson = freshDiagnosis.affectedLessons.find(
+      (lsn) => lsn.book === BOOK && lsn.series === SERIES && lsn.lesson === LESSON
+    );
+    expect(affectedLesson).toBeTruthy();
+
+    const dumpPath = path.join(verifyScratchDir, "pre-english-restore.dump");
+    fs.writeFileSync(dumpPath, "fixture dump contents");
+    const reportWithEnglishRestore: DiagnosisReport = {
+      ...freshDiagnosis,
+      englishRestore: {
+        method: "upload",
+        masterDocumentPath,
+        masterDocumentSha256: null,
+        newLessonVersion: affectedLesson!.productionVersion,
+        dumpPath,
+        restoredAt: new Date().toISOString(),
+        carriedFromDiagnosisId: null,
+      },
+    };
+    const diagnosisReportForApply: DiagnosisReport = {
+      ...reportWithEnglishRestore,
+      reportChecksum: computeReportChecksum(reportWithEnglishRestore),
+    };
+
+    appliedReport = await apply({
+      productionSql: sql,
+      report: diagnosisReportForApply,
+      diagnosisId: diagnosisReportForApply.diagnosisId,
+      dumpDir: verifyScratchDir,
+      homeDir,
+    });
+    expect(appliedReport.appliedWrites?.length ?? 0).toBeGreaterThanOrEqual(1);
+  });
+
+  afterAll(() => {
+    fs.rmSync(verifyScratchDir, { recursive: true, force: true });
+  });
+
+  test("Verification reports before/after counts and outstanding conflicts per language", async () => {
+    const report = await verify({
+      productionSql: sql,
+      report: appliedReport,
+      diagnosisId: appliedReport.diagnosisId,
+      outPath,
+      homeDir,
+    });
+
+    const counts = report.perLanguageCounts.find((c) => c.languageId === languageId);
+    expect(counts).toBeTruthy();
+    // `productionReachableAfter` stays null through diagnose/apply (contract
+    // §verify's "apply/verify only") — `verify` is the step that fills it in
+    // from a live post-restore count.
+    expect(counts!.productionReachableAfter).not.toBeNull();
+    expect(counts!.productionReachableAfter as number).toBeGreaterThan(
+      counts!.productionReachableBefore
+    );
+
+    // The post-Snapshot production edit (US17 block) is still an outstanding
+    // conflict for human review.
+    expect(
+      report.conflicts.some(
+        (c) => c.languageId === languageId && c.snapshotMasterId === conflictMasterId
+      )
+    ).toBe(true);
+
+    expect(report.verification).toBeTruthy();
+    expect(report.verification!.clientReportPath).toBe(outPath);
+    expect(fs.existsSync(outPath)).toBe(true);
+    const markdown = fs.readFileSync(outPath, "utf-8");
+    expect(markdown).toMatch(/conflict/i);
+  });
+
+  test("Derived data is regenerated to match the restored state", async () => {
+    const beforeLanguages = await fetchAllLanguages(sql, true);
+    const beforeLang = beforeLanguages.find((lang) => lang.languageId === languageId);
+    expect(beforeLang).toBeTruthy();
+    const beforeProgress = lessonProgress(beforeLang!.progress, lessonId);
+
+    const report = await verify({
+      productionSql: sql,
+      report: appliedReport,
+      diagnosisId: appliedReport.diagnosisId,
+      outPath,
+      homeDir,
+    });
+
+    // `verify` recomputes and awaits `updateProgress()` (I10, contract
+    // §verify "Side effects") — language progress for the restored lesson
+    // now reflects the strings `apply` reattached, so it must not still read
+    // the stale pre-restore figure.
+    const afterLanguages = await fetchAllLanguages(sql, true);
+    const afterLang = afterLanguages.find((lang) => lang.languageId === languageId);
+    expect(afterLang).toBeTruthy();
+    const afterProgress = lessonProgress(afterLang!.progress, lessonId);
+    expect(afterProgress).toBeGreaterThan(beforeProgress);
+
+    // Web previews: scoped per file header — `verify` reports the restored
+    // version's preview status in the client Markdown (the "Post-restore
+    // checks verify MUST report on" bullet) rather than re-running
+    // `webifyLesson` itself.
+    expect(fs.existsSync(outPath)).toBe(true);
+    const markdown = fs.readFileSync(outPath, "utf-8");
+    expect(markdown).toMatch(/preview/i);
+    expect(report.englishRestore).toBeTruthy();
+    expect(markdown).toContain(String(report.englishRestore!.newLessonVersion));
   });
 });
