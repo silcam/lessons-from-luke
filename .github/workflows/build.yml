@@ -108,9 +108,19 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Install system dependencies (LibreOffice for `soffice --headless`)
+        # postgresql-client-16 comes from the PGDG repo: bookworm ships client 15,
+        # and pg_dump aborts on a server version mismatch (integration tests dump
+        # the Postgres 16 service container).
         run: |
           apt-get update -qq
-          apt-get install -y -qq postgresql-client zip libreoffice
+          apt-get install -y -qq curl ca-certificates gnupg zip libreoffice
+          install -d /usr/share/postgresql-common/pgdg
+          curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] http://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
+            > /etc/apt/sources.list.d/pgdg.list
+          apt-get update -qq
+          apt-get install -y -qq postgresql-client-16
       - name: Create test database
         run: |
           PGPASSWORD=lessons-from-luke psql -h postgres -U lessons-from-luke -c \
