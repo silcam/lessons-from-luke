@@ -2611,6 +2611,10 @@ export async function verify(options: VerifyCoreOptions): Promise<DiagnosisRepor
       });
       ensureReportDirectory(path.dirname(options.outPath));
       fs.writeFileSync(options.outPath, markdown, { mode: 0o600 });
+      // mode above only applies when the file is newly created — re-assert it
+      // so a pre-existing (looser-permissioned or planted) file at outPath
+      // ends up 0600 too, matching writeReportAtomic (report.ts).
+      fs.chmodSync(options.outPath, 0o600);
 
       const verification: Verification = {
         mode,

@@ -2534,6 +2534,27 @@ describe("verify() core", () => {
     expect(advisoryLockOps.unlock).toHaveBeenCalledTimes(1);
   });
 
+  test("re-asserts 0600 on the client report even when the outPath already existed with looser permissions", async () => {
+    await insertFrenchMaster1("Le livre de Luc restauré");
+    const report = await baseVerifyReport();
+    const outPath = verifyOutPath();
+    fs.writeFileSync(outPath, "stale content", { mode: 0o644 });
+    fs.chmodSync(outPath, 0o644);
+
+    await verify({
+      productionSql: sql(),
+      report,
+      diagnosisId: report.diagnosisId,
+      outPath,
+      homeDir: homeDirWithMarker(),
+      withReservedConnection: bypassReservedConnection,
+      advisoryLockOps: makeAdvisoryLockOps(),
+      persistence: testPersistence(),
+    });
+
+    expect(fs.statSync(outPath).mode & 0o777).toBe(0o600);
+  });
+
   test("coverage is partial whenever apply was --languages-scoped, even if the scope named every language", async () => {
     await insertFrenchMaster1("Le livre de Luc restauré");
     const report = await baseVerifyReport({
