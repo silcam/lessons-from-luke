@@ -51,6 +51,7 @@ import {
   diagnose,
   DiskHeadroomOps,
   duplicateRowDelta,
+  handleMainRejection,
   parseApplyArgs,
   parseDiagnoseArgs,
   parseRestoreEnglishArgs,
@@ -122,6 +123,33 @@ describe("redactConnectionString", () => {
 
   test("leaves text with no connection string untouched", () => {
     expect(redactConnectionString("no secrets here")).toBe("no secrets here");
+  });
+});
+
+describe("handleMainRejection", () => {
+  test("redacts an Error's stack and reports exit code 1", () => {
+    const lines: string[] = [];
+    const err = new Error("boom");
+    err.stack = "Error: connecting to postgres://opsuser:hunter2@127.0.0.1:5433/db failed";
+
+    const exitCode = handleMainRejection(err, { stderr: (line) => lines.push(line) });
+
+    expect(exitCode).toBe(1);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).not.toContain("hunter2");
+    expect(lines[0]).toContain("postgres://opsuser:***@127.0.0.1:5433/db");
+  });
+
+  test("redacts a non-Error rejection value and reports exit code 1", () => {
+    const lines: string[] = [];
+
+    const exitCode = handleMainRejection("postgres://opsuser:hunter2@127.0.0.1:5433/db rejected", {
+      stderr: (line) => lines.push(line),
+    });
+
+    expect(exitCode).toBe(1);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).not.toContain("hunter2");
   });
 });
 

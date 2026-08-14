@@ -2826,8 +2826,30 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
   return 1;
 }
 
+/**
+ * Handles a rejection escaping `main()` — most plausibly `closeSql` throwing
+ * in a `finally` block, since every subcommand's own try/catch already
+ * redacts and maps its own errors. Applies the same
+ * `redactConnectionString` discipline before writing to stderr so a raw,
+ * unredacted stack never reaches the terminal, and returns the exit code
+ * the caller should set.
+ */
+export function handleMainRejection(
+  err: unknown,
+  deps: { stderr?: (line: string) => void } = {}
+): number {
+  const stderrFn = deps.stderr ?? ((line: string) => console.error(line));
+  const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
+  stderrFn(redactConnectionString(message));
+  return 1;
+}
+
 if (require.main === module) {
-  main().then((code) => {
-    process.exitCode = code;
-  });
+  main()
+    .then((code) => {
+      process.exitCode = code;
+    })
+    .catch((err) => {
+      process.exitCode = handleMainRejection(err);
+    });
 }
