@@ -1,14 +1,19 @@
 /**
- * PGSnapshotStorage — read-only Persistence subclass for the migration
- * incident Snapshot database.
+ * PGSnapshotStorage — read-only gateway subclass for the migration incident
+ * Snapshot database.
  *
  * Spec: specs/018-lesson1-translation-restore/plan.md §Project Structure,
  * §Security & Privacy ("Snapshot credentials must not leak", "Least
  * privilege and blast radius"); research.md D1.
  *
- * Follows the `PGDevStorage`/`PGTestStorage` "subclass PGStorage, swap
- * `this.sql`" pattern (PGStorage.ts), but connects to an operator-supplied
- * Snapshot database — never `secrets.json` — and is read-only by three
+ * Extends `PGRestoreLessonGatewayStorage` (not `PGStorage` directly) so the
+ * Snapshot handle carries both the raw-SQL gateway read methods
+ * (`fetchAllLanguages`, `fetchTStringsForLesson`, `fetchLegacyScopedCount`,
+ * ...) that `restoreLesson`'s diagnose/apply/verify code needs against the
+ * Snapshot, AND the throwing mutator overrides below (amkj.15 — before this
+ * change, cli.ts wrapped the Snapshot connection in a bare
+ * `PGConnectedStorage extends PGRestoreLessonGatewayStorage`, which has none
+ * of these overrides: guard 1 was dead code). It is read-only by three
  * independent guards (data-model.md I1), none trusted alone:
  *
  *  1. Every mutating `Persistence` method below throws `SnapshotIsReadOnlyError`
@@ -17,14 +22,16 @@
  *  3. (operational, outside this class) the connection SHOULD use a
  *     SELECT-only Postgres role.
  *
- * The connection string is supplied by the caller (env var
- * `SNAPSHOT_DATABASE_URL` or `--snapshot-url`, resolved by the CLI — see
- * contracts/cli.md) so this class stays a pure "given a URL, connect"
- * subclass with no knowledge of argv/env. It is never logged or echoed
- * unredacted — see `redactConnectionUrl`.
+ * The constructor takes an already-connected `SqlFunc` (per the
+ * `PGDevStorage`/`PGTestStorage`/`PGRestoreLessonGatewayStorage` "subclass,
+ * then swap `this.sql`" pattern) rather than a connection URL, so callers
+ * open the connection via `snapshotDbConnect` (guard 2) — and can inject a
+ * test double for it — before wrapping it here. It is never logged or
+ * echoed unredacted — see `redactConnectionUrl`.
  */
 import postgres, { SqlFunc } from "postgres";
-import PGStorage, { transformCol } from "./PGStorage";
+import { transformCol } from "./PGStorage";
+import PGRestoreLessonGatewayStorage from "./PGRestoreLessonGatewayStorage";
 import { NewLanguage, Language } from "../../core/models/Language";
 import { DraftLesson, BaseLesson, Lesson } from "../../core/models/Lesson";
 import { DraftLessonString } from "../../core/models/LessonString";
@@ -110,11 +117,11 @@ export function snapshotUrlSecurityWarning(connectionUrl: string): string | null
   );
 }
 
-export default class PGSnapshotStorage extends PGStorage {
-  constructor(connectionUrl: string) {
-    super();
-    this.sql = snapshotDbConnect(connectionUrl);
-  }
+export default class PGSnapshotStorage extends PGRestoreLessonGatewayStorage {
+  // constructor is inherited from PGRestoreLessonGatewayStorage:
+  // constructor(sql: SqlFunc) { super(); this.sql = sql; }
+  // Callers connect via `snapshotDbConnect(url)` first (guard 2), then wrap
+  // the resulting `SqlFunc` here — see cli.ts's `runDiagnoseCommand`.
 
   // ── Mutating Persistence methods: throw before any query executes ──────
 

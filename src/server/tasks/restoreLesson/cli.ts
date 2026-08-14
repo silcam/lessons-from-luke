@@ -50,7 +50,10 @@ import { parseDocStrings } from "../../actions/updateLesson";
 import { uploadEnglishDoc } from "../../actions/uploadDocument";
 import webifyLesson from "../../actions/webifyLesson";
 import PGStorage, { dbConnect } from "../../storage/PGStorage";
-import { snapshotDbConnect, snapshotUrlSecurityWarning } from "../../storage/PGSnapshotStorage";
+import PGSnapshotStorage, {
+  snapshotDbConnect,
+  snapshotUrlSecurityWarning,
+} from "../../storage/PGSnapshotStorage";
 import PGRestoreLessonGatewayStorage from "../../storage/PGRestoreLessonGatewayStorage";
 import {
   PRODUCTION_MARKER_FILENAME,
@@ -116,6 +119,13 @@ import {
  * Follows the `PGDevStorage`/`PGTestStorage`/`PGSnapshotStorage` pattern
  * (`PGStorage.ts`, `PGSnapshotStorage.ts`): subclass `PGStorage`, then swap
  * `this.sql` for the caller-supplied connection.
+ *
+ * Used for every connection EXCEPT the Snapshot (production, reserved
+ * advisory-lock). The Snapshot connection must instead be wrapped in
+ * `PGSnapshotStorage` (below), whose mutating methods throw
+ * `SnapshotIsReadOnlyError` before any query executes (amkj.15) — this
+ * plain gateway subclass has no such guard and would silently permit
+ * writes against the Snapshot if used there.
  */
 class PGConnectedStorage extends PGRestoreLessonGatewayStorage {}
 
@@ -1048,7 +1058,7 @@ export async function runDiagnoseCommand(options: RunDiagnoseCommandOptions): Pr
       (candidate) => candidate.series === target.series && candidate.lesson === target.lesson
     ) as BaseLesson;
 
-    const snapshotStorage = new PGConnectedStorage(snapshotSql);
+    const snapshotStorage = new PGSnapshotStorage(snapshotSql);
     const snapshotLanguages = await snapshotStorage.fetchAllLanguages(true);
     const snapshotLessonStrings = await fetchLessonStrings(snapshotSql, snapshotLesson.lessonId);
     const snapshotMasterIds = snapshotLessonStrings.map((ls) => ls.masterId);

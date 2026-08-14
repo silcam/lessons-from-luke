@@ -13,64 +13,103 @@ import secrets from "../util/secrets";
 // database required, and no query ever actually runs against it.
 const FAKE_SNAPSHOT_URL = "postgres://snapshotuser:hunter2@127.0.0.1:59999/snapshotdb";
 
-describe("PGSnapshotStorage mutating methods throw before touching the database", () => {
-  const storage = new PGSnapshotStorage(FAKE_SNAPSHOT_URL);
+/**
+ * `PGSnapshotStorage`'s constructor takes an already-connected `SqlFunc`
+ * (amkj.15 — it extends `PGRestoreLessonGatewayStorage`, following that
+ * class's "subclass, then swap `this.sql`" pattern, rather than opening its
+ * own connection from a URL). A `jest.fn()` recording mock stands in for the
+ * connection so these tests can assert not just that a throwing override
+ * rejects, but that it never even calls into `this.sql` (guard 1 fires
+ * synchronously, before any query executes).
+ */
+function fakeSqlFunc(): jest.Mock {
+  return jest.fn().mockResolvedValue([]);
+}
 
-  test("createLanguage throws", async () => {
+describe("PGSnapshotStorage mutating methods throw before touching the database", () => {
+  test("createLanguage throws and issues no query", async () => {
+    const sqlMock = fakeSqlFunc();
+    const storage = new PGSnapshotStorage(sqlMock as any);
     await expect(storage.createLanguage({ name: "X", defaultSrcLang: 1 } as any)).rejects.toThrow(
       SnapshotIsReadOnlyError
     );
+    expect(sqlMock).not.toHaveBeenCalled();
   });
 
-  test("updateLanguage throws", async () => {
+  test("updateLanguage throws and issues no query", async () => {
+    const sqlMock = fakeSqlFunc();
+    const storage = new PGSnapshotStorage(sqlMock as any);
     await expect(storage.updateLanguage(1, { name: "X" })).rejects.toThrow(SnapshotIsReadOnlyError);
+    expect(sqlMock).not.toHaveBeenCalled();
   });
 
-  test("updateLanguageChecked throws", async () => {
+  test("updateLanguageChecked throws and issues no query", async () => {
+    const sqlMock = fakeSqlFunc();
+    const storage = new PGSnapshotStorage(sqlMock as any);
     await expect(storage.updateLanguageChecked(1, { name: "X" })).rejects.toThrow(
       SnapshotIsReadOnlyError
     );
+    expect(sqlMock).not.toHaveBeenCalled();
   });
 
-  test("archiveLanguage throws", async () => {
+  test("archiveLanguage throws and issues no query", async () => {
+    const sqlMock = fakeSqlFunc();
+    const storage = new PGSnapshotStorage(sqlMock as any);
     await expect(storage.archiveLanguage(1)).rejects.toThrow(SnapshotIsReadOnlyError);
+    expect(sqlMock).not.toHaveBeenCalled();
   });
 
-  test("createLesson throws", async () => {
+  test("createLesson throws and issues no query", async () => {
+    const sqlMock = fakeSqlFunc();
+    const storage = new PGSnapshotStorage(sqlMock as any);
     await expect(
       storage.createLesson({ book: "Luke", series: 1, lesson: 1 } as any)
     ).rejects.toThrow(SnapshotIsReadOnlyError);
+    expect(sqlMock).not.toHaveBeenCalled();
   });
 
-  test("updateLesson throws", async () => {
+  test("updateLesson throws and issues no query (acceptance criterion)", async () => {
+    const sqlMock = fakeSqlFunc();
+    const storage = new PGSnapshotStorage(sqlMock as any);
     await expect(storage.updateLesson(1, 1, [])).rejects.toThrow(SnapshotIsReadOnlyError);
+    expect(sqlMock).not.toHaveBeenCalled();
   });
 
-  test("addOrFindMasterStrings throws", async () => {
+  test("addOrFindMasterStrings throws and issues no query", async () => {
+    const sqlMock = fakeSqlFunc();
+    const storage = new PGSnapshotStorage(sqlMock as any);
     await expect(storage.addOrFindMasterStrings(["hello"])).rejects.toThrow(
       SnapshotIsReadOnlyError
     );
+    expect(sqlMock).not.toHaveBeenCalled();
   });
 
-  test("saveTStrings throws", async () => {
+  test("saveTStrings throws and issues no query (acceptance criterion)", async () => {
+    const sqlMock = fakeSqlFunc();
+    const storage = new PGSnapshotStorage(sqlMock as any);
     await expect(storage.saveTStrings([])).rejects.toThrow(SnapshotIsReadOnlyError);
+    expect(sqlMock).not.toHaveBeenCalled();
   });
 
-  test("updateProgress throws", async () => {
+  test("updateProgress throws and issues no query", async () => {
+    const sqlMock = fakeSqlFunc();
+    const storage = new PGSnapshotStorage(sqlMock as any);
     await expect(storage.updateProgress()).rejects.toThrow(SnapshotIsReadOnlyError);
+    expect(sqlMock).not.toHaveBeenCalled();
   });
 
   test("thrown errors identify which method was called", async () => {
+    const sqlMock = fakeSqlFunc();
+    const storage = new PGSnapshotStorage(sqlMock as any);
     await expect(storage.updateProgress()).rejects.toThrow(/updateProgress/);
   });
 });
 
 describe("PGSnapshotStorage read methods still delegate to the real query", () => {
   test("languages() runs a query through this.sql, not a throwing override", async () => {
-    const storage = new PGSnapshotStorage(FAKE_SNAPSHOT_URL);
     const fakeRows = [{ languageId: 1, name: "English" }];
     const sqlMock = jest.fn().mockResolvedValue(fakeRows);
-    (storage as any).sql = sqlMock;
+    const storage = new PGSnapshotStorage(sqlMock as any);
 
     const result = await storage.languages();
 
@@ -79,14 +118,24 @@ describe("PGSnapshotStorage read methods still delegate to the real query", () =
   });
 
   test("lesson() still delegates through this.sql for a read", async () => {
-    const storage = new PGSnapshotStorage(FAKE_SNAPSHOT_URL);
     const sqlMock = jest.fn().mockResolvedValue([]);
-    (storage as any).sql = sqlMock;
+    const storage = new PGSnapshotStorage(sqlMock as any);
 
     const result = await storage.lesson(1);
 
     expect(sqlMock).toHaveBeenCalled();
     expect(result).toBeNull();
+  });
+
+  test("fetchAllLanguages() — the gateway read method restoreLesson's CLI needs — delegates through this.sql", async () => {
+    const fakeRows = [{ languageid: 1, name: "English", archived: false }];
+    const sqlMock = jest.fn().mockResolvedValue(fakeRows);
+    const storage = new PGSnapshotStorage(sqlMock as any);
+
+    const result = await storage.fetchAllLanguages(true);
+
+    expect(sqlMock).toHaveBeenCalled();
+    expect(result).toEqual(fakeRows);
   });
 });
 
