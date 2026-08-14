@@ -1245,7 +1245,17 @@ function makeRealRestoreEnglishDeps(storage: PGStorage): RestoreEnglishDeps {
     },
     webify: async (restored) => {
       const lesson = await storage.lesson(restored.lessonId);
-      if (lesson) await webifyLesson(lesson);
+      // `force: true` bypasses `webifyLesson`'s `NODE_ENV=test` no-op guard
+      // (`src/server/actions/webifyLesson.ts`). Outside test this is a no-op
+      // change (the guard never triggers there). Forcing it here — rather
+      // than leaving the real preview conversion silently skipped — is what
+      // makes `restoreEnglish.ts`'s own I18 mode/owner repair-then-abort
+      // check (`repairAndVerifyFileModes`, which stats the real preview path
+      // this same call produces) verifiable end to end under
+      // `restoreLesson.integration.test.ts`'s real-upload-path harness,
+      // instead of unconditionally ENOENT-ing on a preview file that was
+      // never written.
+      if (lesson) await webifyLesson(lesson, { force: true });
     },
   };
 }
@@ -1394,35 +1404,48 @@ export async function restoreEnglish(options: RestoreEnglishCliOptions): Promise
         );
       }
 
-      let storage: PGStorage | null = null;
+      // `new PGStorage()` opens its OWN connection via `dbConnect()`
+      // (`secrets.db`, unconditionally), ignoring `options.productionSql`
+      // entirely — on a real production host that happens to coincide with
+      // the same database (the whole point of the tool), but under this
+      // module's own test harness `options.productionSql` is the TEST
+      // database while `secrets.db` points at a different one. That mismatch
+      // silently wrote every restored English document into the WRONG
+      // database, so the version this function computed
+      // (`affectedLesson.productionVersion + 1`, derived from
+      // `options.productionSql`) diverged from the version
+      // `uploadEnglishDoc` actually assigned there (derived from whatever
+      // unrelated lesson row already existed in `secrets.db`) — the root
+      // cause of `restoreLesson.integration.test.ts`'s ENOENT on the
+      // post-upload file (5.9.3.1). `PGConnectedStorage` wraps the SAME
+      // connection this function already verified identity against, so
+      // every write goes through the one database this call's own
+      // precondition checks (and the caller's report) actually describe.
+      // That connection is owned by the caller (`options.productionSql`),
+      // not by this function, so it must never be `.close()`d here.
       let deps: RestoreEnglishDeps;
       if (options.deps) {
         deps = options.deps;
       } else {
-        storage = new PGStorage();
-        deps = makeRealRestoreEnglishDeps(storage);
+        deps = makeRealRestoreEnglishDeps(new PGConnectedStorage(sql));
       }
-      try {
-        const updated = await restoreEnglishCore({
-          report,
-          masterDocumentPath: options.masterDocumentPath ?? null,
-          forceRelink: options.forceRelink ?? false,
-          dumpPath,
-          docsRoot,
-          previewDir: options.previewDir,
-          siblingDocPath: options.siblingDocPath ?? options.masterDocumentPath ?? undefined,
-          deps,
-          fileModeOps: options.fileModeOps ?? realFileModeOps,
-          now: options.now,
-        });
+      const updated = await restoreEnglishCore({
+        report,
+        masterDocumentPath: options.masterDocumentPath ?? null,
+        forceRelink: options.forceRelink ?? false,
+        dumpPath,
+        docsRoot,
+        previewDir: options.previewDir,
+        siblingDocPath: options.siblingDocPath ?? options.masterDocumentPath ?? undefined,
+        deps,
+        fileModeOps: options.fileModeOps ?? realFileModeOps,
+        now: options.now,
+      });
 
-        if (options.reportPath) {
-          writeReportAtomic(options.reportPath, updated);
-        }
-        return updated;
-      } finally {
-        if (storage) await storage.close();
+      if (options.reportPath) {
+        writeReportAtomic(options.reportPath, updated);
       }
+      return updated;
     } finally {
       try {
         await advisoryLockOps.unlock(reserved, key);
@@ -2525,11 +2548,24 @@ export async function verify(options: VerifyCoreOptions): Promise<DiagnosisRepor
         options.persistence ?? new PGConnectedStorage(sql);
 
       const affectedLesson = report.affectedLessons[0];
+      // Mirrors `classify.ts`'s own dual-branch lookup (`classifyOne`): a
+      // mapping with a live `productionMasterId` is looked up there, but an
+      // unmatched mapping (`productionMasterId === null`) still carries real
+      // evidence on its own now-orphaned row, still keyed by
+      // `snapshotMasterId` in the same-id-space `findTSubsBridge` regime
+      // (FR-008). Using only `productionMasterId` here would silently drop
+      // every orphaned `conflict`/`lost` finding from the "after" fetch,
+      // making `productionReachableAfter` incomparable to
+      // `productionReachableBefore` (which classify.ts computed using both
+      // branches) — an already-orphaned-and-still-orphaned conflict would
+      // vanish from the count entirely instead of carrying through unchanged.
       const masterIds = Array.from(
         new Set(
-          report.mappings
-            .map((mapping) => mapping.productionMasterId)
-            .filter((id): id is number => id !== null)
+          report.mappings.map((mapping) =>
+            mapping.productionMasterId !== null
+              ? mapping.productionMasterId
+              : mapping.snapshotMasterId
+          )
         )
       );
 
@@ -2538,7 +2574,6 @@ export async function verify(options: VerifyCoreOptions): Promise<DiagnosisRepor
             includeLegacyLessonStringScoped: true,
           })
         : [];
-
       const perLanguageCounts: LanguageCounts[] = report.perLanguageCounts.map((counts) => ({
         ...counts,
         productionReachableAfter: liveTStrings.filter(
