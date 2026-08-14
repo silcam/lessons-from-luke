@@ -23,16 +23,25 @@ import os from "os";
 import path from "path";
 import { SqlFunc } from "postgres";
 import { RestoreLessonAbortError, PRODUCTION_MARKER_FILENAME } from "./identity";
-import { verifyReportIntegrity } from "./report";
+import { computeDiagnosisChecksum, computeReportChecksum, verifyReportIntegrity } from "./report";
+import { RestoreEnglishDeps, RestoredLessonResult, FileModeOps, ModeOwner } from "./restoreEnglish";
 import { fetchAllLanguages, fetchLegacyScopedCount, fetchTStringsForLesson } from "./gateway";
+import { AffectedLesson, DiagnosisReport, MasterDocumentCandidate } from "./types";
 import {
+  AdvisoryLockOps,
+  advisoryLockKey,
   diagnose,
+  DiskHeadroomOps,
   parseDiagnoseArgs,
+  parseRestoreEnglishArgs,
   redactConnectionString,
   redactDeep,
+  restoreEnglish,
   runDiagnoseCommand,
+  RunPgDump,
   scanCandidateMasterDocuments,
   SnapshotBundle,
+  WithReservedConnection,
 } from "./cli";
 
 function sql() {
@@ -619,5 +628,673 @@ describe("runDiagnoseCommand()", () => {
     expect(written.affectedLessons[0].lesson).toBe(1);
     expect(() => verifyReportIntegrity(written)).not.toThrow();
     expect(stdoutLines.join("\n")).not.toContain("s3cr3t");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// parseRestoreEnglishArgs
+// ─────────────────────────────────────────────────────────────────────────
+
+describe("parseRestoreEnglishArgs", () => {
+  test("parses required and optional flags", () => {
+    const args = parseRestoreEnglishArgs([
+      "--report",
+      "/tmp/rec/report.json",
+      "--diagnosis-id",
+      "abc-123",
+      "--master-document",
+      "/tmp/docs/Luke-1-01v157.odt",
+      "--dump",
+      "/tmp/dump",
+      "--force-relink",
+    ]);
+    expect(args).toEqual({
+      report: "/tmp/rec/report.json",
+      diagnosisId: "abc-123",
+      masterDocumentPath: "/tmp/docs/Luke-1-01v157.odt",
+      dump: "/tmp/dump",
+      forceRelink: true,
+    });
+  });
+
+  test("--force-relink makes --master-document optional", () => {
+    const args = parseRestoreEnglishArgs([
+      "--report",
+      "/tmp/rec/report.json",
+      "--diagnosis-id",
+      "abc-123",
+      "--force-relink",
+    ]);
+    expect(args.masterDocumentPath).toBeNull();
+    expect(args.forceRelink).toBe(true);
+  });
+
+  test("aborts (1) when --report is missing", () => {
+    expect(() =>
+      parseRestoreEnglishArgs(["--diagnosis-id", "abc-123", "--master-document", "/tmp/x.odt"])
+    ).toThrow(RestoreLessonAbortError);
+  });
+
+  test("aborts (1) when --diagnosis-id is missing", () => {
+    expect(() =>
+      parseRestoreEnglishArgs(["--report", "/tmp/r.json", "--master-document", "/tmp/x.odt"])
+    ).toThrow(expect.objectContaining({ exitCode: 1 }));
+  });
+
+  test("aborts (1) when neither --master-document nor --force-relink is given", () => {
+    expect(() =>
+      parseRestoreEnglishArgs(["--report", "/tmp/r.json", "--diagnosis-id", "abc-123"])
+    ).toThrow(expect.objectContaining({ exitCode: 1 }));
+  });
+
+  test("aborts (1) on an unrecognized flag", () => {
+    expect(() => parseRestoreEnglishArgs(["--nope", "x"])).toThrow(
+      expect.objectContaining({ exitCode: 1 })
+    );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// restoreEnglish() core — fixtures
+// ─────────────────────────────────────────────────────────────────────────
+
+async function currentDatabaseName(): Promise<string> {
+  const [row] = await sql()`SELECT current_database() AS db`;
+  return row.db as string;
+}
+
+async function currentLessonVersion(): Promise<number> {
+  const [row] = await sql()`SELECT version FROM lessons WHERE lessonid=11`;
+  return row.version as number;
+}
+
+function writeFile(dir: string, name: string, content: string): string {
+  const filepath = path.join(dir, name);
+  fs.writeFileSync(filepath, content);
+  return filepath;
+}
+
+function candidateFor(
+  filepath: string,
+  overrides: Partial<MasterDocumentCandidate> = {}
+): MasterDocumentCandidate {
+  const buffer = fs.readFileSync(filepath);
+  const crypto = require("crypto") as typeof import("crypto");
+  return {
+    filepath,
+    version: 157,
+    sha256: crypto.createHash("sha256").update(buffer).digest("hex"),
+    sizeBytes: buffer.length,
+    englishTextSetMatchesSnapshot: true,
+    isKnownBadUpload: false,
+    missingFromDocument: [],
+    extraInDocument: [],
+    ...overrides,
+  };
+}
+
+function baseAffectedLesson(
+  productionVersion: number,
+  candidateMasterDocuments: MasterDocumentCandidate[] = []
+): AffectedLesson {
+  return {
+    book: "Luke",
+    series: 1,
+    lesson: 1,
+    productionLessonId: 11,
+    snapshotLessonId: 11,
+    productionVersion,
+    snapshotVersion: productionVersion - 1,
+    bumpCount: 1,
+    mappingStrategy: "snapshotAnchored",
+    knownBadVersions: [],
+    expectedBumpCount: 1,
+    candidateMasterDocuments,
+  };
+}
+
+function finalizeReport(partial: Omit<DiagnosisReport, "diagnosisChecksum" | "reportChecksum">) {
+  const diagnosisChecksum = computeDiagnosisChecksum(partial as DiagnosisReport);
+  const withDiagnosisChecksum = { ...partial, diagnosisChecksum, reportChecksum: "" };
+  const reportChecksum = computeReportChecksum(withDiagnosisChecksum as DiagnosisReport);
+  return { ...withDiagnosisChecksum, reportChecksum } as DiagnosisReport;
+}
+
+async function baseValidReport(
+  affectedLesson: AffectedLesson,
+  overrides: Partial<DiagnosisReport> = {}
+): Promise<DiagnosisReport> {
+  const partial: Omit<DiagnosisReport, "diagnosisChecksum" | "reportChecksum"> = {
+    diagnosisId: "22222222-2222-2222-2222-222222222222",
+    generatedAt: "2026-08-13T00:00:00.000Z",
+    toolVersion: "1.0.0",
+    mode: "diagnose",
+    identity: {
+      productionMarkerPresent: true,
+      snapshotConfirmationToken: "confirmed-by-operator",
+      productionLessonVersion: affectedLesson.productionVersion,
+      snapshotLessonVersion: affectedLesson.snapshotVersion,
+      snapshotIsOlder: true,
+    },
+    productionFingerprint: {
+      databaseName: await currentDatabaseName(),
+      lessonCount: 1,
+      maxMasterId: 1,
+      maxLessonStringId: 1,
+    },
+    affectedLessons: [affectedLesson],
+    languageIdentityChecks: [
+      {
+        matchedBy: "code",
+        key: "ENG",
+        snapshotLanguageId: 1,
+        productionLanguageId: 1,
+        snapshotCode: "ENG",
+        productionCode: "ENG",
+        snapshotName: "English",
+        productionName: "English",
+        agrees: true,
+      },
+    ],
+    mappings: [],
+    findings: [],
+    perLanguageCounts: [],
+    legacyLessonStringRowCounts: { production: 0, snapshot: 0 },
+    blastRadius: { sharedMasterIds: 0, lessons: [] },
+    plannedWrites: [],
+    duplicateRowsBaseline: [],
+    conflicts: [],
+    ...overrides,
+  };
+  return finalizeReport(partial);
+}
+
+function makeDeps(overrides: Partial<RestoreEnglishDeps> = {}): RestoreEnglishDeps {
+  return {
+    upload: jest.fn(async () => ({ lessonId: 11, version: 159 }) as RestoredLessonResult),
+    relink: jest.fn(async () => ({ lessonId: 11, version: 159 }) as RestoredLessonResult),
+    webify: jest.fn(async () => undefined),
+    ...overrides,
+  };
+}
+
+/** `deps.upload` is faked (no real ODT is written to the computed
+ * destination path), so `realFileModeOps`'s I18 mode/owner comparison would
+ * `stat()` a file that was never created. This double reports every path as
+ * already matching, standing in for "the upload path's own file-mode repair
+ * behavior is restoreEnglish.ts's concern (already unit-tested there);
+ * these cli.ts tests are about the lock/dump/precondition wiring around it". */
+const passthroughFileModeOps: FileModeOps = {
+  stat: jest.fn(() => ({ mode: 0o644, uid: 501, gid: 20 })),
+  chmod: jest.fn(),
+  chown: jest.fn(),
+};
+
+/** Bypasses the real `sql.begin()` wrapping (the test double `sql()` is
+ * already scoped inside the outer per-test transaction and has no `.begin`
+ * of its own — see `WithReservedConnection`'s doc comment in cli.ts) — runs
+ * `fn` directly against the same connection. Every test below fakes
+ * `AdvisoryLockOps` regardless, so real connection-pinning isn't in scope. */
+const bypassReservedConnection: WithReservedConnection = (sqlFunc, fn) => fn(sqlFunc);
+
+function makeAdvisoryLockOps(overrides: Partial<AdvisoryLockOps> = {}): AdvisoryLockOps {
+  return {
+    tryLock: jest.fn(async () => true),
+    backendPid: jest.fn(async () => 4242),
+    unlock: jest.fn(async () => undefined),
+    ...overrides,
+  };
+}
+
+function makeDiskHeadroomOps(overrides: Partial<DiskHeadroomOps> = {}): DiskHeadroomOps {
+  return {
+    getDatabaseSizeBytes: jest.fn(async () => 1_000),
+    getFreeDiskBytes: jest.fn(() => 1_000_000),
+    ...overrides,
+  };
+}
+
+function makeRunPgDump(): { runPgDump: RunPgDump } {
+  const runPgDump: RunPgDump = jest.fn(async ({ dumpPath }) => {
+    fs.writeFileSync(dumpPath, "fake dump contents");
+  });
+  return { runPgDump };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// restoreEnglish() core — host-local / report-integrity preconditions
+// ─────────────────────────────────────────────────────────────────────────
+
+describe("restoreEnglish() core", () => {
+  test("aborts (10) when the production marker file is missing", async () => {
+    const productionVersion = await currentLessonVersion();
+    const report = await baseValidReport(baseAffectedLesson(productionVersion));
+    await expect(
+      restoreEnglish({
+        productionSql: sql(),
+        report,
+        masterDocumentPath: "/tmp/does-not-matter.odt",
+        dumpDir: tmpReportDir(),
+        homeDir: tmpHomeDir(),
+      })
+    ).rejects.toMatchObject({ exitCode: 10 });
+  });
+
+  test("aborts (20) when the report's checksums do not verify (hand-edited report)", async () => {
+    const productionVersion = await currentLessonVersion();
+    const report = await baseValidReport(baseAffectedLesson(productionVersion));
+    const tampered: DiagnosisReport = { ...report, diagnosisId: "tampered-id" }; // checksum now stale
+    await expect(
+      restoreEnglish({
+        productionSql: sql(),
+        report: tampered,
+        masterDocumentPath: "/tmp/does-not-matter.odt",
+        dumpDir: tmpReportDir(),
+        homeDir: homeDirWithMarker(),
+      })
+    ).rejects.toMatchObject({ exitCode: 20 });
+  });
+
+  test("aborts (20) when productionFingerprint.databaseName does not match the live database", async () => {
+    const productionVersion = await currentLessonVersion();
+    const report = await baseValidReport(baseAffectedLesson(productionVersion), {
+      productionFingerprint: {
+        databaseName: "some-other-database",
+        lessonCount: 1,
+        maxMasterId: 1,
+        maxLessonStringId: 1,
+      },
+    });
+    await expect(
+      restoreEnglish({
+        productionSql: sql(),
+        report,
+        masterDocumentPath: "/tmp/does-not-matter.odt",
+        dumpDir: tmpReportDir(),
+        homeDir: homeDirWithMarker(),
+      })
+    ).rejects.toMatchObject({ exitCode: 20 });
+  });
+
+  test("aborts (11) when identity.snapshotIsOlder is false", async () => {
+    const productionVersion = await currentLessonVersion();
+    const affectedLesson = baseAffectedLesson(productionVersion);
+    const report = await baseValidReport(affectedLesson, {
+      identity: {
+        productionMarkerPresent: true,
+        snapshotConfirmationToken: "confirmed-by-operator",
+        productionLessonVersion: affectedLesson.productionVersion,
+        snapshotLessonVersion: affectedLesson.snapshotVersion,
+        snapshotIsOlder: false,
+      },
+    });
+    await expect(
+      restoreEnglish({
+        productionSql: sql(),
+        report,
+        masterDocumentPath: "/tmp/does-not-matter.odt",
+        dumpDir: tmpReportDir(),
+        homeDir: homeDirWithMarker(),
+      })
+    ).rejects.toMatchObject({ exitCode: 11 });
+  });
+
+  test("aborts (15) when languageIdentityChecks is empty", async () => {
+    const productionVersion = await currentLessonVersion();
+    const report = await baseValidReport(baseAffectedLesson(productionVersion), {
+      languageIdentityChecks: [],
+    });
+    await expect(
+      restoreEnglish({
+        productionSql: sql(),
+        report,
+        masterDocumentPath: "/tmp/does-not-matter.odt",
+        dumpDir: tmpReportDir(),
+        homeDir: homeDirWithMarker(),
+      })
+    ).rejects.toMatchObject({ exitCode: 15 });
+  });
+
+  test("aborts (15) when a languageIdentityChecks entry disagrees", async () => {
+    const productionVersion = await currentLessonVersion();
+    const report = await baseValidReport(baseAffectedLesson(productionVersion), {
+      languageIdentityChecks: [
+        {
+          matchedBy: "code",
+          key: "ENG",
+          snapshotLanguageId: 1,
+          productionLanguageId: 2,
+          snapshotCode: "ENG",
+          productionCode: "ENG",
+          snapshotName: "English",
+          productionName: "English",
+          agrees: false,
+        },
+      ],
+    });
+    await expect(
+      restoreEnglish({
+        productionSql: sql(),
+        report,
+        masterDocumentPath: "/tmp/does-not-matter.odt",
+        dumpDir: tmpReportDir(),
+        homeDir: homeDirWithMarker(),
+      })
+    ).rejects.toMatchObject({ exitCode: 15 });
+  });
+
+  test("aborts (21) when the live production lesson version no longer matches the report", async () => {
+    const productionVersion = await currentLessonVersion();
+    const report = await baseValidReport(baseAffectedLesson(productionVersion + 5)); // drifted
+    await expect(
+      restoreEnglish({
+        productionSql: sql(),
+        report,
+        masterDocumentPath: "/tmp/does-not-matter.odt",
+        dumpDir: tmpReportDir(),
+        homeDir: homeDirWithMarker(),
+      })
+    ).rejects.toMatchObject({ exitCode: 21 });
+  });
+
+  test("(21) compares against englishRestore.newLessonVersion when present, not productionVersion", async () => {
+    const productionVersion = await currentLessonVersion();
+    const affectedLesson = baseAffectedLesson(productionVersion - 1); // stale productionVersion
+    const report = await baseValidReport(affectedLesson, {
+      englishRestore: {
+        method: "upload",
+        masterDocumentPath: "/tmp/prior.odt",
+        masterDocumentSha256: "deadbeef",
+        newLessonVersion: productionVersion, // matches live — should be checked against THIS
+        dumpPath: "/tmp/prior-dump.dump",
+        restoredAt: "2026-08-13T00:00:00.000Z",
+        carriedFromDiagnosisId: null,
+      },
+    });
+    // Reaches past precondition 21 into the lock/dump path (which then fails
+    // for an unrelated reason — no real advisory lock/pg_dump doubled here —
+    // proving 21 did NOT fire is what this test asserts).
+    await expect(
+      restoreEnglish({
+        productionSql: sql(),
+        report,
+        masterDocumentPath: "/tmp/does-not-matter.odt",
+        dumpDir: tmpReportDir(),
+        homeDir: homeDirWithMarker(),
+        withReservedConnection: bypassReservedConnection,
+        advisoryLockOps: makeAdvisoryLockOps({ tryLock: jest.fn(async () => false) }),
+      })
+    ).rejects.toMatchObject({ exitCode: 28 });
+  });
+
+  // ── lock / dump / upload path (everything doubled) ──────────────────
+
+  test("aborts (28) when the advisory lock is already held", async () => {
+    const productionVersion = await currentLessonVersion();
+    const report = await baseValidReport(baseAffectedLesson(productionVersion));
+    await expect(
+      restoreEnglish({
+        productionSql: sql(),
+        report,
+        masterDocumentPath: "/tmp/does-not-matter.odt",
+        dumpDir: tmpReportDir(),
+        homeDir: homeDirWithMarker(),
+        withReservedConnection: bypassReservedConnection,
+        advisoryLockOps: makeAdvisoryLockOps({ tryLock: jest.fn(async () => false) }),
+      })
+    ).rejects.toMatchObject({ exitCode: 28 });
+  });
+
+  test("takes the advisory lock BEFORE the dump (call-order asserted)", async () => {
+    const productionVersion = await currentLessonVersion();
+    const dumpDir = tmpReportDir();
+    const docsRoot = tmpReportDir();
+    const masterDocumentPath = writeFile(docsRoot, "Luke-1-01v157.odt", "the pre-incident master");
+    const candidate = candidateFor(masterDocumentPath);
+    const affectedLesson = baseAffectedLesson(productionVersion, [candidate]);
+    const report = await baseValidReport(affectedLesson);
+
+    const calls: string[] = [];
+    const advisoryLockOps = makeAdvisoryLockOps({
+      tryLock: jest.fn(async () => {
+        calls.push("lock");
+        return true;
+      }),
+    });
+    const runPgDump: RunPgDump = jest.fn(async ({ dumpPath }) => {
+      calls.push("dump");
+      fs.writeFileSync(dumpPath, "fake dump contents");
+    });
+
+    const updated = await restoreEnglish({
+      productionSql: sql(),
+      report,
+      masterDocumentPath,
+      docsRoot,
+      dumpDir,
+      homeDir: homeDirWithMarker(),
+      withReservedConnection: bypassReservedConnection,
+      advisoryLockOps,
+      diskHeadroomOps: makeDiskHeadroomOps(),
+      runPgDump,
+      deps: makeDeps(),
+      fileModeOps: passthroughFileModeOps,
+    });
+
+    expect(calls).toEqual(["lock", "dump"]);
+    expect(updated.englishRestore).toBeTruthy();
+    expect(updated.englishRestore!.dumpPath).toContain(dumpDir);
+  });
+
+  test("aborts (28) when the lock is found lost before use (never silently re-acquires)", async () => {
+    const productionVersion = await currentLessonVersion();
+    const docsRoot = tmpReportDir();
+    const masterDocumentPath = writeFile(docsRoot, "Luke-1-01v157.odt", "the pre-incident master");
+    const candidate = candidateFor(masterDocumentPath);
+    const report = await baseValidReport(baseAffectedLesson(productionVersion, [candidate]));
+
+    let pidCall = 0;
+    const advisoryLockOps = makeAdvisoryLockOps({
+      backendPid: jest.fn(async () => {
+        pidCall += 1;
+        return pidCall === 1 ? 4242 : 9999; // the reserved connection was silently replaced
+      }),
+    });
+
+    await expect(
+      restoreEnglish({
+        productionSql: sql(),
+        report,
+        masterDocumentPath,
+        docsRoot,
+        dumpDir: tmpReportDir(),
+        homeDir: homeDirWithMarker(),
+        withReservedConnection: bypassReservedConnection,
+        advisoryLockOps,
+        diskHeadroomOps: makeDiskHeadroomOps(),
+        runPgDump: makeRunPgDump().runPgDump,
+        deps: makeDeps(),
+      })
+    ).rejects.toMatchObject({ exitCode: 28 });
+  });
+
+  test("aborts (23) when free disk space is below 3x the database size", async () => {
+    const productionVersion = await currentLessonVersion();
+    const report = await baseValidReport(baseAffectedLesson(productionVersion));
+    await expect(
+      restoreEnglish({
+        productionSql: sql(),
+        report,
+        masterDocumentPath: "/tmp/does-not-matter.odt",
+        dumpDir: tmpReportDir(),
+        homeDir: homeDirWithMarker(),
+        withReservedConnection: bypassReservedConnection,
+        advisoryLockOps: makeAdvisoryLockOps(),
+        diskHeadroomOps: makeDiskHeadroomOps({
+          getDatabaseSizeBytes: jest.fn(async () => 1_000_000),
+          getFreeDiskBytes: jest.fn(() => 100),
+        }),
+      })
+    ).rejects.toMatchObject({ exitCode: 23 });
+  });
+
+  test("(23) cumulative headroom: a pre-existing dump file already in --dump is accounted for", async () => {
+    const productionVersion = await currentLessonVersion();
+    const report = await baseValidReport(baseAffectedLesson(productionVersion));
+    const dumpDir = tmpReportDir();
+
+    // Simulates a small disk: capacity minus whatever is ALREADY on disk in
+    // dumpDir (real fs.readdirSync/statSync — not a static double), so a
+    // dump already sitting there from an earlier step of this recovery
+    // shows up as reduced free space on the very next headroom check.
+    const totalCapacityBytes = 3_500; // just over 3x a 1_000-byte "database"
+    const getFreeDiskBytes = jest.fn((dir: string) => {
+      const used = fs
+        .readdirSync(dir)
+        .reduce((total, name) => total + fs.statSync(path.join(dir, name)).size, 0);
+      return totalCapacityBytes - used;
+    });
+
+    // Without a pre-existing dump, there's enough headroom.
+    await expect(
+      restoreEnglish({
+        productionSql: sql(),
+        report,
+        masterDocumentPath: "/tmp/does-not-matter.odt",
+        dumpDir,
+        homeDir: homeDirWithMarker(),
+        withReservedConnection: bypassReservedConnection,
+        advisoryLockOps: makeAdvisoryLockOps({ tryLock: jest.fn(async () => false) }), // stop before dep-double gaps
+        diskHeadroomOps: makeDiskHeadroomOps({
+          getDatabaseSizeBytes: jest.fn(async () => 1_000),
+          getFreeDiskBytes,
+        }),
+      })
+      // The lock check runs before the dump/headroom check, so this first
+      // call proves nothing about headroom yet — the real assertion is the
+      // second call below, once a dump file already exists in dumpDir.
+    ).rejects.toMatchObject({ exitCode: 28 });
+
+    fs.writeFileSync(path.join(dumpDir, "earlier-step.dump"), "x".repeat(1_000)); // consumes 1000 bytes
+
+    await expect(
+      restoreEnglish({
+        productionSql: sql(),
+        report,
+        masterDocumentPath: "/tmp/does-not-matter.odt",
+        dumpDir,
+        homeDir: homeDirWithMarker(),
+        withReservedConnection: bypassReservedConnection,
+        advisoryLockOps: makeAdvisoryLockOps(),
+        diskHeadroomOps: makeDiskHeadroomOps({
+          getDatabaseSizeBytes: jest.fn(async () => 1_000),
+          getFreeDiskBytes,
+        }),
+      })
+      // 3500 - 1000 (pre-existing dump) = 2500 free, short of the 3x1000=3000 required.
+    ).rejects.toMatchObject({ exitCode: 23 });
+  });
+
+  test("aborts (22) when --master-document is not a verified candidateMasterDocuments entry", async () => {
+    const productionVersion = await currentLessonVersion();
+    const report = await baseValidReport(baseAffectedLesson(productionVersion)); // no candidates
+    await expect(
+      restoreEnglish({
+        productionSql: sql(),
+        report,
+        masterDocumentPath: "/tmp/not-a-verified-candidate.odt",
+        dumpDir: tmpReportDir(),
+        homeDir: homeDirWithMarker(),
+        withReservedConnection: bypassReservedConnection,
+        advisoryLockOps: makeAdvisoryLockOps(),
+        diskHeadroomOps: makeDiskHeadroomOps(),
+        runPgDump: makeRunPgDump().runPgDump,
+        deps: makeDeps(),
+      })
+    ).rejects.toMatchObject({ exitCode: 22 });
+  });
+
+  test("aborts (31) when the restored file's mode/owner cannot be repaired to match its sibling", async () => {
+    const productionVersion = await currentLessonVersion();
+    const docsRoot = tmpReportDir();
+    const masterDocumentPath = writeFile(docsRoot, "Luke-1-01v157.odt", "the pre-incident master");
+    const candidate = candidateFor(masterDocumentPath);
+    const report = await baseValidReport(baseAffectedLesson(productionVersion, [candidate]));
+
+    const mismatchedModeOwner: ModeOwner = { mode: 0o644, uid: 501, gid: 20 };
+    const expectedModeOwner: ModeOwner = { mode: 0o664, uid: 502, gid: 20 };
+    const fileModeOps: FileModeOps = {
+      stat: jest.fn((filepath: string) =>
+        filepath === masterDocumentPath ? expectedModeOwner : mismatchedModeOwner
+      ),
+      chmod: jest.fn(), // no-op: repair never actually takes effect
+      chown: jest.fn(() => {
+        throw new Error("chown requires root");
+      }),
+    };
+
+    await expect(
+      restoreEnglish({
+        productionSql: sql(),
+        report,
+        masterDocumentPath,
+        docsRoot,
+        dumpDir: tmpReportDir(),
+        homeDir: homeDirWithMarker(),
+        withReservedConnection: bypassReservedConnection,
+        advisoryLockOps: makeAdvisoryLockOps(),
+        diskHeadroomOps: makeDiskHeadroomOps(),
+        runPgDump: makeRunPgDump().runPgDump,
+        deps: makeDeps(),
+        fileModeOps,
+      })
+    ).rejects.toMatchObject({ exitCode: 31 });
+  });
+
+  test("succeeds (0): appends englishRestore, recomputes reportChecksum, releases the lock", async () => {
+    const productionVersion = await currentLessonVersion();
+    const docsRoot = tmpReportDir();
+    const masterDocumentPath = writeFile(docsRoot, "Luke-1-01v157.odt", "the pre-incident master");
+    const candidate = candidateFor(masterDocumentPath);
+    const report = await baseValidReport(baseAffectedLesson(productionVersion, [candidate]));
+    const dumpDir = tmpReportDir();
+
+    const advisoryLockOps = makeAdvisoryLockOps();
+    const deps = makeDeps();
+
+    const updated = await restoreEnglish({
+      productionSql: sql(),
+      report,
+      masterDocumentPath,
+      docsRoot,
+      dumpDir,
+      homeDir: homeDirWithMarker(),
+      withReservedConnection: bypassReservedConnection,
+      advisoryLockOps,
+      diskHeadroomOps: makeDiskHeadroomOps(),
+      runPgDump: makeRunPgDump().runPgDump,
+      deps,
+      fileModeOps: passthroughFileModeOps,
+    });
+
+    expect(updated.mode).toBe("restore-english");
+    expect(updated.englishRestore).toBeTruthy();
+    expect(updated.englishRestore!.method).toBe("upload");
+    expect(updated.englishRestore!.masterDocumentPath).toBe(masterDocumentPath);
+    expect(updated.englishRestore!.newLessonVersion).toBe(159);
+    expect(() =>
+      verifyReportIntegrity(updated, report.productionFingerprint.databaseName)
+    ).not.toThrow();
+    expect(deps.upload).toHaveBeenCalledTimes(1);
+    expect(deps.webify).toHaveBeenCalledTimes(1);
+    expect(advisoryLockOps.unlock).toHaveBeenCalledTimes(1); // released even on the happy path
+    // The source document survives being used (I15, the copy shim) — still
+    // readable at its original path afterward.
+    expect(fs.readFileSync(masterDocumentPath, "utf8")).toBe("the pre-incident master");
+  });
+
+  test("advisoryLockKey() is a stable, deterministic bigint", () => {
+    expect(advisoryLockKey()).toBe(advisoryLockKey());
+    expect(typeof advisoryLockKey()).toBe("bigint");
   });
 });

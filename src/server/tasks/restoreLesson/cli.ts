@@ -33,17 +33,23 @@
  * Spec: specs/018-lesson1-translation-restore/contracts/cli.md §diagnose,
  * specs/018-lesson1-translation-restore/plan.md §Security & Privacy.
  */
+import { execFile } from "child_process";
 import crypto from "crypto";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { promisify } from "util";
+import { UploadedFile } from "express-fileupload";
 import postgres, { SqlFunc } from "postgres";
 import secrets from "../../util/secrets";
-import { BaseLesson } from "../../../core/models/Lesson";
+import { Book, BaseLesson } from "../../../core/models/Lesson";
 import { ENGLISH_ID, Language } from "../../../core/models/Language";
 import { LessonString } from "../../../core/models/LessonString";
 import { TString } from "../../../core/models/TString";
 import { parseDocStrings } from "../../actions/updateLesson";
+import { uploadEnglishDoc } from "../../actions/uploadDocument";
+import webifyLesson from "../../actions/webifyLesson";
+import PGStorage from "../../storage/PGStorage";
 import {
   PRODUCTION_MARKER_FILENAME,
   RestoreLessonAbortError,
@@ -68,8 +74,17 @@ import {
   deriveCarryForward,
   ensureReportDirectory,
   loadAndVerifyPriorReport,
+  loadReport,
+  verifyReportIntegrity,
   writeReportAtomic,
 } from "./report";
+import {
+  FileModeOps,
+  RestoreEnglishDeps,
+  RestoredLessonResult,
+  realFileModeOps,
+  restoreEnglish as restoreEnglishCore,
+} from "./restoreEnglish";
 import {
   DiagnosisReport,
   EnglishRestore,
@@ -965,19 +980,603 @@ export async function runDiagnoseCommand(options: RunDiagnoseCommandOptions): Pr
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// restore-english — advisory lock (I14)
+// ─────────────────────────────────────────────────────────────────────────
+
+/** A constant derived from the tool name (plan.md §Concurrent invocations,
+ * I14): every write subcommand (`restore-english`, `apply`, `verify`) locks
+ * on this same key, so any one of them running blocks the others. Hashed
+ * rather than a small literal so it doesn't collide with an application
+ * advisory lock some other part of this codebase might one day take. */
+const ADVISORY_LOCK_NAME = "lessons-from-luke:restoreLesson:write-lock";
+
+/** `pg_try_advisory_lock`/`pg_advisory_unlock` take a signed 64-bit `bigint`
+ * key — masked to the positive range so it round-trips through every
+ * Postgres client library the same way. */
+export function advisoryLockKey(): bigint {
+  const hash = crypto.createHash("sha256").update(ADVISORY_LOCK_NAME).digest();
+  return hash.readBigInt64BE(0) & 0x7fffffffffffffffn;
+}
+
+/** Injectable so contract tests can fake lock contention/loss without a
+ * second real Postgres session. Defaults to real `pg_try_advisory_lock` /
+ * `pg_backend_pid` / `pg_advisory_unlock` calls. */
+export interface AdvisoryLockOps {
+  tryLock: (reserved: SqlFunc, key: bigint) => Promise<boolean>;
+  backendPid: (reserved: SqlFunc) => Promise<number>;
+  unlock: (reserved: SqlFunc, key: bigint) => Promise<void>;
+}
+
+/**
+ * Runs `fn` against a single dedicated database connection (I14's "reserved,
+ * non-pooled connection held for the whole run"). The installed
+ * `postgres@1.0.2` has no `sql.reserve()` (the spec's plan.md was written
+ * against a newer release that adds one) — `sql.begin()` is this version's
+ * only mechanism for pinning one physical connection across several
+ * queries, so real callers wrap it in an (otherwise unused) transaction to
+ * get that pinning. Injectable so contract tests running against this
+ * codebase's transactional test-storage double (itself already inside a
+ * `begin()`, which this driver does not let a caller nest a second `begin()`
+ * inside — only `.savepoint()`) can instead just call `fn(sql)` directly on
+ * the same connection; those tests fake `AdvisoryLockOps` regardless, so the
+ * physical-connection pinning itself is not what they are exercising.
+ */
+export type WithReservedConnection = <T>(
+  sql: SqlFunc,
+  fn: (reserved: SqlFunc) => Promise<T>
+) => Promise<T>;
+
+export const beginReservedConnection: WithReservedConnection = (sql, fn) => sql.begin(fn);
+
+export const realAdvisoryLockOps: AdvisoryLockOps = {
+  tryLock: async (reserved, key) => {
+    const [row] = await reserved`SELECT pg_try_advisory_lock(${key}) AS locked`;
+    return Boolean((row as { locked: boolean }).locked);
+  },
+  backendPid: async (reserved) => {
+    const [row] = await reserved`SELECT pg_backend_pid() AS pid`;
+    return Number((row as { pid: number }).pid);
+  },
+  unlock: async (reserved, key) => {
+    await reserved`SELECT pg_advisory_unlock(${key})`;
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// restore-english — pre-write dump and cumulative disk headroom (I23, I14)
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Injectable so contract tests can fake `pg_dump` and disk-space figures
+ * without a real production-sized database or filesystem. */
+export interface DiskHeadroomOps {
+  getDatabaseSizeBytes: (sql: SqlFunc) => Promise<number>;
+  /** Called FRESH at every dump (never cached) — this is what makes the
+   * headroom check cumulative across a whole recovery run rather than
+   * per-command (plan.md §Performance & Resource Considerations): the real
+   * current free-space figure already reflects whatever earlier dumps this
+   * recovery already wrote into `dumpDir`. */
+  getFreeDiskBytes: (dirPath: string) => number;
+}
+
+export const realDiskHeadroomOps: DiskHeadroomOps = {
+  getDatabaseSizeBytes: async (sql) => {
+    const [row] = await sql`SELECT pg_database_size(current_database()) AS size`;
+    return Number((row as { size: string | number }).size);
+  },
+  getFreeDiskBytes: (dirPath) => {
+    const stat = fs.statfsSync(dirPath);
+    return stat.bavail * stat.bsize;
+  },
+};
+
+/** Aborts (23) unless `dumpDir` currently has at least 3x `dbSizeBytes` bytes
+ * free. See `DiskHeadroomOps.getFreeDiskBytes` for why this is cumulative. */
+export function checkDumpHeadroomOrAbort(
+  dumpDir: string,
+  dbSizeBytes: number,
+  getFreeDiskBytes: DiskHeadroomOps["getFreeDiskBytes"]
+): void {
+  const freeBytes = getFreeDiskBytes(dumpDir);
+  const requiredBytes = dbSizeBytes * 3;
+  if (freeBytes < requiredBytes) {
+    throw new RestoreLessonAbortError(
+      23,
+      `Insufficient disk space in ${dumpDir}: ${freeBytes} bytes free, need at least ` +
+        `${requiredBytes} (3x the ${dbSizeBytes}-byte database), accounting for any dumps already ` +
+        `present there from earlier steps of this recovery.`
+    );
+  }
+}
+
+/** Asserts `dumpDir` is a safe place for a `0600` dump file: `0700` if newly
+ * created, and refused (23) if an existing directory is group/world-readable
+ * — the dump contains the WHOLE database, including better-auth password
+ * hashes and sessions. */
+export function ensureDumpDirectory(dumpDir: string): void {
+  if (fs.existsSync(dumpDir)) {
+    const stat = fs.statSync(dumpDir);
+    if (!stat.isDirectory()) {
+      throw new RestoreLessonAbortError(23, `Dump path ${dumpDir} exists and is not a directory.`);
+    }
+    if ((stat.mode & 0o077) !== 0) {
+      throw new RestoreLessonAbortError(
+        23,
+        `Dump directory ${dumpDir} is group/world-readable (mode ${(stat.mode & 0o777).toString(
+          8
+        )}). Refusing to write a whole-database dump into it. Run "chmod 700 ${dumpDir}" and re-run.`
+      );
+    }
+    return;
+  }
+  fs.mkdirSync(dumpDir, { recursive: true, mode: 0o700 });
+  fs.chmodSync(dumpDir, 0o700);
+}
+
+export interface RunPgDumpOptions {
+  dumpPath: string;
+}
+export type RunPgDump = (options: RunPgDumpOptions) => Promise<void>;
+
+const execFileAsync = promisify(execFile);
+
+/** Real `pg_dump -Fc`, using the same credentials `PGStorage` connects with.
+ * Injectable (`RunPgDump`) so contract tests never shell out. */
+export const realRunPgDump: RunPgDump = async ({ dumpPath }) => {
+  const db = secrets.db;
+  const args = ["-Fc", "-f", dumpPath, "-U", db.username, db.database];
+  await execFileAsync("pg_dump", args, {
+    env: { ...process.env, PGPASSWORD: db.password },
+  });
+};
+
+/**
+ * Produces the pre-write production dump (contract §restore-english
+ * precondition 6, side effects): ensures `dumpDir` is safe (23), checks
+ * cumulative headroom (23) against a FRESH free-space read, runs `pg_dump`
+ * scoped under a narrow umask (process-wide would also affect the
+ * subsequently-written app-readable ODT/preview — plan.md §Security &
+ * Privacy), then asserts the file landed and re-asserts its mode `0600`.
+ */
+async function produceDump(
+  sql: SqlFunc,
+  dumpDir: string,
+  runPgDump: RunPgDump,
+  diskHeadroomOps: DiskHeadroomOps
+): Promise<string> {
+  ensureDumpDirectory(dumpDir);
+  const dbSizeBytes = await diskHeadroomOps.getDatabaseSizeBytes(sql);
+  checkDumpHeadroomOrAbort(dumpDir, dbSizeBytes, diskHeadroomOps.getFreeDiskBytes);
+
+  const dumpPath = path.join(dumpDir, `restore-english-${Date.now()}-${process.pid}.dump`);
+  const previousUmask = process.umask(0o077);
+  try {
+    await runPgDump({ dumpPath });
+  } catch (err) {
+    throw new RestoreLessonAbortError(
+      23,
+      `pg_dump into ${dumpPath} failed: ${redactConnectionString(String(err))}`
+    );
+  } finally {
+    process.umask(previousUmask);
+  }
+
+  if (!fs.existsSync(dumpPath)) {
+    throw new RestoreLessonAbortError(
+      23,
+      `pg_dump reported success but ${dumpPath} does not exist.`
+    );
+  }
+  fs.chmodSync(dumpPath, 0o600);
+  return dumpPath;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// restore-english — real upload/relink/webify deps
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * The real `RestoreEnglishDeps`, backing `uploadEnglishDoc`/`webifyLesson`
+ * through a dedicated `PGStorage` (separate from the advisory-lock/dump
+ * connection — `uploadEnglishDoc` needs `Persistence`, not raw `SqlFunc`).
+ * `relink` (the `--force-relink` fallback) is deliberately unimplemented in
+ * this build: research D5 resolved the spec/brainstorm tension by ordering —
+ * the verified upload pathway serves this incident, and a `DiagnosisReport`
+ * alone carries no full `lessonstrings` generation to reconstruct a direct
+ * re-link from. `--force-relink` still parses and dispatches (so a future
+ * build can wire a real implementation without a CLI-surface change), it
+ * just aborts with a clear message rather than writing something unverified.
+ */
+function makeRealRestoreEnglishDeps(storage: PGStorage): RestoreEnglishDeps {
+  return {
+    upload: async (file, meta) => {
+      const lesson = await uploadEnglishDoc(
+        file as unknown as UploadedFile,
+        {
+          languageId: meta.languageId,
+          book: meta.book as Book,
+          series: meta.series,
+          lesson: meta.lesson,
+        },
+        storage
+      );
+      return { lessonId: lesson.lessonId, version: lesson.version };
+    },
+    relink: async (): Promise<RestoredLessonResult> => {
+      throw new RestoreLessonAbortError(
+        1,
+        "--force-relink has no implementation in this build: the direct re-link fallback has no " +
+          "source data to reconstruct lessonstrings from (research D5). Use --master-document " +
+          "instead."
+      );
+    },
+    webify: async (restored) => {
+      const lesson = await storage.lesson(restored.lessonId);
+      if (lesson) await webifyLesson(lesson);
+    },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// restoreEnglish() core
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface RestoreEnglishCliOptions {
+  productionSql: SqlFunc;
+  report: DiagnosisReport;
+  /** Required unless `forceRelink` is true. */
+  masterDocumentPath?: string | null;
+  forceRelink?: boolean;
+  dumpDir: string;
+  homeDir?: string;
+  docsRoot?: string;
+  previewDir?: string;
+  /** I18's mode/owner comparison sibling; defaults to `masterDocumentPath`
+   * itself (still present post-upload thanks to the copy shim, I15). */
+  siblingDocPath?: string;
+  /** When given, the updated report is also flushed here (I12) — the CLI
+   * wrapper always supplies this; the integration/contract-test core calls
+   * may omit it to inspect the in-memory result only. */
+  reportPath?: string;
+  runPgDump?: RunPgDump;
+  advisoryLockOps?: AdvisoryLockOps;
+  diskHeadroomOps?: DiskHeadroomOps;
+  /** See `WithReservedConnection`'s doc comment for why this is injectable. */
+  withReservedConnection?: WithReservedConnection;
+  /** Injectable for contract tests; defaults to the real upload/webify path
+   * (`makeRealRestoreEnglishDeps`) with `relink` unimplemented. */
+  deps?: RestoreEnglishDeps;
+  fileModeOps?: FileModeOps;
+  now?: () => Date;
+}
+
+/**
+ * The `restore-english` orchestration core (FR-006): re-verifies every
+ * precondition this subcommand owns from a checksum-gated report (identity,
+ * language-identity, live production version), takes the advisory lock
+ * FIRST on a dedicated connection (I14 — `sql.begin()` is this installed
+ * postgres@1.0.2's only mechanism for a connection held across several
+ * queries; there is no `sql.reserve()` in this version, unlike newer
+ * releases the spec was written against), produces the pre-write dump under
+ * cumulative headroom (I23), re-asserts the lock is still this same session
+ * before using it, then delegates to `restoreEnglish.ts`'s pure core for the
+ * upload/relink + I18/I21 repair-then-abort sequence.
+ */
+export async function restoreEnglish(options: RestoreEnglishCliOptions): Promise<DiagnosisReport> {
+  const homeDir = options.homeDir ?? os.homedir();
+  const markerPath = path.join(homeDir, PRODUCTION_MARKER_FILENAME);
+  if (!fs.existsSync(markerPath)) {
+    throw new RestoreLessonAbortError(
+      10,
+      `Production marker file missing: ${markerPath}. This tool must be run on the production host.`
+    );
+  }
+
+  const sql = options.productionSql;
+  const { report } = options;
+
+  const liveFingerprint = await fetchProductionFingerprint(sql);
+  verifyReportIntegrity(report, liveFingerprint.databaseName);
+
+  if (!report.identity.snapshotIsOlder) {
+    throw new RestoreLessonAbortError(
+      11,
+      `Report ${report.diagnosisId}'s identity.snapshotIsOlder is false; refusing to restore-english ` +
+        `from a report whose Snapshot was not verified older than production at diagnose time.`
+    );
+  }
+
+  if (
+    report.languageIdentityChecks.length === 0 ||
+    report.languageIdentityChecks.some((check) => !check.agrees)
+  ) {
+    throw new RestoreLessonAbortError(
+      15,
+      `Report ${report.diagnosisId}'s languageIdentityChecks is missing, empty, or contains a ` +
+        `disagreement (I22). Either this report was hand-edited past its checksums, or diagnose ` +
+        `wrote a report it should have refused to — both mean the language-identity evidence this ` +
+        `subcommand needs was never established.`
+    );
+  }
+
+  const affectedLesson = report.affectedLessons[0];
+  if (!affectedLesson) {
+    throw new RestoreLessonAbortError(1, "Report has no affectedLessons entry to restore.");
+  }
+
+  const liveLesson = await fetchLessonByBookSeriesLesson(
+    sql,
+    affectedLesson.book as Book,
+    affectedLesson.series,
+    affectedLesson.lesson
+  );
+  const expectedLiveVersion =
+    report.englishRestore?.newLessonVersion ?? affectedLesson.productionVersion;
+  if (!liveLesson || liveLesson.version !== expectedLiveVersion) {
+    throw new RestoreLessonAbortError(
+      21,
+      `Production has changed since diagnosis: expected lesson version ${expectedLiveVersion}, found ` +
+        `${liveLesson ? liveLesson.version : "no matching lesson"}. Re-diagnose ` +
+        `(--prior-report against diagnosisId ${report.diagnosisId}) before retrying.`
+    );
+  }
+
+  const runPgDump = options.runPgDump ?? realRunPgDump;
+  const diskHeadroomOps = options.diskHeadroomOps ?? realDiskHeadroomOps;
+  const advisoryLockOps = options.advisoryLockOps ?? realAdvisoryLockOps;
+  const withReservedConnection = options.withReservedConnection ?? beginReservedConnection;
+  const docsRoot = options.docsRoot ?? resolveDocsRoot();
+
+  return withReservedConnection(sql, async (reserved: SqlFunc) => {
+    const key = advisoryLockKey();
+    const locked = await advisoryLockOps.tryLock(reserved, key);
+    if (!locked) {
+      throw new RestoreLessonAbortError(
+        28,
+        "Another write subcommand (restore-english/apply/verify) already holds the restoreLesson " +
+          "advisory lock. Wait for it to finish, or investigate a stuck process before retrying."
+      );
+    }
+    const backendPid = await advisoryLockOps.backendPid(reserved);
+
+    try {
+      const dumpPath = await produceDump(reserved, options.dumpDir, runPgDump, diskHeadroomOps);
+
+      let stillHeldPid: number;
+      try {
+        stillHeldPid = await advisoryLockOps.backendPid(reserved);
+      } catch (err) {
+        throw new RestoreLessonAbortError(
+          28,
+          `The restoreLesson advisory lock's connection was lost during the dump: ${String(err)}. ` +
+            `Refusing to proceed — another process may have acquired the lock in the interval.`
+        );
+      }
+      if (stillHeldPid !== backendPid) {
+        throw new RestoreLessonAbortError(
+          28,
+          `The restoreLesson advisory lock's connection changed mid-run (backend pid ${backendPid} ` +
+            `-> ${stillHeldPid}), meaning the session — and its lock — was silently lost. Refusing to ` +
+            `re-acquire; another process may have held it in the interval.`
+        );
+      }
+
+      let storage: PGStorage | null = null;
+      let deps: RestoreEnglishDeps;
+      if (options.deps) {
+        deps = options.deps;
+      } else {
+        storage = new PGStorage();
+        deps = makeRealRestoreEnglishDeps(storage);
+      }
+      try {
+        const updated = await restoreEnglishCore({
+          report,
+          masterDocumentPath: options.masterDocumentPath ?? null,
+          forceRelink: options.forceRelink ?? false,
+          dumpPath,
+          docsRoot,
+          previewDir: options.previewDir,
+          siblingDocPath: options.siblingDocPath ?? options.masterDocumentPath ?? undefined,
+          deps,
+          fileModeOps: options.fileModeOps ?? realFileModeOps,
+          now: options.now,
+        });
+
+        if (options.reportPath) {
+          writeReportAtomic(options.reportPath, updated);
+        }
+        return updated;
+      } finally {
+        if (storage) await storage.close();
+      }
+    } finally {
+      try {
+        await advisoryLockOps.unlock(reserved, key);
+      } catch {
+        // Best-effort: the connection may already be gone, which is exactly
+        // the "lock lost" case already surfaced above.
+      }
+    }
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// restore-english — argument parsing and runRestoreEnglishCommand()
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface RestoreEnglishCliArgs {
+  report: string;
+  diagnosisId: string;
+  masterDocumentPath: string | null;
+  dump: string | null;
+  forceRelink: boolean;
+}
+
+const KNOWN_RESTORE_ENGLISH_FLAGS = new Set([
+  "--report",
+  "--diagnosis-id",
+  "--master-document",
+  "--dump",
+  "--force-relink",
+]);
+
+/** Parses `restore-english` subcommand argv per
+ * specs/018-lesson1-translation-restore/contracts/cli.md §restore-english.
+ * Argument errors abort with exit 1. */
+export function parseRestoreEnglishArgs(argv: string[]): RestoreEnglishCliArgs {
+  let report: string | null = null;
+  let diagnosisId: string | null = null;
+  let masterDocumentPath: string | null = null;
+  let dump: string | null = null;
+  let forceRelink = false;
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (!KNOWN_RESTORE_ENGLISH_FLAGS.has(arg)) {
+      throw new RestoreLessonAbortError(1, `Unrecognized argument: ${arg}`);
+    }
+    switch (arg) {
+      case "--report":
+        report = requireValue(argv, ++i, arg);
+        break;
+      case "--diagnosis-id":
+        diagnosisId = requireValue(argv, ++i, arg);
+        break;
+      case "--master-document":
+        masterDocumentPath = requireValue(argv, ++i, arg);
+        break;
+      case "--dump":
+        dump = requireValue(argv, ++i, arg);
+        break;
+      case "--force-relink":
+        forceRelink = true;
+        break;
+    }
+  }
+
+  if (!report) {
+    throw new RestoreLessonAbortError(1, "--report <path> is required");
+  }
+  if (!diagnosisId) {
+    throw new RestoreLessonAbortError(1, "--diagnosis-id <id> is required");
+  }
+  if (!forceRelink && !masterDocumentPath) {
+    throw new RestoreLessonAbortError(
+      1,
+      "--master-document <path> is required unless --force-relink is given"
+    );
+  }
+
+  return { report, diagnosisId, masterDocumentPath, dump, forceRelink };
+}
+
+export interface RunRestoreEnglishCommandOptions {
+  argv: string[];
+  homeDir?: string;
+  docsRoot?: string;
+  stdout?: (line: string) => void;
+  stderr?: (line: string) => void;
+  connectProduction?: () => Promise<SqlFunc> | SqlFunc;
+  closeSql?: (sql: SqlFunc) => Promise<void>;
+  runPgDump?: RunPgDump;
+  advisoryLockOps?: AdvisoryLockOps;
+  diskHeadroomOps?: DiskHeadroomOps;
+  withReservedConnection?: WithReservedConnection;
+  deps?: RestoreEnglishDeps;
+  fileModeOps?: FileModeOps;
+}
+
+/** Runs the `restore-english` subcommand end to end: argv parsing, the
+ * host-local/report-load preconditions, the production connection, and exit
+ * code mapping per contracts/cli.md's exit code table (0,11,15,20,21,22,23,
+ * 28,31,1). Never throws. */
+export async function runRestoreEnglishCommand(
+  options: RunRestoreEnglishCommandOptions
+): Promise<number> {
+  const stdout = options.stdout ?? ((line: string) => console.log(line));
+  const stderr = options.stderr ?? ((line: string) => console.error(line));
+  const connectProduction = options.connectProduction ?? defaultConnectProduction;
+  const closeSql = options.closeSql ?? defaultCloseSql;
+  const homeDir = options.homeDir ?? os.homedir();
+  const docsRoot = options.docsRoot ?? resolveDocsRoot();
+
+  let productionSql: SqlFunc | null = null;
+
+  try {
+    const args = parseRestoreEnglishArgs(options.argv);
+
+    const markerPath = path.join(homeDir, PRODUCTION_MARKER_FILENAME);
+    if (!fs.existsSync(markerPath)) {
+      throw new RestoreLessonAbortError(10, `Production marker file missing: ${markerPath}.`);
+    }
+
+    if (!fs.existsSync(args.report)) {
+      throw new RestoreLessonAbortError(20, `Report not found at ${args.report}.`);
+    }
+    const report = loadReport(args.report);
+    if (report.diagnosisId !== args.diagnosisId) {
+      throw new RestoreLessonAbortError(
+        20,
+        `--diagnosis-id ${args.diagnosisId} does not match the report's diagnosisId ` +
+          `(${report.diagnosisId}) at ${args.report}.`
+      );
+    }
+
+    productionSql = await connectProduction();
+
+    const updated = await restoreEnglish({
+      productionSql,
+      report,
+      masterDocumentPath: args.masterDocumentPath,
+      forceRelink: args.forceRelink,
+      dumpDir: args.dump ?? path.dirname(args.report),
+      homeDir,
+      docsRoot,
+      reportPath: args.report,
+      runPgDump: options.runPgDump,
+      advisoryLockOps: options.advisoryLockOps,
+      diskHeadroomOps: options.diskHeadroomOps,
+      withReservedConnection: options.withReservedConnection,
+      deps: options.deps,
+      fileModeOps: options.fileModeOps,
+    });
+
+    stdout(
+      `OK English master restored (diagnosisId=${updated.diagnosisId}, method=` +
+        `${updated.englishRestore?.method}, newLessonVersion=${updated.englishRestore?.newLessonVersion}). ` +
+        `Dump: ${updated.englishRestore?.dumpPath}`
+    );
+    return 0;
+  } catch (err) {
+    if (err instanceof RestoreLessonAbortError) {
+      stderr(redactConnectionString(err.message));
+      return err.exitCode;
+    }
+    const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
+    stderr(redactConnectionString(message));
+    return 1;
+  } finally {
+    if (productionSql) await closeSql(productionSql);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // main() — CLI entry point
 // ─────────────────────────────────────────────────────────────────────────
 
 export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {
   const [subcommand, ...rest] = argv;
-  if (subcommand !== "diagnose") {
-    console.error(
-      `Unknown or unimplemented subcommand: ${subcommand ?? "(none)"}. Only "diagnose" is wired ` +
-        `so far — restore-english/apply/verify are wired by later tasks.`
-    );
-    return 1;
+  if (subcommand === "diagnose") {
+    return runDiagnoseCommand({ argv: rest });
   }
-  return runDiagnoseCommand({ argv: rest });
+  if (subcommand === "restore-english") {
+    return runRestoreEnglishCommand({ argv: rest });
+  }
+  console.error(
+    `Unknown or unimplemented subcommand: ${subcommand ?? "(none)"}. Only "diagnose" and ` +
+      `"restore-english" are wired so far — apply/verify are wired by later tasks.`
+  );
+  return 1;
 }
 
 if (require.main === module) {
