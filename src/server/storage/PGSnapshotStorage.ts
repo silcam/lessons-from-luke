@@ -63,6 +63,53 @@ export function redactConnectionUrl(url: string): string {
   }
 }
 
+const TLS_SSLMODES = new Set(["require", "verify-ca", "verify-full"]);
+
+/**
+ * True when `hostname` is a loopback address (127.0.0.0/8, `::1`, or
+ * `localhost`) — i.e. the Snapshot database is expected to be reached
+ * through a local SSH tunnel, per specs/018-lesson1-translation-restore
+ * contracts/cli.md §Connections and quickstart.md step 2.
+ */
+function isLoopbackHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return host === "localhost" || host === "::1" || host === "[::1]" || host.startsWith("127.");
+}
+
+/**
+ * Returns a warning message (host-naming, password-free) when `connectionUrl`
+ * neither points at a loopback address (the expected SSH-tunnel endpoint)
+ * nor requests TLS via `sslmode=require|verify-ca|verify-full` — i.e. the
+ * connection is at risk of sending the Snapshot password and every row of
+ * translation/English source text in cleartext. Returns `null` when the URL
+ * is loopback, TLS-protected, or unparseable (fails closed by not warning on
+ * garbage the caller will fail to connect with anyway).
+ *
+ * Callers MUST still pass the result through `redactConnectionString` before
+ * writing it anywhere — this function never embeds the password, but a
+ * defense-in-depth redaction pass costs nothing.
+ */
+export function snapshotUrlSecurityWarning(connectionUrl: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(connectionUrl);
+  } catch {
+    return null;
+  }
+
+  if (isLoopbackHost(parsed.hostname)) return null;
+
+  const sslmode = parsed.searchParams.get("sslmode");
+  if (sslmode && TLS_SSLMODES.has(sslmode)) return null;
+
+  return (
+    `Snapshot database host "${parsed.hostname}" is neither loopback nor configured with TLS ` +
+    `(sslmode=require|verify-ca|verify-full). The expected setup is an SSH tunnel to ` +
+    `127.0.0.1 (see quickstart.md step 2) — without it, the Snapshot password and every row ` +
+    `of translation/English source text read from it travel in cleartext.`
+  );
+}
+
 export default class PGSnapshotStorage extends PGStorage {
   constructor(connectionUrl: string) {
     super();

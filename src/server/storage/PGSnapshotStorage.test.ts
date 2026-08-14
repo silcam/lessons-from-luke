@@ -4,6 +4,7 @@ import PGSnapshotStorage, {
   SnapshotIsReadOnlyError,
   redactConnectionUrl,
   snapshotDbConnect,
+  snapshotUrlSecurityWarning,
 } from "./PGSnapshotStorage";
 import secrets from "../util/secrets";
 
@@ -142,5 +143,36 @@ describe("redactConnectionUrl", () => {
     const redacted = redactConnectionUrl(garbage);
     expect(redacted).not.toContain("hunter2");
     expect(redacted).not.toContain(garbage);
+  });
+});
+
+describe("snapshotUrlSecurityWarning", () => {
+  test("warns on a non-loopback host with no sslmode; names the host, omits the password", () => {
+    const warning = snapshotUrlSecurityWarning(
+      "postgres://snapshotuser:hunter2@snapshot.example.com:5432/snapshotdb"
+    );
+    expect(warning).not.toBeNull();
+    expect(warning).toContain("snapshot.example.com");
+    expect(warning).not.toContain("hunter2");
+  });
+
+  test.each([
+    ["127.0.0.1 loopback", "postgres://u:p@127.0.0.1:5433/db"],
+    ["localhost loopback", "postgres://u:p@localhost:5433/db"],
+    ["IPv6 loopback", "postgres://u:p@[::1]:5433/db"],
+    [
+      "non-loopback with sslmode=require",
+      "postgres://u:p@snapshot.example.com:5432/db?sslmode=require",
+    ],
+    [
+      "non-loopback with sslmode=verify-full",
+      "postgres://u:p@snapshot.example.com:5432/db?sslmode=verify-full",
+    ],
+  ])("does not warn for %s", (_label, url) => {
+    expect(snapshotUrlSecurityWarning(url)).toBeNull();
+  });
+
+  test("does not warn (fails closed, no warning) on an unparseable URL", () => {
+    expect(snapshotUrlSecurityWarning("not a url")).toBeNull();
   });
 });

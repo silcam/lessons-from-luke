@@ -50,7 +50,7 @@ import { parseDocStrings } from "../../actions/updateLesson";
 import { uploadEnglishDoc } from "../../actions/uploadDocument";
 import webifyLesson from "../../actions/webifyLesson";
 import PGStorage, { dbConnect } from "../../storage/PGStorage";
-import { snapshotDbConnect } from "../../storage/PGSnapshotStorage";
+import { snapshotDbConnect, snapshotUrlSecurityWarning } from "../../storage/PGSnapshotStorage";
 import {
   PRODUCTION_MARKER_FILENAME,
   RestoreLessonAbortError,
@@ -977,6 +977,11 @@ export async function runDiagnoseCommand(options: RunDiagnoseCommandOptions): Pr
 
   try {
     const args = parseDiagnoseArgs(options.argv);
+
+    const snapshotUrlWarning = snapshotUrlSecurityWarning(args.snapshotUrl);
+    if (snapshotUrlWarning) {
+      stderr(redactConnectionString(snapshotUrlWarning));
+    }
 
     // Host-local preconditions 1, 4, 5, 6 — cheap, checked before opening
     // any database connection.

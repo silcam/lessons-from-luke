@@ -621,6 +621,54 @@ describe("runDiagnoseCommand()", () => {
     expect(code).toBe(1);
   });
 
+  test("warns via injected stderr, redacted, when --snapshot-url is neither loopback nor TLS", async () => {
+    const stderrLines: string[] = [];
+    await runDiagnoseCommand({
+      argv: [
+        "--snapshot-url",
+        "postgres://snapshot-user:s3cr3t@snapshot.example.com:5432/snapshot-db",
+        "--report",
+        path.join(tmpReportDir(), "report.json"),
+        "--snapshot-confirmed",
+        "seen-it",
+        "--book",
+        "Luke",
+      ],
+      homeDir: homeDirWithMarker(),
+      stdout: () => {},
+      stderr: (line) => stderrLines.push(line),
+      connectProduction: () => sql(),
+      connectSnapshot: () => {
+        throw new Error("ECONNREFUSED"); // connection details don't matter for this assertion
+      },
+    });
+
+    const warning = stderrLines.find((line) => line.includes("snapshot.example.com"));
+    expect(warning).toBeDefined();
+    expect(warning).not.toContain("s3cr3t");
+  });
+
+  test("does not warn on stderr when --snapshot-url is loopback (the base fixture)", async () => {
+    const stderrLines: string[] = [];
+    await runDiagnoseCommand({
+      argv: baseArgv(["--book", "Luke"]),
+      homeDir: homeDirWithMarker(),
+      stdout: () => {},
+      stderr: (line) => stderrLines.push(line),
+      connectProduction: () => sql(),
+      connectSnapshot: () =>
+        makeSnapshotDouble({
+          lessons: [],
+          languages: [],
+          lessonStrings: [],
+          tStrings: [],
+          legacyCount: 0,
+        }),
+    });
+
+    expect(stderrLines.some((line) => line.toLowerCase().includes("neither loopback"))).toBe(false);
+  });
+
   test("aborts (10) when the production marker file is missing", async () => {
     const code = await runDiagnoseCommand({
       argv: baseArgv(["--book", "Luke"]),
