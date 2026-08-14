@@ -36,6 +36,17 @@
  * Spec: specs/acceptance-specs/US15-diagnose-damage.txt (5 GWT scenarios),
  * specs/018-lesson1-translation-restore/spec.md §User Story 1 Acceptance
  * Scenarios, specs/018-lesson1-translation-restore/research.md D11.
+ *
+ * RED (task 5.7.1) additionally extends this same harness to cover US2:
+ * `specs/acceptance-specs/US16-restore-english-master.txt` (3 GWT
+ * scenarios), asserted against a not-yet-implemented `restoreEnglish()`
+ * entry point on `cli.ts`. `cli.ts` currently exports only `diagnose`
+ * (task 5.6.7); it has no `restore-english` subcommand wiring yet — that is
+ * task 5.7.3, built on top of task 5.7.2's `restoreEnglish.ts` core. Every
+ * test in the "US16-restore-english-master.txt" section below therefore
+ * fails at runtime the first time it calls `restoreEnglish()`
+ * ("cli.restoreEnglish is not a function"), loaded lazily the same way as
+ * `diagnose` above and for the same typecheck reason (see `loadRestoreEnglish`).
  */
 import fs from "fs";
 import os from "os";
@@ -85,6 +96,11 @@ interface DiagnoseOptions {
   book?: string;
   dryRun: boolean;
   homeDir?: string;
+  /** US16 (restore-english) additions, threaded through to
+   * `scanCandidateMasterDocuments` so `report.affectedLessons[].candidateMasterDocuments`
+   * is populated for `restoreEnglish()` to consume. */
+  knownBadVersions?: number[];
+  docsRoot?: string;
 }
 
 /**
@@ -99,6 +115,35 @@ async function diagnose(options: DiagnoseOptions): Promise<DiagnosisReport> {
   const cliModulePath = ["." + "/", "cli"].join("");
   const cli = require(cliModulePath);
   return cli.diagnose(options);
+}
+
+/** Core options for the not-yet-implemented `restoreEnglish()` (task
+ * 5.7.3), mirroring `DiagnoseOptions`'s "pure orchestration core, no argv"
+ * shape: given a report already produced by `diagnose()` and the verified
+ * master document to re-upload, it performs the restore and returns the
+ * report with `englishRestore` appended (contract §restore-english). */
+interface RestoreEnglishOptions {
+  productionSql: SqlFunc;
+  report: DiagnosisReport;
+  masterDocumentPath: string;
+  dumpDir: string;
+  homeDir?: string;
+}
+
+/**
+ * Lazily loads `cli.ts`'s `restoreEnglish` export and calls it — same
+ * non-literal `require()` pattern as `diagnose` above, and for the same
+ * reason (see file header): `cli.ts` exists (task 5.6.7 built it for
+ * `diagnose`), so a static import would typecheck fine today, but
+ * `restoreEnglish` is not yet exported. Calling `cli.restoreEnglish(...)`
+ * therefore fails at runtime with "cli.restoreEnglish is not a function"
+ * rather than a module-resolution error — still a real Jest failure, not a
+ * compile-time one.
+ */
+async function restoreEnglish(options: RestoreEnglishOptions): Promise<DiagnosisReport> {
+  const cliModulePath = ["." + "/", "cli"].join("");
+  const cli = require(cliModulePath);
+  return cli.restoreEnglish(options);
 }
 
 const serverUrl = process.env.INTEGRATION_SERVER_URL;
@@ -143,6 +188,13 @@ let preIncidentTranslations: {
 };
 let snapshot: SnapshotBundle;
 let homeDir: string;
+// US16 (restore-english) additions: the pre-incident master document, its
+// version, and a scratch `docs/`-shaped directory `diagnose`'s
+// `docsRoot`/`scanCandidateMasterDocuments` can find it in.
+let preIncidentVersion: number;
+let incidentVersion: number;
+let docsRoot: string;
+let masterDocumentPath: string;
 
 beforeAll(async () => {
   homeDir = homeDirWithMarker();
@@ -160,12 +212,25 @@ beforeAll(async () => {
     .expect(200);
 
   lessonId = uploadRes.body.lesson.lessonId;
+  preIncidentVersion = uploadRes.body.lesson.version;
   const contentMasterIds: number[] = uploadRes.body.lesson.lessonStrings
     .filter((ls: { type: string }) => ls.type === "content")
     .map((ls: { masterId: number }) => ls.masterId);
   expect(contentMasterIds.length).toBeGreaterThanOrEqual(2);
   [restoredMasterId, conflictMasterId] = contentMasterIds;
   sharedMasterId = restoredMasterId;
+
+  // The verified pre-incident master document (research D5 candidate
+  // scanning, `scanCandidateMasterDocuments` in cli.ts): a copy of the same
+  // fixture just uploaded, named per the `{book}-{series}-{lesson:2}v{version}.odt`
+  // convention `diagnose`'s `docsRoot` scan expects, in a scratch directory
+  // standing in for `docs/` so this test never touches the real `docs/` tree.
+  docsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "restore-lesson-integration-docs-"));
+  masterDocumentPath = path.join(
+    docsRoot,
+    `${BOOK}-${SERIES}-${String(LESSON).padStart(2, "0")}v${preIncidentVersion}.odt`
+  );
+  fs.copyFileSync("cypress/fixtures/English_Luke-Q1-L06.odt", masterDocumentPath);
 
   // ── 2. Create a translation language and translate two strings ──────
   const langRes = await admin
@@ -261,7 +326,7 @@ beforeAll(async () => {
   // ── 6. Upload the cover-file-like document (the incident) ───────────
   // Same book/series/lesson, unrelated content — orphans every pre-incident
   // master ID captured in the snapshot above.
-  await admin
+  const incidentRes = await admin
     .post("/api/admin/documents")
     .field("languageId", ENGLISH_ID)
     .field("book", BOOK)
@@ -269,10 +334,12 @@ beforeAll(async () => {
     .field("lesson", LESSON)
     .attach("document", "test/docs/serverDocs/Luke-1-02v01.odt")
     .expect(200);
+  incidentVersion = incidentRes.body.lesson.version;
 });
 
 afterAll(async () => {
   await sql.end();
+  fs.rmSync(docsRoot, { recursive: true, force: true });
 });
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -406,4 +473,108 @@ test("Dry-run diagnosis makes no writes to either database", async () => {
   // connection diagnose could write through.
   expect(afterTStrings).toEqual(beforeTStrings);
   expect(afterLanguages).toEqual(beforeLanguages);
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// US16-restore-english-master.txt scenarios (task 5.7.1, US2)
+// ─────────────────────────────────────────────────────────────────────────
+
+describe("US16-restore-english-master.txt scenarios", () => {
+  let dumpDir: string;
+  let diagnosisReport: DiagnosisReport;
+
+  beforeAll(async () => {
+    dumpDir = fs.mkdtempSync(path.join(os.tmpdir(), "restore-lesson-integration-dump-"));
+    // `diagnose()` itself is already implemented (task 5.6.7, green) — this
+    // produces the real report `restoreEnglish()` will consume, including
+    // the `candidateMasterDocuments` entry for `masterDocumentPath` scanned
+    // out of `docsRoot` above.
+    diagnosisReport = await diagnose({
+      productionSql: sql,
+      snapshot,
+      snapshotConfirmed: "test-harness-confirmed",
+      book: BOOK,
+      dryRun: true,
+      homeDir,
+      knownBadVersions: [incidentVersion],
+      docsRoot,
+    });
+  });
+
+  afterAll(() => {
+    fs.rmSync(dumpDir, { recursive: true, force: true });
+  });
+
+  test("Restoring the English master replaces the cover-page content with the pre-incident lesson content", async () => {
+    const report = await restoreEnglish({
+      productionSql: sql,
+      report: diagnosisReport,
+      masterDocumentPath,
+      dumpDir,
+      homeDir,
+    });
+
+    const snapshotEnglishText = new Set(
+      snapshot.tStrings.filter((t) => t.languageId === ENGLISH_ID).map((t) => t.text)
+    );
+    const restoredLesson = await fetchLessonByBookSeriesLesson(sql, BOOK, SERIES, LESSON);
+    expect(restoredLesson).toBeTruthy();
+    const restoredTStrings = await fetchTStringsForLesson(
+      sql,
+      restoredLesson!.lessonId,
+      [restoredMasterId, conflictMasterId],
+      { includeLegacyLessonStringScoped: true }
+    );
+    const restoredEnglishText = new Set(
+      restoredTStrings.filter((t) => t.languageId === ENGLISH_ID).map((t) => t.text)
+    );
+    for (const text of snapshotEnglishText) {
+      expect(restoredEnglishText.has(text)).toBe(true);
+    }
+    expect(report.englishRestore).toBeTruthy();
+  });
+
+  test("The restoration uses the correct pre-incident master document, never the cover file", async () => {
+    const report = await restoreEnglish({
+      productionSql: sql,
+      report: diagnosisReport,
+      masterDocumentPath,
+      dumpDir,
+      homeDir,
+    });
+
+    expect(report.englishRestore).toBeTruthy();
+    expect(report.englishRestore!.masterDocumentPath).toBe(masterDocumentPath);
+    expect(report.englishRestore!.newLessonVersion).toBeGreaterThan(incidentVersion);
+
+    const usedCandidate = diagnosisReport.affectedLessons
+      .flatMap((lsn) => lsn.candidateMasterDocuments)
+      .find((c) => c.filepath === masterDocumentPath);
+    expect(usedCandidate).toBeTruthy();
+    expect(usedCandidate!.isKnownBadUpload).toBe(false);
+    expect(usedCandidate!.version).toBe(preIncidentVersion);
+
+    // The resulting lesson structure supports re-attaching existing
+    // translations: a fresh mapping pass over the post-restore lesson finds
+    // the restored master strings reachable again.
+    const restoredLesson = await fetchLessonByBookSeriesLesson(sql, BOOK, SERIES, LESSON);
+    expect(restoredLesson).toBeTruthy();
+    expect(restoredLesson!.version).toBe(report.englishRestore!.newLessonVersion);
+  });
+
+  test("Production is reversible from a pre-write dump if anything goes wrong mid-restore", async () => {
+    const report = await restoreEnglish({
+      productionSql: sql,
+      report: diagnosisReport,
+      masterDocumentPath,
+      dumpDir,
+      homeDir,
+    });
+
+    expect(report.englishRestore).toBeTruthy();
+    expect(report.englishRestore!.dumpPath).toBeTruthy();
+    expect(path.dirname(report.englishRestore!.dumpPath)).toBe(dumpDir);
+    expect(fs.existsSync(report.englishRestore!.dumpPath)).toBe(true);
+    expect(fs.statSync(report.englishRestore!.dumpPath).size).toBeGreaterThan(0);
+  });
 });
