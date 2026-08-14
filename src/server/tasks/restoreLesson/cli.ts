@@ -135,16 +135,58 @@ class PGConnectedStorage extends PGStorage {
 // Redaction (contract §Output redaction and file modes)
 // ─────────────────────────────────────────────────────────────────────────
 
-/** Matches `scheme://user:password@` in a postgres connection string. */
-const CONNECTION_STRING_RE = /(postgres(?:ql)?:\/\/)([^:@/\s]+):([^@/\s]*)@/gi;
+/** Matches `scheme://<user-info>@` — the authority portion up to the next
+ * `/` or whitespace — in a postgres connection URI. The user-info itself
+ * (which may contain further unencoded `@` characters inside a raw
+ * password) is split out and redacted in the replacer below, since a
+ * single regex capture group cannot correctly isolate the password when
+ * it is not percent-encoded. */
+const CONNECTION_URI_RE = /(postgres(?:ql)?:\/\/)([^/\s]+)/gi;
+
+/** Matches libpq keyword/value DSN credentials (`password=...`) and the
+ * `PGPASSWORD=` environment-style credential. The value runs to the next
+ * whitespace, or is a quoted string. */
+const KEYWORD_VALUE_PASSWORD_RE = /\b(PGPASSWORD|password)=(?:'[^']*'|"[^"]*"|\S+)/gi;
+
+/** Redacts the password out of a URI-form connection string's user-info
+ * (`user:password@host`), tolerating a raw unencoded `@` inside the
+ * password by splitting on the *last* `@` in the authority to find the
+ * host boundary. Returns the original text unchanged if there is no `@`
+ * (no credentials present) or no `:` before it (no password to redact). */
+function redactUriAuthority(scheme: string, authority: string): string {
+  const atIndex = authority.lastIndexOf("@");
+  if (atIndex === -1) {
+    return `${scheme}${authority}`;
+  }
+  const userInfo = authority.slice(0, atIndex);
+  const hostPart = authority.slice(atIndex + 1);
+  const colonIndex = userInfo.indexOf(":");
+  if (colonIndex === -1) {
+    // No `:` before the last `@` means no password-shaped credential was
+    // found — but a *further* `@` inside `userInfo` (e.g. `postgres://@@@`)
+    // is malformed enough that a real credential could still be hiding in
+    // there unrecognized; fall back to a fixed placeholder rather than
+    // risk leaking it verbatim.
+    if (userInfo.includes("@")) {
+      return `${scheme}***redacted***`;
+    }
+    return `${scheme}${authority}`;
+  }
+  const user = userInfo.slice(0, colonIndex);
+  return `${scheme}${user}:***@${hostPart}`;
+}
 
 /** Redacts every connection string's password in `input` to `***`. Never
- * strips the username or host — only the credential that must not leak. */
+ * strips the username or host — only the credential that must not leak.
+ * Covers both URI-form (`postgres://user:pass@host`, tolerating a raw `@`
+ * in the password) and libpq keyword/value DSNs (`password=...`,
+ * `PGPASSWORD=...`). */
 export function redactConnectionString(input: string): string {
-  return input.replace(
-    CONNECTION_STRING_RE,
-    (_match, scheme: string, user: string) => `${scheme}${user}:***@`
+  const uriRedacted = input.replace(
+    CONNECTION_URI_RE,
+    (_match, scheme: string, authority: string) => redactUriAuthority(scheme, authority)
   );
+  return uriRedacted.replace(KEYWORD_VALUE_PASSWORD_RE, (match, key: string) => `${key}=***`);
 }
 
 /** Recursively applies `redactConnectionString` to every string in `value` —

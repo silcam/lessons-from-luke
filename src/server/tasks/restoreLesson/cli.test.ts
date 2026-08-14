@@ -124,6 +124,36 @@ describe("redactConnectionString", () => {
   test("leaves text with no connection string untouched", () => {
     expect(redactConnectionString("no secrets here")).toBe("no secrets here");
   });
+
+  test("masks a libpq keyword/value DSN's password= pair", () => {
+    const redacted = redactConnectionString(
+      "connecting with host=localhost password=hunter2 dbname=lessons-snapshot"
+    );
+    expect(redacted).toBe("connecting with host=localhost password=*** dbname=lessons-snapshot");
+    expect(redacted).not.toContain("hunter2");
+  });
+
+  test("masks a PGPASSWORD= environment-style credential", () => {
+    const redacted = redactConnectionString("PGPASSWORD=hunter2 pg_dump -h localhost");
+    expect(redacted).toBe("PGPASSWORD=*** pg_dump -h localhost");
+    expect(redacted).not.toContain("hunter2");
+  });
+
+  test("fully masks a URI password containing a raw unencoded '@'", () => {
+    const redacted = redactConnectionString(
+      "connecting to postgres://opsuser:pass@word@127.0.0.1:5433/lessons-snapshot now"
+    );
+    expect(redacted).toBe(
+      "connecting to postgres://opsuser:***@127.0.0.1:5433/lessons-snapshot now"
+    );
+    expect(redacted).not.toContain("pass@word");
+  });
+
+  test("does not throw and does not leak the raw fragment on unparseable connection-like input", () => {
+    const redacted = redactConnectionString("bad url: postgres://@@@ nonsense");
+    expect(() => redactConnectionString("bad url: postgres://@@@ nonsense")).not.toThrow();
+    expect(redacted).not.toContain("@@@");
+  });
 });
 
 describe("handleMainRejection", () => {
