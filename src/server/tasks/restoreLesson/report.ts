@@ -105,6 +105,15 @@ export function computeDiagnosisChecksum(
   for (const field of DIAGNOSIS_CHECKSUM_FIELDS) {
     picked[field] = report[field];
   }
+  // `productionReachableAfter` is written by verify() onto the live report;
+  // it is not diagnosis-produced. Hashing its live value would make every
+  // report fail integrity (exit 20) on any load after verify has run.
+  // Normalized to null — its diagnose-time value — rather than stripped, so
+  // checksums on reports written before this fix still verify.
+  picked["perLanguageCounts"] = (report.perLanguageCounts ?? []).map((counts) => ({
+    ...counts,
+    productionReachableAfter: null,
+  }));
   return sha256(canonicalStringify(picked));
 }
 

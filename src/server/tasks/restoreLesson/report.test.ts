@@ -128,6 +128,32 @@ describe("checksum computation and verification", () => {
     expect(computeDiagnosisChecksum(reordered)).toBe(computeDiagnosisChecksum(report));
   });
 
+  test("computeDiagnosisChecksum ignores verify-written productionReachableAfter values", () => {
+    // verify() fills perLanguageCounts[].productionReachableAfter on the live
+    // report. That write must not invalidate the frozen diagnosisChecksum, or
+    // no report can ever be loaded again after verify runs (re-verify and
+    // --prior-report re-diagnosis would abort 20).
+    const counts = {
+      languageId: 2,
+      languageName: "Français",
+      archived: false,
+      snapshotReachable: 320,
+      productionReachableBefore: 315,
+      productionReachableAfter: null,
+      restored: 5,
+      conflicts: 1,
+      newerWork: 0,
+      lost: 0,
+      driftSkipped: 0,
+    };
+    const report: DiagnosisReport = { ...baseReport(), perLanguageCounts: [counts] };
+    const afterVerify: DiagnosisReport = {
+      ...report,
+      perLanguageCounts: [{ ...counts, productionReachableAfter: 321 }],
+    };
+    expect(computeDiagnosisChecksum(afterVerify)).toBe(computeDiagnosisChecksum(report));
+  });
+
   test("computeDiagnosisChecksum changes when a frozen field's content changes", () => {
     const report = baseReport();
     const mutated: DiagnosisReport = {
