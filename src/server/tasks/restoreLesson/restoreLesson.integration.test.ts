@@ -47,6 +47,22 @@
  * fails at runtime the first time it calls `restoreEnglish()`
  * ("cli.restoreEnglish is not a function"), loaded lazily the same way as
  * `diagnose` above and for the same typecheck reason (see `loadRestoreEnglish`).
+ *
+ * RED (task 5.8.1) additionally extends this same harness to cover 3 of US3's
+ * 5 GWT scenarios (`specs/acceptance-specs/US17-restore-translations.txt`):
+ * orphaned translations becoming reachable again, a post-Snapshot production
+ * edit surviving untouched and reported as a conflict, and an idempotent
+ * rerun creating no duplicate rows — asserted against a not-yet-implemented
+ * `apply()` entry point on `cli.ts`. (The remaining 2 scenarios — history
+ * preservation on overwrite, and the dry-run-before-apply workflow — are
+ * covered by 5.8.3's `restoreWrite.test.ts` and 5.8.4's `cli.test.ts`
+ * respectively.) `cli.ts` currently exports `diagnose` and `restoreEnglish`
+ * (tasks 5.6.7/5.7.3); it has no `apply` export yet — that is task 5.8.4,
+ * built on top of 5.8.2's `planWrites.ts` and 5.8.3's `restoreWrite.ts`.
+ * Every test in the "US17-restore-translations.txt" section below therefore
+ * fails at runtime the first time it calls `apply()` ("cli.apply is not a
+ * function"), loaded lazily the same way as `diagnose`/`restoreEnglish`
+ * above and for the same typecheck reason (see `loadApply`).
  */
 import fs from "fs";
 import os from "os";
@@ -150,6 +166,38 @@ async function restoreEnglish(options: RestoreEnglishOptions): Promise<Diagnosis
   const cliModulePath = ["." + "/", "cli"].join("");
   const cli = require(cliModulePath);
   return cli.restoreEnglish(options);
+}
+
+/** Core options for the not-yet-implemented `apply()` (task 5.8.4), mirroring
+ * `RestoreEnglishOptions`'s "pure orchestration core, no argv" shape: given a
+ * checksum-gated report that already carries an `englishRestore` entry (this
+ * subcommand's precondition 8), it writes the plan's `restore`-classified
+ * translations one language at a time and returns the report with
+ * `appliedWrites`/`driftSkips`/`conflicts` appended (contract §apply). */
+interface ApplyOptions {
+  productionSql: SqlFunc;
+  report: DiagnosisReport;
+  diagnosisId: string;
+  dumpDir: string;
+  homeDir?: string;
+  languages?: number[];
+  maxWrites?: number;
+}
+
+/**
+ * Lazily loads `cli.ts`'s `apply` export and calls it — same non-literal
+ * `require()` pattern as `diagnose`/`restoreEnglish` above, and for the same
+ * reason (see file header): `cli.ts` exists (tasks 5.6.7/5.7.3 built it for
+ * `diagnose`/`restoreEnglish`), so a static import would typecheck fine
+ * today, but `apply` is not yet exported. Calling `cli.apply(...)` therefore
+ * fails at runtime with "cli.apply is not a function" rather than a
+ * module-resolution error — still a real Jest failure, not a compile-time
+ * one.
+ */
+async function apply(options: ApplyOptions): Promise<DiagnosisReport> {
+  const cliModulePath = ["." + "/", "cli"].join("");
+  const cli = require(cliModulePath);
+  return cli.apply(options);
 }
 
 const serverUrl = process.env.INTEGRATION_SERVER_URL;
@@ -611,5 +659,162 @@ describe("US16-restore-english-master.txt scenarios", () => {
     expect(path.dirname(report.englishRestore!.dumpPath)).toBe(dumpDir);
     expect(fs.existsSync(report.englishRestore!.dumpPath)).toBe(true);
     expect(fs.statSync(report.englishRestore!.dumpPath).size).toBeGreaterThan(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// US17-restore-translations.txt scenarios (task 5.8.1, US3)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// 3 of the acceptance-spec's 5 GWT scenarios, against a not-yet-implemented
+// `apply()`. The other 2 (history preservation on overwrite; the dry-run-
+// before-apply workflow) are unit-tested by 5.8.3's `restoreWrite.test.ts`
+// and 5.8.4's `cli.test.ts` respectively — see file header.
+
+describe("US17-restore-translations.txt scenarios", () => {
+  let applyDumpDir: string;
+  let diagnosisReportForApply: DiagnosisReport;
+
+  beforeAll(async () => {
+    applyDumpDir = fs.mkdtempSync(path.join(os.tmpdir(), "restore-lesson-integration-apply-"));
+
+    // Re-diagnose against current production (already carrying the English
+    // restores the US16 block above performed) so `apply`'s precondition 8
+    // (`englishRestore` present) can be satisfied below. A fresh diagnosis
+    // here — rather than reusing the US16 block's `diagnosisReport` — is
+    // required because that report predates every `restoreEnglish()` call
+    // and therefore has no `englishRestore` entry of its own.
+    const freshDiagnosis: DiagnosisReport = await diagnose({
+      productionSql: sql,
+      snapshot,
+      snapshotConfirmed: "test-harness-confirmed",
+      book: BOOK,
+      dryRun: true,
+      homeDir,
+      knownBadVersions: [incidentVersion],
+      docsRoot,
+    });
+    const affectedLesson = freshDiagnosis.affectedLessons.find(
+      (lsn) => lsn.book === BOOK && lsn.series === SERIES && lsn.lesson === LESSON
+    );
+    expect(affectedLesson).toBeTruthy();
+
+    // `apply`'s precondition 8 only requires an `englishRestore` entry to be
+    // present (contract §apply) — it does not itself re-run the restore.
+    // This block attaches one directly rather than calling `restoreEnglish()`
+    // again (already exercised end to end by the US16 block above), since
+    // `webifyLesson` intentionally no-ops under `NODE_ENV=test`
+    // (`src/server/actions/webifyLesson.ts`) and the I18 mode/owner repair
+    // this test harness's scratch `docsRoot` can't satisfy is out of scope
+    // for this US3 RED task.
+    const dumpPath = path.join(applyDumpDir, "pre-english-restore.dump");
+    fs.writeFileSync(dumpPath, "fixture dump contents");
+    diagnosisReportForApply = {
+      ...freshDiagnosis,
+      englishRestore: {
+        method: "upload",
+        masterDocumentPath,
+        masterDocumentSha256: null,
+        newLessonVersion: affectedLesson!.productionVersion,
+        dumpPath,
+        restoredAt: new Date().toISOString(),
+        carriedFromDiagnosisId: null,
+      },
+    };
+    expect(diagnosisReportForApply.englishRestore).toBeTruthy();
+  });
+
+  afterAll(() => {
+    fs.rmSync(applyDumpDir, { recursive: true, force: true });
+  });
+
+  test("Orphaned translations become reachable again through the restored lesson", async () => {
+    const report = await apply({
+      productionSql: sql,
+      report: diagnosisReportForApply,
+      diagnosisId: diagnosisReportForApply.diagnosisId,
+      dumpDir: applyDumpDir,
+      homeDir,
+    });
+
+    const restoredTStrings = await fetchTStringsForLesson(sql, lessonId, [restoredMasterId], {
+      includeLegacyLessonStringScoped: true,
+    });
+    const restoredTranslation = restoredTStrings.find(
+      (t) => t.languageId === languageId && t.masterId === restoredMasterId
+    );
+    expect(restoredTranslation).toBeTruthy();
+    expect(restoredTranslation!.text).toBe(preIncidentTranslations.restored);
+
+    expect(
+      report.appliedWrites?.some(
+        (w) => w.languageId === languageId && w.masterId === restoredMasterId
+      )
+    ).toBe(true);
+  });
+
+  test("A translation edited in production after the Snapshot is left untouched and reported as a conflict", async () => {
+    const report = await apply({
+      productionSql: sql,
+      report: diagnosisReportForApply,
+      diagnosisId: diagnosisReportForApply.diagnosisId,
+      dumpDir: applyDumpDir,
+      homeDir,
+    });
+
+    const conflictTStrings = await fetchTStringsForLesson(sql, lessonId, [conflictMasterId], {
+      includeLegacyLessonStringScoped: true,
+    });
+    const conflictTranslation = conflictTStrings.find(
+      (t) => t.languageId === languageId && t.masterId === conflictMasterId
+    );
+    expect(conflictTranslation).toBeTruthy();
+    // The post-Snapshot production edit survives untouched — apply never
+    // overwrites a value it did not itself write the pre-incident text for.
+    expect(conflictTranslation!.text).toBe(preIncidentTranslations.conflictPost);
+
+    expect(
+      report.conflicts.some(
+        (c) => c.languageId === languageId && c.snapshotMasterId === conflictMasterId
+      )
+    ).toBe(true);
+  });
+
+  test("Re-running the restore is idempotent and creates no duplicate rows", async () => {
+    const firstRun = await apply({
+      productionSql: sql,
+      report: diagnosisReportForApply,
+      diagnosisId: diagnosisReportForApply.diagnosisId,
+      dumpDir: applyDumpDir,
+      homeDir,
+    });
+
+    const beforeRerunTStrings = await fetchTStringsForLesson(
+      sql,
+      lessonId,
+      [restoredMasterId, conflictMasterId],
+      { includeLegacyLessonStringScoped: true }
+    );
+
+    const secondRun = await apply({
+      productionSql: sql,
+      report: firstRun,
+      diagnosisId: firstRun.diagnosisId,
+      dumpDir: applyDumpDir,
+      homeDir,
+    });
+
+    // No further changes on rerun (I5): the second run's own applied-writes
+    // ledger is empty.
+    expect(secondRun.appliedWrites?.length ?? 0).toBe(0);
+
+    const afterRerunTStrings = await fetchTStringsForLesson(
+      sql,
+      lessonId,
+      [restoredMasterId, conflictMasterId],
+      { includeLegacyLessonStringScoped: true }
+    );
+    // No duplicate rows created (I4): identical row set before and after.
+    expect(afterRerunTStrings).toEqual(beforeRerunTStrings);
   });
 });
