@@ -2628,8 +2628,8 @@ describe("verify() core", () => {
     ).rejects.toMatchObject({ exitCode: 26 });
   });
 
-  test("aborts (26) when appliedWrites is an empty array", async () => {
-    const report = await baseVerifyReport({ appliedWrites: [] });
+  test("aborts (26) when appliedWrites is empty and apply never completed", async () => {
+    const report = await baseVerifyReport({ appliedWrites: [], applyState: undefined });
     await expect(
       verify({
         productionSql: sql(),
@@ -2639,6 +2639,28 @@ describe("verify() core", () => {
         homeDir: homeDirWithMarker(),
       })
     ).rejects.toMatchObject({ exitCode: 26 });
+  });
+
+  test("proceeds when appliedWrites is empty but applyState completed (zero-write apply)", async () => {
+    const report = await baseVerifyReport({ appliedWrites: [] });
+    const advisoryLockOps = makeAdvisoryLockOps();
+    const outPath = verifyOutPath();
+
+    const updated = await verify({
+      productionSql: sql(),
+      report,
+      diagnosisId: report.diagnosisId,
+      outPath,
+      homeDir: homeDirWithMarker(),
+      withReservedConnection: bypassReservedConnection,
+      advisoryLockOps,
+      persistence: testPersistence(),
+    });
+
+    expect(updated.verification).toBeTruthy();
+    expect(updated.verification!.clientReportPath).toBe(outPath);
+    expect(fs.existsSync(outPath)).toBe(true);
+    expect(advisoryLockOps.unlock).toHaveBeenCalledTimes(1);
   });
 
   test("aborts (28) when the advisory lock is already held", async () => {

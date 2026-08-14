@@ -2640,10 +2640,16 @@ export async function verify(options: VerifyCoreOptions): Promise<DiagnosisRepor
     );
   }
 
-  if (!report.appliedWrites || report.appliedWrites.length === 0) {
+  // A completed apply with zero writes is legitimate (the English re-upload
+  // alone can reattach every translation); verify's duplicate sweep, progress
+  // update, and client report are still due. Only an apply that never
+  // completed leaves nothing to verify.
+  const applyCompleted = report.applyState?.completedAt != null;
+  if (!applyCompleted && (!report.appliedWrites || report.appliedWrites.length === 0)) {
     throw new RestoreLessonAbortError(
       26,
-      `Report ${report.diagnosisId} has no appliedWrites recorded; nothing to verify. Run apply first.`
+      `Report ${report.diagnosisId} has no appliedWrites recorded and no completed applyState; ` +
+        `nothing to verify. Run apply first.`
     );
   }
 

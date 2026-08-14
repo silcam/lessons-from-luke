@@ -550,7 +550,9 @@ version bump to 159):
   preview lingers on disk).
 
 **Exit codes**: 0 success, no new duplicates; 20 report
-checksum/diagnosis-id/database mismatch; 26 no apply recorded in the report;
+checksum/diagnosis-id/database mismatch; 26 no completed apply recorded in the report (a completed apply with zero
+writes is verifiable — the English re-upload alone can reattach every
+translation);
 28 another subcommand holds the advisory lock (or it was lost mid-run);
 **30 new duplicate rows found against the baseline — resolve by hand before
 sending the client report; the Markdown carries a DO-NOT-SEND banner**;
