@@ -96,6 +96,12 @@ describe("fetchLessonByBookSeriesLesson", () => {
     const lesson = await gateway().fetchLessonByBookSeriesLesson("Luke", 999, 999);
     expect(lesson).toBeNull();
   });
+
+  test("includes the lesson's modified timestamp for incident dating", async () => {
+    await sql()`UPDATE lessons SET modified=${1786700000000} WHERE book='Luke' AND series=1 AND lesson=1`;
+    const lesson = await gateway().fetchLessonByBookSeriesLesson("Luke", 1, 1);
+    expect(lesson?.modified).toBe(1786700000000);
+  });
 });
 
 describe("fetchDuplicateRowSweep", () => {

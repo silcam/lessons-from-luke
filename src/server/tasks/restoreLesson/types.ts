@@ -46,6 +46,10 @@ export interface AffectedLesson {
   knownBadVersions: number[];
   /** 1, +1 per tool-made bump */
   expectedBumpCount: number;
+  /** production `lessons.modified` (ms) at diagnose time — i.e. when the bad
+   * upload happened, since diagnosis runs while it is the current version.
+   * Absent on reports written before this field existed. */
+  productionLessonModified?: number | null;
   candidateMasterDocuments: MasterDocumentCandidate[];
 }
 

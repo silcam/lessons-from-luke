@@ -49,6 +49,34 @@ describe("detectAffectedLesson", () => {
     expect(affectedLesson.snapshotVersion).toBe(157);
   });
 
+  test("carries the production lesson's modified timestamp as productionLessonModified", () => {
+    const { affectedLesson } = detectAffectedLesson({
+      book: "Luke",
+      series: 1,
+      lesson: 1,
+      productionLesson: { ...lesson({ version: 158 }), modified: 1786700000000 },
+      snapshotLesson: lesson({ version: 157 }),
+      knownBadVersions: [],
+      expectedBumpCount: 1,
+      candidateMasterDocuments: [],
+    });
+    expect(affectedLesson.productionLessonModified).toBe(1786700000000);
+  });
+
+  test("records productionLessonModified as null when the production lesson has no modified value", () => {
+    const { affectedLesson } = detectAffectedLesson({
+      book: "Luke",
+      series: 1,
+      lesson: 1,
+      productionLesson: lesson({ version: 158 }),
+      snapshotLesson: lesson({ version: 157 }),
+      knownBadVersions: [],
+      expectedBumpCount: 1,
+      candidateMasterDocuments: [],
+    });
+    expect(affectedLesson.productionLessonModified).toBeNull();
+  });
+
   test("computes bumpCount as productionVersion - snapshotVersion", () => {
     const { affectedLesson } = detectAffectedLesson({
       book: "Luke",

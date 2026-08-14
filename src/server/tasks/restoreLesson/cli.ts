@@ -2566,11 +2566,41 @@ export function buildVerifyMarkdown(params: {
   if (report.conflicts.length === 0) {
     lines.push("None — every restorable translation was reattached without conflict.");
   } else {
-    lines.push("| Language | Sample text |");
-    lines.push("| --- | --- |");
-    for (const conflict of report.conflicts) {
-      const sample = conflict.productionText ?? conflict.snapshotText ?? "";
-      lines.push(`| ${conflict.languageName} | ${sample.replace(/\|/g, "\\|")} |`);
+    const escapeCell = (text: string | null) => (text ?? "").replace(/\|/g, "\\|");
+    const incidentAt = report.affectedLessons[0]?.productionLessonModified ?? null;
+    const sinceIncident =
+      incidentAt === null
+        ? report.conflicts
+        : report.conflicts.filter(
+            (conflict) =>
+              conflict.productionModified !== null && conflict.productionModified >= incidentAt
+          );
+    const seenRows = new Set<string>();
+    const deduped = sinceIncident.filter((conflict) => {
+      const key = `${conflict.languageId}:${conflict.productionMasterId ?? conflict.snapshotMasterId}:${conflict.legacyLessonStringId ?? "null"}`;
+      if (seenRows.has(key)) return false;
+      seenRows.add(key);
+      return true;
+    });
+    deduped.sort((a, b) => (b.productionModified ?? 0) - (a.productionModified ?? 0));
+    if (deduped.length === 0) {
+      lines.push(
+        "None — no translation rows were modified after the incident upload. " +
+          "Pre-existing historical divergences are omitted."
+      );
+    } else {
+      lines.push("| Language | English source | Snapshot text | Current text | Modified |");
+      lines.push("| --- | --- | --- | --- | --- |");
+      for (const conflict of deduped) {
+        const date =
+          conflict.productionModified != null
+            ? new Date(conflict.productionModified).toISOString().slice(0, 10)
+            : "unknown";
+        lines.push(
+          `| ${conflict.languageName} | ${escapeCell(conflict.sampleEnglishText)} | ` +
+            `${escapeCell(conflict.snapshotText)} | ${escapeCell(conflict.productionText)} | ${date} |`
+        );
+      }
     }
   }
   lines.push("");

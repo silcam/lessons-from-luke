@@ -32,8 +32,9 @@ export interface DetectAffectedLessonInput {
   book: Book;
   series: number;
   lesson: number;
-  /** fetched via `gateway.ts`'s `fetchLessonByBookSeriesLesson` against production; null = no match */
-  productionLesson: BaseLesson | null;
+  /** fetched via `gateway.ts`'s `fetchLessonByBookSeriesLesson` against production; null = no match.
+   * `modified` (ms) dates the bad upload — diagnosis runs while it is the current version. */
+  productionLesson: (BaseLesson & { modified?: number }) | null;
   /** fetched via `gateway.ts`'s `fetchLessonByBookSeriesLesson` against the Snapshot; null = no match */
   snapshotLesson: BaseLesson | null;
   /** pinned at first diagnosis, or carried forward via `--prior-report` */
@@ -81,6 +82,7 @@ export function detectAffectedLesson(input: DetectAffectedLessonInput): DetectAf
     mappingStrategy,
     knownBadVersions: input.knownBadVersions,
     expectedBumpCount: input.expectedBumpCount,
+    productionLessonModified: input.productionLesson.modified ?? null,
     candidateMasterDocuments: input.candidateMasterDocuments,
   };
 

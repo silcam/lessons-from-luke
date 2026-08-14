@@ -2588,6 +2588,141 @@ describe("buildVerifyMarkdown", () => {
     expect(markdown).toMatch(/1 new duplicate/i);
     expect(markdown).toContain("Français");
   });
+
+  describe("Outstanding conflicts section", () => {
+    const INCIDENT_MS = Date.UTC(2026, 7, 14); // 2026-08-14, the bad upload
+
+    function conflict(overrides: Partial<TranslationFinding>): TranslationFinding {
+      return {
+        languageId: FRENCH_ID,
+        languageName: "Français",
+        languageArchived: false,
+        snapshotMasterId: 42,
+        productionMasterId: 42,
+        classification: "conflict",
+        snapshotText: "Le texte du snapshot",
+        productionText: "Le texte de production modifié",
+        productionModified: INCIDENT_MS + 60_000,
+        legacyLessonStringId: null,
+        sampleEnglishText: "Sample English",
+        ...overrides,
+      };
+    }
+
+    function conflictsMarkdown(
+      conflicts: TranslationFinding[],
+      affectedLesson: AffectedLesson = {
+        ...baseAffectedLesson(159),
+        productionLessonModified: INCIDENT_MS,
+      }
+    ): string {
+      const base = applyPerLanguageCounts();
+      return buildVerifyMarkdown({
+        report: {
+          diagnosisId: "id",
+          diagnosisChecksum: "x",
+          reportChecksum: "x",
+          generatedAt: "2026-08-14T00:00:00.000Z",
+          toolVersion: "1.0.0",
+          mode: "verify",
+          identity: {
+            productionMarkerPresent: true,
+            snapshotConfirmationToken: "t",
+            productionLessonVersion: 159,
+            snapshotLessonVersion: 158,
+            snapshotIsOlder: true,
+          },
+          productionFingerprint: {
+            databaseName: "db",
+            lessonCount: 1,
+            maxMasterId: 1,
+            maxLessonStringId: 1,
+          },
+          affectedLessons: [affectedLesson],
+          languageIdentityChecks: [],
+          mappings: [],
+          findings: [],
+          perLanguageCounts: base,
+          legacyLessonStringRowCounts: { production: 0, snapshot: 0 },
+          blastRadius: { sharedMasterIds: 0, lessons: [] },
+          plannedWrites: [],
+          duplicateRowsBaseline: [],
+          conflicts,
+        },
+        perLanguageCounts: base,
+        duplicateDelta: [],
+        coverage: "complete",
+        unappliedLanguageIds: [],
+        mode: "snapshot",
+        verifiedAt: "2026-08-14T00:00:00.000Z",
+      });
+    }
+
+    test("excludes conflicts whose production text predates the incident upload", () => {
+      const markdown = conflictsMarkdown([
+        conflict({}),
+        conflict({
+          languageName: "Hausa",
+          productionText: "Historical divergence from 2020",
+          productionModified: Date.UTC(2020, 6, 14),
+        }),
+      ]);
+      expect(markdown).toContain("Le texte de production modifié");
+      expect(markdown).not.toContain("Historical divergence from 2020");
+      expect(markdown).not.toContain("Hausa");
+    });
+
+    test("renders a physical row seen through multiple mappings only once", () => {
+      const markdown = conflictsMarkdown([conflict({}), conflict({}), conflict({})]);
+      const occurrences = markdown.split("Le texte de production modifié").length - 1;
+      expect(occurrences).toBe(1);
+    });
+
+    test("states that nothing changed since the incident when every conflict is historical", () => {
+      const markdown = conflictsMarkdown([conflict({ productionModified: Date.UTC(2020, 6, 14) })]);
+      expect(markdown).toContain(
+        "None — no translation rows were modified after the incident upload. " +
+          "Pre-existing historical divergences are omitted."
+      );
+      expect(markdown).not.toContain("| Language | English source |");
+    });
+
+    test("sorts conflicts newest-first", () => {
+      const markdown = conflictsMarkdown([
+        conflict({
+          productionText: "Older edit",
+          snapshotMasterId: 43,
+          productionMasterId: 43,
+          productionModified: INCIDENT_MS + 60_000,
+        }),
+        conflict({
+          productionText: "Newer edit",
+          snapshotMasterId: 44,
+          productionMasterId: 44,
+          productionModified: INCIDENT_MS + 120_000,
+        }),
+      ]);
+      expect(markdown.indexOf("Newer edit")).toBeLessThan(markdown.indexOf("Older edit"));
+    });
+
+    test("shows all conflicts when the report predates the incident-timestamp field", () => {
+      const markdown = conflictsMarkdown(
+        [conflict({ productionText: "Ancient text", productionModified: Date.UTC(2020, 6, 14) })],
+        baseAffectedLesson(159)
+      );
+      expect(markdown).toContain("Ancient text");
+    });
+
+    test("renders a post-incident conflict with English source, both texts, and a date", () => {
+      const markdown = conflictsMarkdown([conflict({})]);
+      expect(markdown).toContain(
+        "| Language | English source | Snapshot text | Current text | Modified |"
+      );
+      expect(markdown).toContain(
+        "| Français | Sample English | Le texte du snapshot | Le texte de production modifié | 2026-08-14 |"
+      );
+    });
+  });
 });
 
 describe("verify() core", () => {

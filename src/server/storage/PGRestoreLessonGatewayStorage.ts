@@ -127,9 +127,9 @@ export default class PGRestoreLessonGatewayStorage extends PGStorage {
     book: Book,
     series: number,
     lesson: number
-  ): Promise<BaseLesson | null> {
-    const rows: BaseLesson[] = await this.sql`
-      SELECT lessonid, book, series, lesson, version
+  ): Promise<(BaseLesson & { modified?: number }) | null> {
+    const rows: (BaseLesson & { modified?: number })[] = await this.sql`
+      SELECT lessonid, book, series, lesson, version, modified
       FROM lessons
       WHERE book=${book} AND series=${series} AND lesson=${lesson}
     `;
