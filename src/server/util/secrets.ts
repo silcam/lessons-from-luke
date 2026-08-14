@@ -8,16 +8,22 @@ export interface Secrets {
   adminUsername: string;
   adminPassword: string;
   db: {
+    host?: string;
+    port?: number;
     database: string;
     username: string;
     password: string;
   };
   testDb: {
+    host?: string;
+    port?: number;
     database: string;
     username: string;
     password: string;
   };
   devDb: {
+    host?: string;
+    port?: number;
     database: string;
     username: string;
     password: string;

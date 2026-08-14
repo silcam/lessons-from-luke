@@ -1289,7 +1289,13 @@ const execFileAsync = promisify(execFile);
  * Injectable (`RunPgDump`) so contract tests never shell out. */
 export const realRunPgDump: RunPgDump = async ({ dumpPath }) => {
   const db = secrets.db;
-  const args = ["-Fc", "-f", dumpPath, "-U", db.username, db.database];
+  const args = ["-Fc", "-f", dumpPath, "-U", db.username];
+  // `secrets.json` may omit host/port (Unix-socket connections, e.g. the
+  // production deploy host); pass them only when present, mirroring how the
+  // domain driver connects.
+  if (db.host) args.push("-h", db.host);
+  if (db.port) args.push("-p", String(db.port));
+  args.push(db.database);
   await execFileAsync("pg_dump", args, {
     env: { ...process.env, PGPASSWORD: db.password },
   });
