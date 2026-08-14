@@ -2839,6 +2839,9 @@ export interface RunVerifyCommandOptions {
   stdout?: (line: string) => void;
   stderr?: (line: string) => void;
   connectProduction?: () => Promise<SqlFunc> | SqlFunc;
+  /** injectable for tests; only invoked when `--snapshot-url` is passed
+   * (contract §verify: "a snapshot comparison unless `--offline`"). */
+  connectSnapshot?: (url: string) => Promise<SqlFunc> | SqlFunc;
   closeSql?: (sql: SqlFunc) => Promise<void>;
   advisoryLockOps?: AdvisoryLockOps;
   withReservedConnection?: WithReservedConnection;
@@ -2853,13 +2856,45 @@ export async function runVerifyCommand(options: RunVerifyCommandOptions): Promis
   const stdout = options.stdout ?? ((line: string) => console.log(line));
   const stderr = options.stderr ?? ((line: string) => console.error(line));
   const connectProduction = options.connectProduction ?? defaultConnectProduction;
+  const connectSnapshot = options.connectSnapshot ?? defaultConnectSnapshot;
   const closeSql = options.closeSql ?? defaultCloseSql;
   const homeDir = options.homeDir ?? os.homedir();
 
   let productionSql: SqlFunc | null = null;
+  let snapshotSql: SqlFunc | null = null;
 
   try {
     const args = parseVerifyArgs(options.argv);
+
+    // --snapshot-url is optional for verify (contract §verify: "a snapshot
+    // comparison unless --offline"). Unlike diagnose, verify's `mode` label
+    // was previously set to "snapshot" whenever --offline was absent even
+    // though no snapshot connection was ever opened — an argv password
+    // exposed via ps/proc for a comparison that never happened. Passing the
+    // flag now either opens and reads a real snapshot connection (with the
+    // same two warnings diagnose emits) or aborts with a clear message;
+    // `mode` is only ever "snapshot" once a connection has actually been
+    // opened and read.
+    if (args.snapshotUrl) {
+      stderr(
+        redactConnectionString(
+          "--snapshot-url was passed on the command line, which is world-readable via ps/proc. " +
+            "Prefer running verify with --offline; verify only opens a snapshot connection to " +
+            "confirm reachability, it does not need the snapshot for anything else."
+        )
+      );
+      const snapshotUrlWarning = snapshotUrlSecurityWarning(args.snapshotUrl);
+      if (snapshotUrlWarning) {
+        stderr(redactConnectionString(snapshotUrlWarning));
+      }
+      if (args.offline) {
+        throw new RestoreLessonAbortError(
+          1,
+          "--snapshot-url and --offline are mutually exclusive: --offline computes verification " +
+            "from the stored report and live production only, opening no snapshot connection."
+        );
+      }
+    }
 
     const markerPath = path.join(homeDir, PRODUCTION_MARKER_FILENAME);
     if (!fs.existsSync(markerPath)) {
@@ -2876,6 +2911,26 @@ export async function runVerifyCommand(options: RunVerifyCommandOptions): Promis
         `--diagnosis-id ${args.diagnosisId} does not match the report's diagnosisId ` +
           `(${report.diagnosisId}) at ${args.report}.`
       );
+    }
+
+    if (args.snapshotUrl) {
+      try {
+        snapshotSql = await connectSnapshot(args.snapshotUrl);
+        // The "real snapshot read" the flag promises — confirms the
+        // connection is live before `mode` is allowed to say "snapshot".
+        await snapshotSql`SELECT 1`;
+      } catch (err) {
+        if (err instanceof RestoreLessonAbortError) throw err;
+        throw new RestoreLessonAbortError(
+          1,
+          `Snapshot connection failed: ${redactConnectionString(String(err))}`
+        );
+      } finally {
+        if (snapshotSql) {
+          await closeSql(snapshotSql);
+          snapshotSql = null;
+        }
+      }
     }
 
     productionSql = await connectProduction();

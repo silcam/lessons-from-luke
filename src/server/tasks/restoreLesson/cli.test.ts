@@ -2962,4 +2962,142 @@ describe("runVerifyCommand()", () => {
     expect(code).toBe(30);
     expect(stdoutLines.join("\n")).toMatch(/^DRAFT/);
   });
+
+  test("--snapshot-url: warns (ps/proc), opens+closes a real snapshot connection, and mode is snapshot", async () => {
+    await insertFrenchMaster1("Le livre de Luc restauré");
+    const reportDir = tmpReportDir();
+    const reportPath = path.join(reportDir, "report.json");
+    const report = await baseVerifyReport();
+    fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+
+    const stderrLines: string[] = [];
+    let snapshotOpened = false;
+    let snapshotClosed = false;
+
+    const code = await runVerifyCommand({
+      argv: [
+        "--report",
+        reportPath,
+        "--diagnosis-id",
+        report.diagnosisId,
+        "--snapshot-url",
+        "postgres://snapshot-user:s3cr3t@127.0.0.1:5433/snapshot-db",
+      ],
+      homeDir: homeDirWithMarker(),
+      stdout: () => {},
+      stderr: (line) => stderrLines.push(line),
+      connectProduction: () => sql(),
+      connectSnapshot: () => {
+        snapshotOpened = true;
+        return jest.fn(async () => []) as unknown as SqlFunc;
+      },
+      closeSql: async (closedSql) => {
+        if (closedSql !== undefined) snapshotClosed = true;
+      },
+      withReservedConnection: bypassReservedConnection,
+      advisoryLockOps: makeAdvisoryLockOps(),
+      persistence: testPersistence(),
+    });
+
+    expect(code).toBe(0);
+    expect(snapshotOpened).toBe(true);
+    expect(snapshotClosed).toBe(true);
+    expect(
+      stderrLines.some((line) => line.toLowerCase().includes("world-readable via ps/proc"))
+    ).toBe(true);
+    // Loopback + no password leaked anywhere on stderr.
+    expect(stderrLines.some((line) => line.includes("s3cr3t"))).toBe(false);
+
+    const flushed: DiagnosisReport = JSON.parse(fs.readFileSync(reportPath, "utf-8"));
+    expect(flushed.verification!.mode).toBe("snapshot");
+  });
+
+  test("--snapshot-url: warns (redacted) when the URL is neither loopback nor TLS", async () => {
+    const reportDir = tmpReportDir();
+    const reportPath = path.join(reportDir, "report.json");
+    const report = await baseVerifyReport();
+    fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+
+    const stderrLines: string[] = [];
+    await runVerifyCommand({
+      argv: [
+        "--report",
+        reportPath,
+        "--diagnosis-id",
+        report.diagnosisId,
+        "--snapshot-url",
+        "postgres://snapshot-user:s3cr3t@snapshot.example.com:5432/snapshot-db",
+      ],
+      homeDir: homeDirWithMarker(),
+      stdout: () => {},
+      stderr: (line) => stderrLines.push(line),
+      connectSnapshot: () => {
+        throw new Error("ECONNREFUSED"); // connection details don't matter for this assertion
+      },
+    });
+
+    const warning = stderrLines.find((line) => line.includes("snapshot.example.com"));
+    expect(warning).toBeDefined();
+    expect(warning).not.toContain("s3cr3t");
+  });
+
+  test("--snapshot-url with --offline aborts (1) as mutually exclusive, without opening a connection", async () => {
+    const reportDir = tmpReportDir();
+    const reportPath = path.join(reportDir, "report.json");
+    const report = await baseVerifyReport();
+    fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+
+    let snapshotOpened = false;
+    const code = await runVerifyCommand({
+      argv: [
+        "--report",
+        reportPath,
+        "--diagnosis-id",
+        report.diagnosisId,
+        "--snapshot-url",
+        "postgres://snapshot-user:s3cr3t@127.0.0.1:5433/snapshot-db",
+        "--offline",
+      ],
+      homeDir: homeDirWithMarker(),
+      stdout: () => {},
+      stderr: () => {},
+      connectSnapshot: () => {
+        snapshotOpened = true;
+        return jest.fn(async () => []) as unknown as SqlFunc;
+      },
+    });
+
+    expect(code).toBe(1);
+    expect(snapshotOpened).toBe(false);
+  });
+
+  test("--snapshot-url: a failed connection aborts (1) with a redacted message and no unredacted secret", async () => {
+    const reportDir = tmpReportDir();
+    const reportPath = path.join(reportDir, "report.json");
+    const report = await baseVerifyReport();
+    fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+
+    const stderrLines: string[] = [];
+    const code = await runVerifyCommand({
+      argv: [
+        "--report",
+        reportPath,
+        "--diagnosis-id",
+        report.diagnosisId,
+        "--snapshot-url",
+        "postgres://snapshot-user:s3cr3t@127.0.0.1:5433/snapshot-db",
+      ],
+      homeDir: homeDirWithMarker(),
+      stdout: () => {},
+      stderr: (line) => stderrLines.push(line),
+      connectSnapshot: () => {
+        throw new Error(
+          "connection refused for postgres://snapshot-user:s3cr3t@127.0.0.1:5433/snapshot-db"
+        );
+      },
+    });
+
+    expect(code).toBe(1);
+    expect(stderrLines.some((line) => line.includes("s3cr3t"))).toBe(false);
+  });
 });
