@@ -81,7 +81,9 @@ SCOPE=${SCOPE:-ALL}
 
 # --- 4. Build candidates, classify, select the first true LEAF --------------
 build_candidates() {
-  br ready --sort priority --json > "$TMP/ralph-ready.json" 2>/dev/null || echo '[]' > "$TMP/ralph-ready.json"
+  # --limit: br ready defaults to 20 rows; deep epics push ready leaves past
+  # that cutoff, yielding a false QUEUE EMPTY (hit 2026-08-13 on .5.9.1).
+  br ready --sort priority --limit 1000 --json > "$TMP/ralph-ready.json" 2>/dev/null || echo '[]' > "$TMP/ralph-ready.json"
   if [ "$SCOPE" = "ALL" ]; then
     jq -r '
       map(select(.issue_type != "epic" and ((.title // "") | startswith("[sp:") | not)))
