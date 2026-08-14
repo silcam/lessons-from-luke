@@ -104,12 +104,7 @@ import {
 import { BaseLesson } from "../../../core/models/Lesson";
 import { LessonString } from "../../../core/models/LessonString";
 import { TString } from "../../../core/models/TString";
-import {
-  fetchAllLanguages,
-  fetchTStringsForLesson,
-  fetchLessonByBookSeriesLesson,
-  fetchLegacyScopedCount,
-} from "./gateway";
+import PGRestoreLessonGatewayStorage from "../../storage/PGRestoreLessonGatewayStorage";
 import { DiagnosisReport } from "./types";
 import { PRODUCTION_MARKER_FILENAME } from "./identity";
 import { computeReportChecksum } from "./report";
@@ -317,6 +312,7 @@ const SHARED_WITH_SERIES = 1;
 const SHARED_WITH_LESSON = 2;
 
 let sql: SqlFunc;
+let gateway: PGRestoreLessonGatewayStorage;
 let lessonId: number;
 let languageId: number;
 let languageCode: string;
@@ -346,6 +342,7 @@ let allLessonMasterIds: number[];
 beforeAll(async () => {
   homeDir = homeDirWithMarker();
   sql = postgres({ ...secrets.testDb, transform: { column: transformCol } });
+  gateway = new PGRestoreLessonGatewayStorage(sql);
   const admin = await signedInAdminAgent();
 
   // ── 1. Build the lesson via the app's own real upload path ──────────
@@ -450,8 +447,7 @@ beforeAll(async () => {
   // this links `sharedMasterId` into a second, pre-existing fixture lesson
   // via a direct raw-SQL lessonStrings row — the same shape `uploadEnglishDoc`
   // itself would produce for identical-text reuse.
-  const sharedWithLesson = await fetchLessonByBookSeriesLesson(
-    sql,
+  const sharedWithLesson = await gateway.fetchLessonByBookSeriesLesson(
     SHARED_WITH_BOOK,
     SHARED_WITH_SERIES,
     SHARED_WITH_LESSON
@@ -466,10 +462,10 @@ beforeAll(async () => {
   // The pre-incident state, fetched now via the same gateway wrappers
   // `diagnose` uses against a real snapshot connection — captured as data
   // per research D11 rather than a second live database.
-  const snapshotLesson = await fetchLessonByBookSeriesLesson(sql, BOOK, SERIES, LESSON);
+  const snapshotLesson = await gateway.fetchLessonByBookSeriesLesson(BOOK, SERIES, LESSON);
   expect(snapshotLesson).toBeTruthy();
   snapshot = {
-    languages: await fetchAllLanguages(sql, true),
+    languages: await gateway.fetchAllLanguages(true),
     lesson: snapshotLesson as BaseLesson,
     // Widened to the lesson's full masterId set (not just [restoredMasterId,
     // conflictMasterId]) so `scanCandidateMasterDocuments`'s exact-set
@@ -478,10 +474,10 @@ beforeAll(async () => {
     // scenarios still only assert `restoredMasterId`/`conflictMasterId`
     // findings by lookup, and use `toBeGreaterThanOrEqual` for counts, so
     // this widening is additive and does not change their expectations.
-    tStrings: await fetchTStringsForLesson(sql, lessonId, allLessonMasterIds, {
+    tStrings: await gateway.fetchTStringsForLesson(lessonId, allLessonMasterIds, {
       includeLegacyLessonStringScoped: true,
     }),
-    legacyLessonStringRowCount: await fetchLegacyScopedCount(sql),
+    legacyLessonStringRowCount: await gateway.fetchLegacyScopedCount(),
     // See the `SnapshotBundle.lessonStrings` doc comment above: required so
     // `diagnose()` never falls back to production's own archived
     // `oldlessonstrings`, which stops being the true pre-incident generation
@@ -647,13 +643,12 @@ test("Diagnosis flags shared strings that also appear in other lessons", async (
 });
 
 test("Dry-run diagnosis makes no writes to either database", async () => {
-  const beforeTStrings: TString[] = await fetchTStringsForLesson(
-    sql,
+  const beforeTStrings: TString[] = await gateway.fetchTStringsForLesson(
     lessonId,
     [restoredMasterId, conflictMasterId],
     { includeLegacyLessonStringScoped: true }
   );
-  const beforeLanguages: Language[] = await fetchAllLanguages(sql, true);
+  const beforeLanguages: Language[] = await gateway.fetchAllLanguages(true);
 
   const report: DiagnosisReport = await diagnose({
     productionSql: sql,
@@ -665,13 +660,12 @@ test("Dry-run diagnosis makes no writes to either database", async () => {
   });
   expect(report.plannedWrites.length).toBeGreaterThanOrEqual(1);
 
-  const afterTStrings: TString[] = await fetchTStringsForLesson(
-    sql,
+  const afterTStrings: TString[] = await gateway.fetchTStringsForLesson(
     lessonId,
     [restoredMasterId, conflictMasterId],
     { includeLegacyLessonStringScoped: true }
   );
-  const afterLanguages: Language[] = await fetchAllLanguages(sql, true);
+  const afterLanguages: Language[] = await gateway.fetchAllLanguages(true);
 
   // Zero database writes on either side (I2, SC-005): production's own
   // tStrings/languages rows are byte-identical before and after diagnose,
@@ -737,14 +731,13 @@ describe("US16-restore-english-master.txt scenarios", () => {
     const snapshotEnglishText = new Set(
       snapshot.tStrings.filter((t) => t.languageId === ENGLISH_ID).map((t) => t.text)
     );
-    const restoredLesson = await fetchLessonByBookSeriesLesson(sql, BOOK, SERIES, LESSON);
+    const restoredLesson = await gateway.fetchLessonByBookSeriesLesson(BOOK, SERIES, LESSON);
     expect(restoredLesson).toBeTruthy();
     // The restore re-uploads the same pre-incident fixture, so
     // `addOrFindMasterStrings` matches every string back onto its original
     // masterId (research D5) — the full `allLessonMasterIds` set captured
     // at the original upload, not just [restoredMasterId, conflictMasterId].
-    const restoredTStrings = await fetchTStringsForLesson(
-      sql,
+    const restoredTStrings = await gateway.fetchTStringsForLesson(
       restoredLesson!.lessonId,
       allLessonMasterIds,
       { includeLegacyLessonStringScoped: true }
@@ -775,7 +768,7 @@ describe("US16-restore-english-master.txt scenarios", () => {
     // The resulting lesson structure supports re-attaching existing
     // translations: a fresh mapping pass over the post-restore lesson finds
     // the restored master strings reachable again.
-    const restoredLesson = await fetchLessonByBookSeriesLesson(sql, BOOK, SERIES, LESSON);
+    const restoredLesson = await gateway.fetchLessonByBookSeriesLesson(BOOK, SERIES, LESSON);
     expect(restoredLesson).toBeTruthy();
     expect(restoredLesson!.version).toBe(report.englishRestore!.newLessonVersion);
   });
@@ -893,8 +886,7 @@ describe("US17-restore-translations.txt scenarios", () => {
     )?.productionMasterId;
     expect(restoredProductionMasterId).toBeTruthy();
 
-    const restoredTStrings = await fetchTStringsForLesson(
-      sql,
+    const restoredTStrings = await gateway.fetchTStringsForLesson(
       lessonId,
       [restoredProductionMasterId as number],
       { includeLegacyLessonStringScoped: true }
@@ -936,7 +928,7 @@ describe("US17-restore-translations.txt scenarios", () => {
       homeDir,
     });
 
-    const conflictTStrings = await fetchTStringsForLesson(sql, lessonId, [conflictMasterId], {
+    const conflictTStrings = await gateway.fetchTStringsForLesson(lessonId, [conflictMasterId], {
       includeLegacyLessonStringScoped: true,
     });
     const conflictTranslation = conflictTStrings.find(
@@ -963,8 +955,7 @@ describe("US17-restore-translations.txt scenarios", () => {
       homeDir,
     });
 
-    const beforeRerunTStrings = await fetchTStringsForLesson(
-      sql,
+    const beforeRerunTStrings = await gateway.fetchTStringsForLesson(
       lessonId,
       [restoredMasterId, conflictMasterId],
       { includeLegacyLessonStringScoped: true }
@@ -982,8 +973,7 @@ describe("US17-restore-translations.txt scenarios", () => {
     // ledger is empty.
     expect(secondRun.appliedWrites?.length ?? 0).toBe(0);
 
-    const afterRerunTStrings = await fetchTStringsForLesson(
-      sql,
+    const afterRerunTStrings = await gateway.fetchTStringsForLesson(
       lessonId,
       [restoredMasterId, conflictMasterId],
       { includeLegacyLessonStringScoped: true }
@@ -1075,8 +1065,7 @@ describe("US18-verify-and-handback.txt scenarios", () => {
         (m) => m.snapshotMasterId === restoredMasterId
       )?.productionMasterId;
       expect(restoredProductionMasterId).toBeTruthy();
-      const restoredNow = await fetchTStringsForLesson(
-        sql,
+      const restoredNow = await gateway.fetchTStringsForLesson(
         lessonId,
         [restoredProductionMasterId as number],
         { includeLegacyLessonStringScoped: true }
@@ -1167,7 +1156,7 @@ describe("US18-verify-and-handback.txt scenarios", () => {
   });
 
   test("Derived data is regenerated to match the restored state", async () => {
-    const beforeLanguages = await fetchAllLanguages(sql, true);
+    const beforeLanguages = await gateway.fetchAllLanguages(true);
     const beforeLang = beforeLanguages.find((lang) => lang.languageId === languageId);
     expect(beforeLang).toBeTruthy();
     const beforeProgress = lessonProgress(beforeLang!.progress, lessonId);
@@ -1196,7 +1185,7 @@ describe("US18-verify-and-handback.txt scenarios", () => {
     // way `PGStorage.updateProgress()` does (`calcLessonProgress`, I10) from
     // live post-restore `lessonstrings`/`tStrings`, and require the
     // persisted value to match it exactly.
-    const afterLanguages = await fetchAllLanguages(sql, true);
+    const afterLanguages = await gateway.fetchAllLanguages(true);
     const afterLang = afterLanguages.find((lang) => lang.languageId === languageId);
     expect(afterLang).toBeTruthy();
     const afterProgress = lessonProgress(afterLang!.progress, lessonId);
@@ -1205,8 +1194,7 @@ describe("US18-verify-and-handback.txt scenarios", () => {
       SELECT lessonstringid, masterid, lessonid, lessonversion, type, xpath, mothertongue
       FROM lessonstrings WHERE lessonid=${lessonId} ORDER BY lessonstringid
     `;
-    const liveTStringsForLanguage = await fetchTStringsForLesson(
-      sql,
+    const liveTStringsForLanguage = await gateway.fetchTStringsForLesson(
       lessonId,
       liveLessonStrings.map((ls) => ls.masterId),
       { includeLegacyLessonStringScoped: true }
@@ -1347,8 +1335,7 @@ describe("End-to-end incident recreation: diagnose -> restore-english -> apply -
     )?.productionMasterId;
     expect(conflictProductionMasterId).toBeTruthy();
 
-    const englishStringsAfterRestore = await fetchTStringsForLesson(
-      sql,
+    const englishStringsAfterRestore = await gateway.fetchTStringsForLesson(
       lessonId,
       [restoredProductionMasterId as number],
       { includeLegacyLessonStringScoped: true }
@@ -1371,8 +1358,7 @@ describe("End-to-end incident recreation: diagnose -> restore-english -> apply -
       homeDir,
     });
 
-    const restoredTStrings = await fetchTStringsForLesson(
-      sql,
+    const restoredTStrings = await gateway.fetchTStringsForLesson(
       lessonId,
       [restoredProductionMasterId as number],
       { includeLegacyLessonStringScoped: true }
@@ -1387,8 +1373,7 @@ describe("End-to-end incident recreation: diagnose -> restore-english -> apply -
     // is a passing outcome) with its pre-incident value intact.
     expect(restoredTranslation!.text).toBe(preIncidentTranslations.restored);
 
-    const conflictTStrings = await fetchTStringsForLesson(
-      sql,
+    const conflictTStrings = await gateway.fetchTStringsForLesson(
       lessonId,
       [conflictProductionMasterId as number],
       { includeLegacyLessonStringScoped: true }
@@ -1407,8 +1392,7 @@ describe("End-to-end incident recreation: diagnose -> restore-english -> apply -
     ).toBe(true);
 
     // ── 4. Idempotent re-apply: no duplicate rows, no further writes ───
-    const beforeRerunTStrings = await fetchTStringsForLesson(
-      sql,
+    const beforeRerunTStrings = await gateway.fetchTStringsForLesson(
       lessonId,
       [restoredProductionMasterId as number, conflictProductionMasterId as number],
       { includeLegacyLessonStringScoped: true }
@@ -1421,8 +1405,7 @@ describe("End-to-end incident recreation: diagnose -> restore-english -> apply -
       homeDir,
     });
     expect(secondApply.appliedWrites?.length ?? 0).toBe(0);
-    const afterRerunTStrings = await fetchTStringsForLesson(
-      sql,
+    const afterRerunTStrings = await gateway.fetchTStringsForLesson(
       lessonId,
       [restoredProductionMasterId as number, conflictProductionMasterId as number],
       { includeLegacyLessonStringScoped: true }

@@ -32,7 +32,7 @@
  */
 import { Language } from "../../../core/models/Language";
 import { TString } from "../../../core/models/TString";
-import { MasterIdLessons } from "./gateway";
+import { MasterIdLessons } from "../../storage/PGRestoreLessonGatewayStorage";
 import {
   LessonRef,
   MasterStringMapping,

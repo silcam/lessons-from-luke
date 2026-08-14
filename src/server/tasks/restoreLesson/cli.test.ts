@@ -9,7 +9,7 @@
  *
  * `productionSql` throughout is the real `TransactionalTestStorage`
  * connection (`(global as any).testStorage.sql`) — this codebase's
- * established "double" for a live database (see gateway.test.ts,
+ * established "double" for a live database (see PGRestoreLessonGatewayStorage.test.ts,
  * identity.test.ts). The Snapshot side is either captured as plain data
  * (matching `diagnose()`'s `SnapshotBundle` contract, per research D11) or,
  * for `runDiagnoseCommand()`, a hand-rolled fake `SqlFunc` double that
@@ -26,7 +26,7 @@ import { RestoreLessonAbortError, PRODUCTION_MARKER_FILENAME } from "./identity"
 import { computeDiagnosisChecksum, computeReportChecksum, verifyReportIntegrity } from "./report";
 import { Persistence } from "../../../core/interfaces/Persistence";
 import { RestoreEnglishDeps, RestoredLessonResult, FileModeOps, ModeOwner } from "./restoreEnglish";
-import { fetchAllLanguages, fetchLegacyScopedCount, fetchTStringsForLesson } from "./gateway";
+import PGRestoreLessonGatewayStorage from "../../storage/PGRestoreLessonGatewayStorage";
 import { journalPathForReport, readJournalLines } from "./report";
 import { dbConnect, transformCol } from "../../storage/PGStorage";
 import { snapshotDbConnect } from "../../storage/PGSnapshotStorage";
@@ -73,6 +73,10 @@ function sql() {
   return (global as any).testStorage.sql;
 }
 
+function gateway(): PGRestoreLessonGatewayStorage {
+  return new PGRestoreLessonGatewayStorage(sql());
+}
+
 function tmpHomeDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "cli-test-home-"));
 }
@@ -91,14 +95,14 @@ function homeDirWithMarker(): string {
  * from the live test database, before any "incident" mutation — mirrors
  * restoreLesson.integration.test.ts's own capture-as-data technique. */
 async function captureSnapshotBundle(): Promise<SnapshotBundle> {
-  const languages = await fetchAllLanguages(sql(), true);
+  const languages = await gateway().fetchAllLanguages(true);
   const [lesson] = await sql()`
     SELECT lessonid, book, series, lesson, version FROM lessons WHERE lessonid=11
   `;
-  const tStrings = await fetchTStringsForLesson(sql(), 11, [1], {
+  const tStrings = await gateway().fetchTStringsForLesson(11, [1], {
     includeLegacyLessonStringScoped: true,
   });
-  const legacyLessonStringRowCount = await fetchLegacyScopedCount(sql());
+  const legacyLessonStringRowCount = await gateway().fetchLegacyScopedCount();
   return { languages, lesson, tStrings, legacyLessonStringRowCount };
 }
 
@@ -507,7 +511,7 @@ describe("diagnose()", () => {
     const snapshot = await captureSnapshotBundle();
     await bumpLesson11Version();
 
-    const beforeTStrings = await fetchTStringsForLesson(sql(), 11, [1], {
+    const beforeTStrings = await gateway().fetchTStringsForLesson(11, [1], {
       includeLegacyLessonStringScoped: true,
     });
 
@@ -529,7 +533,7 @@ describe("diagnose()", () => {
     expect(report.affectedLessons[0].lesson).toBe(1);
     expect(() => verifyReportIntegrity(report)).not.toThrow();
 
-    const afterTStrings = await fetchTStringsForLesson(sql(), 11, [1], {
+    const afterTStrings = await gateway().fetchTStringsForLesson(11, [1], {
       includeLegacyLessonStringScoped: true,
     });
     expect(afterTStrings).toEqual(beforeTStrings);
@@ -758,7 +762,7 @@ describe("runDiagnoseCommand()", () => {
   });
 
   test("succeeds (0), writes the report, and redacts the snapshot URL from stdout", async () => {
-    const languages = await fetchAllLanguages(sql(), true);
+    const languages = await gateway().fetchAllLanguages(true);
     const preLessons = await sql()`
       SELECT lessonid, book, series, lesson, version FROM lessons WHERE book='Luke' ORDER BY series, lesson
     `;
@@ -766,10 +770,10 @@ describe("runDiagnoseCommand()", () => {
       SELECT lessonstringid, masterid, lessonid, lessonversion, type, xpath, mothertongue
       FROM lessonstrings WHERE lessonid=11 ORDER BY lessonstringid
     `;
-    const tStrings = await fetchTStringsForLesson(sql(), 11, [1], {
+    const tStrings = await gateway().fetchTStringsForLesson(11, [1], {
       includeLegacyLessonStringScoped: true,
     });
-    const legacyCount = await fetchLegacyScopedCount(sql());
+    const legacyCount = await gateway().fetchLegacyScopedCount();
 
     await bumpLesson11Version(); // production now ahead of the (pre-captured) Snapshot double
 
@@ -849,7 +853,7 @@ describe("default connect helpers (no injected connectProduction/connectSnapshot
           .column
       ).toBe(transformCol);
 
-      const languages = await fetchAllLanguages(sqlFunc, true);
+      const languages = await new PGRestoreLessonGatewayStorage(sqlFunc).fetchAllLanguages(true);
       expect(languages.length).toBeGreaterThan(0);
       for (const language of languages) {
         expect(language).toHaveProperty("languageId");

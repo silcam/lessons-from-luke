@@ -51,6 +51,7 @@ import { uploadEnglishDoc } from "../../actions/uploadDocument";
 import webifyLesson from "../../actions/webifyLesson";
 import PGStorage, { dbConnect } from "../../storage/PGStorage";
 import { snapshotDbConnect, snapshotUrlSecurityWarning } from "../../storage/PGSnapshotStorage";
+import PGRestoreLessonGatewayStorage from "../../storage/PGRestoreLessonGatewayStorage";
 import {
   PRODUCTION_MARKER_FILENAME,
   RestoreLessonAbortError,
@@ -63,14 +64,6 @@ import { mapMasterStrings } from "./mapMasterStrings";
 import { ProductionTStringRow, assembleBlastRadius, classifyFindings } from "./classify";
 import { planWrites } from "./planWrites";
 import { restoreWrite } from "./restoreWrite";
-import {
-  fetchAllLanguages,
-  fetchDuplicateRowSweep,
-  fetchLegacyScopedCount,
-  fetchLessonByBookSeriesLesson,
-  fetchLessonsSharingMasterIds,
-  fetchTStringsForLesson,
-} from "./gateway";
 import {
   appendJournalLine,
   checkForceReportOverwrite,
@@ -124,12 +117,7 @@ import {
  * (`PGStorage.ts`, `PGSnapshotStorage.ts`): subclass `PGStorage`, then swap
  * `this.sql` for the caller-supplied connection.
  */
-class PGConnectedStorage extends PGStorage {
-  constructor(sql: SqlFunc) {
-    super();
-    this.sql = sql;
-  }
-}
+class PGConnectedStorage extends PGRestoreLessonGatewayStorage {}
 
 // ─────────────────────────────────────────────────────────────────────────
 // Redaction (contract §Output redaction and file modes)
@@ -543,7 +531,8 @@ export async function diagnose(options: DiagnoseCoreOptions): Promise<DiagnosisR
   }
 
   const sql = options.productionSql;
-  const productionLesson = await fetchLessonByBookSeriesLesson(sql, book, series, lesson);
+  const storage = new PGConnectedStorage(sql);
+  const productionLesson = await storage.fetchLessonByBookSeriesLesson(book, series, lesson);
 
   const knownBadVersions = options.knownBadVersions ?? [];
   const expectedBumpCount = options.expectedBumpCount ?? 1;
@@ -580,7 +569,7 @@ export async function diagnose(options: DiagnoseCoreOptions): Promise<DiagnosisR
     snapshotLessonVersion: affectedLesson.snapshotVersion,
   });
 
-  const productionLanguages = await fetchAllLanguages(sql, true);
+  const productionLanguages = await storage.fetchAllLanguages(true);
   const snapshotLanguages = options.snapshot.languages;
 
   const snapshotLanguageIdsWithAffectedLessonTranslations = Array.from(
@@ -621,8 +610,7 @@ export async function diagnose(options: DiagnoseCoreOptions): Promise<DiagnosisR
     productionEnglishTStrings,
   });
 
-  const masterIdLessons = await fetchLessonsSharingMasterIds(
-    sql,
+  const masterIdLessons = await storage.fetchLessonsSharingMasterIds(
     mappingsRaw.map((m) => m.snapshotMasterId)
   );
   const sharedByMasterId = new Map(masterIdLessons.map((entry) => [entry.masterId, entry.lessons]));
@@ -650,11 +638,11 @@ export async function diagnose(options: DiagnoseCoreOptions): Promise<DiagnosisR
   const perLanguageCounts = buildPerLanguageCounts(productionLanguages, findings);
 
   const legacyLessonStringRowCounts = {
-    production: await fetchLegacyScopedCount(sql),
+    production: await storage.fetchLegacyScopedCount(),
     snapshot: options.snapshot.legacyLessonStringRowCount,
   };
 
-  const duplicateRowsBaseline = await fetchDuplicateRowSweep(sql, candidateMasterIds);
+  const duplicateRowsBaseline = await storage.fetchDuplicateRowSweep(candidateMasterIds);
 
   const plannedWrites = buildPlannedWrites(findings, options.snapshot.tStrings);
   const conflicts = findings.filter(
@@ -1060,16 +1048,16 @@ export async function runDiagnoseCommand(options: RunDiagnoseCommandOptions): Pr
       (candidate) => candidate.series === target.series && candidate.lesson === target.lesson
     ) as BaseLesson;
 
-    const snapshotLanguages = await fetchAllLanguages(snapshotSql, true);
+    const snapshotStorage = new PGConnectedStorage(snapshotSql);
+    const snapshotLanguages = await snapshotStorage.fetchAllLanguages(true);
     const snapshotLessonStrings = await fetchLessonStrings(snapshotSql, snapshotLesson.lessonId);
     const snapshotMasterIds = snapshotLessonStrings.map((ls) => ls.masterId);
-    const snapshotTStrings = await fetchTStringsForLesson(
-      snapshotSql,
+    const snapshotTStrings = await snapshotStorage.fetchTStringsForLesson(
       snapshotLesson.lessonId,
       snapshotMasterIds,
       { includeLegacyLessonStringScoped: true }
     );
-    const snapshotLegacyCount = await fetchLegacyScopedCount(snapshotSql);
+    const snapshotLegacyCount = await snapshotStorage.fetchLegacyScopedCount();
 
     let knownBadVersions: number[] = [];
     let expectedBumpCount = 1;
@@ -1436,6 +1424,7 @@ export async function restoreEnglish(options: RestoreEnglishCliOptions): Promise
 
   const sql = options.productionSql;
   const { report } = options;
+  const storage = new PGConnectedStorage(sql);
 
   const liveFingerprint = await fetchProductionFingerprint(sql);
   verifyReportIntegrity(report, liveFingerprint.databaseName);
@@ -1466,8 +1455,7 @@ export async function restoreEnglish(options: RestoreEnglishCliOptions): Promise
     throw new RestoreLessonAbortError(1, "Report has no affectedLessons entry to restore.");
   }
 
-  const liveLesson = await fetchLessonByBookSeriesLesson(
-    sql,
+  const liveLesson = await storage.fetchLessonByBookSeriesLesson(
     affectedLesson.book as Book,
     affectedLesson.series,
     affectedLesson.lesson
@@ -1546,7 +1534,7 @@ export async function restoreEnglish(options: RestoreEnglishCliOptions): Promise
       if (options.deps) {
         deps = options.deps;
       } else {
-        deps = makeRealRestoreEnglishDeps(new PGConnectedStorage(sql));
+        deps = makeRealRestoreEnglishDeps(storage);
       }
       const updated = await restoreEnglishCore({
         report,
@@ -1828,6 +1816,7 @@ export async function apply(options: ApplyCoreOptions): Promise<DiagnosisReport>
 
   const sql = options.productionSql;
   const { report } = options;
+  const storage = new PGConnectedStorage(sql);
 
   const liveFingerprint = await fetchProductionFingerprint(sql);
   verifyReportIntegrity(report, liveFingerprint.databaseName);
@@ -1878,8 +1867,7 @@ export async function apply(options: ApplyCoreOptions): Promise<DiagnosisReport>
     );
   }
 
-  const liveLesson = await fetchLessonByBookSeriesLesson(
-    sql,
+  const liveLesson = await storage.fetchLessonByBookSeriesLesson(
     affectedLesson.book as Book,
     affectedLesson.series,
     affectedLesson.lesson
@@ -1943,7 +1931,7 @@ export async function apply(options: ApplyCoreOptions): Promise<DiagnosisReport>
       // here, so there is no local `storage.close()` to run in this `finally`.
       const persistence: Pick<Persistence, "saveTStrings"> & {
         updateProgress?: () => Promise<void>;
-      } = options.persistence ?? new PGConnectedStorage(sql);
+      } = options.persistence ?? storage;
 
       try {
         const journalPath = options.reportPath ? journalPathForReport(options.reportPath) : null;
@@ -2628,6 +2616,7 @@ export async function verify(options: VerifyCoreOptions): Promise<DiagnosisRepor
 
   const sql = options.productionSql;
   const { report } = options;
+  const storage = new PGConnectedStorage(sql);
 
   const liveFingerprint = await fetchProductionFingerprint(sql);
   verifyReportIntegrity(report, liveFingerprint.databaseName);
@@ -2663,8 +2652,7 @@ export async function verify(options: VerifyCoreOptions): Promise<DiagnosisRepor
     }
 
     try {
-      const persistence: { updateProgress?: () => Promise<void> } =
-        options.persistence ?? new PGConnectedStorage(sql);
+      const persistence: { updateProgress?: () => Promise<void> } = options.persistence ?? storage;
 
       const affectedLesson = report.affectedLessons[0];
       // Mirrors `classify.ts`'s own dual-branch lookup (`classifyOne`): a
@@ -2688,10 +2676,13 @@ export async function verify(options: VerifyCoreOptions): Promise<DiagnosisRepor
         )
       );
 
+      const reservedStorage = new PGConnectedStorage(reserved);
       const liveTStrings = affectedLesson
-        ? await fetchTStringsForLesson(reserved, affectedLesson.productionLessonId, masterIds, {
-            includeLegacyLessonStringScoped: true,
-          })
+        ? await reservedStorage.fetchTStringsForLesson(
+            affectedLesson.productionLessonId,
+            masterIds,
+            { includeLegacyLessonStringScoped: true }
+          )
         : [];
       const perLanguageCounts: LanguageCounts[] = report.perLanguageCounts.map((counts) => ({
         ...counts,
@@ -2700,7 +2691,7 @@ export async function verify(options: VerifyCoreOptions): Promise<DiagnosisRepor
         ).length,
       }));
 
-      const duplicateRows = await fetchDuplicateRowSweep(reserved, masterIds);
+      const duplicateRows = await reservedStorage.fetchDuplicateRowSweep(masterIds);
       const duplicateDelta = duplicateRowDelta(duplicateRows, report.duplicateRowsBaseline);
 
       const scopedLanguageIds = report.applyState?.scopedLanguageIds ?? null;

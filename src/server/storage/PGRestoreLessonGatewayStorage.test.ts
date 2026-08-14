@@ -1,13 +1,6 @@
 /// <reference types="jest" />
 
-import {
-  fetchAllLanguages,
-  fetchTStringsForLesson,
-  fetchLegacyScopedCount,
-  fetchLessonByBookSeriesLesson,
-  fetchDuplicateRowSweep,
-  fetchLessonsSharingMasterIds,
-} from "./gateway";
+import PGRestoreLessonGatewayStorage from "./PGRestoreLessonGatewayStorage";
 
 // Fixture baseline (test/fixtures-0.json, loaded once by jestGlobalSetup):
 //   - languages 1 (English), 2 (Français), 3 (Batanga) — none archived
@@ -18,13 +11,17 @@ function sql() {
   return (global as any).testStorage.sql;
 }
 
+function gateway(): PGRestoreLessonGatewayStorage {
+  return new PGRestoreLessonGatewayStorage(sql());
+}
+
 describe("fetchAllLanguages", () => {
   test("includeArchived=true returns archived languages too", async () => {
     await sql()`INSERT INTO languages (name, code, motherTongue, progress, archived)
                  VALUES ('Retired Tongue', 'ret', false, '[]', true)`;
 
-    const all = await fetchAllLanguages(sql(), true);
-    const archivedOnes = await fetchAllLanguages(sql(), false);
+    const all = await gateway().fetchAllLanguages(true);
+    const archivedOnes = await gateway().fetchAllLanguages(false);
 
     expect(all.some((l) => l.name === "Retired Tongue")).toBe(true);
     expect(archivedOnes.some((l) => l.name === "Retired Tongue")).toBe(false);
@@ -37,7 +34,7 @@ describe("fetchTStringsForLesson", () => {
   test("returns rows scoped by masterId regardless of language archived state", async () => {
     await sql()`UPDATE languages SET archived=true WHERE languageid=3`;
 
-    const rows = await fetchTStringsForLesson(sql(), 11, [1], {
+    const rows = await gateway().fetchTStringsForLesson(11, [1], {
       includeLegacyLessonStringScoped: false,
     });
 
@@ -53,10 +50,10 @@ describe("fetchTStringsForLesson", () => {
     await sql()`INSERT INTO tstrings (masterid, languageid, text, history, lessonstringid)
                  VALUES (999, 1, 'legacy scoped text', '[]', ${legacyLessonString.lessonStringId})`;
 
-    const withoutLegacy = await fetchTStringsForLesson(sql(), 11, [1], {
+    const withoutLegacy = await gateway().fetchTStringsForLesson(11, [1], {
       includeLegacyLessonStringScoped: false,
     });
-    const withLegacy = await fetchTStringsForLesson(sql(), 11, [1], {
+    const withLegacy = await gateway().fetchTStringsForLesson(11, [1], {
       includeLegacyLessonStringScoped: true,
     });
 
@@ -67,7 +64,7 @@ describe("fetchTStringsForLesson", () => {
   });
 
   test("de-dupes a row that matches both the masterId and legacy predicates", async () => {
-    const rows = await fetchTStringsForLesson(sql(), 11, [1], {
+    const rows = await gateway().fetchTStringsForLesson(11, [1], {
       includeLegacyLessonStringScoped: true,
     });
     const matches = rows.filter((r) => r.masterId === 1 && r.languageId === 1);
@@ -77,26 +74,26 @@ describe("fetchTStringsForLesson", () => {
 
 describe("fetchLegacyScopedCount", () => {
   test("counts tStrings rows with a non-null lessonStringId, globally", async () => {
-    const before = await fetchLegacyScopedCount(sql());
+    const before = await gateway().fetchLegacyScopedCount();
 
     const [legacyLessonString] =
       await sql()`SELECT lessonstringid FROM lessonstrings WHERE lessonid=11 LIMIT 1`;
     await sql()`INSERT INTO tstrings (masterid, languageid, text, history, lessonstringid)
                  VALUES (998, 2, 'legacy row', '[]', ${legacyLessonString.lessonStringId})`;
 
-    const after = await fetchLegacyScopedCount(sql());
+    const after = await gateway().fetchLegacyScopedCount();
     expect(after).toBe(before + 1);
   });
 });
 
 describe("fetchLessonByBookSeriesLesson", () => {
   test("returns the lesson row for a known (book, series, lesson)", async () => {
-    const lesson = await fetchLessonByBookSeriesLesson(sql(), "Luke", 1, 1);
+    const lesson = await gateway().fetchLessonByBookSeriesLesson("Luke", 1, 1);
     expect(lesson).toMatchObject({ lessonId: 11, book: "Luke", series: 1, lesson: 1 });
   });
 
   test("returns null for an unknown (book, series, lesson)", async () => {
-    const lesson = await fetchLessonByBookSeriesLesson(sql(), "Luke", 999, 999);
+    const lesson = await gateway().fetchLessonByBookSeriesLesson("Luke", 999, 999);
     expect(lesson).toBeNull();
   });
 });
@@ -108,7 +105,7 @@ describe("fetchDuplicateRowSweep", () => {
     await sql()`INSERT INTO tstrings (masterid, languageid, text, history)
                  VALUES (1, 1, 'duplicate text', '[]')`;
 
-    const dupes = await fetchDuplicateRowSweep(sql(), [1]);
+    const dupes = await gateway().fetchDuplicateRowSweep([1]);
 
     const match = dupes.find((d) => d.languageId === 1 && d.masterId === 1);
     expect(match).toBeDefined();
@@ -117,11 +114,11 @@ describe("fetchDuplicateRowSweep", () => {
   });
 
   test("returns [] when no master IDs are given", async () => {
-    expect(await fetchDuplicateRowSweep(sql(), [])).toEqual([]);
+    expect(await gateway().fetchDuplicateRowSweep([])).toEqual([]);
   });
 
   test("omits rows with no duplicate", async () => {
-    const dupes = await fetchDuplicateRowSweep(sql(), [2]);
+    const dupes = await gateway().fetchDuplicateRowSweep([2]);
     expect(dupes.find((d) => d.masterId === 2)).toBeUndefined();
   });
 });
@@ -133,7 +130,7 @@ describe("fetchLessonsSharingMasterIds", () => {
     await sql()`INSERT INTO lessonstrings (masterid, lessonid, lessonversion, type, xpath, mothertongue)
                  VALUES (1, 12, 3, 'content', '/fake/xpath', false)`;
 
-    const [entry] = await fetchLessonsSharingMasterIds(sql(), [1]);
+    const [entry] = await gateway().fetchLessonsSharingMasterIds([1]);
 
     expect(entry.masterId).toBe(1);
     expect(entry.lessons).toEqual(
@@ -145,6 +142,6 @@ describe("fetchLessonsSharingMasterIds", () => {
   });
 
   test("returns [] when no master IDs are given", async () => {
-    expect(await fetchLessonsSharingMasterIds(sql(), [])).toEqual([]);
+    expect(await gateway().fetchLessonsSharingMasterIds([])).toEqual([]);
   });
 });

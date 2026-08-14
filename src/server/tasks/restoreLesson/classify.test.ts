@@ -10,7 +10,7 @@
  */
 import { Language } from "../../../core/models/Language";
 import { classifyFindings, assembleBlastRadius, ProductionTStringRow } from "./classify";
-import { MasterIdLessons } from "./gateway";
+import { MasterIdLessons } from "../../storage/PGRestoreLessonGatewayStorage";
 import { MasterStringMapping } from "./types";
 
 const WEBU_LANGUAGE_ID = 42;
