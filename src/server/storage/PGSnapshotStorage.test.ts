@@ -3,7 +3,9 @@
 import PGSnapshotStorage, {
   SnapshotIsReadOnlyError,
   redactConnectionUrl,
+  snapshotDbConnect,
 } from "./PGSnapshotStorage";
+import secrets from "../util/secrets";
 
 // postgres.js connects lazily — constructing against a URL that points at
 // nothing never opens a socket, so these are pure unit tests: no live
@@ -84,6 +86,47 @@ describe("PGSnapshotStorage read methods still delegate to the real query", () =
 
     expect(sqlMock).toHaveBeenCalled();
     expect(result).toBeNull();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// snapshotDbConnect() — real Postgres session, second independent guard
+//
+// The class-level `throw before querying` guards above never touch a real
+// socket. This proves the second guard (`default_transaction_read_only =
+// on`, sent as a startup parameter by `snapshotDbConnect`) actually holds
+// at the Postgres session level: even a raw SQL write issued directly
+// through the connection (bypassing every `Persistence` method override)
+// is rejected by Postgres itself, not merely by application code.
+// ─────────────────────────────────────────────────────────────────────────
+
+describe("snapshotDbConnect() real connection is read-only at the Postgres session level", () => {
+  test("an INSERT issued directly through the connection is rejected by Postgres", async () => {
+    const { database, username, password } = secrets.testDb;
+    const host = (secrets.testDb as unknown as { host?: string }).host ?? "localhost";
+    const url = `postgres://${username}:${password}@${host}/${database}`;
+    const sql = snapshotDbConnect(url);
+    try {
+      await expect(
+        sql`INSERT INTO languages (name, defaultsrclang) VALUES ('should-not-insert', 1)`
+      ).rejects.toThrow(/read-only transaction/i);
+    } finally {
+      await (sql as unknown as { end: () => Promise<void> }).end();
+    }
+  });
+
+  test("an UPDATE issued directly through the connection is rejected by Postgres", async () => {
+    const { database, username, password } = secrets.testDb;
+    const host = (secrets.testDb as unknown as { host?: string }).host ?? "localhost";
+    const url = `postgres://${username}:${password}@${host}/${database}`;
+    const sql = snapshotDbConnect(url);
+    try {
+      await expect(sql`UPDATE languages SET name = 'nope' WHERE languageid = 1`).rejects.toThrow(
+        /read-only transaction/i
+      );
+    } finally {
+      await (sql as unknown as { end: () => Promise<void> }).end();
+    }
   });
 });
 
