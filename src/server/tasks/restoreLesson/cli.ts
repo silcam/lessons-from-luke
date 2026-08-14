@@ -135,18 +135,60 @@ class PGConnectedStorage extends PGStorage {
 // Redaction (contract §Output redaction and file modes)
 // ─────────────────────────────────────────────────────────────────────────
 
-/** Matches `scheme://<user-info>@` — the authority portion up to the next
- * `/` or whitespace — in a postgres connection URI. The user-info itself
- * (which may contain further unencoded `@` characters inside a raw
- * password) is split out and redacted in the replacer below, since a
- * single regex capture group cannot correctly isolate the password when
- * it is not percent-encoded. */
-const CONNECTION_URI_RE = /(postgres(?:ql)?:\/\/)([^/\s]+)/gi;
+/** Matches the `postgres://` / `postgresql://` scheme prefix. The authority
+ * that follows (`<user-info>@<host>`) is located and redacted by
+ * `redactConnectionUriOccurrences` below rather than by this regex alone —
+ * a raw, non-percent-encoded password can itself contain `/` or whitespace,
+ * which makes "the authority is everything up to the next `/` or
+ * whitespace" an unsafe assumption (amkj.12). */
+const CONNECTION_SCHEME_RE = /postgres(?:ql)?:\/\//gi;
 
-/** Matches libpq keyword/value DSN credentials (`password=...`) and the
- * `PGPASSWORD=` environment-style credential. The value runs to the next
- * whitespace, or is a quoted string. */
-const KEYWORD_VALUE_PASSWORD_RE = /\b(PGPASSWORD|password)=(?:'[^']*'|"[^"]*"|\S+)/gi;
+/** Matches libpq keyword/value DSN credentials (`password=...`,
+ * `sslpassword=...`) and the `PGPASSWORD=` environment-style credential.
+ * libpq tolerates whitespace around the `=`; the value itself runs to the
+ * next whitespace, or is a quoted string. */
+const KEYWORD_VALUE_PASSWORD_RE =
+  /\b(PGPASSWORD|sslpassword|password)\s*=\s*(?:'[^']*'|"[^"]*"|\S+)/gi;
+
+/** Cap on how many additional whitespace-delimited tokens
+ * `findConnectionUriAuthorityEnd` will fold into the authority while
+ * hunting for the `@` that a raw (non-percent-encoded) password with
+ * embedded whitespace pushed past the first token. Bounded so a long run of
+ * unrelated whitespace-separated text after `postgres://` in an arbitrary
+ * log line can't be walked indefinitely. */
+const MAX_AUTHORITY_TOKEN_EXTENSIONS = 10;
+
+/** Finds the end index of the "authority" text following a `postgres://`
+ * scheme at `start` in `input`. The authority normally runs to the next
+ * whitespace, but a raw unencoded space inside the password pushes the
+ * `@` that marks the real user-info/host boundary into a later
+ * whitespace-delimited token — so this keeps folding in one more token at a
+ * time, up to `MAX_AUTHORITY_TOKEN_EXTENSIONS`, until it finds a token
+ * containing `@` (or gives up and returns the first token's end). */
+function findConnectionUriAuthorityEnd(input: string, start: number): number {
+  const isWhitespace = (index: number): boolean => index >= input.length || /\s/.test(input[index]);
+
+  let tokenEnd = start;
+  while (!isWhitespace(tokenEnd)) tokenEnd++;
+  const firstTokenEnd = tokenEnd;
+
+  if (input.slice(start, tokenEnd).includes("@")) {
+    return tokenEnd;
+  }
+
+  let end = tokenEnd;
+  for (let extension = 0; extension < MAX_AUTHORITY_TOKEN_EXTENSIONS; extension += 1) {
+    if (end >= input.length || !/\s/.test(input[end])) break;
+    let next = end + 1;
+    while (!isWhitespace(next)) next++;
+    if (input.slice(end + 1, next).includes("@")) {
+      return next;
+    }
+    end = next;
+  }
+
+  return firstTokenEnd;
+}
 
 /** Redacts the password out of a URI-form connection string's user-info
  * (`user:password@host`), tolerating a raw unencoded `@` inside the
@@ -176,16 +218,45 @@ function redactUriAuthority(scheme: string, authority: string): string {
   return `${scheme}${user}:***@${hostPart}`;
 }
 
+/** Redacts every `postgres://`/`postgresql://` connection URI's authority
+ * in `input`, scanning forward from each scheme occurrence to find the
+ * authority's real end (see `findConnectionUriAuthorityEnd`) rather than
+ * assuming it stops at the next `/` or whitespace, since a raw
+ * non-percent-encoded password can contain either. */
+function redactConnectionUriOccurrences(input: string): string {
+  let result = "";
+  let cursor = 0;
+  CONNECTION_SCHEME_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = CONNECTION_SCHEME_RE.exec(input))) {
+    const authorityStart = match.index + match[0].length;
+    result += input.slice(cursor, authorityStart);
+    const authorityEnd = findConnectionUriAuthorityEnd(input, authorityStart);
+    const authority = input.slice(authorityStart, authorityEnd);
+    if (authority.includes("@")) {
+      result += redactUriAuthority("", authority);
+    } else {
+      // No `@` found within the bounded scan: either there is no
+      // credential here at all (nothing follows the scheme) or the
+      // authority is ambiguous enough that it can't be confidently parsed.
+      // Fail closed rather than risk echoing an unredacted fragment.
+      result += authority.length === 0 ? "" : "***redacted***";
+    }
+    cursor = authorityEnd;
+    CONNECTION_SCHEME_RE.lastIndex = authorityEnd;
+  }
+  result += input.slice(cursor);
+  return result;
+}
+
 /** Redacts every connection string's password in `input` to `***`. Never
  * strips the username or host — only the credential that must not leak.
- * Covers both URI-form (`postgres://user:pass@host`, tolerating a raw `@`
- * in the password) and libpq keyword/value DSNs (`password=...`,
- * `PGPASSWORD=...`). */
+ * Covers both URI-form (`postgres://user:pass@host`, tolerating a raw `/`,
+ * whitespace, or `@` in the password) and libpq keyword/value DSNs
+ * (`password=...`, `sslpassword=...`, `PGPASSWORD=...`, with or without
+ * whitespace around `=`). */
 export function redactConnectionString(input: string): string {
-  const uriRedacted = input.replace(
-    CONNECTION_URI_RE,
-    (_match, scheme: string, authority: string) => redactUriAuthority(scheme, authority)
-  );
+  const uriRedacted = redactConnectionUriOccurrences(input);
   return uriRedacted.replace(KEYWORD_VALUE_PASSWORD_RE, (match, key: string) => `${key}=***`);
 }
 

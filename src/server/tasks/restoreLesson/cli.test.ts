@@ -154,6 +154,55 @@ describe("redactConnectionString", () => {
     expect(() => redactConnectionString("bad url: postgres://@@@ nonsense")).not.toThrow();
     expect(redacted).not.toContain("@@@");
   });
+
+  // amkj.12: redactConnectionString fails open on passwords containing '/' or
+  // whitespace, and on spaced libpq DSNs (sslpassword=, "password = value").
+  test("fully masks a URI password containing a raw unencoded '/'", () => {
+    const redacted = redactConnectionString(
+      "connecting to postgres://user:pa/ssword@db.example.com:5432/snap now"
+    );
+    expect(redacted).toBe("connecting to postgres://user:***@db.example.com:5432/snap now");
+    expect(redacted).not.toContain("pa/ssword");
+  });
+
+  test("fully masks a URI password containing a raw unencoded space", () => {
+    const redacted = redactConnectionString("connecting to postgres://user:pass word@host/db now");
+    expect(redacted).toBe("connecting to postgres://user:***@host/db now");
+    expect(redacted).not.toContain("pass word");
+  });
+
+  test("masks a libpq keyword/value DSN's password with whitespace around '='", () => {
+    const redacted = redactConnectionString("host=h user=u password = topsecret dbname=d");
+    expect(redacted).toBe("host=h user=u password=*** dbname=d");
+    expect(redacted).not.toContain("topsecret");
+  });
+
+  test("masks a libpq sslpassword= credential", () => {
+    const redacted = redactConnectionString("sslpassword=topsecret host=h");
+    expect(redacted).toBe("sslpassword=*** host=h");
+    expect(redacted).not.toContain("topsecret");
+  });
+
+  test.each([
+    ["/", "pa/ssword"],
+    ["space", "pass word"],
+    ["@", "pass@word"],
+    ["#", "pass#word"],
+    ["?", "pass?word"],
+    ["%", "pass%word"],
+    ["&", "pass&word"],
+    [":", "pass:word"],
+  ])("never leaks a URL-unsafe password containing %s in either DSN shape", (_label, password) => {
+    const uriForm = redactConnectionString(
+      `connecting to postgres://user:${password}@host.example.com:5432/db now`
+    );
+    expect(uriForm).not.toContain(password);
+
+    const keywordForm = redactConnectionString(
+      `host=h user=u password=${password.replace(/\s/g, "_")} dbname=d`
+    );
+    expect(keywordForm).not.toContain(password.replace(/\s/g, "_"));
+  });
 });
 
 describe("handleMainRejection", () => {

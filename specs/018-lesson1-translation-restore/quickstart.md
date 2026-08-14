@@ -74,7 +74,11 @@ the snapshot's.
 ssh -f -N -L 5433:localhost:5432 172.26.12.108
 
 # Note the LEADING SPACE: keeps the password out of shell history.
- read -rs SNAPSHOT_PW && export SNAPSHOT_DATABASE_URL="postgres://lessons-from-luke:${SNAPSHOT_PW}@127.0.0.1:5433/lessons-from-luke" && unset SNAPSHOT_PW
+# Percent-encode SNAPSHOT_PW before interpolating it: an unencoded '/', '@',
+# ':', or whitespace in the password breaks URL parsing and can defeat the
+# tool's connection-string redaction (amkj.12). jq's @uri filter is a quick
+# way to do this from the shell.
+ read -rs SNAPSHOT_PW && SNAPSHOT_PW_ENCODED=$(jq -rn --arg pw "$SNAPSHOT_PW" '$pw|@uri') && export SNAPSHOT_DATABASE_URL="postgres://lessons-from-luke:${SNAPSHOT_PW_ENCODED}@127.0.0.1:5433/lessons-from-luke" && unset SNAPSHOT_PW SNAPSHOT_PW_ENCODED
 ```
 
 Use the **environment variable**, not `--snapshot-url`. A password on the
