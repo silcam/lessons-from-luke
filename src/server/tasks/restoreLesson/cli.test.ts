@@ -24,19 +24,33 @@ import path from "path";
 import { SqlFunc } from "postgres";
 import { RestoreLessonAbortError, PRODUCTION_MARKER_FILENAME } from "./identity";
 import { computeDiagnosisChecksum, computeReportChecksum, verifyReportIntegrity } from "./report";
+import { Persistence } from "../../../core/interfaces/Persistence";
 import { RestoreEnglishDeps, RestoredLessonResult, FileModeOps, ModeOwner } from "./restoreEnglish";
 import { fetchAllLanguages, fetchLegacyScopedCount, fetchTStringsForLesson } from "./gateway";
-import { AffectedLesson, DiagnosisReport, MasterDocumentCandidate } from "./types";
+import { journalPathForReport, readJournalLines } from "./report";
+import {
+  AffectedLesson,
+  DiagnosisReport,
+  EnglishRestore,
+  LanguageCounts,
+  MasterDocumentCandidate,
+  MasterStringMapping,
+  TranslationFinding,
+} from "./types";
 import {
   AdvisoryLockOps,
   advisoryLockKey,
+  apply,
+  computeMaxWritesDefault,
   diagnose,
   DiskHeadroomOps,
+  parseApplyArgs,
   parseDiagnoseArgs,
   parseRestoreEnglishArgs,
   redactConnectionString,
   redactDeep,
   restoreEnglish,
+  runApplyCommand,
   runDiagnoseCommand,
   RunPgDump,
   scanCandidateMasterDocuments,
@@ -1296,5 +1310,792 @@ describe("restoreEnglish() core", () => {
   test("advisoryLockKey() is a stable, deterministic bigint", () => {
     expect(advisoryLockKey()).toBe(advisoryLockKey());
     expect(typeof advisoryLockKey()).toBe("bigint");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// apply() — task 5.8.4
+// ─────────────────────────────────────────────────────────────────────────
+//
+// Fixture: lessonId 11 (Luke 1-1), masterId 1, languageId 2 (Français) —
+// fixtures-0.json seeds tstrings(masterid=1, languageid=2) with real text;
+// each test below DELETEs that row first so its own scenario controls
+// whether production holds a value for the pair under test (I11's whole
+// point is comparing live production against the plan).
+
+/** The transactional test double IS a real `Persistence` (it extends
+ * `PGStorage`, `TransactionalTestStorage` just swaps in the per-test
+ * transactional `sql`) — passing it as `apply()`'s `persistence` makes
+ * `saveTStrings` run on the SAME connection/transaction as `sql()` above.
+ * `apply()`'s own default (`new PGStorage()`) opens a SEPARATE pooled
+ * connection outside this test's transaction, which deadlocks against any
+ * row this test's transaction has already touched (e.g. `clearFrenchMaster1`'s
+ * DELETE) — every apply() test that expects a REAL write to land must pass
+ * this. */
+function testPersistence(): Pick<Persistence, "saveTStrings"> & {
+  updateProgress?: () => Promise<void>;
+} {
+  return (global as any).testStorage;
+}
+
+const FRENCH_ID = 2;
+const RESTORE_MASTER_ID = 1;
+
+async function clearFrenchMaster1(): Promise<void> {
+  await sql()`DELETE FROM tstrings WHERE masterid=${RESTORE_MASTER_ID} AND languageid=${FRENCH_ID}`;
+}
+
+async function frenchMaster1Text(): Promise<string | null> {
+  const rows = await sql()`
+    SELECT text FROM tstrings WHERE masterid=${RESTORE_MASTER_ID} AND languageid=${FRENCH_ID} AND lessonstringid IS NULL
+  `;
+  return rows[0]?.text ?? null;
+}
+
+function applyMappings(overrides: Partial<MasterStringMapping> = {}): MasterStringMapping[] {
+  return [
+    {
+      snapshotMasterId: RESTORE_MASTER_ID,
+      productionMasterId: RESTORE_MASTER_ID,
+      englishText: "The Book of Luke and the Birth of John the Baptizer",
+      type: "content",
+      xpath: "/x",
+      position: 0,
+      matchMethod: "identicalText",
+      reachableInProduction: true,
+      sharedWithLessons: [],
+      ...overrides,
+    },
+  ];
+}
+
+function applyFindings(overrides: Partial<TranslationFinding> = {}): TranslationFinding[] {
+  return [
+    {
+      languageId: FRENCH_ID,
+      languageName: "Français",
+      languageArchived: false,
+      snapshotMasterId: RESTORE_MASTER_ID,
+      productionMasterId: RESTORE_MASTER_ID,
+      classification: "restore",
+      snapshotText: "Le livre de Luc restauré",
+      productionText: null,
+      productionModified: null,
+      legacyLessonStringId: null,
+      sampleEnglishText: "The Book of Luke and the Birth of John the Baptizer",
+      ...overrides,
+    },
+  ];
+}
+
+function applyPerLanguageCounts(overrides: Partial<LanguageCounts> = {}): LanguageCounts[] {
+  return [
+    {
+      languageId: FRENCH_ID,
+      languageName: "Français",
+      archived: false,
+      snapshotReachable: 1,
+      productionReachableBefore: 0,
+      productionReachableAfter: null,
+      restored: 1,
+      conflicts: 0,
+      newerWork: 0,
+      lost: 0,
+      driftSkipped: 0,
+      ...overrides,
+    },
+  ];
+}
+
+function applyEnglishRestore(
+  newLessonVersion: number,
+  overrides: Partial<EnglishRestore> = {}
+): EnglishRestore {
+  return {
+    method: "upload",
+    masterDocumentPath: null,
+    masterDocumentSha256: null,
+    newLessonVersion,
+    dumpPath: "/tmp/does-not-matter-english-restore.dump",
+    restoredAt: new Date().toISOString(),
+    carriedFromDiagnosisId: null,
+    ...overrides,
+  };
+}
+
+async function baseApplyReport(overrides: Partial<DiagnosisReport> = {}): Promise<DiagnosisReport> {
+  const productionVersion = await currentLessonVersion();
+  const affectedLesson = baseAffectedLesson(productionVersion);
+  return baseValidReport(affectedLesson, {
+    mappings: applyMappings(),
+    findings: applyFindings(),
+    perLanguageCounts: applyPerLanguageCounts(),
+    englishRestore: applyEnglishRestore(productionVersion),
+    ...overrides,
+  });
+}
+
+describe("apply() core", () => {
+  beforeEach(async () => {
+    await clearFrenchMaster1();
+  });
+
+  test("aborts (10) when the production marker file is missing", async () => {
+    const report = await baseApplyReport();
+    await expect(
+      apply({
+        productionSql: sql(),
+        report,
+        diagnosisId: report.diagnosisId,
+        dumpDir: tmpReportDir(),
+        homeDir: tmpHomeDir(),
+      })
+    ).rejects.toMatchObject({ exitCode: 10 });
+  });
+
+  test("aborts (20) when the report's checksums do not verify (hand-edited report)", async () => {
+    const report = await baseApplyReport();
+    const tampered: DiagnosisReport = { ...report, diagnosisId: "tampered-id" };
+    await expect(
+      apply({
+        productionSql: sql(),
+        report: tampered,
+        diagnosisId: tampered.diagnosisId,
+        dumpDir: tmpReportDir(),
+        homeDir: homeDirWithMarker(),
+      })
+    ).rejects.toMatchObject({ exitCode: 20 });
+  });
+
+  test("aborts (20) when --diagnosis-id does not match the report's diagnosisId", async () => {
+    const report = await baseApplyReport();
+    await expect(
+      apply({
+        productionSql: sql(),
+        report,
+        diagnosisId: "some-other-diagnosis-id",
+        dumpDir: tmpReportDir(),
+        homeDir: homeDirWithMarker(),
+      })
+    ).rejects.toMatchObject({ exitCode: 20 });
+  });
+
+  test("aborts (11) when identity.snapshotIsOlder is false", async () => {
+    const productionVersion = await currentLessonVersion();
+    const affectedLesson = baseAffectedLesson(productionVersion);
+    const report = await baseApplyReport({
+      identity: {
+        productionMarkerPresent: true,
+        snapshotConfirmationToken: "confirmed-by-operator",
+        productionLessonVersion: affectedLesson.productionVersion,
+        snapshotLessonVersion: affectedLesson.snapshotVersion,
+        snapshotIsOlder: false,
+      },
+    });
+    await expect(
+      apply({
+        productionSql: sql(),
+        report,
+        diagnosisId: report.diagnosisId,
+        dumpDir: tmpReportDir(),
+        homeDir: homeDirWithMarker(),
+      })
+    ).rejects.toMatchObject({ exitCode: 11 });
+  });
+
+  test("aborts (15) when languageIdentityChecks is empty", async () => {
+    const report = await baseApplyReport({ languageIdentityChecks: [] });
+    await expect(
+      apply({
+        productionSql: sql(),
+        report,
+        diagnosisId: report.diagnosisId,
+        dumpDir: tmpReportDir(),
+        homeDir: homeDirWithMarker(),
+      })
+    ).rejects.toMatchObject({ exitCode: 15 });
+  });
+
+  test("aborts (29) when affectedLessons does not contain exactly one entry", async () => {
+    const productionVersion = await currentLessonVersion();
+    const affectedLesson = baseAffectedLesson(productionVersion);
+    const report = await baseApplyReport({ affectedLessons: [affectedLesson, affectedLesson] });
+    await expect(
+      apply({
+        productionSql: sql(),
+        report,
+        diagnosisId: report.diagnosisId,
+        dumpDir: tmpReportDir(),
+        homeDir: homeDirWithMarker(),
+      })
+    ).rejects.toMatchObject({ exitCode: 29 });
+  });
+
+  test("aborts (24) when the report has no englishRestore entry (own or carried)", async () => {
+    const productionVersion = await currentLessonVersion();
+    const affectedLesson = baseAffectedLesson(productionVersion);
+    const withoutEnglishRestore = await baseValidReport(affectedLesson, {
+      mappings: applyMappings(),
+      findings: applyFindings(),
+      perLanguageCounts: applyPerLanguageCounts(),
+    });
+    await expect(
+      apply({
+        productionSql: sql(),
+        report: withoutEnglishRestore,
+        diagnosisId: withoutEnglishRestore.diagnosisId,
+        dumpDir: tmpReportDir(),
+        homeDir: homeDirWithMarker(),
+      })
+    ).rejects.toMatchObject({ exitCode: 24 });
+  });
+
+  test("aborts (21) when live production's lesson version no longer matches englishRestore.newLessonVersion", async () => {
+    const productionVersion = await currentLessonVersion();
+    const report = await baseApplyReport({
+      englishRestore: applyEnglishRestore(productionVersion + 5), // drifted
+    });
+    await expect(
+      apply({
+        productionSql: sql(),
+        report,
+        diagnosisId: report.diagnosisId,
+        dumpDir: tmpReportDir(),
+        homeDir: homeDirWithMarker(),
+      })
+    ).rejects.toMatchObject({ exitCode: 21 });
+  });
+
+  test("aborts (25) when the plan exceeds the computed --max-writes default, BEFORE any write", async () => {
+    // snapshotReachable=0 -> computed cap floor(0*1.2)=0, but the plan has 1 write.
+    const report = await baseApplyReport({
+      perLanguageCounts: applyPerLanguageCounts({ snapshotReachable: 0 }),
+    });
+    await expect(
+      apply({
+        productionSql: sql(),
+        report,
+        diagnosisId: report.diagnosisId,
+        dumpDir: tmpReportDir(),
+        homeDir: homeDirWithMarker(),
+      })
+    ).rejects.toMatchObject({ exitCode: 25 });
+    // No write happened.
+    expect(await frenchMaster1Text()).toBeNull();
+  });
+
+  test("aborts (25) when the plan exceeds an explicit --max-writes", async () => {
+    const report = await baseApplyReport();
+    await expect(
+      apply({
+        productionSql: sql(),
+        report,
+        diagnosisId: report.diagnosisId,
+        dumpDir: tmpReportDir(),
+        homeDir: homeDirWithMarker(),
+        maxWrites: 0,
+      })
+    ).rejects.toMatchObject({ exitCode: 25 });
+  });
+
+  test("computeMaxWritesDefault: sums snapshotReachable over scoped languages only, x1.2, floored", () => {
+    const productionVersion = 159;
+    const affectedLesson = baseAffectedLesson(productionVersion);
+    const report = { affectedLessons: [affectedLesson] } as unknown as DiagnosisReport;
+    const withCounts: DiagnosisReport = {
+      ...report,
+      perLanguageCounts: [
+        { ...applyPerLanguageCounts()[0], languageId: 2, snapshotReachable: 5 },
+        { ...applyPerLanguageCounts()[0], languageId: 3, snapshotReachable: 5 },
+      ],
+    };
+    expect(computeMaxWritesDefault(withCounts, null)).toBe(12); // floor(10*1.2)
+    expect(computeMaxWritesDefault(withCounts, [2])).toBe(6); // floor(5*1.2)
+  });
+
+  test("aborts (28) when the advisory lock is already held", async () => {
+    const report = await baseApplyReport();
+    await expect(
+      apply({
+        productionSql: sql(),
+        report,
+        diagnosisId: report.diagnosisId,
+        dumpDir: tmpReportDir(),
+        homeDir: homeDirWithMarker(),
+        withReservedConnection: bypassReservedConnection,
+        advisoryLockOps: makeAdvisoryLockOps({ tryLock: jest.fn(async () => false) }),
+      })
+    ).rejects.toMatchObject({ exitCode: 28 });
+  });
+
+  test("aborts (28) when the lock is found lost before a batch (never silently re-acquires)", async () => {
+    const report = await baseApplyReport();
+    const backendPid = jest
+      .fn<Promise<number>, []>()
+      .mockResolvedValueOnce(4242) // captured right after tryLock
+      .mockResolvedValueOnce(9999); // different pid before the one batch -> lock lost
+    await expect(
+      apply({
+        productionSql: sql(),
+        report,
+        diagnosisId: report.diagnosisId,
+        dumpDir: tmpReportDir(),
+        homeDir: homeDirWithMarker(),
+        withReservedConnection: bypassReservedConnection,
+        advisoryLockOps: makeAdvisoryLockOps({ backendPid }),
+        diskHeadroomOps: makeDiskHeadroomOps(),
+        runPgDump: makeRunPgDump().runPgDump,
+      })
+    ).rejects.toMatchObject({ exitCode: 28 });
+    // No write happened — the batch never ran.
+    expect(await frenchMaster1Text()).toBeNull();
+  });
+
+  test("aborts (23) when free disk space is below 3x the database size", async () => {
+    const report = await baseApplyReport();
+    await expect(
+      apply({
+        productionSql: sql(),
+        report,
+        diagnosisId: report.diagnosisId,
+        dumpDir: tmpReportDir(),
+        homeDir: homeDirWithMarker(),
+        withReservedConnection: bypassReservedConnection,
+        advisoryLockOps: makeAdvisoryLockOps(),
+        diskHeadroomOps: makeDiskHeadroomOps({ getFreeDiskBytes: jest.fn(() => 1) }),
+      })
+    ).rejects.toMatchObject({ exitCode: 23 });
+  });
+
+  test("succeeds (0): applies the plan, records appliedWrites, releases the lock", async () => {
+    const report = await baseApplyReport();
+    const advisoryLockOps = makeAdvisoryLockOps();
+    const dumpDir = tmpReportDir();
+
+    const updated = await apply({
+      productionSql: sql(),
+      report,
+      diagnosisId: report.diagnosisId,
+      dumpDir,
+      homeDir: homeDirWithMarker(),
+      withReservedConnection: bypassReservedConnection,
+      advisoryLockOps,
+      diskHeadroomOps: makeDiskHeadroomOps(),
+      runPgDump: makeRunPgDump().runPgDump,
+      persistence: testPersistence(),
+    });
+
+    expect(updated.mode).toBe("apply");
+    expect(await frenchMaster1Text()).toBe("Le livre de Luc restauré");
+    expect(
+      updated.appliedWrites?.some(
+        (w) =>
+          w.languageId === FRENCH_ID && w.masterId === RESTORE_MASTER_ID && w.overwrote === null
+      )
+    ).toBe(true);
+    expect(updated.applyState?.scopedLanguageIds).toBeNull();
+    expect(updated.applyState?.completedAt).toBeTruthy();
+    expect(updated.applyState?.languageBatches).toEqual([
+      expect.objectContaining({ languageId: FRENCH_ID, status: "completed", writesApplied: 1 }),
+    ]);
+    expect(updated.preApplyDumpPath).toBeTruthy();
+    expect(fs.existsSync(updated.preApplyDumpPath!)).toBe(true);
+    expect(advisoryLockOps.unlock).toHaveBeenCalledTimes(1);
+    expect(() =>
+      verifyReportIntegrity(updated, report.productionFingerprint.databaseName)
+    ).not.toThrow();
+  });
+
+  test("records applyState.scopedLanguageIds as the --languages array when scoped", async () => {
+    const report = await baseApplyReport();
+    const updated = await apply({
+      productionSql: sql(),
+      report,
+      diagnosisId: report.diagnosisId,
+      dumpDir: tmpReportDir(),
+      homeDir: homeDirWithMarker(),
+      withReservedConnection: bypassReservedConnection,
+      advisoryLockOps: makeAdvisoryLockOps(),
+      diskHeadroomOps: makeDiskHeadroomOps(),
+      runPgDump: makeRunPgDump().runPgDump,
+      persistence: testPersistence(),
+      languages: [FRENCH_ID],
+    });
+    expect(updated.applyState?.scopedLanguageIds).toEqual([FRENCH_ID]);
+  });
+
+  test("I11 drift re-check: a row that changed to a benign identical value is skipped and marked benign", async () => {
+    // Live production already holds the exact snapshot text (as if a
+    // concurrent process wrote it) — still classifies 'restore' at diagnose
+    // time in this report (stale), but the re-check must see it's now intact.
+    await sql()`
+      INSERT INTO tstrings (masterid, languageid, text, history, created, modified)
+      VALUES (${RESTORE_MASTER_ID}, ${FRENCH_ID}, 'Le livre de Luc restauré', '[]', 0, 0)
+    `;
+    const report = await baseApplyReport();
+
+    const updated = await apply({
+      productionSql: sql(),
+      report,
+      diagnosisId: report.diagnosisId,
+      dumpDir: tmpReportDir(),
+      homeDir: homeDirWithMarker(),
+      withReservedConnection: bypassReservedConnection,
+      advisoryLockOps: makeAdvisoryLockOps(),
+      diskHeadroomOps: makeDiskHeadroomOps(),
+      runPgDump: makeRunPgDump().runPgDump,
+    });
+
+    expect(updated.appliedWrites?.length ?? 0).toBe(0);
+    expect(updated.driftSkips).toEqual([
+      expect.objectContaining({
+        languageId: FRENCH_ID,
+        masterId: RESTORE_MASTER_ID,
+        reclassifiedAs: "intact",
+        benign: true,
+      }),
+    ]);
+    const nonBenignDrift = (updated.driftSkips ?? []).some((d) => !d.benign);
+    expect(nonBenignDrift).toBe(false);
+  });
+
+  test("I11 drift re-check: a row changed to a DIFFERENT value is withheld, non-benign, and reported as a conflict", async () => {
+    await sql()`
+      INSERT INTO tstrings (masterid, languageid, text, history, created, modified)
+      VALUES (${RESTORE_MASTER_ID}, ${FRENCH_ID}, 'Un texte totalement différent', '[]', 0, 0)
+    `;
+    const report = await baseApplyReport();
+
+    const updated = await apply({
+      productionSql: sql(),
+      report,
+      diagnosisId: report.diagnosisId,
+      dumpDir: tmpReportDir(),
+      homeDir: homeDirWithMarker(),
+      withReservedConnection: bypassReservedConnection,
+      advisoryLockOps: makeAdvisoryLockOps(),
+      diskHeadroomOps: makeDiskHeadroomOps(),
+      runPgDump: makeRunPgDump().runPgDump,
+    });
+
+    expect(updated.appliedWrites?.length ?? 0).toBe(0);
+    expect(updated.driftSkips).toEqual([
+      expect.objectContaining({
+        languageId: FRENCH_ID,
+        masterId: RESTORE_MASTER_ID,
+        reclassifiedAs: "conflict",
+        benign: false,
+      }),
+    ]);
+    expect(
+      updated.conflicts.some(
+        (c) => c.languageId === FRENCH_ID && c.snapshotMasterId === RESTORE_MASTER_ID
+      )
+    ).toBe(true);
+    // Untouched — apply never overwrites a value it didn't itself write the
+    // pre-incident text for.
+    expect(await frenchMaster1Text()).toBe("Un texte totalement différent");
+  });
+
+  test("I24: a saveTStrings throw stops the run, marks the batch failed, and flushes applyState+journal", async () => {
+    const reportDir = tmpReportDir();
+    const reportPath = path.join(reportDir, "report.json");
+    const report = await baseApplyReport();
+    fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+
+    const failingPersistence = {
+      saveTStrings: jest.fn(async () => {
+        throw new Error("simulated disk full");
+      }),
+    };
+
+    await expect(
+      apply({
+        productionSql: sql(),
+        report,
+        diagnosisId: report.diagnosisId,
+        dumpDir: reportDir,
+        homeDir: homeDirWithMarker(),
+        withReservedConnection: bypassReservedConnection,
+        advisoryLockOps: makeAdvisoryLockOps(),
+        diskHeadroomOps: makeDiskHeadroomOps(),
+        runPgDump: makeRunPgDump().runPgDump,
+        persistence: failingPersistence,
+        reportPath,
+      })
+    ).rejects.toMatchObject({ exitCode: 32 });
+
+    // The report was flushed with a failed batch record (I12).
+    const flushed: DiagnosisReport = JSON.parse(fs.readFileSync(reportPath, "utf8"));
+    expect(flushed.applyState?.languageBatches).toEqual([
+      expect.objectContaining({ languageId: FRENCH_ID, status: "failed" }),
+    ]);
+    expect(flushed.appliedWrites?.length ?? 0).toBe(0);
+
+    // The journal exists, derived from the report's own basename.
+    const journalPath = journalPathForReport(reportPath);
+    expect(fs.existsSync(journalPath)).toBe(false); // nothing to journal — no write succeeded
+    expect(await frenchMaster1Text()).toBeNull();
+  });
+
+  test("I12: applyState/appliedWrites/driftSkips are flushed after every batch, atomically, with a journal derived from the report path", async () => {
+    const reportDir = tmpReportDir();
+    const reportPath = path.join(reportDir, "my-report.json");
+    const report = await baseApplyReport();
+    fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+
+    await apply({
+      productionSql: sql(),
+      report,
+      diagnosisId: report.diagnosisId,
+      dumpDir: reportDir,
+      homeDir: homeDirWithMarker(),
+      withReservedConnection: bypassReservedConnection,
+      advisoryLockOps: makeAdvisoryLockOps(),
+      diskHeadroomOps: makeDiskHeadroomOps(),
+      runPgDump: makeRunPgDump().runPgDump,
+      persistence: testPersistence(),
+      reportPath,
+    });
+
+    const journalPath = journalPathForReport(reportPath);
+    expect(journalPath).toBe(path.join(reportDir, "my-report.journal.jsonl"));
+    expect(fs.existsSync(journalPath)).toBe(true);
+    const lines = readJournalLines(journalPath);
+    expect(
+      lines.some((l) => l.type === "appliedWrite" && l.diagnosisId === report.diagnosisId)
+    ).toBe(true);
+
+    const flushed: DiagnosisReport = JSON.parse(fs.readFileSync(reportPath, "utf8"));
+    expect(flushed.appliedWrites?.length ?? 0).toBe(1);
+    expect(() =>
+      verifyReportIntegrity(flushed, report.productionFingerprint.databaseName)
+    ).not.toThrow();
+  });
+
+  test("I5: re-running apply against an already-fully-applied report writes nothing", async () => {
+    const reportDir = tmpReportDir();
+    const reportPath = path.join(reportDir, "report.json");
+    const report = await baseApplyReport();
+    fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+
+    const firstRun = await apply({
+      productionSql: sql(),
+      report,
+      diagnosisId: report.diagnosisId,
+      dumpDir: reportDir,
+      homeDir: homeDirWithMarker(),
+      withReservedConnection: bypassReservedConnection,
+      advisoryLockOps: makeAdvisoryLockOps(),
+      diskHeadroomOps: makeDiskHeadroomOps(),
+      runPgDump: makeRunPgDump().runPgDump,
+      persistence: testPersistence(),
+      reportPath,
+    });
+    expect(firstRun.appliedWrites?.length ?? 0).toBe(1);
+
+    const secondRun = await apply({
+      productionSql: sql(),
+      report: firstRun,
+      diagnosisId: firstRun.diagnosisId,
+      dumpDir: reportDir,
+      homeDir: homeDirWithMarker(),
+      withReservedConnection: bypassReservedConnection,
+      advisoryLockOps: makeAdvisoryLockOps(),
+      diskHeadroomOps: makeDiskHeadroomOps(),
+      runPgDump: makeRunPgDump().runPgDump,
+      persistence: testPersistence(),
+      reportPath,
+    });
+
+    // The re-check reclassifies the pair as 'intact' (benign) — nothing new
+    // is applied, and the journal-reconciled appliedWrites still shows just
+    // the original write (accumulated across runs against the same report).
+    const newlyApplied = secondRun.applyState?.languageBatches.find(
+      (b) => b.completedAt !== firstRun.applyState?.languageBatches[0]?.completedAt
+    );
+    expect(newlyApplied?.writesApplied).toBe(0);
+    expect(await frenchMaster1Text()).toBe("Le livre de Luc restauré");
+  });
+});
+
+describe("parseApplyArgs", () => {
+  test("parses required and optional flags", () => {
+    const args = parseApplyArgs([
+      "--report",
+      "/rec/report.json",
+      "--diagnosis-id",
+      "abc-123",
+      "--dump",
+      "/rec/dumps",
+      "--languages",
+      "2,3",
+      "--max-writes",
+      "50",
+    ]);
+    expect(args).toEqual({
+      report: "/rec/report.json",
+      diagnosisId: "abc-123",
+      dump: "/rec/dumps",
+      languages: [2, 3],
+      maxWrites: 50,
+    });
+  });
+
+  test("defaults dump/languages/maxWrites to null when omitted", () => {
+    const args = parseApplyArgs(["--report", "/rec/report.json", "--diagnosis-id", "abc-123"]);
+    expect(args.dump).toBeNull();
+    expect(args.languages).toBeNull();
+    expect(args.maxWrites).toBeNull();
+  });
+
+  test("aborts (1) when --report is missing", () => {
+    expect(() => parseApplyArgs(["--diagnosis-id", "abc-123"])).toThrow(
+      expect.objectContaining({ exitCode: 1 })
+    );
+  });
+
+  test("aborts (1) when --diagnosis-id is missing", () => {
+    expect(() => parseApplyArgs(["--report", "/rec/report.json"])).toThrow(
+      expect.objectContaining({ exitCode: 1 })
+    );
+  });
+
+  test("aborts (1) on an unrecognized flag", () => {
+    expect(() => parseApplyArgs(["--bogus", "x"])).toThrow(
+      expect.objectContaining({ exitCode: 1 })
+    );
+  });
+
+  test("aborts (1) when --languages contains a non-integer value", () => {
+    expect(() =>
+      parseApplyArgs(["--report", "r", "--diagnosis-id", "d", "--languages", "2,abc"])
+    ).toThrow(expect.objectContaining({ exitCode: 1 }));
+  });
+
+  test("aborts (1) when --max-writes is not a non-negative integer", () => {
+    expect(() =>
+      parseApplyArgs(["--report", "r", "--diagnosis-id", "d", "--max-writes", "-1"])
+    ).toThrow(expect.objectContaining({ exitCode: 1 }));
+  });
+});
+
+describe("runApplyCommand()", () => {
+  beforeEach(async () => {
+    await clearFrenchMaster1();
+  });
+
+  test("aborts (1) when a required flag is missing", async () => {
+    const code = await runApplyCommand({ argv: ["--report", "/rec/report.json"] });
+    expect(code).toBe(1);
+  });
+
+  test("aborts (10) when the production marker file is missing", async () => {
+    const code = await runApplyCommand({
+      argv: ["--report", "/rec/report.json", "--diagnosis-id", "abc"],
+      homeDir: tmpHomeDir(),
+    });
+    expect(code).toBe(10);
+  });
+
+  test("aborts (20) when the report file does not exist", async () => {
+    const code = await runApplyCommand({
+      argv: ["--report", path.join(tmpReportDir(), "missing.json"), "--diagnosis-id", "abc"],
+      homeDir: homeDirWithMarker(),
+    });
+    expect(code).toBe(20);
+  });
+
+  test("aborts (20) when --diagnosis-id does not match the report's diagnosisId", async () => {
+    const reportDir = tmpReportDir();
+    const reportPath = path.join(reportDir, "report.json");
+    const report = await baseApplyReport();
+    fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+
+    const code = await runApplyCommand({
+      argv: ["--report", reportPath, "--diagnosis-id", "not-the-right-id"],
+      homeDir: homeDirWithMarker(),
+    });
+    expect(code).toBe(20);
+  });
+
+  test("succeeds (0), applies the plan, and prints an OK summary", async () => {
+    const reportDir = tmpReportDir();
+    const reportPath = path.join(reportDir, "report.json");
+    const report = await baseApplyReport();
+    fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+
+    const stdoutLines: string[] = [];
+    const code = await runApplyCommand({
+      argv: ["--report", reportPath, "--diagnosis-id", report.diagnosisId],
+      homeDir: homeDirWithMarker(),
+      stdout: (line) => stdoutLines.push(line),
+      connectProduction: () => sql(),
+      closeSql: async () => undefined,
+      withReservedConnection: bypassReservedConnection,
+      advisoryLockOps: makeAdvisoryLockOps(),
+      diskHeadroomOps: makeDiskHeadroomOps(),
+      runPgDump: makeRunPgDump().runPgDump,
+      persistence: testPersistence(),
+    });
+
+    expect(code).toBe(0);
+    expect(stdoutLines.join("\n")).toMatch(/^OK apply complete/);
+    expect(await frenchMaster1Text()).toBe("Le livre de Luc restauré");
+  });
+
+  test("returns 27 when apply completes with non-benign drift", async () => {
+    await sql()`
+      INSERT INTO tstrings (masterid, languageid, text, history, created, modified)
+      VALUES (${RESTORE_MASTER_ID}, ${FRENCH_ID}, 'Something else entirely', '[]', 0, 0)
+    `;
+    const reportDir = tmpReportDir();
+    const reportPath = path.join(reportDir, "report.json");
+    const report = await baseApplyReport();
+    fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+
+    const stdoutLines: string[] = [];
+    const code = await runApplyCommand({
+      argv: ["--report", reportPath, "--diagnosis-id", report.diagnosisId],
+      homeDir: homeDirWithMarker(),
+      stdout: (line) => stdoutLines.push(line),
+      connectProduction: () => sql(),
+      closeSql: async () => undefined,
+      withReservedConnection: bypassReservedConnection,
+      advisoryLockOps: makeAdvisoryLockOps(),
+      diskHeadroomOps: makeDiskHeadroomOps(),
+      runPgDump: makeRunPgDump().runPgDump,
+    });
+
+    expect(code).toBe(27);
+    expect(stdoutLines.join("\n")).toMatch(/^DRIFT/);
+  });
+
+  test("returns 32 when a language batch fails", async () => {
+    const reportDir = tmpReportDir();
+    const reportPath = path.join(reportDir, "report.json");
+    const report = await baseApplyReport();
+    fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+
+    const stderrLines: string[] = [];
+    const code = await runApplyCommand({
+      argv: ["--report", reportPath, "--diagnosis-id", report.diagnosisId],
+      homeDir: homeDirWithMarker(),
+      stderr: (line) => stderrLines.push(line),
+      connectProduction: () => sql(),
+      closeSql: async () => undefined,
+      withReservedConnection: bypassReservedConnection,
+      advisoryLockOps: makeAdvisoryLockOps(),
+      diskHeadroomOps: makeDiskHeadroomOps(),
+      runPgDump: makeRunPgDump().runPgDump,
+      persistence: {
+        saveTStrings: jest.fn(async () => {
+          throw new Error("simulated saveTStrings failure");
+        }),
+      },
+    });
+
+    expect(code).toBe(32);
+    expect(stderrLines.join("\n")).toMatch(/journal/i);
   });
 });

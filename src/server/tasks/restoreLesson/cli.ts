@@ -56,9 +56,12 @@ import {
   checkLanguageIdentity,
   verifyServerIdentity,
 } from "./identity";
+import { Persistence } from "../../../core/interfaces/Persistence";
 import { detectAffectedLesson } from "./detectLesson";
 import { mapMasterStrings } from "./mapMasterStrings";
 import { ProductionTStringRow, assembleBlastRadius, classifyFindings } from "./classify";
+import { planWrites } from "./planWrites";
+import { restoreWrite } from "./restoreWrite";
 import {
   fetchAllLanguages,
   fetchDuplicateRowSweep,
@@ -68,13 +71,16 @@ import {
   fetchTStringsForLesson,
 } from "./gateway";
 import {
+  appendJournalLine,
   checkForceReportOverwrite,
   computeDiagnosisChecksum,
   computeReportChecksum,
   deriveCarryForward,
   ensureReportDirectory,
+  journalPathForReport,
   loadAndVerifyPriorReport,
   loadReport,
+  readJournalLines,
   verifyReportIntegrity,
   writeReportAtomic,
 } from "./report";
@@ -86,13 +92,18 @@ import {
   restoreEnglish as restoreEnglishCore,
 } from "./restoreEnglish";
 import {
+  AppliedWrite,
+  ApplyState,
   DiagnosisReport,
+  DriftSkip,
   EnglishRestore,
+  LanguageBatch,
   LanguageCounts,
   LessonRef,
   MasterDocumentCandidate,
   ProductionFingerprint,
   RestoreWrite,
+  TranslationClassification,
   TranslationFinding,
 } from "./types";
 
@@ -1561,6 +1572,692 @@ export async function runRestoreEnglishCommand(
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// apply() core — I11 drift re-check, I24 batch failure, I12 flush, max-writes
+// ─────────────────────────────────────────────────────────────────────────
+
+/** `--max-writes`'s computed default (precondition 10): the affected
+ * lesson's snapshot-reachable translation count × 1.2, summed over the
+ * scoped languages only when `languageIds` restricts the run — a
+ * whole-corpus cap is no cap at all for a one-language run. */
+export function computeMaxWritesDefault(
+  report: DiagnosisReport,
+  languageIds: number[] | null
+): number {
+  const scoped =
+    languageIds === null
+      ? report.perLanguageCounts
+      : report.perLanguageCounts.filter((counts) => languageIds.includes(counts.languageId));
+  const totalReachable = scoped.reduce((sum, counts) => sum + counts.snapshotReachable, 0);
+  return Math.floor(totalReachable * 1.2);
+}
+
+/** Merges I11 drift-recheck findings that reclassified as `conflict` or
+ * `newerWork` into `existing` (diagnose-time conflicts), deduped by
+ * `(languageId, snapshotMasterId)` — a re-check hitting a pair diagnose
+ * already reported as a conflict must not duplicate it. */
+function mergeConflicts(
+  existing: TranslationFinding[],
+  recheckConflicts: TranslationFinding[]
+): TranslationFinding[] {
+  const merged = [...existing];
+  for (const finding of recheckConflicts) {
+    const already = merged.some(
+      (c) => c.languageId === finding.languageId && c.snapshotMasterId === finding.snapshotMasterId
+    );
+    if (!already) merged.push(finding);
+  }
+  return merged;
+}
+
+export interface ApplyCoreOptions {
+  productionSql: SqlFunc;
+  report: DiagnosisReport;
+  /** Precondition 9: apply never runs off a report the operator did not name. */
+  diagnosisId: string;
+  dumpDir: string;
+  homeDir?: string;
+  /** `--languages`; null/omitted = whole corpus. */
+  languages?: number[] | null;
+  /** `--max-writes`; null/omitted = the computed default (precondition 10). */
+  maxWrites?: number | null;
+  /** When given, `applyState`/`appliedWrites`/`driftSkips` are flushed here
+   * after EVERY per-language batch (I12), and each write/skip is also
+   * appended to this report's derived journal. The CLI wrapper always
+   * supplies this; the integration/contract-test core calls may omit it. */
+  reportPath?: string;
+  runPgDump?: RunPgDump;
+  advisoryLockOps?: AdvisoryLockOps;
+  diskHeadroomOps?: DiskHeadroomOps;
+  /** See `WithReservedConnection`'s doc comment for why this is injectable. */
+  withReservedConnection?: WithReservedConnection;
+  /** Injectable for contract tests; defaults to a real `PGStorage`. Only
+   * `saveTStrings` is required by `restoreWrite.ts` (I4); `updateProgress`
+   * is called explicitly afterward (I10) when the double provides it. */
+  persistence?: Pick<Persistence, "saveTStrings"> & { updateProgress?: () => Promise<void> };
+  now?: () => Date;
+}
+
+/**
+ * The `apply` orchestration core (FR-007..FR-011, FR-014): re-verifies every
+ * precondition this subcommand owns from a checksum-gated report, derives
+ * the write plan from `report.mappings`/`report.findings` (I8, `planWrites.ts`),
+ * enforces the `--max-writes` sanity cap BEFORE any write (precondition 10),
+ * then takes the advisory lock, produces the pre-apply dump, and writes one
+ * language at a time — immediately before each batch, re-fetching live
+ * production rows and re-running `classify.ts`'s classification against them
+ * (I11), reusing `report.mappings` verbatim and never recomputing them.
+ * Flushes `applyState`/`appliedWrites`/`driftSkips` to `reportPath` (and its
+ * journal) after every batch (I12). A `saveTStrings` throw stops the run
+ * immediately and aborts (32); the run otherwise returns normally whether or
+ * not non-benign drift occurred — `runApplyCommand` decides exit 0 vs 27.
+ */
+export async function apply(options: ApplyCoreOptions): Promise<DiagnosisReport> {
+  const homeDir = options.homeDir ?? os.homedir();
+  const markerPath = path.join(homeDir, PRODUCTION_MARKER_FILENAME);
+  if (!fs.existsSync(markerPath)) {
+    throw new RestoreLessonAbortError(
+      10,
+      `Production marker file missing: ${markerPath}. This tool must be run on the production host.`
+    );
+  }
+
+  const sql = options.productionSql;
+  const { report } = options;
+
+  const liveFingerprint = await fetchProductionFingerprint(sql);
+  verifyReportIntegrity(report, liveFingerprint.databaseName);
+
+  if (report.diagnosisId !== options.diagnosisId) {
+    throw new RestoreLessonAbortError(
+      20,
+      `--diagnosis-id ${options.diagnosisId} does not match the report's diagnosisId ` +
+        `(${report.diagnosisId}).`
+    );
+  }
+
+  if (!report.identity.snapshotIsOlder) {
+    throw new RestoreLessonAbortError(
+      11,
+      `Report ${report.diagnosisId}'s identity.snapshotIsOlder is false; refusing to apply from a ` +
+        `report whose Snapshot was not verified older than production at diagnose time.`
+    );
+  }
+
+  if (
+    report.languageIdentityChecks.length === 0 ||
+    report.languageIdentityChecks.some((check) => !check.agrees)
+  ) {
+    throw new RestoreLessonAbortError(
+      15,
+      `Report ${report.diagnosisId}'s languageIdentityChecks is missing, empty, or contains a ` +
+        `disagreement (I22).`
+    );
+  }
+
+  if (report.affectedLessons.length !== 1) {
+    throw new RestoreLessonAbortError(
+      29,
+      `Report's affectedLessons contains ${report.affectedLessons.length} entries; apply expects ` +
+        `exactly the one named lesson — a detection surprise cannot quietly widen the blast radius.`
+    );
+  }
+  const affectedLesson = report.affectedLessons[0];
+
+  const englishRestore = report.englishRestore;
+  if (!englishRestore) {
+    throw new RestoreLessonAbortError(
+      24,
+      `Report ${report.diagnosisId} has no englishRestore entry (own or carried via ` +
+        `--prior-report). English master not yet restored — there is no spine to attach ` +
+        `translations to.`
+    );
+  }
+
+  const liveLesson = await fetchLessonByBookSeriesLesson(
+    sql,
+    affectedLesson.book as Book,
+    affectedLesson.series,
+    affectedLesson.lesson
+  );
+  const expectedLiveVersion = englishRestore.newLessonVersion;
+  if (!liveLesson || liveLesson.version !== expectedLiveVersion) {
+    throw new RestoreLessonAbortError(
+      21,
+      `Production has changed since diagnosis: expected lesson version ${expectedLiveVersion}, found ` +
+        `${liveLesson ? liveLesson.version : "no matching lesson"}. Re-diagnose ` +
+        `(--prior-report against diagnosisId ${report.diagnosisId}) before retrying.`
+    );
+  }
+
+  const languageScope = options.languages ?? null;
+  const plannedWrites = planWrites({
+    mappings: report.mappings,
+    findings: report.findings,
+    languageIds: languageScope,
+  });
+
+  const maxWrites = options.maxWrites ?? computeMaxWritesDefault(report, languageScope);
+  if (plannedWrites.length > maxWrites) {
+    throw new RestoreLessonAbortError(
+      25,
+      `Write plan (${plannedWrites.length} writes) exceeds --max-writes (${maxWrites}` +
+        `${options.maxWrites == null ? ", the computed default" : ""}). This suggests a mapping ` +
+        `failure, not a big recovery. Aborting before any write.`
+    );
+  }
+
+  const runPgDump = options.runPgDump ?? realRunPgDump;
+  const diskHeadroomOps = options.diskHeadroomOps ?? realDiskHeadroomOps;
+  const advisoryLockOps = options.advisoryLockOps ?? realAdvisoryLockOps;
+  const withReservedConnection = options.withReservedConnection ?? beginReservedConnection;
+  const now = options.now ?? (() => new Date());
+
+  return withReservedConnection(sql, async (reserved: SqlFunc) => {
+    const key = advisoryLockKey();
+    const locked = await advisoryLockOps.tryLock(reserved, key);
+    if (!locked) {
+      throw new RestoreLessonAbortError(
+        28,
+        "Another write subcommand (restore-english/apply/verify) already holds the restoreLesson " +
+          "advisory lock. Wait for it to finish, or investigate a stuck process before retrying."
+      );
+    }
+    const backendPid = await advisoryLockOps.backendPid(reserved);
+
+    try {
+      const preApplyDumpPath = await produceDump(
+        reserved,
+        options.dumpDir,
+        runPgDump,
+        diskHeadroomOps
+      );
+
+      let storage: PGStorage | null = null;
+      let persistence: Pick<Persistence, "saveTStrings"> & { updateProgress?: () => Promise<void> };
+      if (options.persistence) {
+        persistence = options.persistence;
+      } else {
+        storage = new PGStorage();
+        persistence = storage;
+      }
+
+      try {
+        const journalPath = options.reportPath ? journalPathForReport(options.reportPath) : null;
+
+        const writesByLanguage = new Map<number, RestoreWrite[]>();
+        for (const write of plannedWrites) {
+          const batch = writesByLanguage.get(write.languageId);
+          if (batch) batch.push(write);
+          else writesByLanguage.set(write.languageId, [write]);
+        }
+        const languageIds = Array.from(writesByLanguage.keys()).sort((a, b) => a - b);
+
+        const initialApplyState: ApplyState = {
+          startedAt: now().toISOString(),
+          scopedLanguageIds: languageScope,
+          languageBatches: [],
+          completedAt: null,
+        };
+        let workingReport: DiagnosisReport = {
+          ...report,
+          mode: "apply",
+          preApplyDumpPath,
+          applyState: initialApplyState,
+          appliedWrites: report.appliedWrites ? [...report.appliedWrites] : [],
+          driftSkips: report.driftSkips ? [...report.driftSkips] : [],
+        };
+
+        // Recomputes reportChecksum on every call, whether or not
+        // `reportPath` is given (I13) — a core call with no `reportPath`
+        // (contract tests, the integration harness) must still return a
+        // report whose checksum verifies against its own content.
+        const flush = (): void => {
+          workingReport = {
+            ...workingReport,
+            reportChecksum: computeReportChecksum(workingReport),
+          };
+          if (options.reportPath) {
+            writeReportAtomic(options.reportPath, workingReport);
+          }
+        };
+
+        const newConflicts: TranslationFinding[] = [];
+
+        for (const languageId of languageIds) {
+          // Re-assert the lock is still held before EACH batch (28) — never
+          // silently re-acquire.
+          let stillHeldPid: number;
+          try {
+            stillHeldPid = await advisoryLockOps.backendPid(reserved);
+          } catch (err) {
+            throw new RestoreLessonAbortError(
+              28,
+              `The restoreLesson advisory lock's connection was lost before the languageId=${languageId} ` +
+                `batch: ${String(err)}. Refusing to proceed — another process may have acquired the ` +
+                `lock in the interval.`
+            );
+          }
+          if (stillHeldPid !== backendPid) {
+            throw new RestoreLessonAbortError(
+              28,
+              `The restoreLesson advisory lock's connection changed mid-run (backend pid ${backendPid} ` +
+                `-> ${stillHeldPid}) before the languageId=${languageId} batch, meaning the session — ` +
+                `and its lock — was silently lost. Refusing to re-acquire.`
+            );
+          }
+
+          const languageWrites = writesByLanguage.get(languageId) ?? [];
+
+          // I11 drift re-check: immediately before this batch, re-fetch live
+          // production rows for its (languageId, masterId) pairs via the
+          // same unfiltered raw SQL as diagnosis, and re-run classify.ts's
+          // classification — REUSING report.mappings verbatim, never
+          // recomputing them.
+          const batchFindings = report.findings.filter(
+            (finding) =>
+              finding.classification === "restore" &&
+              finding.languageId === languageId &&
+              languageWrites.some((write) => write.masterId === finding.productionMasterId)
+          );
+          const relevantMasterIds = Array.from(
+            new Set(batchFindings.map((finding) => finding.productionMasterId as number))
+          );
+          const liveProductionRows = await fetchProductionTStringsWithModified(
+            reserved,
+            relevantMasterIds
+          );
+          const relevantMappings = report.mappings.filter((mapping) =>
+            batchFindings.some((finding) => finding.snapshotMasterId === mapping.snapshotMasterId)
+          );
+          const firstFinding = batchFindings[0];
+          const languageForRecheck = {
+            languageId,
+            name: firstFinding?.languageName ?? String(languageId),
+            code: "",
+            motherTongue: false,
+            progress: [],
+            defaultSrcLang: 0,
+            archived: firstFinding?.languageArchived ?? false,
+          };
+          const snapshotTStringsForRecheck: TString[] = batchFindings.map((finding) => ({
+            masterId: finding.snapshotMasterId,
+            languageId,
+            text: finding.snapshotText as string,
+            history: [],
+            sourceLanguageId: null,
+            source: null,
+            lessonStringId: null,
+          }));
+          const recheckFindings = classifyFindings({
+            mappings: relevantMappings,
+            languages: [languageForRecheck],
+            snapshotTStrings: snapshotTStringsForRecheck,
+            productionTStrings: liveProductionRows,
+          });
+
+          const driftSkipsThisBatch: DriftSkip[] = [];
+          const writesToApply: RestoreWrite[] = [];
+          for (const write of languageWrites) {
+            const recheck = recheckFindings.find(
+              (finding) => finding.productionMasterId === write.masterId
+            );
+            if (recheck && recheck.classification === "restore") {
+              writesToApply.push(write);
+            } else {
+              const reclassifiedAs = (recheck?.classification ?? "lost") as Exclude<
+                TranslationClassification,
+                "restore"
+              >;
+              driftSkipsThisBatch.push({
+                languageId,
+                masterId: write.masterId,
+                plannedText: write.text,
+                liveProductionText: recheck?.productionText ?? null,
+                reclassifiedAs,
+                benign: reclassifiedAs === "intact",
+                detectedAt: now().toISOString(),
+              });
+              if (
+                recheck &&
+                (recheck.classification === "conflict" || recheck.classification === "newerWork")
+              ) {
+                newConflicts.push(recheck);
+              }
+            }
+          }
+
+          try {
+            const savedTStrings =
+              writesToApply.length > 0 ? await restoreWrite(persistence, writesToApply) : [];
+            if (persistence.updateProgress) await persistence.updateProgress();
+
+            const appliedWritesThisBatch: AppliedWrite[] = savedTStrings.map((saved) => ({
+              languageId: saved.languageId,
+              masterId: saved.masterId,
+              text: saved.text,
+              overwrote: saved.history.length > 0 ? saved.history[saved.history.length - 1] : null,
+              appliedAt: now().toISOString(),
+            }));
+
+            if (journalPath) {
+              for (const appliedWrite of appliedWritesThisBatch) {
+                appendJournalLine(journalPath, {
+                  diagnosisId: report.diagnosisId,
+                  type: "appliedWrite",
+                  ...appliedWrite,
+                });
+              }
+              for (const driftSkip of driftSkipsThisBatch) {
+                appendJournalLine(journalPath, {
+                  diagnosisId: report.diagnosisId,
+                  type: "driftSkip",
+                  ...driftSkip,
+                });
+              }
+            }
+
+            const completedBatch: LanguageBatch = {
+              languageId,
+              status: "completed",
+              writesAttempted: languageWrites.length,
+              writesApplied: appliedWritesThisBatch.length,
+              driftSkipped: driftSkipsThisBatch.length,
+              failureMessage: null,
+              completedAt: now().toISOString(),
+            };
+            workingReport = {
+              ...workingReport,
+              appliedWrites: [...(workingReport.appliedWrites ?? []), ...appliedWritesThisBatch],
+              driftSkips: [...(workingReport.driftSkips ?? []), ...driftSkipsThisBatch],
+              applyState: {
+                ...(workingReport.applyState as ApplyState),
+                languageBatches: [
+                  ...(workingReport.applyState as ApplyState).languageBatches,
+                  completedBatch,
+                ],
+              },
+            };
+            flush();
+          } catch (err) {
+            const failedBatch: LanguageBatch = {
+              languageId,
+              status: "failed",
+              writesAttempted: languageWrites.length,
+              writesApplied: 0,
+              driftSkipped: driftSkipsThisBatch.length,
+              failureMessage: err instanceof Error ? err.message : String(err),
+              completedAt: now().toISOString(),
+            };
+            workingReport = {
+              ...workingReport,
+              driftSkips: [...(workingReport.driftSkips ?? []), ...driftSkipsThisBatch],
+              applyState: {
+                ...(workingReport.applyState as ApplyState),
+                languageBatches: [
+                  ...(workingReport.applyState as ApplyState).languageBatches,
+                  failedBatch,
+                ],
+              },
+            };
+            flush();
+            throw new RestoreLessonAbortError(
+              32,
+              `A language batch (languageId=${languageId}) failed and the run stopped — no further ` +
+                `languages were attempted: ${err instanceof Error ? err.message : String(err)}. ` +
+                `Journal: ${journalPath ?? "(no --report given, no journal written)"}. Pre-apply dump: ` +
+                `${preApplyDumpPath}. Re-diagnose with --prior-report before retrying.`
+            );
+          }
+        }
+
+        // Reconcile appliedWrites/driftSkips from the journal (I12, I27): the
+        // journal is never rewritten and wins on any disagreement — this
+        // also naturally accumulates across repeated apply() invocations
+        // against the same --report (I5's idempotent rerun), since each run
+        // appends to the same journal file.
+        if (journalPath) {
+          const journalLines = readJournalLines(journalPath).filter(
+            (line) => line.diagnosisId === report.diagnosisId
+          );
+          const reconciledAppliedWrites: AppliedWrite[] = journalLines
+            .filter((line) => line.type === "appliedWrite")
+            .map((line) => ({
+              languageId: line.languageId as number,
+              masterId: line.masterId as number,
+              text: line.text as string,
+              overwrote: (line.overwrote as string | null) ?? null,
+              appliedAt: line.appliedAt as string,
+            }));
+          const reconciledDriftSkips: DriftSkip[] = journalLines
+            .filter((line) => line.type === "driftSkip")
+            .map((line) => ({
+              languageId: line.languageId as number,
+              masterId: line.masterId as number,
+              plannedText: line.plannedText as string,
+              liveProductionText: (line.liveProductionText as string | null) ?? null,
+              reclassifiedAs: line.reclassifiedAs as Exclude<TranslationClassification, "restore">,
+              benign: line.benign as boolean,
+              detectedAt: line.detectedAt as string,
+            }));
+          workingReport = {
+            ...workingReport,
+            appliedWrites: reconciledAppliedWrites,
+            driftSkips: reconciledDriftSkips,
+          };
+        }
+
+        workingReport = {
+          ...workingReport,
+          applyState: {
+            ...(workingReport.applyState as ApplyState),
+            completedAt: now().toISOString(),
+          },
+          conflicts: mergeConflicts(report.conflicts, newConflicts),
+        };
+        flush();
+        return workingReport;
+      } finally {
+        if (storage) await storage.close();
+      }
+    } finally {
+      try {
+        await advisoryLockOps.unlock(reserved, key);
+      } catch {
+        // Best-effort: the connection may already be gone, which is exactly
+        // the "lock lost" case already surfaced above.
+      }
+    }
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// apply — argument parsing and runApplyCommand()
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface ApplyCliArgs {
+  report: string;
+  diagnosisId: string;
+  dump: string | null;
+  languages: number[] | null;
+  maxWrites: number | null;
+}
+
+const KNOWN_APPLY_FLAGS = new Set([
+  "--report",
+  "--diagnosis-id",
+  "--dump",
+  "--languages",
+  "--max-writes",
+]);
+
+/** Parses `apply` subcommand argv per
+ * specs/018-lesson1-translation-restore/contracts/cli.md §apply. Argument
+ * errors abort with exit 1. */
+export function parseApplyArgs(argv: string[]): ApplyCliArgs {
+  let report: string | null = null;
+  let diagnosisId: string | null = null;
+  let dump: string | null = null;
+  let languagesRaw: string | null = null;
+  let maxWritesRaw: string | null = null;
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (!KNOWN_APPLY_FLAGS.has(arg)) {
+      throw new RestoreLessonAbortError(1, `Unrecognized argument: ${arg}`);
+    }
+    switch (arg) {
+      case "--report":
+        report = requireValue(argv, ++i, arg);
+        break;
+      case "--diagnosis-id":
+        diagnosisId = requireValue(argv, ++i, arg);
+        break;
+      case "--dump":
+        dump = requireValue(argv, ++i, arg);
+        break;
+      case "--languages":
+        languagesRaw = requireValue(argv, ++i, arg);
+        break;
+      case "--max-writes":
+        maxWritesRaw = requireValue(argv, ++i, arg);
+        break;
+    }
+  }
+
+  if (!report) {
+    throw new RestoreLessonAbortError(1, "--report <path> is required");
+  }
+  if (!diagnosisId) {
+    throw new RestoreLessonAbortError(
+      1,
+      "--diagnosis-id <id> is required (apply never runs off a report the operator did not name)"
+    );
+  }
+
+  let languages: number[] | null = null;
+  if (languagesRaw !== null) {
+    languages = languagesRaw.split(",").map((raw) => {
+      const n = Number(raw.trim());
+      if (!Number.isInteger(n)) {
+        throw new RestoreLessonAbortError(1, `--languages contains a non-integer value: ${raw}`);
+      }
+      return n;
+    });
+  }
+
+  let maxWrites: number | null = null;
+  if (maxWritesRaw !== null) {
+    const n = Number(maxWritesRaw);
+    if (!Number.isInteger(n) || n < 0) {
+      throw new RestoreLessonAbortError(
+        1,
+        `--max-writes must be a non-negative integer: ${maxWritesRaw}`
+      );
+    }
+    maxWrites = n;
+  }
+
+  return { report, diagnosisId, dump, languages, maxWrites };
+}
+
+export interface RunApplyCommandOptions {
+  argv: string[];
+  homeDir?: string;
+  stdout?: (line: string) => void;
+  stderr?: (line: string) => void;
+  connectProduction?: () => Promise<SqlFunc> | SqlFunc;
+  closeSql?: (sql: SqlFunc) => Promise<void>;
+  runPgDump?: RunPgDump;
+  advisoryLockOps?: AdvisoryLockOps;
+  diskHeadroomOps?: DiskHeadroomOps;
+  withReservedConnection?: WithReservedConnection;
+  persistence?: Pick<Persistence, "saveTStrings"> & { updateProgress?: () => Promise<void> };
+}
+
+/** Runs the `apply` subcommand end to end: argv parsing, the host-local/
+ * report-load preconditions, the production connection, and exit code
+ * mapping per contracts/cli.md's exit code table
+ * (0,11,15,20,21,24,25,27,28,29,32,1). Never throws. */
+export async function runApplyCommand(options: RunApplyCommandOptions): Promise<number> {
+  const stdout = options.stdout ?? ((line: string) => console.log(line));
+  const stderr = options.stderr ?? ((line: string) => console.error(line));
+  const connectProduction = options.connectProduction ?? defaultConnectProduction;
+  const closeSql = options.closeSql ?? defaultCloseSql;
+  const homeDir = options.homeDir ?? os.homedir();
+
+  let productionSql: SqlFunc | null = null;
+
+  try {
+    const args = parseApplyArgs(options.argv);
+
+    const markerPath = path.join(homeDir, PRODUCTION_MARKER_FILENAME);
+    if (!fs.existsSync(markerPath)) {
+      throw new RestoreLessonAbortError(10, `Production marker file missing: ${markerPath}.`);
+    }
+
+    if (!fs.existsSync(args.report)) {
+      throw new RestoreLessonAbortError(20, `Report not found at ${args.report}.`);
+    }
+    const report = loadReport(args.report);
+    if (report.diagnosisId !== args.diagnosisId) {
+      throw new RestoreLessonAbortError(
+        20,
+        `--diagnosis-id ${args.diagnosisId} does not match the report's diagnosisId ` +
+          `(${report.diagnosisId}) at ${args.report}.`
+      );
+    }
+
+    productionSql = await connectProduction();
+
+    const updated = await apply({
+      productionSql,
+      report,
+      diagnosisId: args.diagnosisId,
+      dumpDir: args.dump ?? path.dirname(args.report),
+      homeDir,
+      languages: args.languages,
+      maxWrites: args.maxWrites,
+      reportPath: args.report,
+      runPgDump: options.runPgDump,
+      advisoryLockOps: options.advisoryLockOps,
+      diskHeadroomOps: options.diskHeadroomOps,
+      withReservedConnection: options.withReservedConnection,
+      persistence: options.persistence,
+    });
+
+    const appliedCount = updated.appliedWrites?.length ?? 0;
+    const driftCount = updated.driftSkips?.length ?? 0;
+    const nonBenignDrift = (updated.driftSkips ?? []).some((skip) => !skip.benign);
+
+    if (nonBenignDrift) {
+      stdout(
+        `DRIFT apply completed with non-benign drift (diagnosisId=${updated.diagnosisId}): ` +
+          `${appliedCount} write(s) applied, ${driftCount} withheld because production changed. ` +
+          `Re-run diagnose.`
+      );
+      return 27;
+    }
+
+    stdout(
+      `OK apply complete (diagnosisId=${updated.diagnosisId}): ${appliedCount} write(s) applied` +
+        (driftCount > 0 ? `, ${driftCount} benign drift skip(s)` : "") +
+        "."
+    );
+    return 0;
+  } catch (err) {
+    if (err instanceof RestoreLessonAbortError) {
+      stderr(redactConnectionString(err.message));
+      return err.exitCode;
+    }
+    const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
+    stderr(redactConnectionString(message));
+    return 1;
+  } finally {
+    if (productionSql) await closeSql(productionSql);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // main() — CLI entry point
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -1572,9 +2269,12 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
   if (subcommand === "restore-english") {
     return runRestoreEnglishCommand({ argv: rest });
   }
+  if (subcommand === "apply") {
+    return runApplyCommand({ argv: rest });
+  }
   console.error(
-    `Unknown or unimplemented subcommand: ${subcommand ?? "(none)"}. Only "diagnose" and ` +
-      `"restore-english" are wired so far — apply/verify are wired by later tasks.`
+    `Unknown or unimplemented subcommand: ${subcommand ?? "(none)"}. Only "diagnose", ` +
+      `"restore-english", and "apply" are wired so far — verify is wired by a later task.`
   );
   return 1;
 }
