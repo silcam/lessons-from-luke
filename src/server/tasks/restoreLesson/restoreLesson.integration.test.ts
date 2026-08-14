@@ -82,6 +82,7 @@ import {
 } from "./gateway";
 import { DiagnosisReport } from "./types";
 import { PRODUCTION_MARKER_FILENAME } from "./identity";
+import { computeReportChecksum } from "./report";
 
 /** A throwaway home directory carrying the production marker file
  * (`cli.ts`'s `diagnose()` precondition 1), mirroring `cli.test.ts`'s
@@ -709,7 +710,7 @@ describe("US17-restore-translations.txt scenarios", () => {
     // for this US3 RED task.
     const dumpPath = path.join(applyDumpDir, "pre-english-restore.dump");
     fs.writeFileSync(dumpPath, "fixture dump contents");
-    diagnosisReportForApply = {
+    const reportWithEnglishRestore: DiagnosisReport = {
       ...freshDiagnosis,
       englishRestore: {
         method: "upload",
@@ -720,6 +721,14 @@ describe("US17-restore-translations.txt scenarios", () => {
         restoredAt: new Date().toISOString(),
         carriedFromDiagnosisId: null,
       },
+    };
+    // `englishRestore` above mutates the report body, so `reportChecksum`
+    // (I13, verified by `verifyReportIntegrity` before `apply` will act on
+    // any report) must be recomputed over the mutated body — mirroring how
+    // `restoreEnglish.ts` itself appends `englishRestore` in production.
+    diagnosisReportForApply = {
+      ...reportWithEnglishRestore,
+      reportChecksum: computeReportChecksum(reportWithEnglishRestore),
     };
     expect(diagnosisReportForApply.englishRestore).toBeTruthy();
   });
@@ -737,18 +746,34 @@ describe("US17-restore-translations.txt scenarios", () => {
       homeDir,
     });
 
-    const restoredTStrings = await fetchTStringsForLesson(sql, lessonId, [restoredMasterId], {
-      includeLegacyLessonStringScoped: true,
-    });
+    // `RestoreWrite.masterId` (types.ts) is the PRODUCTION-side masterId
+    // (planWrites.ts derives it from `report.mappings`'s
+    // `productionMasterId`), which — because the incident upload assigned
+    // the restored English content a brand-new masterId — differs from
+    // `restoredMasterId` (the pre-incident Snapshot masterId). Reachability
+    // must therefore be asserted against the mapped production masterId,
+    // the one a normal (non-legacy-scoped) fetch would actually find the
+    // translation under once it's reattached.
+    const restoredProductionMasterId = diagnosisReportForApply.mappings.find(
+      (m) => m.snapshotMasterId === restoredMasterId
+    )?.productionMasterId;
+    expect(restoredProductionMasterId).toBeTruthy();
+
+    const restoredTStrings = await fetchTStringsForLesson(
+      sql,
+      lessonId,
+      [restoredProductionMasterId as number],
+      { includeLegacyLessonStringScoped: true }
+    );
     const restoredTranslation = restoredTStrings.find(
-      (t) => t.languageId === languageId && t.masterId === restoredMasterId
+      (t) => t.languageId === languageId && t.masterId === restoredProductionMasterId
     );
     expect(restoredTranslation).toBeTruthy();
     expect(restoredTranslation!.text).toBe(preIncidentTranslations.restored);
 
     expect(
       report.appliedWrites?.some(
-        (w) => w.languageId === languageId && w.masterId === restoredMasterId
+        (w) => w.languageId === languageId && w.masterId === restoredProductionMasterId
       )
     ).toBe(true);
   });

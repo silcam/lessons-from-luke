@@ -107,6 +107,27 @@ import {
   TranslationFinding,
 } from "./types";
 
+/**
+ * `PGStorage`'s own zero-arg constructor always connects via
+ * `secrets.json`'s `db` block (`dbConnect()`), independent of the
+ * `productionSql` connection this subcommand was actually given — the
+ * production DB an operator's `--snapshot-url`/CLI wiring targets need not
+ * be (and in every test harness, is not) the same database `secrets.json`
+ * points at. Writing through a fresh `new PGStorage()` here would silently
+ * write to the wrong database instead of the one every other read in this
+ * subcommand (via `productionSql`/`reserved`) targets.
+ *
+ * Follows the `PGDevStorage`/`PGTestStorage`/`PGSnapshotStorage` pattern
+ * (`PGStorage.ts`, `PGSnapshotStorage.ts`): subclass `PGStorage`, then swap
+ * `this.sql` for the caller-supplied connection.
+ */
+class PGConnectedStorage extends PGStorage {
+  constructor(sql: SqlFunc) {
+    super();
+    this.sql = sql;
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // Redaction (contract §Output redaction and file modes)
 // ─────────────────────────────────────────────────────────────────────────
@@ -1772,14 +1793,13 @@ export async function apply(options: ApplyCoreOptions): Promise<DiagnosisReport>
         diskHeadroomOps
       );
 
-      let storage: PGStorage | null = null;
-      let persistence: Pick<Persistence, "saveTStrings"> & { updateProgress?: () => Promise<void> };
-      if (options.persistence) {
-        persistence = options.persistence;
-      } else {
-        storage = new PGStorage();
-        persistence = storage;
-      }
+      // `PGConnectedStorage` below wraps `sql` (`options.productionSql`) rather
+      // than opening its own connection — that connection is owned and closed
+      // by this subcommand's caller (e.g. `runApplyCli`'s `closeSql`), never
+      // here, so there is no local `storage.close()` to run in this `finally`.
+      const persistence: Pick<Persistence, "saveTStrings"> & {
+        updateProgress?: () => Promise<void>;
+      } = options.persistence ?? new PGConnectedStorage(sql);
 
       try {
         const journalPath = options.reportPath ? journalPathForReport(options.reportPath) : null;
@@ -2057,7 +2077,7 @@ export async function apply(options: ApplyCoreOptions): Promise<DiagnosisReport>
         flush();
         return workingReport;
       } finally {
-        if (storage) await storage.close();
+        // (no local storage to close — see the `persistence` comment above)
       }
     } finally {
       try {
