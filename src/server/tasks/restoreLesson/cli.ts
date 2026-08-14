@@ -838,7 +838,7 @@ function colorize(useColor: boolean, word: string, color: "green" | "yellow"): s
   return `[${codes[color]}m${word}[0m`;
 }
 
-function formatDiagnoseOutput(
+export function formatDiagnoseOutput(
   report: DiagnosisReport,
   args: Pick<DiagnoseCliArgs, "json" | "noColor" | "report">
 ): string {
@@ -908,9 +908,23 @@ function formatDiagnoseOutput(
     );
   }
   if (affected) {
+    // The highest-version snapshot-verified candidate is the master an
+    // operator should almost always pass; naming it here removes the one
+    // hand-filled blank in the Next line (restore-english still re-verifies
+    // it, so a stale suggestion cannot slip past the exit-22 gate).
+    const recommendedMaster = [...affected.candidateMasterDocuments]
+      .filter((c) => c.englishTextSetMatchesSnapshot && !c.isKnownBadUpload)
+      .sort((a, b) => (a.version ?? 0) - (b.version ?? 0))
+      .pop();
+    if (recommendedMaster) {
+      lines.push(
+        `Recommended master (highest snapshot-verified candidate): ${recommendedMaster.filepath}`
+      );
+    }
     lines.push(
       `Next: node dist/server/tasks/restoreLesson/cli.js restore-english --report ${args.report} ` +
-        `--diagnosis-id ${report.diagnosisId} --master-document <path>`
+        `--diagnosis-id ${report.diagnosisId} --master-document ` +
+        `${recommendedMaster ? recommendedMaster.filepath : "<path>"}`
     );
   }
 

@@ -52,6 +52,7 @@ import {
   DiskHeadroomOps,
   duplicateRowDelta,
   handleMainRejection,
+  formatDiagnoseOutput,
   parseApplyArgs,
   parseDiagnoseArgs,
   parseRestoreEnglishArgs,
@@ -826,6 +827,45 @@ describe("runDiagnoseCommand()", () => {
 // carry `transform: { column: transformCol }` end to end, including a real
 // query that lands camelCase keys in a gateway function.
 // ─────────────────────────────────────────────────────────────────────────
+
+describe("formatDiagnoseOutput — recommended master document", () => {
+  test("names the highest snapshot-verified candidate and fills the Next line with it", async () => {
+    const docsRoot = tmpReportDir();
+    const older = writeFile(docsRoot, "Luke-1-01v157.odt", "older verified master");
+    const newest = writeFile(docsRoot, "Luke-1-01v158.odt", "newest verified master");
+    const cover = writeFile(docsRoot, "Luke-1-01v159.odt", "the cover upload");
+    const report = await baseValidReport(
+      baseAffectedLesson(159, [
+        candidateFor(older, { version: 157 }),
+        candidateFor(newest, { version: 158 }),
+        candidateFor(cover, { version: 159, englishTextSetMatchesSnapshot: false }),
+      ])
+    );
+
+    const out = formatDiagnoseOutput(report, {
+      json: false,
+      noColor: true,
+      report: "/tmp/report.json",
+    });
+
+    expect(out).toContain(`Recommended master (highest snapshot-verified candidate): ${newest}`);
+    expect(out).toContain(`--master-document ${newest}`);
+    expect(out).not.toContain("<path>");
+  });
+
+  test("keeps the <path> placeholder when no candidate is snapshot-verified", async () => {
+    const report = await baseValidReport(baseAffectedLesson(159, []));
+
+    const out = formatDiagnoseOutput(report, {
+      json: false,
+      noColor: true,
+      report: "/tmp/report.json",
+    });
+
+    expect(out).not.toContain("Recommended master");
+    expect(out).toContain("--master-document <path>");
+  });
+});
 
 describe("default connect helpers (no injected connectProduction/connectSnapshot)", () => {
   test("dbConnect() (defaultConnectProduction's real path) applies transformCol", async () => {
