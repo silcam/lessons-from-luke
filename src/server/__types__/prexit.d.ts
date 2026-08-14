@@ -1,3 +1,8 @@
 declare module "prexit" {
-  export default function prexit(cb: () => any);
+  function prexit(cb: () => any): void;
+  namespace prexit {
+    let code: number;
+    let ondone: () => void;
+  }
+  export default prexit;
 }

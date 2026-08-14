@@ -40,6 +40,7 @@ import os from "os";
 import path from "path";
 import { promisify } from "util";
 import { UploadedFile } from "express-fileupload";
+import prexit from "prexit";
 import { SqlFunc } from "postgres";
 import secrets from "../../util/secrets";
 import { Book, BaseLesson } from "../../../core/models/Lesson";
@@ -3019,6 +3020,12 @@ export function handleMainRejection(
 }
 
 if (require.main === module) {
+  // PGStorage registers a prexit shutdown handler, and prexit's default
+  // ondone calls process.exit(prexit.code) — its own counter, not
+  // process.exitCode — which would replace every contract exit code set
+  // below with 0. Let the code set here win; fall back to prexit's only
+  // when none was set.
+  prexit.ondone = () => process.exit(process.exitCode ?? prexit.code);
   main()
     .then((code) => {
       process.exitCode = code;

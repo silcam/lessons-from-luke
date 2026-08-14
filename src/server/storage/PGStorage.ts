@@ -24,7 +24,7 @@ export default class PGStorage implements Persistence {
 
   constructor() {
     this.sql = dbConnect();
-    prexit(this.close);
+    prexit(() => this.close());
   }
 
   async languages(): Promise<Language[]> {
