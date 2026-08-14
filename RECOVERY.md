@@ -70,12 +70,15 @@ node dist/server/tasks/restoreLesson/cli.js apply \
 
 Expected: exit 0 with a small write count (rehearsals applied 15–29; apply
 recomputes the plan against the live DB, so it only writes what step 2's
-re-upload didn't already reattach). Exit 27 means "applied, but some rows
-drifted since diagnosis" — likely in production if translators worked between
-snapshot and recovery; it's a normal outcome to review, not an alarm. Remedy:
-re-diagnose to a new report path with `--prior-report`, review, re-apply.
-**Never re-run restore-english.** Exit 32 means a batch failed mid-run; the
-pre-apply dump path and journal it prints are the recovery inputs.
+re-upload didn't already reattach). Translator edits made between the incident
+and diagnose become conflicts: withheld, never overwritten, listed in step 4's
+client report. Edits made mid-recovery on rows outside the write plan are also
+preserved but are skipped silently — they appear in no report, so keep the
+diagnose-to-apply window short and quiet. Exit 27 ("applied, but rows drifted
+since diagnosis") covers drift on planned rows; review, then re-diagnose to a
+new report path with `--prior-report` and re-apply. **Never re-run
+restore-english.** Exit 32 means a batch failed mid-run; the pre-apply dump
+path and journal it prints are the recovery inputs.
 
 ## Step 4 of 4 — verify (writes the client-facing report):
 
@@ -94,5 +97,9 @@ Use `--offline`: verify computes from the stored report plus live production
 and never needs the snapshot (the flag only adds a reachability check), so no
 tunnel URL on this step. In the per-language table, Before/After are computed
 over different reachable sets and aren't comparable to each other; read
-**Restored** and **Withheld (drift)** (want zeros) instead. Afterward, spot-check
-the web preview for v161 — it's what translators now see.
+**Restored** and **Withheld (drift)** (want zeros) instead. The Outstanding
+conflicts table lists only rows modified at or after the incident upload
+(translator work needing reconciliation), newest first, with English source
+and snapshot vs current text side by side; pre-incident historical divergences
+are omitted, and an explicit "None" line means no translator work is at stake.
+Afterward, spot-check the web preview for v161 — it's what translators now see.
