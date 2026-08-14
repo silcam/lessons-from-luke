@@ -115,7 +115,7 @@ export default class PGSnapshotStorage extends PGStorage {
   }
 }
 
-function snapshotDbConnect(connectionUrl: string): SqlFunc {
+export function snapshotDbConnect(connectionUrl: string): SqlFunc {
   try {
     return postgres(connectionUrl, {
       transform: { column: transformCol },

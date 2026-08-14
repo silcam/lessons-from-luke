@@ -465,7 +465,7 @@ export class PGDevStorage extends PGStorage {
   }
 }
 
-function dbConnect() {
+export function dbConnect() {
   const opts: Options = {
     ...secrets.db,
     transform: {

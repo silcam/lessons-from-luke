@@ -40,7 +40,7 @@ import os from "os";
 import path from "path";
 import { promisify } from "util";
 import { UploadedFile } from "express-fileupload";
-import postgres, { SqlFunc } from "postgres";
+import { SqlFunc } from "postgres";
 import secrets from "../../util/secrets";
 import { Book, BaseLesson } from "../../../core/models/Lesson";
 import { ENGLISH_ID, Language } from "../../../core/models/Language";
@@ -49,7 +49,8 @@ import { TString } from "../../../core/models/TString";
 import { parseDocStrings } from "../../actions/updateLesson";
 import { uploadEnglishDoc } from "../../actions/uploadDocument";
 import webifyLesson from "../../actions/webifyLesson";
-import PGStorage from "../../storage/PGStorage";
+import PGStorage, { dbConnect } from "../../storage/PGStorage";
+import { snapshotDbConnect } from "../../storage/PGSnapshotStorage";
 import {
   PRODUCTION_MARKER_FILENAME,
   RestoreLessonAbortError,
@@ -832,11 +833,11 @@ export interface RunDiagnoseCommandOptions {
 }
 
 async function defaultConnectProduction(): Promise<SqlFunc> {
-  return postgres({ ...secrets.db }) as unknown as SqlFunc;
+  return dbConnect();
 }
 
 async function defaultConnectSnapshot(url: string): Promise<SqlFunc> {
-  return postgres(url) as unknown as SqlFunc;
+  return snapshotDbConnect(url);
 }
 
 async function defaultCloseSql(sql: SqlFunc): Promise<void> {

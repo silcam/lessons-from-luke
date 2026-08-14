@@ -28,6 +28,9 @@ import { Persistence } from "../../../core/interfaces/Persistence";
 import { RestoreEnglishDeps, RestoredLessonResult, FileModeOps, ModeOwner } from "./restoreEnglish";
 import { fetchAllLanguages, fetchLegacyScopedCount, fetchTStringsForLesson } from "./gateway";
 import { journalPathForReport, readJournalLines } from "./report";
+import { dbConnect, transformCol } from "../../storage/PGStorage";
+import { snapshotDbConnect } from "../../storage/PGSnapshotStorage";
+import secrets from "../../util/secrets";
 import {
   AffectedLesson,
   AppliedWrite,
@@ -649,6 +652,59 @@ describe("runDiagnoseCommand()", () => {
     expect(written.affectedLessons[0].lesson).toBe(1);
     expect(() => verifyReportIntegrity(written)).not.toThrow();
     expect(stdoutLines.join("\n")).not.toContain("s3cr3t");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// defaultConnectProduction() / defaultConnectSnapshot() — real connect path
+//
+// Every other test in this file injects `connectProduction`/`connectSnapshot`
+// (the already-transformed `testStorage.sql`), which never exercises the
+// bare `postgres(...)` calls the CLI actually falls back to at runtime.
+// These two tests go through the real connect helpers the defaults now
+// delegate to (`dbConnect()` from PGStorage, `snapshotDbConnect()` from
+// PGSnapshotStorage — see task lessons-from-luke-amkj.7) and prove they
+// carry `transform: { column: transformCol }` end to end, including a real
+// query that lands camelCase keys in a gateway function.
+// ─────────────────────────────────────────────────────────────────────────
+
+describe("default connect helpers (no injected connectProduction/connectSnapshot)", () => {
+  test("dbConnect() (defaultConnectProduction's real path) applies transformCol", async () => {
+    const sqlFunc = dbConnect();
+    try {
+      expect(
+        (sqlFunc as unknown as { options: { transform: { column: unknown } } }).options.transform
+          .column
+      ).toBe(transformCol);
+    } finally {
+      await (sqlFunc as unknown as { end: () => Promise<void> }).end();
+    }
+  });
+
+  test("snapshotDbConnect() (defaultConnectSnapshot's real path) applies transformCol and returns camelCase rows to a gateway function", async () => {
+    // Point the real snapshot connect helper at the test database (never
+    // secrets.db) by building a connection URL from secrets.testDb.
+    const { database, username, password } = secrets.testDb;
+    const host = (secrets.testDb as unknown as { host?: string }).host ?? "localhost";
+    const url = `postgres://${username}:${password}@${host}/${database}`;
+    const sqlFunc = snapshotDbConnect(url);
+    try {
+      expect(
+        (sqlFunc as unknown as { options: { transform: { column: unknown } } }).options.transform
+          .column
+      ).toBe(transformCol);
+
+      const languages = await fetchAllLanguages(sqlFunc, true);
+      expect(languages.length).toBeGreaterThan(0);
+      for (const language of languages) {
+        expect(language).toHaveProperty("languageId");
+        expect(Object.keys(language as unknown as Record<string, unknown>)).not.toContain(
+          "languageid"
+        );
+      }
+    } finally {
+      await (sqlFunc as unknown as { end: () => Promise<void> }).end();
+    }
   });
 });
 
