@@ -43,3 +43,4 @@ src/**/*.js.map
 .sp-harden-findings.json
 .claude/projects/
 .impeccable/critique/
+backups/
