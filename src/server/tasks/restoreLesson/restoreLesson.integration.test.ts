@@ -128,6 +128,12 @@ interface RestoreEnglishOptions {
   masterDocumentPath: string;
   dumpDir: string;
   homeDir?: string;
+  /** Must match the `docsRoot` `diagnose()` scanned to produce `report`'s
+   * `candidateMasterDocuments` — `restoreEnglish` re-verifies
+   * `masterDocumentPath` resolves inside this same root (I23) before using
+   * it. Omitting it falls back to the real production docs root inside
+   * `cli.ts`, which never contains this test's scratch `masterDocumentPath`. */
+  docsRoot?: string;
 }
 
 /**
@@ -195,6 +201,11 @@ let preIncidentVersion: number;
 let incidentVersion: number;
 let docsRoot: string;
 let masterDocumentPath: string;
+// Every masterId (content/styles/meta) the pre-incident upload produced for
+// this lesson — module-scoped so both the Snapshot capture (below) and the
+// post-restore assertions (US16 scenarios) can fetch/compare the full set,
+// not just [restoredMasterId, conflictMasterId].
+let allLessonMasterIds: number[];
 
 beforeAll(async () => {
   homeDir = homeDirWithMarker();
@@ -219,6 +230,16 @@ beforeAll(async () => {
   expect(contentMasterIds.length).toBeGreaterThanOrEqual(2);
   [restoredMasterId, conflictMasterId] = contentMasterIds;
   sharedMasterId = restoredMasterId;
+  // Every masterId (content/styles/meta) the upload produced for this
+  // lesson — the same universe `parseDocStrings()` extracts from the ODT
+  // (file header, "widen snapshot.tStrings capture"). `scanCandidateMasterDocuments`
+  // (cli.ts) does an exact-set comparison between a candidate document's
+  // full parsed English text and `snapshot.tStrings`'s English texts, so
+  // `snapshot.tStrings` must cover the whole lesson, not just the two
+  // masterIds the US15 diagnose scenarios track.
+  allLessonMasterIds = uploadRes.body.lesson.lessonStrings.map(
+    (ls: { masterId: number }) => ls.masterId
+  );
 
   // The verified pre-incident master document (research D5 candidate
   // scanning, `scanCandidateMasterDocuments` in cli.ts): a copy of the same
@@ -298,7 +319,14 @@ beforeAll(async () => {
   snapshot = {
     languages: await fetchAllLanguages(sql, true),
     lesson: snapshotLesson as BaseLesson,
-    tStrings: await fetchTStringsForLesson(sql, lessonId, [restoredMasterId, conflictMasterId], {
+    // Widened to the lesson's full masterId set (not just [restoredMasterId,
+    // conflictMasterId]) so `scanCandidateMasterDocuments`'s exact-set
+    // comparison against the candidate ODT's full parsed English text
+    // succeeds (see `allLessonMasterIds` above). The US15 diagnose
+    // scenarios still only assert `restoredMasterId`/`conflictMasterId`
+    // findings by lookup, and use `toBeGreaterThanOrEqual` for counts, so
+    // this widening is additive and does not change their expectations.
+    tStrings: await fetchTStringsForLesson(sql, lessonId, allLessonMasterIds, {
       includeLegacyLessonStringScoped: true,
     }),
     legacyLessonStringRowCount: await fetchLegacyScopedCount(sql),
@@ -512,6 +540,7 @@ describe("US16-restore-english-master.txt scenarios", () => {
       masterDocumentPath,
       dumpDir,
       homeDir,
+      docsRoot,
     });
 
     const snapshotEnglishText = new Set(
@@ -519,10 +548,14 @@ describe("US16-restore-english-master.txt scenarios", () => {
     );
     const restoredLesson = await fetchLessonByBookSeriesLesson(sql, BOOK, SERIES, LESSON);
     expect(restoredLesson).toBeTruthy();
+    // The restore re-uploads the same pre-incident fixture, so
+    // `addOrFindMasterStrings` matches every string back onto its original
+    // masterId (research D5) — the full `allLessonMasterIds` set captured
+    // at the original upload, not just [restoredMasterId, conflictMasterId].
     const restoredTStrings = await fetchTStringsForLesson(
       sql,
       restoredLesson!.lessonId,
-      [restoredMasterId, conflictMasterId],
+      allLessonMasterIds,
       { includeLegacyLessonStringScoped: true }
     );
     const restoredEnglishText = new Set(
@@ -541,6 +574,7 @@ describe("US16-restore-english-master.txt scenarios", () => {
       masterDocumentPath,
       dumpDir,
       homeDir,
+      docsRoot,
     });
 
     expect(report.englishRestore).toBeTruthy();
@@ -569,6 +603,7 @@ describe("US16-restore-english-master.txt scenarios", () => {
       masterDocumentPath,
       dumpDir,
       homeDir,
+      docsRoot,
     });
 
     expect(report.englishRestore).toBeTruthy();
