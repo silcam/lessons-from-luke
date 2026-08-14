@@ -96,6 +96,7 @@ import {
   ApplyState,
   DiagnosisReport,
   DriftSkip,
+  DuplicateRow,
   EnglishRestore,
   LanguageBatch,
   LanguageCounts,
@@ -105,6 +106,7 @@ import {
   RestoreWrite,
   TranslationClassification,
   TranslationFinding,
+  Verification,
 } from "./types";
 
 /**
@@ -2278,6 +2280,488 @@ export async function runApplyCommand(options: RunApplyCommandOptions): Promise<
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// verify — advisory lock (I14), duplicate sweep (I19), client Markdown
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Languages named by a set of `languageId`s, for the DRAFT/INTERIM banners —
+ * never `masterId`/`lessonStringId` (forbidden content, contract §verify
+ * Client-report content rules). */
+function languageNamesFor(languageIds: number[], counts: LanguageCounts[]): string[] {
+  const byId = new Map(counts.map((c) => [c.languageId, c.languageName]));
+  return Array.from(new Set(languageIds)).map((id) => byId.get(id) ?? `language ${id}`);
+}
+
+/**
+ * The I19 sweep's delta against `duplicateRowsBaseline` (contract §verify
+ * "Duplicate-row sweep"): rows whose `(languageId, masterId, lessonStringId)`
+ * key is either new or has grown compared to the baseline. Pre-existing
+ * duplicates unaffected by this run are excluded, so the recovery is never
+ * blamed for a data defect it did not cause.
+ */
+export function duplicateRowDelta(
+  duplicateRows: DuplicateRow[],
+  duplicateRowsBaseline: DuplicateRow[]
+): DuplicateRow[] {
+  const baselineByKey = new Map<string, number>();
+  for (const row of duplicateRowsBaseline) {
+    baselineByKey.set(
+      `${row.languageId}:${row.masterId}:${row.lessonStringId ?? "null"}`,
+      row.rowCount
+    );
+  }
+  return duplicateRows.filter((row) => {
+    const key = `${row.languageId}:${row.masterId}:${row.lessonStringId ?? "null"}`;
+    const baselineCount = baselineByKey.get(key);
+    return baselineCount === undefined || row.rowCount > baselineCount;
+  });
+}
+
+/**
+ * Builds the client-facing Markdown report (contract §verify Output,
+ * Client-report content rules). Permitted content only: counts, language
+ * names, lesson identity, conflict sample text (translation content the
+ * client owns), the `diagnosisId`, dates. Never credentials, connection
+ * strings, IP addresses, filesystem paths, database names, stack traces, or
+ * `masterId`/`lessonStringId` internals. Real Markdown headings/tables, no
+ * ASCII art, so it survives an email client and a screen reader.
+ */
+export function buildVerifyMarkdown(params: {
+  report: DiagnosisReport;
+  perLanguageCounts: LanguageCounts[];
+  duplicateDelta: DuplicateRow[];
+  coverage: "complete" | "partial";
+  unappliedLanguageIds: number[];
+  mode: "snapshot" | "offline";
+  verifiedAt: string;
+}): string {
+  const {
+    report,
+    perLanguageCounts,
+    duplicateDelta,
+    coverage,
+    unappliedLanguageIds,
+    mode,
+    verifiedAt,
+  } = params;
+  const lines: string[] = [];
+
+  if (duplicateDelta.length > 0) {
+    const affected = languageNamesFor(
+      duplicateDelta.map((row) => row.languageId),
+      perLanguageCounts
+    );
+    lines.push("# DRAFT — DO NOT SEND");
+    lines.push("");
+    lines.push(
+      `This report was withheld from the client: this run's duplicate-row sweep found ` +
+        `${duplicateDelta.length} new duplicate translation row(s) affecting ${affected.join(", ")}. ` +
+        `A human must resolve these before this report is sent.`
+    );
+    lines.push("");
+  }
+
+  if (coverage === "partial") {
+    const outstanding = languageNamesFor(unappliedLanguageIds, perLanguageCounts);
+    lines.push("# INTERIM — Partial Restoration");
+    lines.push("");
+    lines.push(
+      `This run restored a scoped subset of languages. Outstanding (not yet applied): ` +
+        `${outstanding.length > 0 ? outstanding.join(", ") : "none named"}.` +
+        (report.priorDiagnosisId
+          ? " This report describes only the remainder this run planned; earlier languages were " +
+            "applied under an earlier report."
+          : "")
+    );
+    lines.push("");
+  }
+
+  const affectedLesson = report.affectedLessons[0];
+  lines.push("# Lesson Restoration Verification");
+  lines.push("");
+  lines.push(
+    `- Lesson: ${affectedLesson?.book ?? ""} series ${affectedLesson?.series ?? ""} lesson ${
+      affectedLesson?.lesson ?? ""
+    }`
+  );
+  lines.push(`- Diagnosis ID: ${report.diagnosisId}`);
+  lines.push(`- Verified at: ${verifiedAt}`);
+  lines.push(
+    `- Mode: ${
+      mode === "offline"
+        ? "offline (snapshot-independent — computed from the stored report and live production only)"
+        : "snapshot comparison"
+    }`
+  );
+  lines.push("");
+
+  lines.push("## Per-language translation counts");
+  lines.push("");
+  lines.push("| Language | Before | After | Restored | Withheld (drift) |");
+  lines.push("| --- | --- | --- | --- | --- |");
+  for (const counts of perLanguageCounts) {
+    lines.push(
+      `| ${counts.languageName} | ${counts.productionReachableBefore} | ` +
+        `${counts.productionReachableAfter ?? "n/a"} | ${counts.restored} | ${counts.driftSkipped} |`
+    );
+  }
+  lines.push("");
+
+  lines.push("## Outstanding conflicts");
+  lines.push("");
+  if (report.conflicts.length === 0) {
+    lines.push("None — every restorable translation was reattached without conflict.");
+  } else {
+    lines.push("| Language | Sample text |");
+    lines.push("| --- | --- |");
+    for (const conflict of report.conflicts) {
+      const sample = conflict.productionText ?? conflict.snapshotText ?? "";
+      lines.push(`| ${conflict.languageName} | ${sample.replace(/\|/g, "\\|")} |`);
+    }
+  }
+  lines.push("");
+
+  lines.push("## Post-restore checks");
+  lines.push("");
+  if (report.englishRestore) {
+    lines.push(
+      `- This lesson is now at version ${report.englishRestore.newLessonVersion}. TSub substitution ` +
+        `suggestions for this lesson currently diff against the immediately prior version, which was ` +
+        `a cover-page-only upload — some suggestions offered to translators may reflect that ` +
+        `cover-page churn rather than a genuine content change.`
+    );
+    lines.push(
+      `- The web preview for version ${report.englishRestore.newLessonVersion} is what the app now ` +
+        `serves to translators.`
+    );
+  }
+  lines.push("");
+
+  return lines.join("\n");
+}
+
+export interface VerifyCoreOptions {
+  productionSql: SqlFunc;
+  report: DiagnosisReport;
+  /** Precondition: verify never runs off a report the operator did not name. */
+  diagnosisId: string;
+  outPath: string;
+  homeDir?: string;
+  /** Drops the snapshot requirement; before/after come from the report's
+   * stored `perLanguageCounts` plus live production only (contract §verify). */
+  offline?: boolean;
+  /** When given, the updated report (with `verification` appended) is
+   * flushed here, recomputing `reportChecksum` (I13). */
+  reportPath?: string;
+  advisoryLockOps?: AdvisoryLockOps;
+  withReservedConnection?: WithReservedConnection;
+  /** Only `updateProgress` (I10) is required; verify performs no translation
+   * writes. Defaults to a real `PGStorage` wrapping `productionSql`. */
+  persistence?: { updateProgress?: () => Promise<void> };
+  now?: () => Date;
+}
+
+/**
+ * The `verify` orchestration core (FR-012, FR-013): re-verifies the report's
+ * provenance (checksums + database name, I13), requires `appliedWrites` to be
+ * recorded (exit 26), takes the advisory lock on the same terms as the write
+ * subcommands (I14, exit 28) — it is not read-only, it writes
+ * `languages.progress` (I10) and appends+recomputes `reportChecksum` — then
+ * recomputes per-language before/after counts against live production,
+ * re-runs the duplicate-row sweep (I19) and reports the delta against
+ * `duplicateRowsBaseline`, and always writes the client-facing Markdown,
+ * headed `DRAFT — DO NOT SEND` when the duplicate delta is non-empty and/or
+ * `INTERIM` when `coverage` is `"partial"`. Never throws for a non-empty
+ * duplicate delta — that is `runVerifyCommand`'s exit-code decision (parallel
+ * to `apply`'s 27), not a core-level abort. No translation writes.
+ */
+export async function verify(options: VerifyCoreOptions): Promise<DiagnosisReport> {
+  const homeDir = options.homeDir ?? os.homedir();
+  const markerPath = path.join(homeDir, PRODUCTION_MARKER_FILENAME);
+  if (!fs.existsSync(markerPath)) {
+    throw new RestoreLessonAbortError(
+      10,
+      `Production marker file missing: ${markerPath}. This tool must be run on the production host.`
+    );
+  }
+
+  const sql = options.productionSql;
+  const { report } = options;
+
+  const liveFingerprint = await fetchProductionFingerprint(sql);
+  verifyReportIntegrity(report, liveFingerprint.databaseName);
+
+  if (report.diagnosisId !== options.diagnosisId) {
+    throw new RestoreLessonAbortError(
+      20,
+      `--diagnosis-id ${options.diagnosisId} does not match the report's diagnosisId ` +
+        `(${report.diagnosisId}).`
+    );
+  }
+
+  if (!report.appliedWrites || report.appliedWrites.length === 0) {
+    throw new RestoreLessonAbortError(
+      26,
+      `Report ${report.diagnosisId} has no appliedWrites recorded; nothing to verify. Run apply first.`
+    );
+  }
+
+  const advisoryLockOps = options.advisoryLockOps ?? realAdvisoryLockOps;
+  const withReservedConnection = options.withReservedConnection ?? beginReservedConnection;
+  const now = options.now ?? (() => new Date());
+
+  return withReservedConnection(sql, async (reserved: SqlFunc) => {
+    const key = advisoryLockKey();
+    const locked = await advisoryLockOps.tryLock(reserved, key);
+    if (!locked) {
+      throw new RestoreLessonAbortError(
+        28,
+        "Another write subcommand (restore-english/apply/verify) already holds the restoreLesson " +
+          "advisory lock. Wait for it to finish, or investigate a stuck process before retrying."
+      );
+    }
+
+    try {
+      const persistence: { updateProgress?: () => Promise<void> } =
+        options.persistence ?? new PGConnectedStorage(sql);
+
+      const affectedLesson = report.affectedLessons[0];
+      const masterIds = Array.from(
+        new Set(
+          report.mappings
+            .map((mapping) => mapping.productionMasterId)
+            .filter((id): id is number => id !== null)
+        )
+      );
+
+      const liveTStrings = affectedLesson
+        ? await fetchTStringsForLesson(reserved, affectedLesson.productionLessonId, masterIds, {
+            includeLegacyLessonStringScoped: true,
+          })
+        : [];
+
+      const perLanguageCounts: LanguageCounts[] = report.perLanguageCounts.map((counts) => ({
+        ...counts,
+        productionReachableAfter: liveTStrings.filter(
+          (row) => row.languageId === counts.languageId && row.text !== null
+        ).length,
+      }));
+
+      const duplicateRows = await fetchDuplicateRowSweep(reserved, masterIds);
+      const duplicateDelta = duplicateRowDelta(duplicateRows, report.duplicateRowsBaseline);
+
+      const scopedLanguageIds = report.applyState?.scopedLanguageIds ?? null;
+      const coverage: "complete" | "partial" = scopedLanguageIds === null ? "complete" : "partial";
+      const unappliedLanguageIds =
+        scopedLanguageIds === null
+          ? []
+          : perLanguageCounts
+              .map((counts) => counts.languageId)
+              .filter((languageId) => !scopedLanguageIds.includes(languageId));
+
+      if (persistence.updateProgress) await persistence.updateProgress();
+
+      const mode: "snapshot" | "offline" = options.offline ? "offline" : "snapshot";
+      const verifiedAt = now().toISOString();
+      const clientReportWithheld = duplicateDelta.length > 0;
+
+      const markdown = buildVerifyMarkdown({
+        report,
+        perLanguageCounts,
+        duplicateDelta,
+        coverage,
+        unappliedLanguageIds,
+        mode,
+        verifiedAt,
+      });
+      ensureReportDirectory(path.dirname(options.outPath));
+      fs.writeFileSync(options.outPath, markdown, { mode: 0o600 });
+
+      const verification: Verification = {
+        mode,
+        coverage,
+        unappliedLanguageIds,
+        verifiedAt,
+        clientReportPath: options.outPath,
+        clientReportWithheld,
+      };
+
+      let updated: DiagnosisReport = {
+        ...report,
+        mode: "verify",
+        perLanguageCounts,
+        duplicateRows,
+        verification,
+      };
+      updated = { ...updated, reportChecksum: computeReportChecksum(updated) };
+      if (options.reportPath) {
+        writeReportAtomic(options.reportPath, updated);
+      }
+      return updated;
+    } finally {
+      try {
+        await advisoryLockOps.unlock(reserved, key);
+      } catch {
+        // Best-effort: the connection may already be gone.
+      }
+    }
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// verify — argument parsing and runVerifyCommand()
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface VerifyCliArgs {
+  report: string;
+  diagnosisId: string;
+  out: string | null;
+  offline: boolean;
+  snapshotUrl: string | null;
+}
+
+const KNOWN_VERIFY_FLAGS = new Set([
+  "--report",
+  "--diagnosis-id",
+  "--out",
+  "--offline",
+  "--snapshot-url",
+]);
+
+/** Parses `verify` subcommand argv per
+ * specs/018-lesson1-translation-restore/contracts/cli.md §verify. Argument
+ * errors abort with exit 1. */
+export function parseVerifyArgs(argv: string[]): VerifyCliArgs {
+  let report: string | null = null;
+  let diagnosisId: string | null = null;
+  let out: string | null = null;
+  let offline = false;
+  let snapshotUrl: string | null = null;
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (!KNOWN_VERIFY_FLAGS.has(arg)) {
+      throw new RestoreLessonAbortError(1, `Unrecognized argument: ${arg}`);
+    }
+    switch (arg) {
+      case "--report":
+        report = requireValue(argv, ++i, arg);
+        break;
+      case "--diagnosis-id":
+        diagnosisId = requireValue(argv, ++i, arg);
+        break;
+      case "--out":
+        out = requireValue(argv, ++i, arg);
+        break;
+      case "--offline":
+        offline = true;
+        break;
+      case "--snapshot-url":
+        snapshotUrl = requireValue(argv, ++i, arg);
+        break;
+    }
+  }
+
+  if (!report) {
+    throw new RestoreLessonAbortError(1, "--report <path> is required");
+  }
+  if (!diagnosisId) {
+    throw new RestoreLessonAbortError(
+      1,
+      "--diagnosis-id <id> is required (verify never runs off a report the operator did not name)"
+    );
+  }
+
+  return { report, diagnosisId, out, offline, snapshotUrl };
+}
+
+export interface RunVerifyCommandOptions {
+  argv: string[];
+  homeDir?: string;
+  stdout?: (line: string) => void;
+  stderr?: (line: string) => void;
+  connectProduction?: () => Promise<SqlFunc> | SqlFunc;
+  closeSql?: (sql: SqlFunc) => Promise<void>;
+  advisoryLockOps?: AdvisoryLockOps;
+  withReservedConnection?: WithReservedConnection;
+  persistence?: { updateProgress?: () => Promise<void> };
+}
+
+/** Runs the `verify` subcommand end to end: argv parsing, the host-local/
+ * report-load preconditions, the production connection, and exit code
+ * mapping per contracts/cli.md's exit code table (0,20,26,28,30,1). Never
+ * throws. */
+export async function runVerifyCommand(options: RunVerifyCommandOptions): Promise<number> {
+  const stdout = options.stdout ?? ((line: string) => console.log(line));
+  const stderr = options.stderr ?? ((line: string) => console.error(line));
+  const connectProduction = options.connectProduction ?? defaultConnectProduction;
+  const closeSql = options.closeSql ?? defaultCloseSql;
+  const homeDir = options.homeDir ?? os.homedir();
+
+  let productionSql: SqlFunc | null = null;
+
+  try {
+    const args = parseVerifyArgs(options.argv);
+
+    const markerPath = path.join(homeDir, PRODUCTION_MARKER_FILENAME);
+    if (!fs.existsSync(markerPath)) {
+      throw new RestoreLessonAbortError(10, `Production marker file missing: ${markerPath}.`);
+    }
+
+    if (!fs.existsSync(args.report)) {
+      throw new RestoreLessonAbortError(20, `Report not found at ${args.report}.`);
+    }
+    const report = loadReport(args.report);
+    if (report.diagnosisId !== args.diagnosisId) {
+      throw new RestoreLessonAbortError(
+        20,
+        `--diagnosis-id ${args.diagnosisId} does not match the report's diagnosisId ` +
+          `(${report.diagnosisId}) at ${args.report}.`
+      );
+    }
+
+    productionSql = await connectProduction();
+
+    const outPath = args.out ?? path.join(path.dirname(args.report), "client-report.md");
+
+    const updated = await verify({
+      productionSql,
+      report,
+      diagnosisId: args.diagnosisId,
+      outPath,
+      homeDir,
+      offline: args.offline,
+      reportPath: args.report,
+      advisoryLockOps: options.advisoryLockOps,
+      withReservedConnection: options.withReservedConnection,
+      persistence: options.persistence,
+    });
+
+    if (updated.verification?.clientReportWithheld) {
+      stdout(
+        `DRAFT verify found new duplicate rows (diagnosisId=${updated.diagnosisId}): the client ` +
+          `report at ${outPath} is withheld — resolve the duplicates by hand before sending it.`
+      );
+      return 30;
+    }
+
+    stdout(
+      `OK verify complete (diagnosisId=${updated.diagnosisId}): client report written to ${outPath}.`
+    );
+    return 0;
+  } catch (err) {
+    if (err instanceof RestoreLessonAbortError) {
+      stderr(redactConnectionString(err.message));
+      return err.exitCode;
+    }
+    const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
+    stderr(redactConnectionString(message));
+    return 1;
+  } finally {
+    if (productionSql) await closeSql(productionSql);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // main() — CLI entry point
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -2292,9 +2776,12 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
   if (subcommand === "apply") {
     return runApplyCommand({ argv: rest });
   }
+  if (subcommand === "verify") {
+    return runVerifyCommand({ argv: rest });
+  }
   console.error(
-    `Unknown or unimplemented subcommand: ${subcommand ?? "(none)"}. Only "diagnose", ` +
-      `"restore-english", and "apply" are wired so far — verify is wired by a later task.`
+    `Unknown subcommand: ${subcommand ?? "(none)"}. Known subcommands: "diagnose", ` +
+      `"restore-english", "apply", "verify".`
   );
   return 1;
 }

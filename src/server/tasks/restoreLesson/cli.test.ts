@@ -30,6 +30,8 @@ import { fetchAllLanguages, fetchLegacyScopedCount, fetchTStringsForLesson } fro
 import { journalPathForReport, readJournalLines } from "./report";
 import {
   AffectedLesson,
+  AppliedWrite,
+  ApplyState,
   DiagnosisReport,
   EnglishRestore,
   LanguageCounts,
@@ -41,20 +43,25 @@ import {
   AdvisoryLockOps,
   advisoryLockKey,
   apply,
+  buildVerifyMarkdown,
   computeMaxWritesDefault,
   diagnose,
   DiskHeadroomOps,
+  duplicateRowDelta,
   parseApplyArgs,
   parseDiagnoseArgs,
   parseRestoreEnglishArgs,
+  parseVerifyArgs,
   redactConnectionString,
   redactDeep,
   restoreEnglish,
   runApplyCommand,
   runDiagnoseCommand,
+  runVerifyCommand,
   RunPgDump,
   scanCandidateMasterDocuments,
   SnapshotBundle,
+  verify,
   WithReservedConnection,
 } from "./cli";
 
@@ -2097,5 +2104,626 @@ describe("runApplyCommand()", () => {
 
     expect(code).toBe(32);
     expect(stderrLines.join("\n")).toMatch(/journal/i);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// verify() core, buildVerifyMarkdown, duplicateRowDelta, parseVerifyArgs,
+// runVerifyCommand() — task 5.9.2 (US4, contracts/cli.md §verify)
+// ─────────────────────────────────────────────────────────────────────────
+
+function verifyAppliedWrites(overrides: Partial<AppliedWrite> = {}): AppliedWrite[] {
+  return [
+    {
+      languageId: FRENCH_ID,
+      masterId: RESTORE_MASTER_ID,
+      text: "Le livre de Luc restauré",
+      overwrote: null,
+      appliedAt: "2026-08-14T00:00:00.000Z",
+      ...overrides,
+    },
+  ];
+}
+
+function verifyApplyState(overrides: Partial<ApplyState> = {}): ApplyState {
+  return {
+    startedAt: "2026-08-14T00:00:00.000Z",
+    scopedLanguageIds: null,
+    languageBatches: [
+      {
+        languageId: FRENCH_ID,
+        status: "completed",
+        writesAttempted: 1,
+        writesApplied: 1,
+        driftSkipped: 0,
+        failureMessage: null,
+        completedAt: "2026-08-14T00:00:00.000Z",
+      },
+    ],
+    completedAt: "2026-08-14T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+/** A report already carrying `appliedWrites`/`applyState` — `verify`'s own
+ * precondition — mirroring `baseApplyReport`'s pattern. */
+async function baseVerifyReport(
+  overrides: Partial<DiagnosisReport> = {}
+): Promise<DiagnosisReport> {
+  const applied = await baseApplyReport();
+  const merged: DiagnosisReport = {
+    ...applied,
+    mode: "apply",
+    appliedWrites: verifyAppliedWrites(),
+    applyState: verifyApplyState(),
+    ...overrides,
+  };
+  const diagnosisChecksum = computeDiagnosisChecksum(merged);
+  const withDiagnosisChecksum = { ...merged, diagnosisChecksum, reportChecksum: "" };
+  const reportChecksum = computeReportChecksum(withDiagnosisChecksum as DiagnosisReport);
+  return { ...withDiagnosisChecksum, reportChecksum } as DiagnosisReport;
+}
+
+function verifyOutPath(): string {
+  return path.join(tmpReportDir(), "client-report.md");
+}
+
+async function insertFrenchMaster1(text: string): Promise<void> {
+  await sql()`
+    INSERT INTO tstrings (masterid, languageid, text, history, created, modified)
+    VALUES (${RESTORE_MASTER_ID}, ${FRENCH_ID}, ${text}, '[]', 0, 0)
+  `;
+}
+
+describe("duplicateRowDelta", () => {
+  test("excludes rows whose key and count already match the baseline", () => {
+    const baseline = [
+      { languageId: 2, masterId: 1, lessonStringId: null, rowCount: 2, texts: ["a", "b"] },
+    ];
+    const current = [
+      { languageId: 2, masterId: 1, lessonStringId: null, rowCount: 2, texts: ["a", "b"] },
+    ];
+    expect(duplicateRowDelta(current, baseline)).toEqual([]);
+  });
+
+  test("includes a row absent from the baseline entirely", () => {
+    const current = [
+      { languageId: 2, masterId: 1, lessonStringId: null, rowCount: 2, texts: ["a", "b"] },
+    ];
+    expect(duplicateRowDelta(current, [])).toEqual(current);
+  });
+
+  test("includes a row whose count grew past the baseline's", () => {
+    const baseline = [
+      { languageId: 2, masterId: 1, lessonStringId: null, rowCount: 2, texts: ["a", "b"] },
+    ];
+    const current = [
+      { languageId: 2, masterId: 1, lessonStringId: null, rowCount: 3, texts: ["a", "b", "c"] },
+    ];
+    expect(duplicateRowDelta(current, baseline)).toEqual(current);
+  });
+});
+
+describe("buildVerifyMarkdown", () => {
+  test("permits only counts, language names, lesson identity, conflict text, diagnosisId, and dates", () => {
+    const report: DiagnosisReport = {
+      diagnosisId: "33333333-3333-3333-3333-333333333333",
+      diagnosisChecksum: "ignored",
+      reportChecksum: "ignored",
+      generatedAt: "2026-08-13T00:00:00.000Z",
+      toolVersion: "1.0.0",
+      mode: "verify",
+      identity: {
+        productionMarkerPresent: true,
+        snapshotConfirmationToken: "confirmed-by-operator",
+        productionLessonVersion: 159,
+        snapshotLessonVersion: 158,
+        snapshotIsOlder: true,
+      },
+      productionFingerprint: {
+        databaseName: "top-secret-production-db",
+        lessonCount: 1,
+        maxMasterId: 999,
+        maxLessonStringId: 999,
+      },
+      affectedLessons: [baseAffectedLesson(159)],
+      languageIdentityChecks: [],
+      mappings: [],
+      findings: [],
+      perLanguageCounts: applyPerLanguageCounts({ productionReachableAfter: 1 }),
+      legacyLessonStringRowCounts: { production: 0, snapshot: 0 },
+      blastRadius: { sharedMasterIds: 0, lessons: [] },
+      plannedWrites: [],
+      englishRestore: applyEnglishRestore(159, {
+        dumpPath: "/var/backups/postgres-connection-postgres://opsuser:hunter2@127.0.0.1/db.dump",
+        masterDocumentPath: "/srv/lessons-from-luke/docs/Luke-1-01v157.odt",
+      }),
+      duplicateRowsBaseline: [],
+      conflicts: [
+        {
+          languageId: FRENCH_ID,
+          languageName: "Français",
+          languageArchived: false,
+          snapshotMasterId: 42,
+          productionMasterId: 42,
+          classification: "conflict",
+          snapshotText: "Le texte du snapshot",
+          productionText: "Le texte de production modifié",
+          productionModified: 12345,
+          legacyLessonStringId: 77,
+          sampleEnglishText: "Sample English",
+        },
+      ],
+    };
+
+    const markdown = buildVerifyMarkdown({
+      report,
+      perLanguageCounts: report.perLanguageCounts,
+      duplicateDelta: [],
+      coverage: "complete",
+      unappliedLanguageIds: [],
+      mode: "snapshot",
+      verifiedAt: "2026-08-14T00:00:00.000Z",
+    });
+
+    expect(markdown).not.toMatch(/postgres:\/\//i);
+    expect(markdown).not.toContain("hunter2");
+    expect(markdown).not.toContain("top-secret-production-db");
+    expect(markdown).not.toContain("/var/backups");
+    expect(markdown).not.toContain("/srv/lessons-from-luke");
+    expect(markdown).not.toMatch(/\b42\b/); // masterId — internal, forbidden
+    expect(markdown).not.toMatch(/\b77\b/); // lessonStringId — internal, forbidden
+    expect(markdown).not.toMatch(/\b12345\b/); // productionModified — internal, forbidden
+    expect(markdown).toContain("Le texte de production modifié"); // permitted: conflict sample text
+    expect(markdown).toContain(report.diagnosisId); // permitted
+    expect(markdown).toContain("Français"); // permitted: language name
+  });
+
+  test("heads with a DRAFT — DO NOT SEND banner naming the duplicate count and languages", () => {
+    const base = applyPerLanguageCounts();
+    const markdown = buildVerifyMarkdown({
+      report: {
+        diagnosisId: "id",
+        diagnosisChecksum: "x",
+        reportChecksum: "x",
+        generatedAt: "2026-08-14T00:00:00.000Z",
+        toolVersion: "1.0.0",
+        mode: "verify",
+        identity: {
+          productionMarkerPresent: true,
+          snapshotConfirmationToken: "t",
+          productionLessonVersion: 159,
+          snapshotLessonVersion: 158,
+          snapshotIsOlder: true,
+        },
+        productionFingerprint: {
+          databaseName: "db",
+          lessonCount: 1,
+          maxMasterId: 1,
+          maxLessonStringId: 1,
+        },
+        affectedLessons: [baseAffectedLesson(159)],
+        languageIdentityChecks: [],
+        mappings: [],
+        findings: [],
+        perLanguageCounts: base,
+        legacyLessonStringRowCounts: { production: 0, snapshot: 0 },
+        blastRadius: { sharedMasterIds: 0, lessons: [] },
+        plannedWrites: [],
+        duplicateRowsBaseline: [],
+        conflicts: [],
+      },
+      perLanguageCounts: base,
+      duplicateDelta: [
+        {
+          languageId: FRENCH_ID,
+          masterId: RESTORE_MASTER_ID,
+          lessonStringId: null,
+          rowCount: 2,
+          texts: ["a", "b"],
+        },
+      ],
+      coverage: "complete",
+      unappliedLanguageIds: [],
+      mode: "snapshot",
+      verifiedAt: "2026-08-14T00:00:00.000Z",
+    });
+
+    expect(markdown.split("\n")[0]).toBe("# DRAFT — DO NOT SEND");
+    expect(markdown).toMatch(/1 new duplicate/i);
+    expect(markdown).toContain("Français");
+  });
+});
+
+describe("verify() core", () => {
+  beforeEach(async () => {
+    await clearFrenchMaster1();
+  });
+
+  test("aborts (10) when the production marker file is missing", async () => {
+    const report = await baseVerifyReport();
+    await expect(
+      verify({
+        productionSql: sql(),
+        report,
+        diagnosisId: report.diagnosisId,
+        outPath: verifyOutPath(),
+        homeDir: tmpHomeDir(),
+      })
+    ).rejects.toMatchObject({ exitCode: 10 });
+  });
+
+  test("aborts (20) when the report's checksums do not verify (hand-edited report)", async () => {
+    const report = await baseVerifyReport();
+    const tampered: DiagnosisReport = { ...report, diagnosisId: "tampered-id" };
+    await expect(
+      verify({
+        productionSql: sql(),
+        report: tampered,
+        diagnosisId: tampered.diagnosisId,
+        outPath: verifyOutPath(),
+        homeDir: homeDirWithMarker(),
+      })
+    ).rejects.toMatchObject({ exitCode: 20 });
+  });
+
+  test("aborts (20) when --diagnosis-id does not match the report's diagnosisId", async () => {
+    const report = await baseVerifyReport();
+    await expect(
+      verify({
+        productionSql: sql(),
+        report,
+        diagnosisId: "some-other-diagnosis-id",
+        outPath: verifyOutPath(),
+        homeDir: homeDirWithMarker(),
+      })
+    ).rejects.toMatchObject({ exitCode: 20 });
+  });
+
+  test("aborts (20) when productionFingerprint.databaseName does not match the live database", async () => {
+    const report = await baseVerifyReport({
+      productionFingerprint: {
+        databaseName: "some-other-database",
+        lessonCount: 1,
+        maxMasterId: 1,
+        maxLessonStringId: 1,
+      },
+    });
+    await expect(
+      verify({
+        productionSql: sql(),
+        report,
+        diagnosisId: report.diagnosisId,
+        outPath: verifyOutPath(),
+        homeDir: homeDirWithMarker(),
+      })
+    ).rejects.toMatchObject({ exitCode: 20 });
+  });
+
+  test("aborts (26) when the report has no appliedWrites recorded", async () => {
+    const report = await baseApplyReport(); // no appliedWrites/applyState
+    await expect(
+      verify({
+        productionSql: sql(),
+        report,
+        diagnosisId: report.diagnosisId,
+        outPath: verifyOutPath(),
+        homeDir: homeDirWithMarker(),
+      })
+    ).rejects.toMatchObject({ exitCode: 26 });
+  });
+
+  test("aborts (26) when appliedWrites is an empty array", async () => {
+    const report = await baseVerifyReport({ appliedWrites: [] });
+    await expect(
+      verify({
+        productionSql: sql(),
+        report,
+        diagnosisId: report.diagnosisId,
+        outPath: verifyOutPath(),
+        homeDir: homeDirWithMarker(),
+      })
+    ).rejects.toMatchObject({ exitCode: 26 });
+  });
+
+  test("aborts (28) when the advisory lock is already held", async () => {
+    const report = await baseVerifyReport();
+    await expect(
+      verify({
+        productionSql: sql(),
+        report,
+        diagnosisId: report.diagnosisId,
+        outPath: verifyOutPath(),
+        homeDir: homeDirWithMarker(),
+        withReservedConnection: bypassReservedConnection,
+        advisoryLockOps: makeAdvisoryLockOps({ tryLock: jest.fn(async () => false) }),
+      })
+    ).rejects.toMatchObject({ exitCode: 28 });
+  });
+
+  test("succeeds: recomputes counts, writes the client Markdown, releases the lock", async () => {
+    await insertFrenchMaster1("Le livre de Luc restauré");
+    const report = await baseVerifyReport();
+    const advisoryLockOps = makeAdvisoryLockOps();
+    const outPath = verifyOutPath();
+
+    const updated = await verify({
+      productionSql: sql(),
+      report,
+      diagnosisId: report.diagnosisId,
+      outPath,
+      homeDir: homeDirWithMarker(),
+      withReservedConnection: bypassReservedConnection,
+      advisoryLockOps,
+      persistence: testPersistence(),
+    });
+
+    expect(updated.mode).toBe("verify");
+    expect(updated.verification).toBeTruthy();
+    expect(updated.verification!.mode).toBe("snapshot");
+    expect(updated.verification!.coverage).toBe("complete");
+    expect(updated.verification!.unappliedLanguageIds).toEqual([]);
+    expect(updated.verification!.clientReportWithheld).toBe(false);
+    expect(updated.verification!.clientReportPath).toBe(outPath);
+
+    const counts = updated.perLanguageCounts.find((c) => c.languageId === FRENCH_ID);
+    expect(counts!.productionReachableAfter).toBe(1);
+
+    expect(fs.existsSync(outPath)).toBe(true);
+    const markdown = fs.readFileSync(outPath, "utf-8");
+    expect(markdown).not.toMatch(/DRAFT/);
+    expect(markdown).not.toMatch(/INTERIM/);
+    expect(markdown).toMatch(/preview/i);
+
+    expect(advisoryLockOps.unlock).toHaveBeenCalledTimes(1);
+  });
+
+  test("coverage is partial whenever apply was --languages-scoped, even if the scope named every language", async () => {
+    await insertFrenchMaster1("Le livre de Luc restauré");
+    const report = await baseVerifyReport({
+      applyState: verifyApplyState({ scopedLanguageIds: [FRENCH_ID] }),
+    });
+    const outPath = verifyOutPath();
+
+    const updated = await verify({
+      productionSql: sql(),
+      report,
+      diagnosisId: report.diagnosisId,
+      outPath,
+      homeDir: homeDirWithMarker(),
+      withReservedConnection: bypassReservedConnection,
+      advisoryLockOps: makeAdvisoryLockOps(),
+      persistence: testPersistence(),
+    });
+
+    expect(updated.verification!.coverage).toBe("partial");
+    expect(updated.verification!.unappliedLanguageIds).toEqual([]); // the fixture's one language IS scoped
+    const markdown = fs.readFileSync(outPath, "utf-8");
+    expect(markdown).toMatch(/INTERIM/);
+  });
+
+  test("--offline labels the console-equivalent Markdown and the durable verification.mode as offline", async () => {
+    await insertFrenchMaster1("Le livre de Luc restauré");
+    const report = await baseVerifyReport();
+    const outPath = verifyOutPath();
+
+    const updated = await verify({
+      productionSql: sql(),
+      report,
+      diagnosisId: report.diagnosisId,
+      outPath,
+      homeDir: homeDirWithMarker(),
+      withReservedConnection: bypassReservedConnection,
+      advisoryLockOps: makeAdvisoryLockOps(),
+      persistence: testPersistence(),
+      offline: true,
+    });
+
+    expect(updated.verification!.mode).toBe("offline");
+    const markdown = fs.readFileSync(outPath, "utf-8");
+    expect(markdown).toMatch(/offline/i);
+  });
+
+  test("clientReportWithheld=true and a DRAFT — DO NOT SEND banner when a new duplicate row is found", async () => {
+    await insertFrenchMaster1("Le livre de Luc restauré");
+    await insertFrenchMaster1("A duplicate row apply should never have produced");
+    const report = await baseVerifyReport();
+    const outPath = verifyOutPath();
+
+    const updated = await verify({
+      productionSql: sql(),
+      report,
+      diagnosisId: report.diagnosisId,
+      outPath,
+      homeDir: homeDirWithMarker(),
+      withReservedConnection: bypassReservedConnection,
+      advisoryLockOps: makeAdvisoryLockOps(),
+      persistence: testPersistence(),
+    });
+
+    expect(updated.verification!.clientReportWithheld).toBe(true);
+    expect(
+      updated.duplicateRows?.some(
+        (row) => row.languageId === FRENCH_ID && row.masterId === RESTORE_MASTER_ID
+      )
+    ).toBe(true);
+
+    // The Markdown is STILL WRITTEN, headed with the DRAFT banner (contract §verify).
+    expect(fs.existsSync(outPath)).toBe(true);
+    const markdown = fs.readFileSync(outPath, "utf-8");
+    expect(markdown.split("\n")[0]).toBe("# DRAFT — DO NOT SEND");
+  });
+
+  test("pre-existing (baseline) duplicates are never blamed on this run", async () => {
+    await insertFrenchMaster1("Le livre de Luc restauré");
+    await insertFrenchMaster1("A pre-existing duplicate, not caused by this recovery");
+    const report = await baseVerifyReport({
+      duplicateRowsBaseline: [
+        {
+          languageId: FRENCH_ID,
+          masterId: RESTORE_MASTER_ID,
+          lessonStringId: null,
+          rowCount: 2,
+          texts: [
+            "Le livre de Luc restauré",
+            "A pre-existing duplicate, not caused by this recovery",
+          ],
+        },
+      ],
+    });
+    const outPath = verifyOutPath();
+
+    const updated = await verify({
+      productionSql: sql(),
+      report,
+      diagnosisId: report.diagnosisId,
+      outPath,
+      homeDir: homeDirWithMarker(),
+      withReservedConnection: bypassReservedConnection,
+      advisoryLockOps: makeAdvisoryLockOps(),
+      persistence: testPersistence(),
+    });
+
+    expect(updated.verification!.clientReportWithheld).toBe(false);
+    const markdown = fs.readFileSync(outPath, "utf-8");
+    expect(markdown).not.toMatch(/DRAFT/);
+  });
+});
+
+describe("parseVerifyArgs", () => {
+  test("parses --report, --diagnosis-id, --out, --offline", () => {
+    const args = parseVerifyArgs([
+      "--report",
+      "/rec/report.json",
+      "--diagnosis-id",
+      "abc",
+      "--out",
+      "/rec/client-report.md",
+      "--offline",
+    ]);
+    expect(args).toEqual({
+      report: "/rec/report.json",
+      diagnosisId: "abc",
+      out: "/rec/client-report.md",
+      offline: true,
+      snapshotUrl: null,
+    });
+  });
+
+  test("defaults --out to null and --offline to false when omitted", () => {
+    const args = parseVerifyArgs(["--report", "/rec/report.json", "--diagnosis-id", "abc"]);
+    expect(args.out).toBeNull();
+    expect(args.offline).toBe(false);
+  });
+
+  test("throws (1) when --report is missing", () => {
+    expect(() => parseVerifyArgs(["--diagnosis-id", "abc"])).toThrow(
+      expect.objectContaining({ exitCode: 1 })
+    );
+  });
+
+  test("throws (1) when --diagnosis-id is missing", () => {
+    expect(() => parseVerifyArgs(["--report", "/rec/report.json"])).toThrow(
+      expect.objectContaining({ exitCode: 1 })
+    );
+  });
+
+  test("throws (1) on an unrecognized argument", () => {
+    expect(() => parseVerifyArgs(["--bogus", "value"])).toThrow(
+      expect.objectContaining({ exitCode: 1 })
+    );
+  });
+});
+
+describe("runVerifyCommand()", () => {
+  beforeEach(async () => {
+    await clearFrenchMaster1();
+  });
+
+  test("aborts (1) when a required flag is missing", async () => {
+    const code = await runVerifyCommand({ argv: ["--report", "/rec/report.json"] });
+    expect(code).toBe(1);
+  });
+
+  test("aborts (10) when the production marker file is missing", async () => {
+    const code = await runVerifyCommand({
+      argv: ["--report", "/rec/report.json", "--diagnosis-id", "abc"],
+      homeDir: tmpHomeDir(),
+    });
+    expect(code).toBe(10);
+  });
+
+  test("aborts (20) when the report file does not exist", async () => {
+    const code = await runVerifyCommand({
+      argv: ["--report", path.join(tmpReportDir(), "missing.json"), "--diagnosis-id", "abc"],
+      homeDir: homeDirWithMarker(),
+    });
+    expect(code).toBe(20);
+  });
+
+  test("aborts (20) when --diagnosis-id does not match the report's diagnosisId", async () => {
+    const reportDir = tmpReportDir();
+    const reportPath = path.join(reportDir, "report.json");
+    const report = await baseVerifyReport();
+    fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+
+    const code = await runVerifyCommand({
+      argv: ["--report", reportPath, "--diagnosis-id", "not-the-right-id"],
+      homeDir: homeDirWithMarker(),
+    });
+    expect(code).toBe(20);
+  });
+
+  test("succeeds (0), writes the client Markdown, and prints an OK summary", async () => {
+    await insertFrenchMaster1("Le livre de Luc restauré");
+    const reportDir = tmpReportDir();
+    const reportPath = path.join(reportDir, "report.json");
+    const report = await baseVerifyReport();
+    fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+    const outPath = path.join(reportDir, "client-report.md");
+
+    const stdoutLines: string[] = [];
+    const code = await runVerifyCommand({
+      argv: ["--report", reportPath, "--diagnosis-id", report.diagnosisId, "--out", outPath],
+      homeDir: homeDirWithMarker(),
+      stdout: (line) => stdoutLines.push(line),
+      connectProduction: () => sql(),
+      closeSql: async () => undefined,
+      withReservedConnection: bypassReservedConnection,
+      advisoryLockOps: makeAdvisoryLockOps(),
+      persistence: testPersistence(),
+    });
+
+    expect(code).toBe(0);
+    expect(stdoutLines.join("\n")).toMatch(/^OK verify complete/);
+    expect(fs.existsSync(outPath)).toBe(true);
+    // Recomputed reportChecksum is flushed back to --report (I13).
+    const flushed: DiagnosisReport = JSON.parse(fs.readFileSync(reportPath, "utf-8"));
+    expect(flushed.verification?.clientReportPath).toBe(outPath);
+    expect(flushed.reportChecksum).toBe(computeReportChecksum(flushed));
+  });
+
+  test("returns 30 and prints a DRAFT summary when a new duplicate row is found", async () => {
+    await insertFrenchMaster1("Le livre de Luc restauré");
+    await insertFrenchMaster1("A duplicate row apply should never have produced");
+    const reportDir = tmpReportDir();
+    const reportPath = path.join(reportDir, "report.json");
+    const report = await baseVerifyReport();
+    fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+
+    const stdoutLines: string[] = [];
+    const code = await runVerifyCommand({
+      argv: ["--report", reportPath, "--diagnosis-id", report.diagnosisId],
+      homeDir: homeDirWithMarker(),
+      stdout: (line) => stdoutLines.push(line),
+      connectProduction: () => sql(),
+      closeSql: async () => undefined,
+      withReservedConnection: bypassReservedConnection,
+      advisoryLockOps: makeAdvisoryLockOps(),
+      persistence: testPersistence(),
+    });
+
+    expect(code).toBe(30);
+    expect(stdoutLines.join("\n")).toMatch(/^DRAFT/);
   });
 });
