@@ -157,6 +157,30 @@ describe("PublicHome", () => {
     expect(container).toBeTruthy();
   });
 
+  describe("security upgrade notice banner", () => {
+    it("shows the notice in English and French with a mailto link", () => {
+      const { getByText, getAllByText } = renderWithProviders(<PublicHome />, {
+        syncState: defaultSyncState,
+        currentUser: { user: null, locale: "en", loaded: false },
+      });
+
+      expect(getByText(/upgraded the security requirements/i)).toBeTruthy();
+      expect(getByText(/renforcé les exigences de sécurité/i)).toBeTruthy();
+
+      const links = getAllByText("chris_jackson@sil.org");
+      expect(links.length).toBe(2);
+      for (const link of links) {
+        expect(link.closest("a")?.getAttribute("href")).toBe("mailto:chris_jackson@sil.org");
+      }
+    });
+
+    it("is also shown when arriving via an auth-gate redirect (?returnTo present)", () => {
+      const { getByText } = renderPublicHomeAt("/?returnTo=/translate/ABC");
+      expect(getByText(/upgraded the security requirements/i)).toBeTruthy();
+      expect(getByText(/renforcé les exigences de sécurité/i)).toBeTruthy();
+    });
+  });
+
   describe("contextual redirect prompt", () => {
     it("does not show the prompt when no ?returnTo param is present", () => {
       const { queryByRole } = renderPublicHomeAt("/");

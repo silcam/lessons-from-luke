@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import styled from "styled-components";
 import { useDispatch, useSelector } from "react-redux";
 import { useSearchParams } from "react-router-dom";
 import { AppDispatch, AppState } from "../../common/state/appState";
@@ -13,6 +14,35 @@ import HandleKey from "../../common/base-components/HandleKey";
 import Alert from "../../common/base-components/Alert";
 import useTranslation from "../../common/util/useTranslation";
 import AppLink from "../common/AppLink";
+
+const CONTACT_EMAIL = "chris_jackson@sil.org";
+
+// The login form is auto-width (MiddleOfPage centers on content); cap the
+// banner so the long bilingual copy wraps instead of stretching the page.
+const UpgradeNoticeBox = styled(Alert)`
+  max-width: 26em;
+`;
+
+// Deliberately bilingual and outside the i18n system: this transition notice
+// must reach every translator regardless of locale, in both English and French.
+function SecurityUpgradeNotice() {
+  const contactLink = <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>;
+  return (
+    <UpgradeNoticeBox warning>
+      <p>
+        Due to necessary software upgrades, we have upgraded the security requirements for access to
+        the translation projects. You will need to contact us and we will send you a link to upgrade
+        your security credentials to gain access to the app. Please write to {contactLink}.
+      </p>
+      <p>
+        En raison de mises à jour logicielles indispensables, nous avons renforcé les exigences de
+        sécurité pour accéder au projet de traduction. Vous devrez nous contacter et nous vous
+        enverrons un lien pour mettre à jour vos identifiants de sécurité afin de pouvoir accéder à
+        l&apos;application. Veuillez écrire à {contactLink}.
+      </p>
+    </UpgradeNoticeBox>
+  );
+}
 
 export default function PublicHome() {
   const t = useTranslation();
@@ -42,6 +72,7 @@ export default function PublicHome() {
     <MiddleOfPage>
       <HandleKey onEnter={logIn}>
         <Heading level={1} text="Lessons from Luke" />
+        <SecurityUpgradeNotice />
         <Heading level={3} text={t("Log_in")} />
         <PDiv>
           <TextInput
