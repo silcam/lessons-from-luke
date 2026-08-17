@@ -99,7 +99,7 @@ export default function PublicHome() {
         </PDiv>
 
         {hasReturnTo && (
-          <Alert role="alert" aria-live="assertive">
+          <Alert warning role="alert" aria-live="assertive">
             {t("Please_sign_in_to_continue")}
           </Alert>
         )}
