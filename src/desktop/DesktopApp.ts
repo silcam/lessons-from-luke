@@ -83,7 +83,7 @@ export default class DesktopApp {
     // handshake (DESKTOP_E2E_TOKEN), so the :8080 verification_uri convenience
     // is irrelevant there. Interactive dev-desktop leaves it unset → :8080.
     this.baseUrl =
-      baseUrl ?? (app.isPackaged ? "https://luke.silcameroon.org" : "http://localhost:8080");
+      baseUrl ?? (app.isPackaged ? "https://luke.silcam.org" : "http://localhost:8080");
 
     this.credentialStore = credentialStore ?? new CredentialStore();
 

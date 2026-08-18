@@ -112,10 +112,10 @@ paths:
                     description: Short, readable, copyable code shown by the desktop (FR-001).
                   verification_uri:
                     type: string
-                    example: https://luke.silcameroon.org/link
+                    example: https://luke.silcam.org/link
                   verification_uri_complete:
                     type: string
-                    example: https://luke.silcameroon.org/link?user_code=WDJB-MJHT
+                    example: https://luke.silcam.org/link?user_code=WDJB-MJHT
                   expires_in:
                     type: integer
                     example: 600

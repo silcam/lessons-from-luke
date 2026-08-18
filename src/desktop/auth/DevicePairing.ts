@@ -78,7 +78,7 @@ interface GetSessionResponse {
 // ---------------------------------------------------------------------------
 
 export interface DevicePairingOptions {
-  /** Base URL of the server, e.g. "https://luke.silcameroon.org". */
+  /** Base URL of the server, e.g. "https://luke.silcam.org". */
   baseUrl: string;
   /**
    * Called once the user code is available (before opening the browser).
