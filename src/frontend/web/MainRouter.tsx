@@ -7,7 +7,9 @@ import SignedInHome from "./home/SignedInHome";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, AppState } from "../common/state/appState";
 import { User } from "../../core/models/User";
-import { loadCurrentUser } from "./auth/authThunks";
+import { loadCurrentUser, pushLogout } from "./auth/authThunks";
+import useTranslation from "../common/util/useTranslation";
+import Button from "../common/base-components/Button";
 import RootDiv from "../common/base-components/RootDiv";
 import LessonPage from "./lessons/LessonPage";
 import AppLoadingBar from "../common/api/AppLoadingBar";
@@ -26,7 +28,15 @@ import ResetPassword from "./auth/ResetPassword";
 
 function TranslateRouteWrapper() {
   const { code } = useParams<{ code: string }>();
-  return <TranslateRoute code={code!} />;
+  const dispatch = useDispatch<AppDispatch>();
+  const t = useTranslation();
+  const logOut = () => dispatch(pushLogout());
+  return (
+    <TranslateRoute
+      code={code!}
+      renderHeaderExtra={() => <Button text={t("Log_out")} onClick={logOut} />}
+    />
+  );
 }
 
 function LessonPageWrapper() {

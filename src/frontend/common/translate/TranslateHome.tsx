@@ -27,6 +27,8 @@ const SELECTED_ITEM_KEY = "selectedItem";
 
 interface IProps {
   code: string;
+  // Extra header-right content (e.g. the web Log Out button). Desktop passes nothing.
+  renderHeaderExtra?: () => JSX.Element | null;
 }
 
 export type SetHdrMessage = (hm: HdrMessage) => void;
@@ -44,7 +46,12 @@ export default function TranslateHome(props: IProps) {
     <StdHeaderBarPage
       title={language ? language.name : ""}
       logoNoLink
-      renderRight={() => <HeaderMessage hdrMessage={hdrMessage} />}
+      renderRight={() => (
+        <FlexRow>
+          <HeaderMessage hdrMessage={hdrMessage} />
+          {props.renderHeaderExtra?.() ?? null}
+        </FlexRow>
+      )}
     >
       <FlexCol>
         {loading ? (
