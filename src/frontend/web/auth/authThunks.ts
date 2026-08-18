@@ -24,7 +24,8 @@ export function pushLogin(login: { email: string; password: string }) {
       const result = await authClient.signIn.email({
         email: login.email,
         password: login.password,
-        callbackURL: "/",
+        // No callbackURL: better-auth would answer with redirect:true and hard-reload
+        // the page, wiping ?returnTo= before MainRouter's post-login effect runs.
       });
       if (result.error) {
         dispatch(

@@ -9,7 +9,6 @@ jest.mock("./authClient", () => ({
   },
 }));
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { authClient } = require("./authClient") as {
   authClient: {
     getSession: jest.Mock;
@@ -59,7 +58,7 @@ describe("auth thunks (web/auth/authThunks)", () => {
   });
 
   describe("pushLogin", () => {
-    it("calls authClient.signIn.email with email, password, and callbackURL '/'", async () => {
+    it("calls authClient.signIn.email with email and password, and no callbackURL (a callbackURL triggers a hard redirect that drops ?returnTo=)", async () => {
       const login = { email: "admin@example.com", password: "secret" };
       (authClient.signIn.email as jest.Mock).mockResolvedValue({
         data: { user: { id: "u1", email: "admin@example.com" } },
@@ -72,8 +71,10 @@ describe("auth thunks (web/auth/authThunks)", () => {
       expect(authClient.signIn.email).toHaveBeenCalledWith({
         email: "admin@example.com",
         password: "secret",
-        callbackURL: "/",
       });
+      expect((authClient.signIn.email as jest.Mock).mock.calls[0][0]).not.toHaveProperty(
+        "callbackURL"
+      );
     });
 
     it("on success, dispatches setUser with id:string and admin:true from response", async () => {

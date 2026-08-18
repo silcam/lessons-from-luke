@@ -116,7 +116,11 @@ describe("PublicHome", () => {
     });
 
     expect(authClient.signIn.email).toHaveBeenCalledWith(
-      expect.objectContaining({ callbackURL: "/" })
+      expect.objectContaining({ email: expect.any(String), password: expect.any(String) })
+    );
+    // No callbackURL: it would trigger a hard redirect that drops ?returnTo=.
+    expect((authClient.signIn.email as jest.Mock).mock.calls[0][0]).not.toHaveProperty(
+      "callbackURL"
     );
   });
 
