@@ -1,13 +1,17 @@
 /**
- * MainRouter.test.tsx — post-login return-to navigation tests
+ * MainRouter.test.tsx
  *
- * Tests that MainRouter navigates to safeReturnTo(returnTo) when an in-session
- * login occurs (loaded was already true, user was null, user is now set).
- *
- * The "initial resolution" edge (loaded: false → true) must NOT trigger navigation.
- *
- * All tests use the real Redux reducer via buildStore and dispatch real slice
- * actions — no mock 'login' action.
+ * MainRouter wires public routes (login, forgot/reset-password, invitation
+ * redemption) alongside a gated home route. Post-login return-to navigation
+ * now lives in LoginPage (see LoginPage.test.tsx) — these tests cover only
+ * MainRouter's own routing/gating responsibilities:
+ *   - the auth-loading state never flashes the login form
+ *   - anonymous visitors land on the login form
+ *   - loaded admin/non-admin users see the right home
+ *   - /login renders directly, ungated
+ *   - unknown paths redirect to / (then follow gating)
+ *   - admin deep-links never flash the sign-in page while auth resolves
+ *     (AdminGate regression coverage)
  */
 
 // Break networkSlice → appState → networkSlice circular dep
@@ -29,13 +33,6 @@ jest.mock("./auth/authThunks", () => ({
   loadCurrentUser: () => () => Promise.resolve(),
   pushLogin: jest.fn(),
   pushLogout: jest.fn(),
-}));
-
-// Mock useNavigate so we can observe calls
-const mockNavigate = jest.fn();
-jest.mock("react-router-dom", () => ({
-  ...jest.requireActual("react-router-dom"),
-  useNavigate: () => mockNavigate,
 }));
 
 // Mock useClearBannersOnNavigation (uses hooks that may depend on store shape)
@@ -91,103 +88,63 @@ function renderMainRouter(
   return store;
 }
 
-describe("MainRouter post-login return-to navigation", () => {
-  describe("initial resolution edge (loaded: false → true) — must NOT navigate", () => {
-    it("does not navigate when loadCurrentUser resolves with a user (cold signed-in mount)", async () => {
-      // Start with loaded=false (auth state unknown), user=null
-      const store = renderMainRouter("/", { user: null, loaded: false });
+describe("MainRouter", () => {
+  describe("/ while auth state is loading", () => {
+    it("shows the loading state and does not flash the login form", () => {
+      renderMainRouter("/", { user: null, loaded: false });
 
-      // Simulate loadCurrentUser completing and finding a logged-in user
-      // This is the initial resolution edge: prevLoaded===false → loaded becomes true
-      await act(async () => {
-        store.dispatch(currentUserSlice.actions.setUser({ id: "u1", admin: false }));
-      });
-
-      // No navigation should occur — the user is simply already signed in on load
-      expect(mockNavigate).not.toHaveBeenCalled();
-    });
-
-    it("does not navigate when cold mount has ?returnTo=/translate/x and user resolves via loadCurrentUser", async () => {
-      // Deep link: visitor has ?returnTo= but is loading for the first time
-      const store = renderMainRouter("/?returnTo=%2Ftranslate%2FABC123", {
-        user: null,
-        loaded: false,
-      });
-
-      // Simulate loadCurrentUser completing (loaded: false → true)
-      await act(async () => {
-        store.dispatch(currentUserSlice.actions.setUser({ id: "u1", admin: false }));
-      });
-
-      // Must NOT navigate — this is initial resolution, not an in-session login
-      expect(mockNavigate).not.toHaveBeenCalled();
+      expect(screen.queryAllByText("Log In")).toHaveLength(0);
+      // No login form fields either — pins the original "flash of login" bug.
+      expect(screen.queryByPlaceholderText("Email")).toBeNull();
+      expect(screen.queryByPlaceholderText("Password")).toBeNull();
     });
   });
 
-  describe("in-session login edge (loaded already true, user: null → user set) — MUST navigate", () => {
-    it("navigates to safeReturnTo(returnTo) when ?returnTo=/translate/ABC123 and user is set in-session", async () => {
-      // Start already loaded, user=null (gate showed sign-in page)
-      const store = renderMainRouter("/?returnTo=%2Ftranslate%2FABC123", {
-        user: null,
-        loaded: true,
-      });
+  describe("/ anonymous and loaded", () => {
+    it("redirects to /login?returnTo=%2F and renders the login form", () => {
+      renderMainRouter("/", { user: null, loaded: true });
 
-      // In-session login: pushLogin fires setUser (loaded stays true, user goes null→set)
-      await act(async () => {
-        store.dispatch(currentUserSlice.actions.setUser({ id: "u1", admin: false }));
-      });
+      expect(screen.getAllByText("Log In").length).toBeGreaterThan(0);
+      expect(screen.getByPlaceholderText("Email")).toBeTruthy();
+      expect(screen.getByPlaceholderText("Password")).toBeTruthy();
+    });
+  });
 
-      // Should navigate to the sanitized returnTo path
-      expect(mockNavigate).toHaveBeenCalledWith("/translate/ABC123", { replace: true });
+  describe("/ loaded and signed in", () => {
+    it("renders AdminHome for a loaded admin user", () => {
+      renderMainRouter("/", { user: { id: "u1", admin: true }, loaded: true });
+
+      expect(screen.getByText("Log Out")).toBeTruthy();
     });
 
-    it("navigates to '/' when ?returnTo points to an external URL (sanitizer honored)", async () => {
-      const store = renderMainRouter("/?returnTo=" + encodeURIComponent("https://evil.com/steal"), {
-        user: null,
-        loaded: true,
-      });
+    it("renders SignedInHome for a loaded non-admin user", () => {
+      renderMainRouter("/", { user: { id: "u1", admin: false }, loaded: true });
 
-      await act(async () => {
-        store.dispatch(currentUserSlice.actions.setUser({ id: "u1", admin: false }));
-      });
+      expect(screen.getByText("You're signed in.")).toBeTruthy();
+    });
+  });
 
-      // safeReturnTo should reject the external URL and fall back to '/'
-      expect(mockNavigate).toHaveBeenCalledWith("/", { replace: true });
+  describe("/login", () => {
+    it("renders the login form directly, without gating", () => {
+      renderMainRouter("/login", { user: null, loaded: true });
+
+      expect(screen.getByPlaceholderText("Email")).toBeTruthy();
+      expect(screen.getByPlaceholderText("Password")).toBeTruthy();
+    });
+  });
+
+  describe("unknown path", () => {
+    it("redirects to / and then follows gating (loading state, no login flash)", () => {
+      renderMainRouter("/nonsense", { user: null, loaded: false });
+
+      expect(screen.queryAllByText("Log In")).toHaveLength(0);
+      expect(screen.queryByPlaceholderText("Email")).toBeNull();
     });
 
-    it("navigates to '/' when no ?returnTo param is present", async () => {
-      // Loaded, no user, no returnTo — user signs in directly from home page
-      const store = renderMainRouter("/", { user: null, loaded: true });
+    it("redirects to / and renders the signed-in home once loaded", () => {
+      renderMainRouter("/nonsense", { user: { id: "u1", admin: false }, loaded: true });
 
-      await act(async () => {
-        store.dispatch(currentUserSlice.actions.setUser({ id: "u1", admin: false }));
-      });
-
-      // With no returnTo, safeReturnTo('') or navigation to '/' is the expected fallback
-      expect(mockNavigate).toHaveBeenCalledWith("/", { replace: true });
-    });
-
-    it("returnTo survives a failed login attempt and is consumed on subsequent success", async () => {
-      const store = renderMainRouter("/?returnTo=%2Ftranslate%2FABC123", {
-        user: null,
-        loaded: true,
-      });
-
-      // First attempt: login fails — setError is dispatched, user stays null
-      await act(async () => {
-        store.dispatch(currentUserSlice.actions.setError("Invalid credentials"));
-      });
-
-      // No navigation on error
-      expect(mockNavigate).not.toHaveBeenCalled();
-
-      // Second attempt: login succeeds — setUser is dispatched
-      await act(async () => {
-        store.dispatch(currentUserSlice.actions.setUser({ id: "u1", admin: false }));
-      });
-
-      // Now navigation should happen with the returnTo still in the URL
-      expect(mockNavigate).toHaveBeenCalledWith("/translate/ABC123", { replace: true });
+      expect(screen.getByText("You're signed in.")).toBeTruthy();
     });
   });
 
@@ -257,29 +214,6 @@ describe("MainRouter post-login return-to navigation", () => {
       // AdminHome (the /languages/:languageId element) renders its header bar
       expect(screen.getByText("Log Out")).toBeTruthy();
       expect(screen.queryAllByText("Log In")).toHaveLength(0);
-    });
-  });
-
-  describe("no spurious re-navigation", () => {
-    it("does not navigate again when a re-render occurs after successful login", async () => {
-      const store = renderMainRouter("/?returnTo=%2Ftranslate%2FABC123", {
-        user: null,
-        loaded: true,
-      });
-
-      await act(async () => {
-        store.dispatch(currentUserSlice.actions.setUser({ id: "u1", admin: false }));
-      });
-
-      // navigate was called once
-      expect(mockNavigate).toHaveBeenCalledTimes(1);
-
-      // Dispatch another unrelated action — no second navigation
-      await act(async () => {
-        store.dispatch(currentUserSlice.actions.setLocale("fr"));
-      });
-
-      expect(mockNavigate).toHaveBeenCalledTimes(1);
     });
   });
 });

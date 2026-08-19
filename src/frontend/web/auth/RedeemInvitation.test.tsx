@@ -111,6 +111,22 @@ describe("RedeemInvitation", () => {
         expect(passwordInput).toBeFalsy();
       });
     });
+
+    it("navigates to /login when 'go to sign in' is clicked", async () => {
+      lookupInvitation.mockReturnValue(
+        jest.fn().mockResolvedValue({
+          payload: { code: "invalid_link", message: "No longer valid." },
+          error: { message: "rejected" },
+        })
+      );
+
+      renderWithProviders(<RedeemInvitation token={TEST_TOKEN} />, defaultInitialState);
+
+      const goToSignInButton = await screen.findByRole("button", { name: /go to sign in/i });
+      fireEvent.click(goToSignInButton);
+
+      expect(mockNavigate).toHaveBeenCalledWith("/login");
+    });
   });
 
   describe("lookup: 429 rate limited", () => {

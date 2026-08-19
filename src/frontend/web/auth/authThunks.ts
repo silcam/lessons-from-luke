@@ -25,7 +25,7 @@ export function pushLogin(login: { email: string; password: string }) {
         email: login.email,
         password: login.password,
         // No callbackURL: better-auth would answer with redirect:true and hard-reload
-        // the page, wiping ?returnTo= before MainRouter's post-login effect runs.
+        // the page, wiping ?returnTo= before LoginPage's render-time Navigate runs.
       });
       if (result.error) {
         dispatch(

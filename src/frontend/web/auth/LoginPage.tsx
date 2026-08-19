@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import { useDispatch, useSelector } from "react-redux";
-import { useSearchParams } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { AppDispatch, AppState } from "../../common/state/appState";
-import { pushLogin } from "../auth/authThunks";
+import { pushLogin } from "./authThunks";
+import { safeReturnTo } from "./safeReturnTo";
 import currentUserSlice from "../../common/state/currentUserSlice";
 import Button from "../../common/base-components/Button";
 import TextInput from "../../common/base-components/TextInput";
@@ -12,6 +13,7 @@ import PDiv from "../../common/base-components/PDiv";
 import Heading from "../../common/base-components/Heading";
 import HandleKey from "../../common/base-components/HandleKey";
 import Alert from "../../common/base-components/Alert";
+import LoadingSnake from "../../common/base-components/LoadingSnake";
 import useTranslation from "../../common/util/useTranslation";
 import AppLink from "../common/AppLink";
 
@@ -44,12 +46,12 @@ function SecurityUpgradeNotice() {
   );
 }
 
-export default function PublicHome() {
+export default function LoginPage() {
   const t = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const dispatch = useDispatch<AppDispatch>();
-  const error = useSelector((state: AppState) => state.currentUser.error);
+  const { user, loaded, error } = useSelector((state: AppState) => state.currentUser);
 
   const [searchParams] = useSearchParams();
   const hasReturnTo = searchParams.has("returnTo");
@@ -62,6 +64,16 @@ export default function PublicHome() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  if (!loaded) {
+    return <LoadingSnake />;
+  }
+
+  if (user) {
+    const dest0 = safeReturnTo(searchParams.get("returnTo") ?? "");
+    const dest = dest0.startsWith("/login") ? "/" : dest0;
+    return <Navigate to={dest} replace />;
+  }
 
   // Do not show a stale login-failed alert when arriving via redirect.
   const loginFailed = Boolean(error) && !hasReturnTo;

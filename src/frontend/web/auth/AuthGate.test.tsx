@@ -3,7 +3,7 @@
  *
  * Decision matrix:
  *   loaded=false               → render LoadingSnake (no redirect)
- *   loaded=true, user=null     → Navigate to /?returnTo=<encoded-path> replace
+ *   loaded=true, user=null     → Navigate to /login?returnTo=<encoded-path> replace
  *   loaded=true, user!=null    → render Outlet (child content)
  *
  * Additional assertions:
@@ -56,7 +56,7 @@ function renderAuthGate(
             <Route path="/translate/:code" element={<div>Gated content</div>} />
             <Route path="/lessons/:id" element={<div>Lesson content</div>} />
           </Route>
-          <Route path="/" element={<div>Sign-in page</div>} />
+          <Route path="/login" element={<div>Sign-in page</div>} />
         </Routes>
       </MemoryRouter>
     </Provider>
@@ -81,7 +81,7 @@ describe("AuthGate", () => {
   });
 
   describe("unauthenticated state (loaded=true, user=null)", () => {
-    it("redirects to / when user is not logged in", () => {
+    it("redirects to /login when user is not logged in", () => {
       renderAuthGate("/translate/ABC123", { user: null, loaded: true });
       expect(screen.getByText("Sign-in page")).toBeTruthy();
     });
@@ -115,7 +115,7 @@ describe("AuthGate", () => {
               <Route element={<AuthGate />}>
                 <Route path="/translate/:code" element={<div>Gated content</div>} />
               </Route>
-              <Route path="/" element={<CaptureSearch />} />
+              <Route path="/login" element={<CaptureSearch />} />
             </Routes>
           </MemoryRouter>
         </Provider>

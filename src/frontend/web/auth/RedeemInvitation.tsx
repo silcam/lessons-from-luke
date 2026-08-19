@@ -119,7 +119,7 @@ export default function RedeemInvitation({ token }: Props) {
     }
   };
 
-  const goToSignIn = () => navigate("/");
+  const goToSignIn = () => navigate("/login");
 
   // ── Lookup states ──────────────────────────────────────────────────────────
 

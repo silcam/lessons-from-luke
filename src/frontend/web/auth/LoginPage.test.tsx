@@ -14,18 +14,18 @@ jest.mock("../../common/state/networkSlice", () => ({
 
 import React from "react";
 import { render } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { Provider } from "react-redux";
 import { renderWithProviders, buildStore, defaultSyncState } from "../../common/testHelpers";
-import PublicHome from "./PublicHome";
+import LoginPage from "./LoginPage";
 
 /**
- * Render PublicHome at a specific URL path (to simulate ?returnTo query params).
+ * Render LoginPage at a specific URL path (to simulate ?returnTo query params).
  */
-function renderPublicHomeAt(path: string, initialState?: Record<string, unknown>) {
+function renderLoginPageAt(path: string, initialState?: Record<string, unknown>) {
   const store = buildStore({
     syncState: defaultSyncState,
-    currentUser: { user: null, locale: "en", loaded: false, error: null },
+    currentUser: { user: null, locale: "en", loaded: true, error: null },
     ...initialState,
   });
   return render(
@@ -34,7 +34,7 @@ function renderPublicHomeAt(path: string, initialState?: Record<string, unknown>
         initialEntries={[path]}
         future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
       >
-        <PublicHome />
+        <LoginPage />
       </MemoryRouter>
     </Provider>
   );
@@ -42,7 +42,7 @@ function renderPublicHomeAt(path: string, initialState?: Record<string, unknown>
 
 // authClient is mapped to src/frontend/__mocks__/authClient.ts via jest moduleNameMapper
 
-const { authClient } = require("../../web/auth/authClient") as {
+const { authClient } = require("./authClient") as {
   authClient: { getSession: jest.Mock; signIn: { email: jest.Mock }; signOut: jest.Mock };
 };
 
@@ -55,27 +55,27 @@ beforeEach(() => {
   });
 });
 
-describe("PublicHome", () => {
+describe("LoginPage", () => {
   it("renders without crashing", () => {
-    const { container } = renderWithProviders(<PublicHome />, {
+    const { container } = renderWithProviders(<LoginPage />, {
       syncState: defaultSyncState,
-      currentUser: { user: null, locale: "en", loaded: false },
+      currentUser: { user: null, locale: "en", loaded: true },
     });
     expect(container).toBeTruthy();
   });
 
   it("shows the app title", () => {
-    const { getByText } = renderWithProviders(<PublicHome />, {
+    const { getByText } = renderWithProviders(<LoginPage />, {
       syncState: defaultSyncState,
-      currentUser: { user: null, locale: "en", loaded: false },
+      currentUser: { user: null, locale: "en", loaded: true },
     });
     expect(getByText("Lessons from Luke")).toBeTruthy();
   });
 
   it("renders a login button", () => {
-    const { getAllByText } = renderWithProviders(<PublicHome />, {
+    const { getAllByText } = renderWithProviders(<LoginPage />, {
       syncState: defaultSyncState,
-      currentUser: { user: null, locale: "en", loaded: false },
+      currentUser: { user: null, locale: "en", loaded: true },
     });
     const buttons = getAllByText(/log.?in/i);
     expect(buttons.length).toBeGreaterThan(0);
@@ -89,9 +89,9 @@ describe("PublicHome", () => {
       error: { status: 401, message: "Invalid credentials" },
     });
 
-    const { container, getByText } = renderWithProviders(<PublicHome />, {
+    const { container, getByText } = renderWithProviders(<LoginPage />, {
       syncState: defaultSyncState,
-      currentUser: { user: null, locale: "en", loaded: false, error: null },
+      currentUser: { user: null, locale: "en", loaded: true, error: null },
     });
 
     const loginButton = container.querySelector("button");
@@ -105,9 +105,9 @@ describe("PublicHome", () => {
   it("calls authClient.signIn.email when login button is clicked", async () => {
     const { fireEvent, act } = require("@testing-library/react");
 
-    const { container } = renderWithProviders(<PublicHome />, {
+    const { container } = renderWithProviders(<LoginPage />, {
       syncState: defaultSyncState,
-      currentUser: { user: null, locale: "en", loaded: false },
+      currentUser: { user: null, locale: "en", loaded: true },
     });
 
     const loginButton = container.querySelector("button");
@@ -125,9 +125,9 @@ describe("PublicHome", () => {
   });
 
   it("renders a 'Forgot password?' link that points to /forgot-password", () => {
-    const { getByText } = renderWithProviders(<PublicHome />, {
+    const { getByText } = renderWithProviders(<LoginPage />, {
       syncState: defaultSyncState,
-      currentUser: { user: null, locale: "en", loaded: false },
+      currentUser: { user: null, locale: "en", loaded: true },
     });
 
     const link = getByText("Forgot password?");
@@ -136,9 +136,9 @@ describe("PublicHome", () => {
   });
 
   it("renders email and password inputs", () => {
-    const { container } = renderWithProviders(<PublicHome />, {
+    const { container } = renderWithProviders(<LoginPage />, {
       syncState: defaultSyncState,
-      currentUser: { user: null, locale: "en", loaded: false },
+      currentUser: { user: null, locale: "en", loaded: true },
     });
 
     const inputs = container.querySelectorAll("input");
@@ -148,9 +148,9 @@ describe("PublicHome", () => {
   it("does not crash on successful login", async () => {
     const { fireEvent, act } = require("@testing-library/react");
 
-    const { container } = renderWithProviders(<PublicHome />, {
+    const { container } = renderWithProviders(<LoginPage />, {
       syncState: defaultSyncState,
-      currentUser: { user: null, locale: "en", loaded: false },
+      currentUser: { user: null, locale: "en", loaded: true },
     });
 
     const loginButton = container.querySelector("button");
@@ -163,9 +163,9 @@ describe("PublicHome", () => {
 
   describe("security upgrade notice banner", () => {
     it("shows the notice in English and French with a mailto link", () => {
-      const { getByText, getAllByText } = renderWithProviders(<PublicHome />, {
+      const { getByText, getAllByText } = renderWithProviders(<LoginPage />, {
         syncState: defaultSyncState,
-        currentUser: { user: null, locale: "en", loaded: false },
+        currentUser: { user: null, locale: "en", loaded: true },
       });
 
       expect(getByText(/upgraded the security requirements/i)).toBeTruthy();
@@ -179,7 +179,7 @@ describe("PublicHome", () => {
     });
 
     it("is also shown when arriving via an auth-gate redirect (?returnTo present)", () => {
-      const { getByText } = renderPublicHomeAt("/?returnTo=/translate/ABC");
+      const { getByText } = renderLoginPageAt("/login?returnTo=/translate/ABC");
       expect(getByText(/upgraded the security requirements/i)).toBeTruthy();
       expect(getByText(/renforcé les exigences de sécurité/i)).toBeTruthy();
     });
@@ -187,19 +187,19 @@ describe("PublicHome", () => {
 
   describe("contextual redirect prompt", () => {
     it("does not show the prompt when no ?returnTo param is present", () => {
-      const { queryByRole } = renderPublicHomeAt("/");
+      const { queryByRole } = renderLoginPageAt("/login");
       // The prompt is rendered as an alert role element
       expect(queryByRole("alert")).toBeNull();
     });
 
     it("shows 'Please sign in to continue' prompt when ?returnTo=/translate/ABC is present", () => {
-      const { getByRole } = renderPublicHomeAt("/?returnTo=/translate/ABC");
+      const { getByRole } = renderLoginPageAt("/login?returnTo=/translate/ABC");
       const alert = getByRole("alert");
       expect(alert.textContent).toMatch(/please sign in to continue/i);
     });
 
     it("shows the prompt when ?returnTo=https://evil.com is present but does not render the URL in DOM", () => {
-      const { getByRole, queryByText } = renderPublicHomeAt("/?returnTo=https://evil.com");
+      const { getByRole, queryByText } = renderLoginPageAt("/login?returnTo=https://evil.com");
       // Prompt must appear (presence detection, not value rendering)
       const alert = getByRole("alert");
       expect(alert.textContent).toMatch(/please sign in to continue/i);
@@ -208,14 +208,87 @@ describe("PublicHome", () => {
     });
 
     it("clears stale error state and shows prompt when redirected with ?returnTo present", () => {
-      const { getByRole, queryByText } = renderPublicHomeAt("/?returnTo=/translate/ABC", {
-        currentUser: { user: null, locale: "en", loaded: false, error: "Login failed." },
+      const { getByRole, queryByText } = renderLoginPageAt("/login?returnTo=/translate/ABC", {
+        currentUser: { user: null, locale: "en", loaded: true, error: "Login failed." },
       });
       // Contextual prompt is shown
       const alert = getByRole("alert");
       expect(alert.textContent).toMatch(/please sign in to continue/i);
       // Stale error must be cleared (not rendered)
       expect(queryByText(/login failed/i)).toBeNull();
+    });
+  });
+
+  describe("three-state render matrix", () => {
+    /**
+     * Render LoginPage at /login (optionally with a query string appended by
+     * the caller) inside a Routes tree that also registers marker routes for
+     * "/" and "/translate/:code", so Navigate destinations can be asserted.
+     */
+    function renderLoginPageMatrix(path: string, initialState?: Record<string, unknown>) {
+      const store = buildStore({
+        syncState: defaultSyncState,
+        currentUser: { user: null, locale: "en", loaded: false, error: null },
+        ...initialState,
+      });
+      return render(
+        <Provider store={store}>
+          <MemoryRouter
+            initialEntries={[path]}
+            future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+          >
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/" element={<div>Home marker</div>} />
+              <Route path="/translate/:code" element={<div>Translate marker</div>} />
+            </Routes>
+          </MemoryRouter>
+        </Provider>
+      );
+    }
+
+    it("renders LoadingSnake (not the login form) when currentUser is not loaded", () => {
+      const { queryByText } = renderLoginPageMatrix("/login", {
+        currentUser: { user: null, locale: "en", loaded: false, error: null },
+      });
+      expect(queryByText("Log In")).toBeNull();
+      expect(queryByText("Lessons from Luke")).toBeNull();
+    });
+
+    it("navigates to the translate marker route when authenticated with a safe returnTo", () => {
+      const { getByText } = renderLoginPageMatrix("/login?returnTo=%2Ftranslate%2FABC123", {
+        currentUser: { user: { id: "u1", admin: false }, locale: "en", loaded: true, error: null },
+      });
+      expect(getByText("Translate marker")).toBeTruthy();
+    });
+
+    it("navigates to the home marker route when authenticated with an unsafe returnTo", () => {
+      const { getByText } = renderLoginPageMatrix(
+        "/login?returnTo=" + encodeURIComponent("https://evil.com"),
+        {
+          currentUser: {
+            user: { id: "u1", admin: false },
+            locale: "en",
+            loaded: true,
+            error: null,
+          },
+        }
+      );
+      expect(getByText("Home marker")).toBeTruthy();
+    });
+
+    it("navigates to the home marker route when authenticated with no returnTo", () => {
+      const { getByText } = renderLoginPageMatrix("/login", {
+        currentUser: { user: { id: "u1", admin: false }, locale: "en", loaded: true, error: null },
+      });
+      expect(getByText("Home marker")).toBeTruthy();
+    });
+
+    it("navigates to the home marker route (not a loop) when returnTo is self-referential (/login)", () => {
+      const { getByText } = renderLoginPageMatrix("/login?returnTo=%2Flogin", {
+        currentUser: { user: { id: "u1", admin: false }, locale: "en", loaded: true, error: null },
+      });
+      expect(getByText("Home marker")).toBeTruthy();
     });
   });
 });
