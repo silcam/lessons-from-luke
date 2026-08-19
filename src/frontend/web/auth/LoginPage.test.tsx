@@ -217,6 +217,23 @@ describe("LoginPage", () => {
       // Stale error must be cleared (not rendered)
       expect(queryByText(/login failed/i)).toBeNull();
     });
+
+    it("shows the login-failed alert for a NEW failed login after mount, even with ?returnTo present", async () => {
+      const { fireEvent, act } = require("@testing-library/react");
+      authClient.signIn.email.mockResolvedValue({
+        data: null,
+        error: { status: 401, message: "Invalid credentials" },
+      });
+
+      const { container, getByText } = renderLoginPageAt("/login?returnTo=/translate/ABC");
+
+      const loginButton = container.querySelector("button");
+      await act(async () => {
+        fireEvent.click(loginButton!);
+      });
+
+      expect(getByText(/log.?in failed/i)).toBeTruthy();
+    });
   });
 
   describe("three-state render matrix", () => {

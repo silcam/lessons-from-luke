@@ -75,8 +75,10 @@ export default function LoginPage() {
     return <Navigate to={dest} replace />;
   }
 
-  // Do not show a stale login-failed alert when arriving via redirect.
-  const loginFailed = Boolean(error) && !hasReturnTo;
+  // Any failed-login error present at render time is real: the mount-time
+  // effect above already clears a stale error on redirect-arrival, so by the
+  // time render sees `error` here it reflects an actual login attempt.
+  const loginFailed = Boolean(error);
 
   const logIn = () => dispatch(pushLogin({ email, password }));
 
