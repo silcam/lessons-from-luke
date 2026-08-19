@@ -11,7 +11,7 @@ import LoadingSnake from "../../common/base-components/LoadingSnake";
  * Decision matrix:
  *   - `loaded === false`              → render `<LoadingSnake />` (auth state
  *     not yet known; never redirect before we know).
- *   - `loaded === true, user === null` → redirect to `/?returnTo=<encoded path>`
+ *   - `loaded === true, user === null` → redirect to `/login?returnTo=<encoded path>`
  *     with `replace` so the history stack stays clean.
  *   - `loaded === true, user !== null` → render `<Outlet />` (pass through to
  *     the child route).
@@ -31,7 +31,7 @@ export default function AuthGate() {
 
   if (!user) {
     const returnTo = encodeURIComponent(location.pathname + location.search);
-    return <Navigate to={`/?returnTo=${returnTo}`} replace />;
+    return <Navigate to={`/login?returnTo=${returnTo}`} replace />;
   }
 
   return <Outlet />;

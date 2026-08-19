@@ -242,8 +242,8 @@ describe("US1 — Full reset flow: set new password, old rejected (SC-001, SC-00
       // Click the Continue to sign in button
       cy.contains("button", "Continue to sign in").click();
 
-      // Should land back on the sign-in page (base URL root)
-      cy.url().should("eq", `${Cypress.config("baseUrl")}/`);
+      // Should land back on the sign-in page (dedicated /login route)
+      cy.url().should("eq", `${Cypress.config("baseUrl")}/login`);
       cy.contains("button", "Log In").should("exist");
     });
   });
