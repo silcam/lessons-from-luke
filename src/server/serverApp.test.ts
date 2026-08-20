@@ -270,8 +270,9 @@ describe("serverApp production branch", () => {
 // These tests confirm the three gating behaviours described in
 // specs/004-desktop-auth-pairing/contracts/shared-api-enforcement.md:
 //
-//   - Flag OFF  → all routes respond as today (no auth required, FR-012)
-//   - Flag ON   → domain routes require auth; /api/auth/* stays public (FR-011)
+//   - Flag "0"  → legacy open-API mode (no auth required, FR-012)
+//   - Flag ABSENT or ON → domain routes require auth (enforcement is the
+//     default); /api/auth/* stays public (FR-011)
 //   - /webified → gated by the same flag (red-team Security)
 
 describe("ENFORCE_API_AUTH enforcement gate", () => {
@@ -285,11 +286,19 @@ describe("ENFORCE_API_AUTH enforcement gate", () => {
     }
   });
 
-  test("flag OFF: anonymous GET /api/languages → 200 (no regression, FR-012)", async () => {
-    delete process.env.ENFORCE_API_AUTH;
+  test("flag explicitly '0': anonymous GET /api/languages → 200 (legacy open-API mode, FR-012)", async () => {
+    process.env.ENFORCE_API_AUTH = "0";
     const app = serverApp({ silent: true });
     const response = await request(app).get("/api/languages");
     expect(response.status).toBe(200);
+  });
+
+  test("flag ABSENT: anonymous GET /api/languages → 401 (enforcement is the default)", async () => {
+    delete process.env.ENFORCE_API_AUTH;
+    const app = serverApp({ silent: true });
+    const response = await request(app).get("/api/languages");
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ error: "Unauthorized" });
   });
 
   test("flag ON: anonymous GET /api/languages → 401 Unauthorized", async () => {
@@ -367,8 +376,8 @@ describe("POST /api/tStrings CSRF guard", () => {
     else process.env.BETTER_AUTH_ENFORCE_ORIGIN = savedEnforceOrigin;
   });
 
-  test("flag OFF: POST /api/tStrings without Origin → not 403 (CSRF guard inactive)", async () => {
-    delete process.env.ENFORCE_API_AUTH;
+  test("flag '0': POST /api/tStrings without Origin → not 403 (CSRF guard inactive)", async () => {
+    process.env.ENFORCE_API_AUTH = "0";
     process.env.BETTER_AUTH_ENFORCE_ORIGIN = "1";
     const app = serverApp({ silent: true });
     const response = await request(app)

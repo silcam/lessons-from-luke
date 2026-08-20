@@ -6,9 +6,9 @@ import requireUser from "./requireUser";
  * Express middleware: conditionally enforces authentication based on the
  * ENFORCE_API_AUTH environment flag.
  *
- * When enforcement is OFF (flag absent, empty, or falsy): calls next()
- * immediately, preserving full backward-compatibility with the existing
- * open API.
+ * Enforcement is ON by default (flag absent or empty → enforced). Only an
+ * explicit opt-out — ENFORCE_API_AUTH="0" or "false" — disables it, in which
+ * case this middleware calls next() immediately (the legacy open-API mode).
  *
  * When enforcement is ON: delegates to requireUser, which accepts BOTH
  * a web session cookie and a desktop bearer token (the better-auth `bearer`

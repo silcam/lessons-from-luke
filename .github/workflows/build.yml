@@ -212,11 +212,13 @@ jobs:
           install: false
           start: npx concurrently "yarn wpDevServerWeb" "yarn serve"
           # Wait for BOTH the webpack dev server (8080) and the API server (8081)
-          # before running specs. /api/languages is public and DB-backed, so a 200
-          # confirms the API process is up AND can reach Postgres — without it,
-          # Cypress charges ahead the moment 8080 responds and every spec fails its
-          # before-each with a proxy 504 if the API is still starting (or crashed).
-          wait-on: "http://localhost:8080, http://localhost:8081/api/languages"
+          # before running specs — without this, Cypress charges ahead the moment
+          # 8080 responds and every spec fails its before-each with a proxy 504
+          # if the API is still starting (or crashed). ENFORCE_API_AUTH now
+          # defaults ON, so /api/languages 401s anonymously; probe the
+          # always-public /api/auth/get-session instead (200 + null session).
+          # The suite itself runs ENFORCED — every gated-API spec authenticates.
+          wait-on: "http://localhost:8080, http://localhost:8081/api/auth/get-session"
           wait-on-timeout: 180
           command: bash scripts/run-cypress-random.sh
 
@@ -298,9 +300,13 @@ jobs:
       - name: Run migrations
         run: yarn migrate:test
       - name: Start webpack-dev-server (desktop) + API server in background
+        # ENFORCE_API_AUTH=0: the Playwright desktop suite exercises the
+        # UNPAIRED desktop sync flow, which enforcement (now default-on)
+        # correctly rejects with 401. Pin the legacy open-API mode here until
+        # the suite gains a pairing step. The web e2e job above runs enforced.
         run: |
           nohup yarn wpDevServerDesktop > /tmp/webpack-desktop.log 2>&1 &
-          nohup yarn serve > /tmp/server.log 2>&1 &
+          nohup env ENFORCE_API_AUTH=0 yarn serve > /tmp/server.log 2>&1 &
       - name: Wait for services (api 8081, desktop renderer 8082)
         run: npx wait-on -t 180000 http://localhost:8081/api/languages http://localhost:8082/desktop.html
       - name: Run Playwright Electron tests under Xvfb
