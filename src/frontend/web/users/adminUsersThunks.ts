@@ -3,7 +3,7 @@
  *
  * Spec: specs/004-desktop-auth-pairing/spec.md §FR-017
  * Plan: specs/004-desktop-auth-pairing/plan.md §Project Structure
- *       (frontend/web/home/AdminHome.tsx)
+ *       (originally frontend/web/home/AdminHome.tsx; now frontend/web/users/UsersPage.tsx)
  *
  * GET  /api/admin/users                              → AdminUserRow[]
  * POST /api/admin/users/:userId/revoke-sessions      → { success, userId, revokedCount }

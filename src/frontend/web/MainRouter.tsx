@@ -22,6 +22,7 @@ import RedeemInvitation from "./auth/RedeemInvitation";
 import AuthGate from "./auth/AuthGate";
 import AdminGate from "./auth/AdminGate";
 import DeviceLinkPage from "./deviceLink/DeviceLinkPage";
+import UsersPage from "./users/UsersPage";
 import ForgotPassword from "./auth/ForgotPassword";
 import ResetPassword from "./auth/ResetPassword";
 
@@ -104,6 +105,7 @@ export default function MainRouter() {
           <Route element={<AdminGate />}>
             <Route path="/admin/invitations/new" element={<CreateInvitation />} />
             <Route path="/admin/invitations" element={<InvitationsList />} />
+            <Route path="/admin/users" element={<UsersPage />} />
             <Route path="/languages/:languageId" element={<AdminHome />} />
           </Route>
         </Route>

@@ -49,6 +49,15 @@ jest.mock("./invitations/InvitationsList", () => ({
   },
 }));
 
+// Mock UsersPage — the real component fetches the user list on mount.
+jest.mock("./users/UsersPage", () => ({
+  __esModule: true,
+  default: () => {
+    const React = jest.requireActual("react");
+    return React.createElement("div", null, "Users page");
+  },
+}));
+
 // Mock DeviceLinkPage — the real component polls the pairing API on mount.
 // Echo the current query string so tests can assert user_code survived routing.
 jest.mock("./deviceLink/DeviceLinkPage", () => {
@@ -241,6 +250,34 @@ describe("MainRouter", () => {
       // Admin content renders; still no sign-in page
       expect(screen.getByText("Invitations list page")).toBeTruthy();
       expect(screen.queryAllByText("Log In")).toHaveLength(0);
+    });
+
+    it("cold-loading /admin/users never flashes the sign-in page; the Users page appears once resolved", async () => {
+      const { store } = renderMainRouterWithApi("/admin/users", {
+        user: null,
+        loaded: false,
+      });
+
+      expect(screen.queryAllByText("Log In")).toHaveLength(0);
+      expect(screen.queryByText("Users page")).toBeNull();
+
+      await act(async () => {
+        store.dispatch(currentUserSlice.actions.setUser({ id: "u1", admin: true }));
+      });
+
+      expect(screen.getByText("Users page")).toBeTruthy();
+      expect(screen.queryAllByText("Log In")).toHaveLength(0);
+    });
+
+    it("redirects a loaded non-admin visiting /admin/users home", () => {
+      renderMainRouterWithApi("/admin/users", {
+        user: { id: "u1", admin: false },
+        loaded: true,
+      });
+
+      // AdminGate Navigates to /, where GatedHome renders SignedInHome
+      expect(screen.queryByText("Users page")).toBeNull();
+      expect(screen.getByText("You're signed in.")).toBeTruthy();
     });
 
     it("cold-loading /languages/42 never flashes the sign-in page; AdminHome appears once resolved", async () => {
