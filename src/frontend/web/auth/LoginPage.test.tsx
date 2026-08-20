@@ -171,10 +171,10 @@ describe("LoginPage", () => {
       expect(getByText(/upgraded the security requirements/i)).toBeTruthy();
       expect(getByText(/renforcé les exigences de sécurité/i)).toBeTruthy();
 
-      const links = getAllByText("chris_jackson@sil.org");
+      const links = getAllByText("lessonsfromscripture@sil.org");
       expect(links.length).toBe(2);
       for (const link of links) {
-        expect(link.closest("a")?.getAttribute("href")).toBe("mailto:chris_jackson@sil.org");
+        expect(link.closest("a")?.getAttribute("href")).toBe("mailto:lessonsfromscripture@sil.org");
       }
     });
 

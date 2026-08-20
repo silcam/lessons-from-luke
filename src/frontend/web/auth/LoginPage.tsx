@@ -17,7 +17,7 @@ import LoadingSnake from "../../common/base-components/LoadingSnake";
 import useTranslation from "../../common/util/useTranslation";
 import AppLink from "../common/AppLink";
 
-const CONTACT_EMAIL = "chris_jackson@sil.org";
+const CONTACT_EMAIL = "lessonsfromscripture@sil.org";
 
 // The login form is auto-width (MiddleOfPage centers on content); cap the
 // banner so the long bilingual copy wraps instead of stretching the page.
