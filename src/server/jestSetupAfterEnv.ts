@@ -1,4 +1,10 @@
 import "../testSupport/jestSilenceConsole";
+
+// ENFORCE_API_AUTH now defaults ON (005-enforce-api-auth-default-on). The
+// controller test suites exercise the open-API behavior and authenticate only
+// where auth is the subject under test, so pin enforcement off here. Tests
+// that cover the enforcement gate itself set the flag explicitly per-test.
+process.env.ENFORCE_API_AUTH = "0";
 import { Pool } from "pg";
 import { TransactionalTestStorage } from "./storage/TransactionalTestStorage";
 import secrets from "./util/secrets";

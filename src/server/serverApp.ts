@@ -173,10 +173,11 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
 
   // ─── API authentication enforcement gate (FR-009, FR-010, FR-012) ────────────
   //
-  // When ENFORCE_API_AUTH is set, all gated domain routes require an authenticated
-  // session (cookie OR bearer token). /api/auth/* is registered above and remains
-  // always public (FR-011). requireUserWhenEnforced is a no-op when the flag is
-  // off, preserving full backward-compatibility (FR-012).
+  // Enforcement is ON by default: all gated domain routes require an
+  // authenticated session (cookie OR bearer token). /api/auth/* is registered
+  // above and remains always public (FR-011). Setting ENFORCE_API_AUTH="0" or
+  // "false" explicitly opts out, making requireUserWhenEnforced a no-op
+  // (the legacy open-API mode, FR-012).
   //
   // POST /api/tStrings CSRF guard is registered BEFORE the auth gate so the
   // bearer bypass is evaluated first:

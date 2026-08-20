@@ -40,7 +40,9 @@ export default async function globalSetup() {
 
   await new Promise<void>((resolve, reject) => {
     serverProcess = spawn("node", [serverScriptPath], {
-      env: { ...process.env, NODE_ENV: "test" },
+      // ENFORCE_API_AUTH defaults ON; the integration suite exercises the
+      // open-API behavior, so pin enforcement off for the child server.
+      env: { ...process.env, NODE_ENV: "test", ENFORCE_API_AUTH: "0" },
       stdio: ["ignore", "pipe", "pipe"],
     });
 

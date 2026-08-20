@@ -4,7 +4,8 @@
  * Tests for src/server/util/enforcementFlag.ts
  *
  * isEnforcementEnabled() reads ENFORCE_API_AUTH from process.env at call time.
- * Default is OFF (absent/empty/falsy → false). No module-level state.
+ * Default is ON (absent/empty → true); only explicit "0" or "false" disables.
+ * No module-level state.
  */
 
 import { isEnforcementEnabled } from "./enforcementFlag";
@@ -24,18 +25,23 @@ describe("isEnforcementEnabled", () => {
     }
   });
 
-  test("returns false when ENFORCE_API_AUTH is absent", () => {
+  test("returns true when ENFORCE_API_AUTH is absent (default ON)", () => {
     delete process.env.ENFORCE_API_AUTH;
-    expect(isEnforcementEnabled()).toBe(false);
+    expect(isEnforcementEnabled()).toBe(true);
   });
 
-  test("returns false when ENFORCE_API_AUTH is empty string", () => {
+  test("returns true when ENFORCE_API_AUTH is empty string (treated as unset)", () => {
     process.env.ENFORCE_API_AUTH = "";
+    expect(isEnforcementEnabled()).toBe(true);
+  });
+
+  test("returns false when ENFORCE_API_AUTH is '0' (explicit opt-out)", () => {
+    process.env.ENFORCE_API_AUTH = "0";
     expect(isEnforcementEnabled()).toBe(false);
   });
 
-  test("returns false when ENFORCE_API_AUTH is '0'", () => {
-    process.env.ENFORCE_API_AUTH = "0";
+  test("returns false when ENFORCE_API_AUTH is 'false' (explicit opt-out)", () => {
+    process.env.ENFORCE_API_AUTH = "false";
     expect(isEnforcementEnabled()).toBe(false);
   });
 
@@ -50,13 +56,13 @@ describe("isEnforcementEnabled", () => {
   });
 
   test("reads env var at call time, not at module load time", () => {
-    delete process.env.ENFORCE_API_AUTH;
+    process.env.ENFORCE_API_AUTH = "0";
     expect(isEnforcementEnabled()).toBe(false);
 
     process.env.ENFORCE_API_AUTH = "1";
     expect(isEnforcementEnabled()).toBe(true);
 
-    delete process.env.ENFORCE_API_AUTH;
+    process.env.ENFORCE_API_AUTH = "0";
     expect(isEnforcementEnabled()).toBe(false);
   });
 });
