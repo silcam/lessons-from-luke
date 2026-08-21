@@ -107,10 +107,10 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v7
-      - name: Install system dependencies (LibreOffice for `soffice --headless`)
+      - name: Install system dependencies (LibreOffice for `soffice --headless`, poppler-utils for `pdftotext`/`pdfinfo` in assembleQuarter.integration.test.ts)
         run: |
           apt-get update -qq
-          apt-get install -y -qq postgresql-client zip libreoffice
+          apt-get install -y -qq postgresql-client zip libreoffice poppler-utils
       - name: Create test database
         run: |
           PGPASSWORD=lessons-from-luke psql -h postgres -U lessons-from-luke -c \

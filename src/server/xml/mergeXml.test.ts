@@ -1,8 +1,18 @@
 import fs from "fs";
+import os from "os";
+import path from "path";
+import { execFileSync } from "child_process";
+import libxmljs2, { Element } from "libxmljs2";
 import docStorage from "../storage/docStorage";
 import parse from "./parse";
-import mergeXml, { cleanOpenDocXml, sortDocStrings, addSpacesForStylesStrings } from "./mergeXml";
-import { unlinkSafe } from "../../core/util/fsUtils";
+import mergeXml, {
+  cleanOpenDocXml,
+  sortDocStrings,
+  addSpacesForStylesStrings,
+  extractNamespaces,
+} from "./mergeXml";
+import { unlinkSafe, unlinkRecursive, mkdirSafe, unzip } from "../../core/util/fsUtils";
+import { DocString } from "../../core/models/DocString";
 
 const odtPath = process.cwd() + "/cypress/fixtures/English_Luke-Q1-L06.odt";
 const newOdtPath = odtPath.replace(".odt", "v02.odt");
@@ -82,6 +92,212 @@ test("Merge with clearEmptyParagraphs and non-matching xpath skips gracefully", 
   expect(() =>
     mergeXml(odtPath, newOdtPath, docStrings, { clearEmptyParagraphs: true })
   ).not.toThrow();
+});
+
+describe("clearEmptyParagraphs table boundary", () => {
+  const workDir = path.join(os.tmpdir(), `mergeXmlTableGuard_${process.pid}`);
+
+  beforeAll(() => {
+    unlinkRecursive(workDir);
+    mkdirSafe(workDir);
+  });
+
+  afterAll(() => {
+    unlinkRecursive(workDir);
+  });
+
+  // Builds a minimal ODT zip containing only a content.xml — mergeXml only
+  // touches the xml files it has docStrings for.
+  function buildTableOdt(name: string, officeTextInner: string): string {
+    const srcDir = path.join(workDir, `src-${name}`);
+    mkdirSafe(srcDir);
+    fs.writeFileSync(
+      path.join(srcDir, "content.xml"),
+      `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" office:version="1.2"><office:body><office:text>${officeTextInner}</office:text></office:body></office:document-content>`
+    );
+    const odtPath = path.join(workDir, `${name}.odt`);
+    fs.rmSync(odtPath, { force: true });
+    execFileSync("zip", ["-r", "-X", odtPath, "."], { cwd: srcDir });
+    return odtPath;
+  }
+
+  function readContentXml(odtPath: string) {
+    const extractDir = `${odtPath}_extracted`;
+    unlinkRecursive(extractDir);
+    mkdirSafe(extractDir);
+    unzip(odtPath, extractDir);
+    return libxmljs2.parseXml(fs.readFileSync(path.join(extractDir, "content.xml"), "utf8"));
+  }
+
+  // Mirrors how parse.ts builds xpaths: absolute positional node.path() of the
+  // non-blank text nodes in document order.
+  function contentDocStrings(odtPath: string): DocString[] {
+    const xmlDoc = readContentXml(odtPath);
+    const namespaces = extractNamespaces(xmlDoc);
+    return xmlDoc.find<Element>("//text()", namespaces).reduce((docStrings, node) => {
+      if (/\S/.test(node.text())) {
+        docStrings.push({
+          type: "content" as const,
+          motherTongue: false,
+          xpath: node.path(),
+          text: node.text().trim(),
+        });
+      }
+      return docStrings;
+    }, [] as DocString[]);
+  }
+
+  const NS = {
+    office: "urn:oasis:names:tc:opendocument:xmlns:office:1.0",
+    text: "urn:oasis:names:tc:opendocument:xmlns:text:1.0",
+    table: "urn:oasis:names:tc:opendocument:xmlns:table:1.0",
+  };
+
+  test("cell whose only paragraph goes empty keeps the cell, row, and table intact", () => {
+    const odtPath = buildTableOdt(
+      "sole-empty-cell",
+      `<table:table table:name="T1"><table:table-column/><table:table-column/><table:table-column/>` +
+        `<table:table-row>` +
+        `<table:table-cell table:style-name="CellA"><text:p>Left</text:p></table:table-cell>` +
+        `<table:table-cell table:style-name="CellB"><text:p>Middle</text:p></table:table-cell>` +
+        `<table:table-cell table:style-name="CellC"><text:p>Right</text:p></table:table-cell>` +
+        `</table:table-row></table:table><text:p>Body text</text:p>`
+    );
+    const outPath = odtPath.replace(".odt", "-out.odt");
+    const docStrings = contentDocStrings(odtPath).map((ds) =>
+      ds.text === "Middle" ? { ...ds, text: "" } : ds
+    );
+
+    mergeXml(odtPath, outPath, docStrings, { clearEmptyParagraphs: true });
+
+    const merged = readContentXml(outPath);
+    expect(merged.find("//table:table", NS)).toHaveLength(1);
+    expect(merged.find("//table:table-row", NS)).toHaveLength(1);
+    const cells = merged.find<Element>("//table:table-cell", NS);
+    expect(cells).toHaveLength(3);
+    const middleCell = cells[1];
+    expect(middleCell.attr("style-name")?.value()).toBe("CellB");
+    const middleParagraphs = middleCell.find<Element>("./text:p", NS);
+    expect(middleParagraphs).toHaveLength(1);
+    expect(middleParagraphs[0].text()).toBe("");
+  });
+
+  test("row whose every paragraph goes empty keeps both rows with the correct cell counts", () => {
+    const odtPath = buildTableOdt(
+      "whole-row-empty",
+      `<table:table table:name="T1"><table:table-column/><table:table-column/>` +
+        `<table:table-row>` +
+        `<table:table-cell><text:p>R1C1</text:p></table:table-cell>` +
+        `<table:table-cell><text:p>R1C2</text:p></table:table-cell>` +
+        `</table:table-row>` +
+        `<table:table-row>` +
+        `<table:table-cell><text:p>R2C1</text:p></table:table-cell>` +
+        `<table:table-cell><text:p>R2C2</text:p></table:table-cell>` +
+        `</table:table-row></table:table><text:p>Body text</text:p>`
+    );
+    const outPath = odtPath.replace(".odt", "-out.odt");
+    const docStrings = contentDocStrings(odtPath).map((ds) =>
+      ds.text.startsWith("R1") ? { ...ds, text: "" } : ds
+    );
+
+    mergeXml(odtPath, outPath, docStrings, { clearEmptyParagraphs: true });
+
+    const merged = readContentXml(outPath);
+    const rows = merged.find<Element>("//table:table-row", NS);
+    expect(rows).toHaveLength(2);
+    rows.forEach((row) => {
+      expect(row.find("./table:table-cell", NS)).toHaveLength(2);
+    });
+  });
+
+  test("cell with two paragraphs both emptied retains exactly one empty paragraph", () => {
+    const odtPath = buildTableOdt(
+      "two-empty-paragraphs",
+      `<table:table table:name="T1"><table:table-column/><table:table-column/>` +
+        `<table:table-row>` +
+        `<table:table-cell><text:p>Keep</text:p></table:table-cell>` +
+        `<table:table-cell><text:p>A</text:p><text:p>B</text:p></table:table-cell>` +
+        `</table:table-row></table:table><text:p>Body text</text:p>`
+    );
+    const outPath = odtPath.replace(".odt", "-out.odt");
+    const docStrings = contentDocStrings(odtPath).map((ds) =>
+      ds.text === "A" || ds.text === "B" ? { ...ds, text: "" } : ds
+    );
+
+    mergeXml(odtPath, outPath, docStrings, { clearEmptyParagraphs: true });
+
+    const merged = readContentXml(outPath);
+    const cells = merged.find<Element>("//table:table-cell", NS);
+    expect(cells).toHaveLength(2);
+    const emptiedCellParagraphs = cells[1].find<Element>("./text:p", NS);
+    expect(emptiedCellParagraphs).toHaveLength(1);
+    expect(emptiedCellParagraphs[0].text()).toBe("");
+  });
+
+  // Green from birth: pins that in-cell cleanup still removes an emptied
+  // paragraph when the cell keeps another paragraph with text.
+  test("emptied paragraph in a cell that keeps another non-empty paragraph is removed", () => {
+    const odtPath = buildTableOdt(
+      "mixed-cell",
+      `<table:table table:name="T1"><table:table-column/>` +
+        `<table:table-row>` +
+        `<table:table-cell><text:p>Gone</text:p><text:p>Stays</text:p></table:table-cell>` +
+        `</table:table-row></table:table><text:p>Body text</text:p>`
+    );
+    const outPath = odtPath.replace(".odt", "-out.odt");
+    const docStrings = contentDocStrings(odtPath).map((ds) =>
+      ds.text === "Gone" ? { ...ds, text: "" } : ds
+    );
+
+    mergeXml(odtPath, outPath, docStrings, { clearEmptyParagraphs: true });
+
+    const merged = readContentXml(outPath);
+    const cells = merged.find<Element>("//table:table-cell", NS);
+    expect(cells).toHaveLength(1);
+    const paragraphs = cells[0].find<Element>("./text:p", NS);
+    expect(paragraphs).toHaveLength(1);
+    expect(paragraphs[0].text()).toBe("Stays");
+  });
+
+  // Green from birth: pins the existing non-table behavior — an emptied
+  // body-level paragraph is still removed entirely.
+  test("emptied body-level paragraph outside any table is still removed", () => {
+    const odtPath = buildTableOdt(
+      "body-paragraph",
+      `<text:p>Remove me</text:p><text:p>Other</text:p>`
+    );
+    const outPath = odtPath.replace(".odt", "-out.odt");
+    const docStrings = contentDocStrings(odtPath).map((ds) =>
+      ds.text === "Remove me" ? { ...ds, text: "" } : ds
+    );
+
+    mergeXml(odtPath, outPath, docStrings, { clearEmptyParagraphs: true });
+
+    const merged = readContentXml(outPath);
+    const paragraphs = merged.find<Element>("//office:text/text:p", NS);
+    expect(paragraphs).toHaveLength(1);
+    expect(paragraphs[0].text()).toBe("Other");
+  });
+
+  test("real lesson fixture keeps its 1-row, 3-cell title table when all in-table strings go empty", () => {
+    const fixtureOutPath = path.join(workDir, "English_Luke-Q1-L06-tableguard.odt");
+    const docStrings = parse(xmls.content, "content").map((ds) =>
+      ds.xpath.includes("table:table-cell") ? { ...ds, text: "" } : ds
+    );
+    expect(docStrings.some((ds) => ds.text === "" && ds.xpath.includes("table:table-cell"))).toBe(
+      true
+    );
+
+    mergeXml(odtPath, fixtureOutPath, docStrings, { clearEmptyParagraphs: true });
+
+    const merged = readContentXml(fixtureOutPath);
+    const tables = merged.find<Element>("//table:table", NS);
+    expect(tables).toHaveLength(1);
+    const rows = tables[0].find<Element>("./table:table-row", NS);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].find("./table:table-cell", NS)).toHaveLength(3);
+  });
 });
 
 // Task 17: Parse utility function tests

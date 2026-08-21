@@ -2,6 +2,7 @@ import express from "express";
 import helmet from "helmet";
 import crypto from "crypto";
 import fs from "fs";
+import path from "path";
 import bodyParser from "body-parser";
 import { toNodeHandler } from "better-auth/node";
 import languagesController from "./controllers/languagesController";
@@ -11,6 +12,7 @@ import normalizeForwardedProto from "./middle/normalizeForwardedProto";
 import tStringsController from "./controllers/tStringsController";
 import testController from "./controllers/testController";
 import documentsController from "./controllers/documentsController";
+import assemblyController from "./controllers/assemblyController";
 import invitationController, {
   registerAnonymousInvitationRoutes,
 } from "./controllers/invitationController";
@@ -20,8 +22,27 @@ import makeStorage from "./storage/makeStorage";
 import docStorage from "./storage/docStorage";
 import syncController from "./controllers/syncController";
 import { getAuth, getAuthPool } from "./auth/auth";
+import { AssemblyJobRegistry } from "./assembly/AssemblyJobRegistry";
+import {
+  ASSEMBLY_ABANDON_MS,
+  ASSEMBLY_MAX_LIVE_JOBS,
+  ASSEMBLY_TIMEOUT_MS,
+  ASSEMBLY_TTL_MS,
+} from "./assembly/assemblyBudget";
+import { availableSystemMemory } from "./assembly/availableSystemMemory";
+import { sweepAssemblyWork } from "./assembly/sweepAssemblyWork";
 
 const PRODUCTION = process.env.NODE_ENV == "production";
+
+/**
+ * `<docStorage>/assembly-work` — the dedicated per-job working-dir root
+ * (plan.md Red-Team Pass 3 "Temp-Dir Lifecycle"). Delegates to
+ * `docStorage.ts`'s shared `docsDirPath()` so there is a single source of
+ * truth for the per-env docs root.
+ */
+function assemblyWorkRoot(): string {
+  return path.join(docStorage.docsDirPath(), "assembly-work");
+}
 
 function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   const app = express();
@@ -168,6 +189,24 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   documentsController(app, storage);
   syncController(app, storage);
   invitationController(app, getAuthPool());
+
+  const assemblyWorkRootPath = assemblyWorkRoot();
+  sweepAssemblyWork(assemblyWorkRootPath);
+  const assemblyRegistry = new AssemblyJobRegistry({
+    maxLiveJobs: ASSEMBLY_MAX_LIVE_JOBS,
+    timeoutMs: ASSEMBLY_TIMEOUT_MS,
+    abandonMs: ASSEMBLY_ABANDON_MS,
+    ttlMs: ASSEMBLY_TTL_MS,
+    fileExists: fs.existsSync,
+    now: Date.now,
+    makeJobId: () => crypto.randomUUID(),
+    availableMemory: availableSystemMemory,
+  });
+  assemblyController(app, storage, {
+    registry: assemblyRegistry,
+    workRoot: assemblyWorkRootPath,
+    authPool: getAuthPool(),
+  });
 
   if (process.env.NODE_ENV === "test") {
     testController(app, storage as PGTestStorage);

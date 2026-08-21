@@ -1,0 +1,1261 @@
+/// <reference types="jest" />
+
+jest.mock("./makeLessonFile");
+jest.mock("./prepareConstituentForAssembly");
+jest.mock("./finalizeAssembledQuarter");
+jest.mock("../assembly/sofficeAssemble");
+jest.mock("../assembly/quarterStylesTemplate");
+jest.mock("./measureLessonOneParity");
+
+import fs from "fs";
+import os from "os";
+import path from "path";
+import { Persistence } from "../../core/interfaces/Persistence";
+import { Language, ENGLISH_ID } from "../../core/models/Language";
+import { Lesson, TOC_LESSON } from "../../core/models/Lesson";
+import makeLessonFile from "./makeLessonFile";
+import { prepareConstituentForAssembly } from "./prepareConstituentForAssembly";
+import { finalizeAssembledQuarter } from "./finalizeAssembledQuarter";
+import { sofficeAssemble } from "../assembly/sofficeAssemble";
+import { measureLessonOneParity, pollProcessGroupExited } from "./measureLessonOneParity";
+import {
+  isMonolingualTemplatePath,
+  resolveTemplatePath,
+  validateTemplateAsset,
+} from "../assembly/quarterStylesTemplate";
+import docStorage from "../storage/docStorage";
+import assembleQuarter from "./assembleQuarter";
+
+const isMonolingualTemplatePathMock = isMonolingualTemplatePath as unknown as jest.Mock;
+
+const makeLessonFileMock = makeLessonFile as unknown as jest.Mock;
+const prepareConstituentForAssemblyMock = prepareConstituentForAssembly as unknown as jest.Mock;
+const finalizeAssembledQuarterMock = finalizeAssembledQuarter as unknown as jest.Mock;
+const sofficeAssembleMock = sofficeAssemble as unknown as jest.Mock;
+const measureLessonOneParityMock = measureLessonOneParity as unknown as jest.Mock;
+const pollProcessGroupExitedMock = pollProcessGroupExited as unknown as jest.Mock;
+const resolveTemplatePathMock = resolveTemplatePath as unknown as jest.Mock;
+const validateTemplateAssetMock = validateTemplateAsset as unknown as jest.Mock;
+
+const SERIES = 1;
+
+function lesson(lessonNumber: number): Lesson {
+  return {
+    lessonId: lessonNumber,
+    book: "Luke",
+    series: SERIES,
+    lesson: lessonNumber,
+    version: 1,
+    lessonStrings: [],
+  };
+}
+
+/** TOC + 13 lessons, deliberately out of order — assembleQuarter resolves order itself. */
+function unorderedQuarterLessons(): Lesson[] {
+  const numbers = Array.from({ length: 13 }, (_, i) => i + 1);
+  const shuffled = [
+    numbers[6],
+    numbers[0],
+    numbers[12],
+    ...numbers.slice(1, 6),
+    ...numbers.slice(7, 12),
+  ];
+  return [lesson(TOC_LESSON), ...shuffled.map(lesson)];
+}
+
+const motherLang: Language = {
+  languageId: ENGLISH_ID,
+  name: "English",
+  code: "en",
+  motherTongue: true,
+  progress: [],
+  archived: false,
+  defaultSrcLang: 0,
+};
+
+const storage = {} as Persistence;
+
+/**
+ * Every result this file retains. `assembleQuarter` moves its assembled ODT
+ * out of the (deleted) job dir into `docStorage`'s tmp dir — which under
+ * NODE_ENV=test is the real `test/docs/serverDocs/tmp/`, not a fixture temp
+ * dir — so unlink each one rather than accumulating an assembled book per
+ * successful test per jest run.
+ */
+const retainedPaths: string[] = [];
+
+beforeEach(() => {
+  const realTmpFilePath = docStorage.tmpFilePath;
+  jest.spyOn(docStorage, "tmpFilePath").mockImplementation((baseName: string) => {
+    const retained = realTmpFilePath(baseName);
+    retainedPaths.push(retained);
+    return retained;
+  });
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
+  retainedPaths.splice(0).forEach((retained) => fs.rmSync(retained, { force: true }));
+});
+
+describe("assembleQuarter", () => {
+  let fixtureDir: string;
+  /** Absolute paths returned by the mocked makeLessonFile, keyed by lesson number (TOC = 99). */
+  let rawPathsByLessonNumber: Map<number, string>;
+
+  beforeEach(() => {
+    fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembleQuarter-test-"));
+    rawPathsByLessonNumber = new Map();
+
+    makeLessonFileMock.mockReset();
+    makeLessonFileMock.mockImplementation(async (_storage: Persistence, lsn: Lesson) => {
+      const rawPath = path.join(fixtureDir, `raw-${lsn.lesson}.odt`);
+      fs.writeFileSync(rawPath, `raw contents for lesson ${lsn.lesson}`);
+      rawPathsByLessonNumber.set(lsn.lesson, rawPath);
+      return rawPath;
+    });
+
+    prepareConstituentForAssemblyMock.mockReset();
+    prepareConstituentForAssemblyMock.mockImplementation(
+      (options: { isTOC: boolean }): { title: string; subject: string } =>
+        options.isTOC
+          ? { title: "Lessons from Luke", subject: "Teacher's Guide" }
+          : { title: "Lessons from Luke", subject: "Some Lesson Title" }
+    );
+
+    finalizeAssembledQuarterMock.mockReset();
+    finalizeAssembledQuarterMock.mockImplementation(() => undefined);
+
+    sofficeAssembleMock.mockReset();
+    sofficeAssembleMock.mockImplementation(
+      async (options: { outputPath: string; files: string[] }) => {
+        fs.writeFileSync(options.outputPath, "assembled contents");
+        return { outputPath: options.outputPath };
+      }
+    );
+
+    resolveTemplatePathMock.mockReset();
+    resolveTemplatePathMock.mockReturnValue("/fixture/quarter-styles-template.odt");
+    validateTemplateAssetMock.mockReset();
+    validateTemplateAssetMock.mockImplementation(() => undefined);
+
+    // US3-T8: these tests predate the measurement/kill-switch orchestration
+    // (US3-T7's own describe block below configures its own scenarios).
+    // Without an explicit default the auto-mock resolves `undefined`, which
+    // the kill-switch-on default path (real env, unmocked) would then read
+    // as `needsFiller: undefined` — a no-filler default keeps this block's
+    // pre-existing assertions unaffected.
+    measureLessonOneParityMock.mockReset();
+    measureLessonOneParityMock.mockResolvedValue({
+      lessonOnePageIndex: 3,
+      needsFiller: false,
+      renderedPageCount: 80,
+    });
+    pollProcessGroupExitedMock.mockReset();
+    pollProcessGroupExitedMock.mockResolvedValue(true);
+  });
+
+  afterEach(() => {
+    fs.rmSync(fixtureDir, { recursive: true, force: true });
+  });
+
+  test("resolves and validates the quarter styles template, then threads it through to sofficeAssemble", async () => {
+    await assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId: "job-template-1",
+      workRoot: fixtureDir,
+    });
+
+    expect(resolveTemplatePathMock).toHaveBeenCalledTimes(1);
+    // Bilingual mode (majorityLangId !== 0) resolves the bilingual template.
+    expect(resolveTemplatePathMock).toHaveBeenCalledWith(false);
+    expect(validateTemplateAssetMock).toHaveBeenCalledWith("/fixture/quarter-styles-template.odt");
+    expect(sofficeAssembleMock).toHaveBeenCalledTimes(1);
+    const [sofficeOptions] = sofficeAssembleMock.mock.calls[0] as [{ templatePath: string }];
+    expect(sofficeOptions.templatePath).toBe("/fixture/quarter-styles-template.odt");
+
+    // validateTemplateAsset must run BEFORE sofficeAssemble is invoked.
+    const validateOrder = validateTemplateAssetMock.mock.invocationCallOrder[0];
+    const sofficeOrder = sofficeAssembleMock.mock.invocationCallOrder[0];
+    expect(validateOrder).toBeLessThan(sofficeOrder);
+  });
+
+  test("single-language mode (majorityLangId 0) resolves the monolingual template", async () => {
+    await assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: 0,
+      jobId: "job-template-monolingual-1",
+      workRoot: fixtureDir,
+    });
+
+    expect(resolveTemplatePathMock).toHaveBeenCalledTimes(1);
+    expect(resolveTemplatePathMock).toHaveBeenCalledWith(true);
+  });
+
+  test("passes singleLanguage: true to finalizeAssembledQuarter when the resolved template is the monolingual asset", async () => {
+    isMonolingualTemplatePathMock.mockReset();
+    isMonolingualTemplatePathMock.mockReturnValue(true);
+    resolveTemplatePathMock.mockReturnValue("/fixture/quarter-styles-template-monolingual.odt");
+
+    await assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId: "job-single-language-1",
+      workRoot: fixtureDir,
+    });
+
+    expect(isMonolingualTemplatePathMock).toHaveBeenCalledWith(
+      "/fixture/quarter-styles-template-monolingual.odt"
+    );
+    expect(finalizeAssembledQuarterMock).toHaveBeenCalledTimes(1);
+    const [options] = finalizeAssembledQuarterMock.mock.calls[0] as [{ singleLanguage?: boolean }];
+    expect(options.singleLanguage).toBe(true);
+  });
+
+  test("passes singleLanguage: false to finalizeAssembledQuarter when the resolved template is bilingual", async () => {
+    isMonolingualTemplatePathMock.mockReset();
+    isMonolingualTemplatePathMock.mockReturnValue(false);
+
+    await assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId: "job-single-language-2",
+      workRoot: fixtureDir,
+    });
+
+    expect(finalizeAssembledQuarterMock).toHaveBeenCalledTimes(1);
+    const [options] = finalizeAssembledQuarterMock.mock.calls[0] as [{ singleLanguage?: boolean }];
+    expect(options.singleLanguage).toBe(false);
+  });
+
+  test("fails the job loudly with a curated reason when the template asset is missing or unreadable, without invoking sofficeAssemble", async () => {
+    validateTemplateAssetMock.mockImplementation(() => {
+      throw new Error(
+        "ENOENT: no such file or directory, open '/Users/eykd/code/js/lessons-from-luke/docs/quarter-styles-template.odt'"
+      );
+    });
+
+    await expect(
+      assembleQuarter({
+        storage,
+        lessons: unorderedQuarterLessons(),
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId: "job-template-missing-1",
+        workRoot: fixtureDir,
+      })
+    ).rejects.toThrow("quarter styles template asset is missing or unreadable");
+
+    expect(sofficeAssembleMock).not.toHaveBeenCalled();
+  });
+
+  test("orders constituents TOC first, then lessons ascending by absolute number", async () => {
+    await assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId: "job-1",
+      workRoot: fixtureDir,
+    });
+
+    expect(sofficeAssembleMock).toHaveBeenCalledTimes(1);
+    const { files } = sofficeAssembleMock.mock.calls[0][0] as { files: string[] };
+    const basenames = files.map((f) => path.basename(f));
+    expect(basenames).toEqual([
+      "00.odt",
+      "01.odt",
+      "02.odt",
+      "03.odt",
+      "04.odt",
+      "05.odt",
+      "06.odt",
+      "07.odt",
+      "08.odt",
+      "09.odt",
+      "10.odt",
+      "11.odt",
+      "12.odt",
+      "13.odt",
+    ]);
+  });
+
+  test("bails between constituents when the signal aborts, without reaching the soffice merge", async () => {
+    // The registry holds its concurrency-1 slot until the runner settles, so
+    // an aborted job must unwind promptly rather than grinding through all 14
+    // constituents first.
+    const controller = new AbortController();
+    let generated = 0;
+    makeLessonFileMock.mockImplementation(async (_storage: Persistence, lsn: Lesson) => {
+      generated += 1;
+      if (generated === 3) controller.abort();
+      const rawPath = path.join(fixtureDir, `raw-${lsn.lesson}.odt`);
+      fs.writeFileSync(rawPath, "raw");
+      return rawPath;
+    });
+
+    await expect(
+      assembleQuarter({
+        storage,
+        lessons: unorderedQuarterLessons(),
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId: "job-abort",
+        workRoot: fixtureDir,
+        signal: controller.signal,
+      })
+    ).rejects.toThrow();
+
+    expect(generated).toBe(3);
+    expect(sofficeAssembleMock).not.toHaveBeenCalled();
+  });
+
+  test("passes the abort signal through to sofficeAssemble", async () => {
+    const controller = new AbortController();
+
+    await assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId: "job-signal",
+      workRoot: fixtureDir,
+      signal: controller.signal,
+    });
+
+    const { signal } = sofficeAssembleMock.mock.calls[0][0] as { signal?: AbortSignal };
+    expect(signal).toBe(controller.signal);
+  });
+
+  test("names copies with ASCII deterministic insertion-order filenames under the per-job dir", async () => {
+    await assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId: "job-2",
+      workRoot: fixtureDir,
+    });
+
+    const { files } = sofficeAssembleMock.mock.calls[0][0] as { files: string[] };
+    files.forEach((f) => {
+      expect(f.startsWith(path.join(fixtureDir, "job-2"))).toBe(true);
+      // ASCII-only: every char code must be in the printable-ASCII range.
+      expect([...f].every((ch) => ch.charCodeAt(0) <= 127)).toBe(true);
+    });
+  });
+
+  test("generates each constituent exactly once (no double-generation)", async () => {
+    await assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId: "job-3",
+      workRoot: fixtureDir,
+    });
+
+    expect(makeLessonFileMock).toHaveBeenCalledTimes(14);
+  });
+
+  test("prepares each constituent on its per-job COPY (never the raw makeLessonFile path), TOC flagged and lesson numbers passed through", async () => {
+    await assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId: "job-4",
+      workRoot: fixtureDir,
+    });
+
+    expect(prepareConstituentForAssemblyMock).toHaveBeenCalledTimes(14);
+    const rawPaths = new Set(rawPathsByLessonNumber.values());
+
+    const calls = prepareConstituentForAssemblyMock.mock.calls.map(
+      ([options]) =>
+        options as {
+          odtPath: string;
+          series: number;
+          lesson: number;
+          isTOC: boolean;
+          fallbackTitle: string;
+        }
+    );
+    calls.forEach((options) => {
+      expect(rawPaths.has(options.odtPath)).toBe(false);
+      expect(options.odtPath.startsWith(path.join(fixtureDir, "job-4"))).toBe(true);
+      expect(options.series).toBe(SERIES);
+    });
+    // Insertion order: the TOC (and only the TOC) first, then lessons ascending.
+    expect(calls.map((options) => options.isTOC)).toEqual([
+      true,
+      ...Array.from({ length: 13 }, () => false),
+    ]);
+    expect(calls.map((options) => options.lesson)).toEqual([
+      TOC_LESSON,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+    ]);
+    calls.slice(1).forEach((options, i) => {
+      expect(options.fallbackTitle).toBe(`Luke ${SERIES}-${i + 1}`);
+    });
+  });
+
+  test("finalizes the merged output once, with the series, the quarter's first absolute lesson number, and the TOC's own title/subject", async () => {
+    await assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId: "job-7",
+      workRoot: fixtureDir,
+    });
+
+    expect(finalizeAssembledQuarterMock).toHaveBeenCalledTimes(1);
+    const [options] = finalizeAssembledQuarterMock.mock.calls[0] as [
+      {
+        odtPath: string;
+        series: number;
+        firstLessonNumber: number;
+        title: string;
+        subject: string;
+      },
+    ];
+    expect(options.odtPath).toBe(path.join(fixtureDir, "job-7", "assembled.odt"));
+    expect(options.series).toBe(SERIES);
+    expect(options.firstLessonNumber).toBe(1);
+    // The TOC's meta (the first constituent's), not a lesson's.
+    expect(options.title).toBe("Lessons from Luke");
+    expect(options.subject).toBe("Teacher's Guide");
+  });
+
+  test("never passes a raw makeLessonFile path to the soffice merge", async () => {
+    await assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId: "job-5",
+      workRoot: fixtureDir,
+    });
+
+    const { files } = sofficeAssembleMock.mock.calls[0][0] as { files: string[] };
+    const rawPaths = new Set(rawPathsByLessonNumber.values());
+    files.forEach((f) => expect(rawPaths.has(f)).toBe(false));
+  });
+
+  test("US16 defense-in-depth: drops a synthetic non-TOC lesson-97 outside expectedLessonNumbers(series) even if passed in", async () => {
+    await assembleQuarter({
+      storage,
+      lessons: [...unorderedQuarterLessons(), lesson(97)],
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId: "job-7",
+      workRoot: fixtureDir,
+    });
+
+    // Only the TOC + the 13 expected lesson numbers were generated/merged —
+    // the synthetic lesson-97 constituent never reaches makeLessonFile or
+    // the soffice merge.
+    expect(makeLessonFileMock).toHaveBeenCalledTimes(14);
+    expect(
+      makeLessonFileMock.mock.calls.some(([, lsn]: [Persistence, Lesson]) => lsn.lesson === 97)
+    ).toBe(false);
+
+    const { files } = sofficeAssembleMock.mock.calls[0][0] as { files: string[] };
+    expect(files).toHaveLength(14);
+  });
+});
+
+/**
+ * Working-dir lifecycle: the per-job dir is deleted as soon as the job
+ * finishes (success OR failure), and the assembled result is moved into
+ * `docStorage`'s `tmp` dir first — where the existing 24 h `cleanTmpDir`
+ * sweep reaches it. Nothing else ever deletes `<workRoot>/<jobId>/`:
+ * `sweepAssemblyWork` only runs at server startup, and `cleanTmpDir` only
+ * unlinks entries inside `tmp` whose filename `parseInt`s to an old
+ * timestamp — `assembly-work` is a sibling of `tmp` and `parseInt`s to NaN.
+ */
+describe("assembleQuarter — working-dir lifecycle", () => {
+  let fixtureDir: string;
+
+  beforeEach(() => {
+    fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembleQuarter-cleanup-test-"));
+
+    makeLessonFileMock.mockReset();
+    makeLessonFileMock.mockImplementation(async (_storage: Persistence, lsn: Lesson) => {
+      const rawPath = path.join(fixtureDir, `raw-${lsn.lesson}.odt`);
+      fs.writeFileSync(rawPath, `raw contents for lesson ${lsn.lesson}`);
+      return rawPath;
+    });
+    prepareConstituentForAssemblyMock.mockReset();
+    prepareConstituentForAssemblyMock.mockImplementation(() => ({ title: "", subject: "" }));
+    finalizeAssembledQuarterMock.mockReset();
+    finalizeAssembledQuarterMock.mockImplementation(() => undefined);
+    sofficeAssembleMock.mockReset();
+    sofficeAssembleMock.mockImplementation(async (options: { outputPath: string }) => {
+      fs.writeFileSync(options.outputPath, "assembled contents");
+      return { outputPath: options.outputPath };
+    });
+
+    // 009 made `templatePath` a required `sofficeAssemble` option, resolved via
+    // this module. Without these the auto-mock returns `undefined` and the
+    // whole block would assemble with `templatePath: undefined`.
+    resolveTemplatePathMock.mockReset();
+    resolveTemplatePathMock.mockReturnValue("/fixture/quarter-styles-template.odt");
+    validateTemplateAssetMock.mockReset();
+    validateTemplateAssetMock.mockImplementation(() => undefined);
+    // Likewise 014: `isMonolingualTemplatePath` feeds `singleLanguage` on
+    // every assembly, so leave it explicit rather than auto-mocked undefined.
+    isMonolingualTemplatePathMock.mockReset();
+    isMonolingualTemplatePathMock.mockReturnValue(false);
+    // Likewise US3-T8: default the measurement/exit-poll orchestration to
+    // its no-filler, always-exited shape so this pre-existing block's
+    // assertions are unaffected by the kill-switch-on default.
+    measureLessonOneParityMock.mockReset();
+    measureLessonOneParityMock.mockResolvedValue({
+      lessonOnePageIndex: 3,
+      needsFiller: false,
+      renderedPageCount: 80,
+    });
+    pollProcessGroupExitedMock.mockReset();
+    pollProcessGroupExitedMock.mockResolvedValue(true);
+  });
+
+  afterEach(() => {
+    fs.rmSync(fixtureDir, { recursive: true, force: true });
+  });
+
+  function assemble(jobId: string): Promise<string> {
+    return assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId,
+      workRoot: fixtureDir,
+    });
+  }
+
+  test("returns a readable result OUTSIDE the job dir, and deletes the job dir", async () => {
+    const jobDir = path.join(fixtureDir, "job-cleanup-1");
+
+    const retained = await assemble("job-cleanup-1");
+
+    expect(retained.startsWith(jobDir)).toBe(false);
+    expect(fs.existsSync(retained)).toBe(true);
+    expect(fs.readFileSync(retained, "utf8")).toBe("assembled contents");
+    expect(fs.existsSync(jobDir)).toBe(false);
+  });
+
+  test("deletes the job dir even when the assembly fails (the worst of the leak — the user retries immediately)", async () => {
+    const jobDir = path.join(fixtureDir, "job-cleanup-2");
+    makeLessonFileMock.mockImplementation(async (_storage: Persistence, lsn: Lesson) => {
+      if (lsn.lesson === 3) throw new Error("boom");
+      const rawPath = path.join(fixtureDir, `raw-${lsn.lesson}.odt`);
+      fs.writeFileSync(rawPath, `raw contents for lesson ${lsn.lesson}`);
+      return rawPath;
+    });
+
+    await expect(assemble("job-cleanup-2")).rejects.toThrow(/Luke 1-3/);
+    expect(fs.existsSync(jobDir)).toBe(false);
+  });
+
+  test("cleanup is best-effort: an rmSync failure never fails an otherwise successful assembly", async () => {
+    const rmSpy = jest.spyOn(fs, "rmSync").mockImplementationOnce(() => {
+      throw new Error("EACCES: permission denied, rm '/docs/assembly-work/job-cleanup-3'");
+    });
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const retained = await assemble("job-cleanup-3");
+    rmSpy.mockRestore();
+    warnSpy.mockRestore();
+
+    expect(fs.existsSync(retained)).toBe(true);
+  });
+
+  test("a cross-device (EXDEV) rename falls back to a copy rather than failing the job", async () => {
+    // The exact CI failure this guards: `workRoot` is caller-supplied, so
+    // the job dir and docStorage's tmp dir can live on different
+    // filesystems (an os.tmpdir() fixture dir vs. the workspace inside a CI
+    // container). On macOS they share a device and renameSync succeeds, so
+    // only a forced EXDEV reproduces it.
+    const exdev = Object.assign(new Error("EXDEV: cross-device link not permitted, rename"), {
+      code: "EXDEV",
+    });
+    const renameSpy = jest.spyOn(fs, "renameSync").mockImplementationOnce(() => {
+      throw exdev;
+    });
+
+    const retained = await assemble("job-cleanup-5");
+    renameSpy.mockRestore();
+
+    expect(fs.existsSync(retained)).toBe(true);
+    expect(fs.readFileSync(retained, "utf8")).toBe("assembled contents");
+    expect(fs.existsSync(path.join(fixtureDir, "job-cleanup-5"))).toBe(false);
+  });
+
+  test("a rename failure IS fatal, with a curated path-free reason, and still cleans up", async () => {
+    const jobDir = path.join(fixtureDir, "job-cleanup-4");
+    const rawDetail =
+      "EXDEV: cross-device link not permitted, rename " +
+      "'/tmp/assembly-work/job-cleanup-4/assembled.odt' -> '/docs/tmp/1_job-cleanup-4.odt'";
+    const renameSpy = jest.spyOn(fs, "renameSync").mockImplementationOnce(() => {
+      throw new Error(rawDetail);
+    });
+
+    let caught: unknown;
+    try {
+      await assemble("job-cleanup-4");
+    } catch (error) {
+      caught = error;
+    }
+    renameSpy.mockRestore();
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    expect(message).toBe("assembly failed to store the result");
+    expect(message).not.toMatch(/\//);
+    expect(message).not.toBe(rawDetail);
+    expect(fs.existsSync(jobDir)).toBe(false);
+  });
+
+  test.each([["", "an empty jobId"] as const, ["../escape", "a traversing jobId"] as const])(
+    "%s (%s) is rejected before anything is created or deleted",
+    async (jobId: string, _description: string) => {
+      const rmSpy = jest.spyOn(fs, "rmSync");
+      const mkdirSpy = jest.spyOn(fs, "mkdirSync");
+
+      let caught: unknown;
+      try {
+        await assembleQuarter({
+          storage,
+          lessons: unorderedQuarterLessons(),
+          motherLang,
+          majorityLangId: ENGLISH_ID,
+          jobId,
+          workRoot: fixtureDir,
+        });
+      } catch (error) {
+        caught = error;
+      }
+      const rmTargets = rmSpy.mock.calls.map(([target]) => target);
+      const mkdirCalls = mkdirSpy.mock.calls.length;
+      rmSpy.mockRestore();
+      mkdirSpy.mockRestore();
+
+      expect(caught).toBeInstanceOf(Error);
+      expect((caught as Error).message).toBe("failed to prepare assembly working directory");
+      expect(rmTargets).toHaveLength(0);
+      expect(mkdirCalls).toBe(0);
+      expect(makeLessonFileMock).not.toHaveBeenCalled();
+      expect(fs.existsSync(fixtureDir)).toBe(true);
+    }
+  );
+});
+
+/**
+ * US4 (lessons-from-luke-koog.6.5.2/.3): completeness gate + curated
+ * failure-reason vocabulary. Spec: specs/007-assembled-quarter-download/
+ * data-model.md "Quarter completeness (FR-006 / US4)",
+ * specs/acceptance-specs/US12-blocked-incomplete-quarter.txt scenario 2
+ * ("A mid-assembly generation failure ends in a retryable failed state").
+ *
+ * The generation-time half of the completeness gate (each of the 14
+ * constituents generates via `makeLessonFile` without error) is NOT a
+ * synchronous pre-check — it runs as part of the per-constituent loop
+ * `assembleQuarter` already has. A `makeLessonFile` failure would otherwise
+ * propagate as the raw thrown error, which `AssemblyJobRegistry` uses
+ * verbatim as the failed job's human-facing `reason`
+ * (`AssemblyJobRegistry.ts` `promoteNext`'s `.catch`). That raw message can
+ * carry a stack trace or an absolute filesystem path — exactly what the
+ * curated-vocabulary rule (data-model.md "reason hygiene") forbids reaching
+ * a human. `assembleQuarter` MUST catch each step's failure and re-throw a
+ * curated, fixed-vocabulary `Error` instead.
+ */
+describe("assembleQuarter — US4 generation-failure curated reason", () => {
+  let fixtureDir: string;
+
+  beforeEach(() => {
+    fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembleQuarter-us4-test-"));
+
+    makeLessonFileMock.mockReset();
+    prepareConstituentForAssemblyMock.mockReset();
+    prepareConstituentForAssemblyMock.mockImplementation(() => ({ title: "", subject: "" }));
+    finalizeAssembledQuarterMock.mockReset();
+    finalizeAssembledQuarterMock.mockImplementation(() => undefined);
+    sofficeAssembleMock.mockReset();
+    sofficeAssembleMock.mockImplementation(
+      async (options: { outputPath: string; files: string[] }) => {
+        fs.writeFileSync(options.outputPath, "assembled contents");
+        return { outputPath: options.outputPath };
+      }
+    );
+
+    // See the note in the working-dir-lifecycle block: 009's required
+    // `templatePath` needs these, or this block assembles with `undefined`.
+    resolveTemplatePathMock.mockReset();
+    resolveTemplatePathMock.mockReturnValue("/fixture/quarter-styles-template.odt");
+    validateTemplateAssetMock.mockReset();
+    validateTemplateAssetMock.mockImplementation(() => undefined);
+    isMonolingualTemplatePathMock.mockReset();
+    isMonolingualTemplatePathMock.mockReturnValue(false);
+    // See the working-dir-lifecycle block's note: default US3-T8's
+    // measurement/exit-poll orchestration to its no-filler, always-exited
+    // shape so this pre-existing block's assertions are unaffected.
+    measureLessonOneParityMock.mockReset();
+    measureLessonOneParityMock.mockResolvedValue({
+      lessonOnePageIndex: 3,
+      needsFiller: false,
+      renderedPageCount: 80,
+    });
+    pollProcessGroupExitedMock.mockReset();
+    pollProcessGroupExitedMock.mockResolvedValue(true);
+  });
+
+  afterEach(() => {
+    fs.rmSync(fixtureDir, { recursive: true, force: true });
+  });
+
+  test("a constituent that throws during generation rejects with a curated reason naming that lesson (Luke 1-3), not the raw error", async () => {
+    // Raw failure detail deliberately includes an absolute path and an
+    // "Error:"-prefixed stack, exactly the kind of internal detail the
+    // curated reason MUST NOT leak.
+    const rawDetail =
+      "Error: soffice conversion failed\n" +
+      "    at /Users/eykd/code/js/lessons-from-luke/src/server/actions/makeLessonFile.ts:34:11";
+
+    makeLessonFileMock.mockImplementation(async (_storage: Persistence, lsn: Lesson) => {
+      if (lsn.lesson === 3) {
+        throw new Error(rawDetail);
+      }
+      const rawPath = path.join(fixtureDir, `raw-${lsn.lesson}.odt`);
+      fs.writeFileSync(rawPath, `raw contents for lesson ${lsn.lesson}`);
+      return rawPath;
+    });
+
+    await expect(
+      assembleQuarter({
+        storage,
+        lessons: unorderedQuarterLessons(),
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId: "job-us4-1",
+        workRoot: fixtureDir,
+      })
+    ).rejects.toThrow(/Luke 1-3/);
+
+    // The soffice merge must never run once a constituent has failed to
+    // generate — no partial file offered (US12 scenario 2).
+    expect(sofficeAssembleMock).not.toHaveBeenCalled();
+  });
+
+  test("the rejected reason never leaks a stack trace or a filesystem path", async () => {
+    const rawDetail =
+      "Error: ENOENT: no such file or directory, open " +
+      "'/Users/eykd/code/js/lessons-from-luke/docs/dev/Luke-1-05v01.odt'";
+
+    makeLessonFileMock.mockImplementation(async (_storage: Persistence, lsn: Lesson) => {
+      if (lsn.lesson === 5) {
+        throw new Error(rawDetail);
+      }
+      const rawPath = path.join(fixtureDir, `raw-${lsn.lesson}.odt`);
+      fs.writeFileSync(rawPath, `raw contents for lesson ${lsn.lesson}`);
+      return rawPath;
+    });
+
+    let caught: unknown;
+    try {
+      await assembleQuarter({
+        storage,
+        lessons: unorderedQuarterLessons(),
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId: "job-us4-2",
+        workRoot: fixtureDir,
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    // No absolute-path separators, no raw "Error:"/ENOENT leakage, and the
+    // curated message must not simply be the raw thrown message forwarded.
+    expect(message).not.toMatch(/\//);
+    expect(message).not.toMatch(/Error:/);
+    expect(message).not.toMatch(/ENOENT/);
+    expect(message).not.toBe(rawDetail);
+  });
+
+  test("a prepareConstituentForAssembly failure (e.g. a raw libxmljs2/zip error, or the outline-participant validation) yields a curated, path-free reason naming the lesson", async () => {
+    const rawDetail =
+      "libxmljs2: parse error at " +
+      "/Users/eykd/code/js/lessons-from-luke/tmp/job-us4-4/03.odt:12:4";
+
+    makeLessonFileMock.mockImplementation(async (_storage: Persistence, lsn: Lesson) => {
+      const rawPath = path.join(fixtureDir, `raw-${lsn.lesson}.odt`);
+      fs.writeFileSync(rawPath, `raw contents for lesson ${lsn.lesson}`);
+      return rawPath;
+    });
+    prepareConstituentForAssemblyMock.mockImplementation(() => {
+      throw new Error(rawDetail);
+    });
+
+    let caught: unknown;
+    try {
+      await assembleQuarter({
+        storage,
+        lessons: unorderedQuarterLessons(),
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId: "job-us4-4",
+        workRoot: fixtureDir,
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    expect(message).not.toMatch(/\//);
+    expect(message).not.toMatch(/libxmljs2/);
+    expect(message).not.toBe(rawDetail);
+    expect(sofficeAssembleMock).not.toHaveBeenCalled();
+  });
+
+  test("a finalizeAssembledQuarter failure yields a curated, path-free reason (never the raw error)", async () => {
+    const rawDetail =
+      "Command failed: zip -X -q -0 " +
+      "/Users/eykd/code/js/lessons-from-luke/tmp/job-us4-9/assembled.odt mimetype";
+
+    makeLessonFileMock.mockImplementation(async (_storage: Persistence, lsn: Lesson) => {
+      const rawPath = path.join(fixtureDir, `raw-${lsn.lesson}.odt`);
+      fs.writeFileSync(rawPath, `raw contents for lesson ${lsn.lesson}`);
+      return rawPath;
+    });
+    finalizeAssembledQuarterMock.mockImplementation(() => {
+      throw new Error(rawDetail);
+    });
+
+    let caught: unknown;
+    try {
+      await assembleQuarter({
+        storage,
+        lessons: unorderedQuarterLessons(),
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId: "job-us4-9",
+        workRoot: fixtureDir,
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    expect(message).not.toMatch(/\//);
+    expect(message).not.toMatch(/Command failed/);
+    expect(message).not.toBe(rawDetail);
+  });
+
+  test("a missing (never-written) sofficeAssemble outputPath is treated as a failure, not a ready result", async () => {
+    makeLessonFileMock.mockImplementation(async (_storage: Persistence, lsn: Lesson) => {
+      const rawPath = path.join(fixtureDir, `raw-${lsn.lesson}.odt`);
+      fs.writeFileSync(rawPath, `raw contents for lesson ${lsn.lesson}`);
+      return rawPath;
+    });
+    sofficeAssembleMock.mockImplementation(async (options: { outputPath: string }) =>
+      // Resolves successfully (soffice exited 0) but never actually wrote
+      // outputPath — e.g. the macro silently no-oped.
+      ({ outputPath: options.outputPath })
+    );
+
+    let caught: unknown;
+    try {
+      await assembleQuarter({
+        storage,
+        lessons: unorderedQuarterLessons(),
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId: "job-us4-5",
+        workRoot: fixtureDir,
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    expect(message).not.toMatch(/\//);
+    // The merge output never appeared — finalization must not run against it.
+    expect(finalizeAssembledQuarterMock).not.toHaveBeenCalled();
+  });
+
+  test("a mkdirSafe (job working-dir setup) failure yields a curated, path-free reason", async () => {
+    const rawDetail =
+      "EACCES: permission denied, mkdir " +
+      "'/Users/eykd/code/js/lessons-from-luke/tmp/assembly-work/job-us4-7'";
+
+    const mkdirSpy = jest.spyOn(fs, "mkdirSync").mockImplementationOnce(() => {
+      throw new Error(rawDetail);
+    });
+
+    let caught: unknown;
+    try {
+      await assembleQuarter({
+        storage,
+        lessons: unorderedQuarterLessons(),
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId: "job-us4-7",
+        workRoot: fixtureDir,
+      });
+    } catch (error) {
+      caught = error;
+    }
+    mkdirSpy.mockRestore();
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    expect(message).not.toMatch(/\//);
+    expect(message).not.toMatch(/EACCES/);
+    expect(message).not.toBe(rawDetail);
+    expect(makeLessonFileMock).not.toHaveBeenCalled();
+  });
+
+  test("a copyFileSync (raw constituent copy) failure yields a curated, path-free reason naming the lesson", async () => {
+    const rawDetail =
+      "ENOSPC: no space left on device, copyfile " +
+      "'/Users/eykd/code/js/lessons-from-luke/docs/Luke-1-01v01.odt' -> " +
+      "'/tmp/assembly-work/job-us4-8/00.odt'";
+
+    makeLessonFileMock.mockImplementation(async (_storage: Persistence, lsn: Lesson) => {
+      const rawPath = path.join(fixtureDir, `raw-${lsn.lesson}.odt`);
+      fs.writeFileSync(rawPath, `raw contents for lesson ${lsn.lesson}`);
+      return rawPath;
+    });
+    const copySpy = jest.spyOn(fs, "copyFileSync").mockImplementationOnce(() => {
+      throw new Error(rawDetail);
+    });
+
+    let caught: unknown;
+    try {
+      await assembleQuarter({
+        storage,
+        lessons: unorderedQuarterLessons(),
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId: "job-us4-8",
+        workRoot: fixtureDir,
+      });
+    } catch (error) {
+      caught = error;
+    }
+    copySpy.mockRestore();
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    expect(message).not.toMatch(/\//);
+    expect(message).not.toMatch(/ENOSPC/);
+    expect(message).not.toBe(rawDetail);
+    expect(sofficeAssembleMock).not.toHaveBeenCalled();
+  });
+
+  test("an empty (zero-byte) sofficeAssemble result is treated as a failure with a path-free reason", async () => {
+    makeLessonFileMock.mockImplementation(async (_storage: Persistence, lsn: Lesson) => {
+      const rawPath = path.join(fixtureDir, `raw-${lsn.lesson}.odt`);
+      fs.writeFileSync(rawPath, `raw contents for lesson ${lsn.lesson}`);
+      return rawPath;
+    });
+    sofficeAssembleMock.mockImplementation(async (options: { outputPath: string }) => {
+      fs.writeFileSync(options.outputPath, "");
+      return { outputPath: options.outputPath };
+    });
+
+    let caught: unknown;
+    try {
+      await assembleQuarter({
+        storage,
+        lessons: unorderedQuarterLessons(),
+        motherLang,
+        majorityLangId: ENGLISH_ID,
+        jobId: "job-us4-6",
+        workRoot: fixtureDir,
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    expect(message).not.toMatch(/\//);
+    expect(finalizeAssembledQuarterMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * US3-T7 RED (contract §4 "assembleQuarter orchestration"): the measure /
+ * conditional re-finalize / mandatory confirmation render sequence, gated
+ * by the ASSEMBLY_RECTO_FILLER kill-switch. `assembleQuarter` today never
+ * imports or calls `measureLessonOneParity` at all — every assertion below
+ * that expects it to have been called fails, which is the RED state this
+ * task ships. See specs/017-quarter-pagination-fixes/contracts/
+ * pagination-and-assembly.md §4 and data-model.md INV-12.
+ */
+describe("assembleQuarter — US3-T7 measurement/kill-switch orchestration (contract §4)", () => {
+  let fixtureDir: string;
+
+  const ENV_VAR = "ASSEMBLY_RECTO_FILLER";
+  const originalEnvValue = process.env[ENV_VAR];
+
+  beforeEach(() => {
+    fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembleQuarter-t7-test-"));
+    delete process.env[ENV_VAR];
+
+    makeLessonFileMock.mockReset();
+    makeLessonFileMock.mockImplementation(async (_storage: Persistence, lsn: Lesson) => {
+      const rawPath = path.join(fixtureDir, `raw-${lsn.lesson}.odt`);
+      fs.writeFileSync(rawPath, `raw contents for lesson ${lsn.lesson}`);
+      return rawPath;
+    });
+
+    prepareConstituentForAssemblyMock.mockReset();
+    prepareConstituentForAssemblyMock.mockImplementation(() => ({ title: "", subject: "" }));
+
+    finalizeAssembledQuarterMock.mockReset();
+    finalizeAssembledQuarterMock.mockImplementation(() => undefined);
+
+    sofficeAssembleMock.mockReset();
+    sofficeAssembleMock.mockImplementation(async (options: { outputPath: string }) => {
+      fs.writeFileSync(options.outputPath, "assembled contents");
+      return { outputPath: options.outputPath };
+    });
+
+    resolveTemplatePathMock.mockReset();
+    resolveTemplatePathMock.mockReturnValue("/fixture/quarter-styles-template.odt");
+    validateTemplateAssetMock.mockReset();
+    validateTemplateAssetMock.mockImplementation(() => undefined);
+    isMonolingualTemplatePathMock.mockReset();
+    isMonolingualTemplatePathMock.mockReturnValue(false);
+
+    measureLessonOneParityMock.mockReset();
+    measureLessonOneParityMock.mockResolvedValue({
+      lessonOnePageIndex: 3,
+      needsFiller: false,
+      renderedPageCount: 80,
+    });
+
+    pollProcessGroupExitedMock.mockReset();
+    pollProcessGroupExitedMock.mockResolvedValue(true);
+  });
+
+  afterEach(() => {
+    fs.rmSync(fixtureDir, { recursive: true, force: true });
+    if (originalEnvValue === undefined) {
+      delete process.env[ENV_VAR];
+    } else {
+      process.env[ENV_VAR] = originalEnvValue;
+    }
+  });
+
+  function assemble(jobId: string, signal?: AbortSignal): Promise<string> {
+    return assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId,
+      workRoot: fixtureDir,
+      signal,
+    });
+  }
+
+  test("no-filler branch: measures exactly once, on the finalized-but-filler-free document, and never re-finalizes or confirms", async () => {
+    await assemble("job-t7-no-filler");
+
+    // sofficeAssemble -> finalize(insertRectoFiller:false) -> measure, and
+    // nothing further once the measurement reports no filler is needed.
+    expect(finalizeAssembledQuarterMock).toHaveBeenCalledTimes(1);
+    const [firstFinalizeOptions] = finalizeAssembledQuarterMock.mock.calls[0] as [
+      { insertRectoFiller?: boolean },
+    ];
+    expect(firstFinalizeOptions.insertRectoFiller).not.toBe(true);
+
+    expect(measureLessonOneParityMock).toHaveBeenCalledTimes(1);
+
+    const sofficeOrder = sofficeAssembleMock.mock.invocationCallOrder[0];
+    const finalizeOrder = finalizeAssembledQuarterMock.mock.invocationCallOrder[0];
+    const measureOrder = measureLessonOneParityMock.mock.invocationCallOrder[0];
+    expect(sofficeOrder).toBeLessThan(finalizeOrder);
+    expect(finalizeOrder).toBeLessThan(measureOrder);
+  });
+
+  test("needsFiller branch: re-finalizes with insertRectoFiller:true and runs a mandatory confirmation render", async () => {
+    measureLessonOneParityMock
+      .mockResolvedValueOnce({ lessonOnePageIndex: 4, needsFiller: true, renderedPageCount: 80 })
+      .mockResolvedValueOnce({ lessonOnePageIndex: 5, needsFiller: false, renderedPageCount: 81 });
+
+    await assemble("job-t7-needs-filler");
+
+    expect(finalizeAssembledQuarterMock).toHaveBeenCalledTimes(2);
+    const [, secondFinalizeOptions] = finalizeAssembledQuarterMock.mock.calls.map(
+      ([options]) => options as { insertRectoFiller?: boolean }
+    );
+    expect(secondFinalizeOptions.insertRectoFiller).toBe(true);
+
+    // The mandatory confirmation render: measured again, on the re-finalized document.
+    expect(measureLessonOneParityMock).toHaveBeenCalledTimes(2);
+    const finalizeCallOrders = finalizeAssembledQuarterMock.mock.invocationCallOrder;
+    const measureCallOrders = measureLessonOneParityMock.mock.invocationCallOrder;
+    // measure(1) -> finalize(insertRectoFiller:true) -> measure(2) (confirmation)
+    expect(measureCallOrders[0]).toBeLessThan(finalizeCallOrders[1]);
+    expect(finalizeCallOrders[1]).toBeLessThan(measureCallOrders[1]);
+  });
+
+  test("confirmation render still reports an even index: the job FAILS with a curated reason, and a second filler is never inserted", async () => {
+    measureLessonOneParityMock
+      .mockResolvedValueOnce({ lessonOnePageIndex: 4, needsFiller: true, renderedPageCount: 80 })
+      .mockResolvedValueOnce({ lessonOnePageIndex: 4, needsFiller: true, renderedPageCount: 81 });
+
+    let caught: unknown;
+    try {
+      await assemble("job-t7-confirmation-fails");
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    // Curated, path-free — never the raw internal detail.
+    expect(message).not.toMatch(/\//);
+
+    // Exactly two finalize calls (the initial pass and the one filler
+    // insertion) — a second filler is NEVER inserted, no matter what the
+    // confirmation render reports.
+    expect(finalizeAssembledQuarterMock).toHaveBeenCalledTimes(2);
+    expect(measureLessonOneParityMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("kill-switch off (ASSEMBLY_RECTO_FILLER=off): skips measurement and re-finalize entirely, delivers with no filler, warns exactly once naming FR-008", async () => {
+    process.env[ENV_VAR] = "off";
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    await assemble("job-t7-switch-off");
+
+    expect(measureLessonOneParityMock).not.toHaveBeenCalled();
+    expect(finalizeAssembledQuarterMock).toHaveBeenCalledTimes(1);
+    const [options] = finalizeAssembledQuarterMock.mock.calls[0] as [
+      { insertRectoFiller?: boolean },
+    ];
+    expect(options.insertRectoFiller).not.toBe(true);
+
+    const fr008Warnings = warnSpy.mock.calls.filter(([line]) =>
+      typeof line === "string" ? line.includes("FR-008") : false
+    );
+    expect(fr008Warnings).toHaveLength(1);
+
+    warnSpy.mockRestore();
+  });
+
+  test.each(["", "on", "true", "1", "garbage"])(
+    "kill-switch stays ON for unrecognized/unset-like value %s — still measures",
+    async (value) => {
+      if (value === "") {
+        process.env[ENV_VAR] = "";
+      } else {
+        process.env[ENV_VAR] = value;
+      }
+
+      await assemble(`job-t7-switch-value-${value || "empty"}`);
+
+      expect(measureLessonOneParityMock).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  test("the kill-switch is consulted exactly once per job, before the first measurement — never inside the pass itself", async () => {
+    // A per-job single read is only observable indirectly through
+    // measureLessonOneParity's own call count for a needsFiller:false job —
+    // this asserts the read happens (measurement occurs) rather than being
+    // skipped, and is the RED placeholder for the "consulted once" shape;
+    // GREEN's orchestration must not call measureLessonOneParity more than
+    // the two dictated by the sequence in a needsFiller branch, nor thread
+    // any additional predicate re-check into it.
+    measureLessonOneParityMock
+      .mockResolvedValueOnce({ lessonOnePageIndex: 4, needsFiller: true, renderedPageCount: 80 })
+      .mockResolvedValueOnce({ lessonOnePageIndex: 5, needsFiller: false, renderedPageCount: 81 });
+
+    await assemble("job-t7-consulted-once");
+
+    expect(measureLessonOneParityMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("bounded exit-poll: the previous soffice process group's exit is confirmed via the capped poll before each render, and a poll that never resolves fails the job rather than hanging forever", async () => {
+    measureLessonOneParityMock
+      .mockResolvedValueOnce({ lessonOnePageIndex: 4, needsFiller: true, renderedPageCount: 80 })
+      .mockResolvedValueOnce({ lessonOnePageIndex: 5, needsFiller: false, renderedPageCount: 81 });
+
+    await assemble("job-t7-bounded-poll");
+
+    // One poll before the measurement render, one before the confirmation
+    // render — the capped poll from contract §4, never an open await.
+    expect(pollProcessGroupExitedMock).toHaveBeenCalled();
+    expect(pollProcessGroupExitedMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("exit-poll expiry fails the job with the curated reason rather than starting a second soffice beside a live one", async () => {
+    pollProcessGroupExitedMock.mockResolvedValue(false);
+
+    let caught: unknown;
+    try {
+      await assemble("job-t7-exit-poll-expired");
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(Error);
+    const message = (caught as Error).message;
+    expect(message).not.toMatch(/\//);
+    expect(measureLessonOneParityMock).not.toHaveBeenCalled();
+  });
+
+  test("diagnostics: measureLessonOneParity's measurement and confirmation passes each get their own outDir, both inside the job's own working directory", async () => {
+    measureLessonOneParityMock
+      .mockResolvedValueOnce({ lessonOnePageIndex: 4, needsFiller: true, renderedPageCount: 80 })
+      .mockResolvedValueOnce({ lessonOnePageIndex: 5, needsFiller: false, renderedPageCount: 81 });
+
+    await assemble("job-t7-diagnostics");
+
+    expect(measureLessonOneParityMock).toHaveBeenCalledTimes(2);
+    const [firstCallOptions, secondCallOptions] = measureLessonOneParityMock.mock.calls.map(
+      ([options]) => options as { outDir: string }
+    );
+    expect(firstCallOptions.outDir).not.toBe(secondCallOptions.outDir);
+    expect(firstCallOptions.outDir.startsWith(path.join(fixtureDir, "job-t7-diagnostics"))).toBe(
+      true
+    );
+    expect(secondCallOptions.outDir.startsWith(path.join(fixtureDir, "job-t7-diagnostics"))).toBe(
+      true
+    );
+  });
+});

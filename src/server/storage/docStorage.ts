@@ -5,7 +5,13 @@ import path from "path";
 import { UploadedFile } from "express-fileupload";
 import { BaseLesson } from "../../core/models/Lesson";
 import { zeroPad } from "../../core/util/numberUtils";
-import { mkdirSafe, unzip, unlinkRecursive, unlinkSafe } from "../../core/util/fsUtils";
+import {
+  mkdirSafe,
+  moveFileSync,
+  unzip,
+  unlinkRecursive,
+  unlinkSafe,
+} from "../../core/util/fsUtils";
 import { objKeys } from "../../core/util/objectUtils";
 import waitFor from "../../core/util/waitFor";
 
@@ -100,7 +106,7 @@ async function mvWebifiedHtml(tmpOdtPath: string, lesson: BaseLesson) {
     await waitFor(() => fs.existsSync(inPath));
 
     const outPath = webifiedHtmPath(lesson);
-    fs.renameSync(inPath, outPath);
+    moveFileSync(inPath, outPath);
   } catch (err) {
     console.error(err);
   }
@@ -140,4 +146,5 @@ export default {
   webifyPath,
   mvWebifiedHtml,
   webifiedHtml,
+  docsDirPath,
 };

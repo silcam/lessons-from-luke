@@ -43,3 +43,6 @@ src/**/*.js.map
 .sp-harden-findings.json
 .claude/projects/
 .impeccable/critique/
+
+# Disposable spike proof-of-concept output binaries (not build/test artifacts)
+specs/**/spike/**/out/

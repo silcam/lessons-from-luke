@@ -3,9 +3,12 @@ import fs from "fs";
 import { mkdirSafe, zip, unlinkRecursive } from "../../core/util/fsUtils";
 import { unzip } from "../../core/util/fsUtils";
 import { DocString } from "../../core/models/DocString";
+import { removeParagraph } from "./removeParagraph";
+import { removeCoverRepetitionParagraphs } from "./coverRepetitions";
 
 interface Opts {
   clearEmptyParagraphs?: boolean;
+  removeCoverRepetitions?: boolean;
 }
 
 export default function mergeXml(
@@ -27,7 +30,11 @@ export default function mergeXml(
     xmlTypes.forEach((xmlType) => {
       if (sortedDocStrings[xmlType].length > 0) {
         const xmlPath = `${extractDirPath}/${xmlType}.xml`;
-        mergeTranslations(xmlPath, sortedDocStrings[xmlType], opts);
+        // Repetition paragraphs live only in content.xml; meta.xml does not
+        // even declare the text:/style: namespace prefixes the removal's
+        // XPaths need, so the option must not leak to the other xml types.
+        const removeCoverRepetitions = opts.removeCoverRepetitions && xmlType === "content";
+        mergeTranslations(xmlPath, sortedDocStrings[xmlType], { ...opts, removeCoverRepetitions });
       }
     });
 
@@ -75,18 +82,13 @@ function mergeTranslations(contentXmlFilepath: string, translations: DocString[]
         }
       });
   }
+  // After clearEmptyParagraphs: position-based xpaths above must resolve
+  // against the un-mutated tree; this removal is style-driven and safe last.
+  if (opts.removeCoverRepetitions) {
+    removeCoverRepetitionParagraphs(xmlDoc, namespaces);
+  }
   const docStr = cleanOpenDocXml(xmlDoc.toString(false));
   fs.writeFileSync(contentXmlFilepath, docStr);
-}
-
-function removeParagraph(element: Element) {
-  const parent = element.parent();
-  if (isAnElement(parent) && !parent.text()) removeParagraph(parent);
-  else element.remove();
-}
-
-function isAnElement(element: Element | Document): element is Element {
-  return "text" in element;
 }
 
 function getXmlDoc(xmlFilpath: string) {

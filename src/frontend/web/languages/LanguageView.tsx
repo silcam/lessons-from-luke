@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Language, ENGLISH_ID, MAX_LANGUAGE_NAME_LENGTH } from "../../../core/models/Language";
 import Heading from "../../common/base-components/Heading";
 import { useAppSelector } from "../../common/state/appState";
-import { lessonName } from "../../../core/models/Lesson";
+import { lessonName, isCoverLesson, coverFormat } from "../../../core/models/Lesson";
 import { findBy } from "../../../core/util/arrayUtils";
 import ProgressBar from "../../common/base-components/ProgressBar";
 import Button from "../../common/base-components/Button";
@@ -24,6 +24,31 @@ import {
 } from "../../common/state/languageSlice";
 import { usePush } from "../../common/api/useLoad";
 import ConfirmDialog from "../../common/base-components/ConfirmDialog";
+import AssembleQuarterButton from "../documents/AssembleQuarterButton";
+import { BaseLesson } from "../../../core/models/Lesson";
+
+/** One row per distinct (book, series) pair, in first-seen order, with that
+ * quarter's cover lessons (A4 before A3). */
+function quarters(
+  lessons: BaseLesson[]
+): { book: BaseLesson["book"]; series: number; covers: BaseLesson[] }[] {
+  const byKey = new Map<
+    string,
+    { book: BaseLesson["book"]; series: number; covers: BaseLesson[] }
+  >();
+  for (const lesson of lessons) {
+    const key = `${lesson.book}-${lesson.series}`;
+    let quarter = byKey.get(key);
+    if (!quarter) {
+      quarter = { book: lesson.book, series: lesson.series, covers: [] };
+      byKey.set(key, quarter);
+    }
+    if (isCoverLesson(lesson.lesson)) quarter.covers.push(lesson);
+  }
+  const result = Array.from(byKey.values());
+  for (const quarter of result) quarter.covers.sort((a, b) => a.lesson - b.lesson);
+  return result;
+}
 
 interface IProps {
   language: Language;
@@ -50,6 +75,13 @@ export default function LanguageView(props: IProps) {
   const [archiveUpdateFailed, setArchiveUpdateFailed] = useState(false);
 
   const languages = useAppSelector((state) => state.languages);
+
+  // Bilingual downloads pair the translation with the majority language:
+  // the source language for mother-tongue projects, otherwise the language
+  // itself. Shared by the lesson-table and quarter-table download links.
+  const bilingualMajorityLanguageId = props.language.motherTongue
+    ? props.language.defaultSrcLang
+    : props.language.languageId;
 
   // Languages that still point at this one as their source. Mirrors the server's
   // HAS_DEPENDENTS check (PGStorage.archiveLanguage) so the Archive button is
@@ -224,18 +256,63 @@ export default function LanguageView(props: IProps) {
             <ToggleMotherTongue save={handleMTChange} language={{ ...activeLang }} />
           </Div>
           <Table>
+            {quarters(lessons).map(({ book, series, covers }) => (
+              <tr key={`${book}-${series}`}>
+                <td>{`${t(book)} ${series}`}</td>
+                <td>
+                  {t("Assemble_quarter")}
+                  {":  "}
+                  <AssembleQuarterButton
+                    language={props.language}
+                    book={book}
+                    series={series}
+                    mode="bilingual"
+                    text="Bilingual"
+                  />
+                  {" | "}
+                  <AssembleQuarterButton
+                    language={props.language}
+                    book={book}
+                    series={series}
+                    mode="single-language"
+                    text="Single-Language"
+                  />
+                  {covers.map((cover) => (
+                    <Div key={cover.lessonId}>
+                      {t(coverFormat(cover.lesson) === "A4" ? "Cover (A4)" : "Cover (A3)")}
+                      {":  "}
+                      <GetDocumentButton
+                        language={props.language}
+                        lesson={cover}
+                        text="Bilingual"
+                        majorityLanguageId={bilingualMajorityLanguageId}
+                      />
+                      {" | "}
+                      <GetDocumentButton
+                        language={props.language}
+                        lesson={cover}
+                        text="Single-Language"
+                        majorityLanguageId={0}
+                      />
+                    </Div>
+                  ))}
+                </td>
+              </tr>
+            ))}
+          </Table>
+          <Table>
             {lessons.map((lesson) => {
               const progress = findBy(
                 props.language.progress,
                 "lessonId",
                 lesson.lessonId
               )?.progress;
-              if (!progress) return null;
+              if (!progress && !isCoverLesson(lesson.lesson)) return null;
               return (
                 <tr key={lesson.lessonId}>
                   <td>{lessonName(lesson, t)}</td>
                   <td>
-                    <ProgressBar percent={progress} fixed />
+                    <ProgressBar percent={progress ?? 0} fixed />
                   </td>
                   <td>
                     {t("Download")}
@@ -244,11 +321,7 @@ export default function LanguageView(props: IProps) {
                       language={props.language}
                       lesson={lesson}
                       text="Bilingual"
-                      majorityLanguageId={
-                        props.language.motherTongue
-                          ? props.language.defaultSrcLang
-                          : props.language.languageId
-                      }
+                      majorityLanguageId={bilingualMajorityLanguageId}
                     />
                     {" | "}
                     <GetDocumentButton

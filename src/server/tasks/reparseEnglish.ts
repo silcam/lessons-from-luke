@@ -1,8 +1,9 @@
-import PGStorage from "../storage/PGStorage";
+import makeStorage from "../storage/makeStorage";
 import { lessonName, BaseLesson } from "../../core/models/Lesson";
 import { parseDocStrings, saveDocStrings } from "../actions/updateLesson";
 import docStorage from "../storage/docStorage";
 import { Persistence } from "../../core/interfaces/Persistence";
+import { splitReferencesInDocument } from "../xml/referenceSplitter";
 import fs from "fs";
 
 /*
@@ -10,20 +11,29 @@ import fs from "fs";
     algorithm requires reparsing all the existing doc files.
 */
 
-reparseEnglish();
+if (require.main === module) {
+  reparseEnglish();
+}
 
-async function reparseEnglish() {
-  const storage = new PGStorage();
+export async function reparseEnglish(storage: Persistence = makeStorage()) {
   const lessons = await storage.lessons();
+  let succeeded = 0;
+  let failed = 0;
   for (let i = 0; i < lessons.length; ++i) {
     const lesson = lessons[i];
     console.log(`Reparse ${lessonName(lesson)}...`);
-    await reparseLesson(lesson, storage);
+    try {
+      await reparseLesson(lesson, storage);
+      succeeded++;
+    } catch (error) {
+      failed++;
+      console.log(`Reparse ${lessonName(lesson)} (lessonId=${lesson.lessonId}) failed: ${error}`);
+    }
   }
-  console.log("Done");
+  console.log(`Summary: Done: ${succeeded} succeeded, ${failed} failed`);
 }
 
-async function reparseLesson(lesson: BaseLesson, storage: Persistence) {
+export async function reparseLesson(lesson: BaseLesson, storage: Persistence) {
   const newVersion = lesson.version + 1;
   const oldDocFilepath = docStorage.docFilepath(lesson);
   const newDocFilepath = docStorage.docFilepath({
@@ -31,6 +41,7 @@ async function reparseLesson(lesson: BaseLesson, storage: Persistence) {
     version: newVersion,
   });
   fs.copyFileSync(oldDocFilepath, newDocFilepath);
+  splitReferencesInDocument(newDocFilepath, newDocFilepath);
   const docStrings = parseDocStrings(newDocFilepath);
   await saveDocStrings(lesson.lessonId, newVersion, docStrings, storage);
 }

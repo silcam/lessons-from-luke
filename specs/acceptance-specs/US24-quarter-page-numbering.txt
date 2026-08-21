@@ -1,0 +1,44 @@
+;=============================================
+; The first physical page of an assembled quarter prints no number.
+;=============================================
+GIVEN an assembled quarter book.
+WHEN the reader looks at the first physical page.
+THEN no page number is printed.
+THEN that page counts as page i in the front-matter sequence.
+
+;=============================================
+; The second physical page prints roman numeral ii.
+;=============================================
+GIVEN an assembled quarter book.
+WHEN the reader looks at the second physical page.
+THEN it prints ii.
+
+;=============================================
+; Lesson 1's first page restarts the body sequence at arabic 1.
+;=============================================
+GIVEN an assembled quarter book.
+WHEN the reader looks at the first page of lesson 1.
+THEN no page number is printed on that page.
+THEN the following page prints 2.
+
+;=============================================
+; Every later lesson's first page suppresses its number without gap or repeat.
+;=============================================
+GIVEN an assembled quarter book.
+WHEN the reader looks at the first page of any lesson after lesson 1.
+THEN no page number is printed on that page.
+THEN the following page prints the next value in the body sequence with no gap or repeat.
+
+;=============================================
+; No page-number field carries an offset.
+;=============================================
+GIVEN an assembled quarter book.
+WHEN the client inspects any footer's page-number field.
+THEN no offset is set on it.
+
+;=============================================
+; Numbering behaves identically in bilingual and single-language assembly modes.
+;=============================================
+GIVEN either assembly mode, bilingual or single-language.
+WHEN the numbering checks above are run.
+THEN they hold identically in both modes.
