@@ -127,6 +127,55 @@ describe("downSync", () => {
     app.webClient.get.mockResolvedValue(null); // returns null → throws NO_CONNECTION
     await expect(downSync(app)).resolves.toBeUndefined();
   });
+
+  test("merges the fresh language name into syncState.language, preserving code and progress", async () => {
+    const staleLanguage = {
+      languageId: 3,
+      name: "Stale Name",
+      code: "secret-code",
+      motherTongue: false,
+      progress: [{ lessonId: 1, translated: 5, total: 10 }],
+      defaultSrcLang: 1,
+      archived: false,
+    };
+    const syncState = makeSyncState({
+      downSync: makeDownSync({ languages: true, timestamp: 5 }),
+      language: staleLanguage as any,
+    });
+    const app = makeApp(syncState);
+    const languages = [
+      {
+        languageId: 3,
+        name: "Fresh Name",
+        motherTongue: false,
+        defaultSrcLang: 1,
+        progress: [],
+        archived: false,
+      },
+    ];
+
+    app.webClient.get
+      .mockResolvedValueOnce({
+        languages: true,
+        baseLessons: false,
+        lessons: [],
+        tStrings: {},
+        timestamp: 5,
+      })
+      .mockResolvedValueOnce(languages);
+
+    await downSync(app);
+
+    expect(app.localStorage.setSyncState).toHaveBeenCalledWith(
+      {
+        language: {
+          ...staleLanguage,
+          name: "Fresh Name",
+        },
+      },
+      app
+    );
+  });
 });
 
 describe("fetchMissingPreviews", () => {

@@ -1,0 +1,29 @@
+;=============================================
+; An empty or whitespace-only name is rejected with inline feedback.
+;=============================================
+GIVEN the inline editor is open.
+WHEN the admin saves an empty or whitespace-only name.
+THEN the rename is rejected.
+THEN feedback is shown inline.
+THEN the original name remains.
+
+;=============================================
+; A name already used by another language is rejected as a duplicate.
+;=============================================
+GIVEN another language named "Français" exists.
+WHEN the admin renames this language to "Français".
+THEN the rename is rejected with duplicate-name feedback consistent with the create-language form's behavior.
+
+;=============================================
+; Leading and trailing whitespace is trimmed before saving.
+;=============================================
+GIVEN the admin types a name with leading/trailing whitespace.
+WHEN they save.
+THEN the trimmed name is persisted.
+
+;=============================================
+; Re-saving the language's own current name succeeds.
+;=============================================
+GIVEN the admin re-saves the language's own current name unchanged.
+WHEN they save.
+THEN the save succeeds without a duplicate-name error.

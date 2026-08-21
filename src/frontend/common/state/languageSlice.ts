@@ -131,6 +131,18 @@ export function pushLanguageUpdate(language: Language): Pusher<Language> {
   };
 }
 
+export function pushLanguageRename(languageId: number, name: string): Pusher<Language> {
+  return async (post, dispatch) => {
+    const updatedLanguage = await post(
+      "/api/admin/languages/:languageId",
+      { languageId },
+      { name }
+    );
+    if (updatedLanguage) dispatch(languageSlice.actions.addLanguage(updatedLanguage));
+    return updatedLanguage;
+  };
+}
+
 export function pushArchiveLanguage(languageId: number): Pusher<ArchiveLanguageResult> {
   return async (post, dispatch) => {
     const result = await post("/api/admin/languages/:languageId/archive", { languageId }, {});

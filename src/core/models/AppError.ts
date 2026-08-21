@@ -1,7 +1,9 @@
 import { objKeys } from "../util/objectUtils";
 
 type BaseAppError =
-  { type: "No Connection" } | { type: "HTTP"; status: number } | { type: "Unknown" };
+  | { type: "No Connection" }
+  | { type: "HTTP"; status: number; body?: unknown }
+  | { type: "Unknown" };
 export type AppError = BaseAppError & { log?: string };
 export type AppErrorType = AppError["type"];
 

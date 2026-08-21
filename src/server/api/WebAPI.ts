@@ -37,7 +37,10 @@ export async function handleErrors(res: Response, cb: () => Promise<void>) {
     const rawStatus = err.status;
     const status =
       Number.isInteger(rawStatus) && rawStatus >= 100 && rawStatus <= 599 ? rawStatus : 500;
-    res.status(status).send();
+    // Never forward a caller-supplied body on a 500: that path is for
+    // unexpected/internal errors and must not leak internals.
+    if (status != 500 && err.body !== undefined) res.status(status).json(err.body);
+    else res.status(status).send();
     if (status == 500) console.error(err);
   }
 }

@@ -119,6 +119,16 @@ describe("docStorage", () => {
       expect(mockUnlinkSafe).toHaveBeenCalledWith(`${docsDirPath()}/tmp/${old}`);
       expect(mockUnlinkSafe).not.toHaveBeenCalledWith(`${docsDirPath()}/tmp/${recent}`);
     });
+
+    // Defense-in-depth (lessons-from-luke-fm4a.7): even if a caller passes an
+    // unsanitized baseName containing traversal segments, the resolved path
+    // must stay inside docsTmpPath().
+    it("resolves inside docsTmpPath() even when baseName contains traversal segments", () => {
+      (mockFs.readdirSync as jest.Mock).mockReturnValue([]);
+      const filepath = docStorage.tmpFilePath("../../../evil.odt");
+      const tmpDir = `${docsDirPath()}/tmp`;
+      expect(path.resolve(filepath).startsWith(path.resolve(tmpDir) + path.sep)).toBe(true);
+    });
   });
 
   describe("docXml", () => {

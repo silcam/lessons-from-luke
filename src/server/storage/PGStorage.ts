@@ -59,28 +59,59 @@ export default class PGStorage implements Persistence {
     return runInTransaction(fn);
   }
 
-  async createLanguage(newLanguage: NewLanguage): Promise<Language> {
-    return this.runInTx(async (tx: SqlFunc) => {
-      const [source] = await tx`
-        SELECT languageid FROM languages WHERE languageId=${newLanguage.defaultSrcLang} AND NOT archived FOR UPDATE
-      `;
-      if (!source) throw { status: 422 };
+  // Runs `fn` (a runInTx call) and translates a Postgres 23505 (unique
+  // violation) escaping it into { status: 409 }. MUST wrap the runInTx call
+  // itself, not run *inside* the transactional callback: a unique violation
+  // aborts the current (sub)transaction, so catching and swallowing it
+  // inside the callback would leave the connection in an aborted state for
+  // whatever statement runs next. Letting the error propagate out of the
+  // callback lets postgres.js issue the ROLLBACK/ROLLBACK TO SAVEPOINT
+  // itself, and only then do we translate it here at the boundary.
+  //
+  // This is the backstop for the languages_name_active_lower_idx partial
+  // unique index (lessons-from-luke-fm4a.9): the app-level
+  // case-insensitive duplicate-name check run FOR UPDATE inside the
+  // transaction closes the race when a conflicting row already exists to
+  // lock, but takes no lock at all when it finds zero rows — so two
+  // concurrent writes racing toward the same brand-new name can both pass
+  // the app-level check. The database index is the actual serialization
+  // point for that case; the loser's INSERT/UPDATE fails with 23505, which
+  // this maps to the same 409 the app-level check produces.
+  private async mapUniqueViolationTo409<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (err: unknown) {
+      if (typeof err === "object" && err !== null && (err as { code?: string }).code === "23505") {
+        throw { status: 409 };
+      }
+      throw err;
+    }
+  }
 
-      const timestamp = Date.now();
-      const newLang = {
-        ...newLanguage,
-        code: encode(),
-        motherTongue: true,
-        progress: "[]",
-        created: timestamp,
-        modified: timestamp,
-      };
-      const [final] = await tx`
-        INSERT INTO languages
-          ${tx(newLang)}
-          returning *`;
-      return final;
-    });
+  async createLanguage(newLanguage: NewLanguage): Promise<Language> {
+    return this.mapUniqueViolationTo409(() =>
+      this.runInTx(async (tx: SqlFunc) => {
+        const [source] = await tx`
+          SELECT languageid FROM languages WHERE languageId=${newLanguage.defaultSrcLang} AND NOT archived FOR UPDATE
+        `;
+        if (!source) throw { status: 422 };
+
+        const timestamp = Date.now();
+        const newLang = {
+          ...newLanguage,
+          code: encode(),
+          motherTongue: true,
+          progress: "[]",
+          created: timestamp,
+          modified: timestamp,
+        };
+        const [final] = await tx`
+          INSERT INTO languages
+            ${tx(newLang)}
+            returning *`;
+        return final;
+      })
+    );
   }
 
   async updateLanguage(id: number, update: Partial<Language>): Promise<Language> {
@@ -91,34 +122,59 @@ export default class PGStorage implements Persistence {
   }
 
   // Like updateLanguage, but (a) rejects with { status: 404 } unless the
-  // target itself is active, and (b) when `update.defaultSrcLang` is present
+  // target itself is active, (b) when `update.defaultSrcLang` is present
   // AND differs from the row's current value, validates the new source is
   // active (locked FOR UPDATE) before applying — rejects with
-  // { status: 422 } if missing or archived. Runs via runInTx — see its
-  // comment for why the transaction-starter is picked dynamically.
+  // { status: 422 } if missing or archived, and (c) when `update.name` is
+  // present, rejects with { status: 409 } if it case-insensitively collides
+  // with another active language's name.
+  //
+  // The (c) check runs FOR UPDATE inside the SAME transaction as the write
+  // below, which closes the race when a conflicting ACTIVE row already
+  // exists (the check locks it, serializing against it). It does NOT close
+  // the race when both concurrent renames target a brand-new name: a
+  // `SELECT ... FOR UPDATE` matching zero rows takes no lock, so two such
+  // writes can both pass this check. The languages_name_active_lower_idx
+  // partial unique index (migrations/1784766630015) is the real
+  // serialization point for that case — mapUniqueViolationTo409 (wrapping
+  // this whole call) turns the loser's resulting 23505 into the same 409.
+  // Runs via runInTx — see its comment for why the transaction-starter is
+  // picked dynamically.
   //
   // `updateLanguage` deliberately keeps NO archived filter: it is how tests
   // (and only tests) flip `archived` in the first place.
   async updateLanguageChecked(id: number, update: Partial<Language>): Promise<Language> {
-    await this.runInTx(async (tx: SqlFunc) => {
-      const [row] = await tx`
-        SELECT languageid, defaultsrclang FROM languages
-        WHERE languageId=${id} AND NOT archived FOR UPDATE
-      `;
-      // No active row: nonexistent or archived. Both are a 404 — an archived
-      // language must not be mutable through the generic update endpoint.
-      if (!row) throw { status: 404 };
-
-      if (update.defaultSrcLang !== undefined && update.defaultSrcLang !== row.defaultSrcLang) {
-        const [source] = await tx`
-          SELECT languageid FROM languages WHERE languageId=${update.defaultSrcLang} AND NOT archived FOR UPDATE
+    await this.mapUniqueViolationTo409(() =>
+      this.runInTx(async (tx: SqlFunc) => {
+        const [row] = await tx`
+          SELECT languageid, defaultsrclang FROM languages
+          WHERE languageId=${id} AND NOT archived FOR UPDATE
         `;
-        if (!source) throw { status: 422 };
-      }
+        // No active row: nonexistent or archived. Both are a 404 — an
+        // archived language must not be mutable through the generic update
+        // endpoint.
+        if (!row) throw { status: 404 };
 
-      const finalUpdate = { ...update, modified: Date.now() };
-      await tx`UPDATE languages SET ${tx(finalUpdate)} WHERE languageId=${id}`;
-    });
+        if (update.defaultSrcLang !== undefined && update.defaultSrcLang !== row.defaultSrcLang) {
+          const [source] = await tx`
+            SELECT languageid FROM languages WHERE languageId=${update.defaultSrcLang} AND NOT archived FOR UPDATE
+          `;
+          if (!source) throw { status: 422 };
+        }
+
+        if (update.name !== undefined) {
+          const [duplicate] = await tx`
+            SELECT languageid FROM languages
+            WHERE languageId != ${id} AND NOT archived AND lower(name) = lower(${update.name})
+            FOR UPDATE
+          `;
+          if (duplicate) throw { status: 409 };
+        }
+
+        const finalUpdate = { ...update, modified: Date.now() };
+        await tx`UPDATE languages SET ${tx(finalUpdate)} WHERE languageId=${id}`;
+      })
+    );
     await this.updateProgress();
     // Safe post-update: the locked `AND NOT archived` predicate above proves
     // the target was active, and this method never sets `archived`, so a
@@ -404,10 +460,16 @@ export default class PGStorage implements Persistence {
     languageTimestamps: LanguageTimestamp[]
   ): Promise<ContinuousSyncPackage> {
     const now = Date.now();
+    // languages: modified covers both renames and creation (createLanguage
+    // stamps created and modified together at insert; updateProgress's raw
+    // UPDATE doesn't touch modified, so progress recalcs won't flip this flag)
     let rows = await this.sql`
-      SELECT max(created) FROM languages
+      SELECT max(modified) FROM languages
     `;
     const langsTimestamp = rows[0].max;
+    // lessons: created only — this is a deliberate "new lesson added to
+    // roster" signal; content edits already flow through the lessons list
+    // below (WHERE modified > timestamp)
     rows = await this.sql`
       SELECT max(created) FROM lessons
     `;
