@@ -47,6 +47,7 @@ Spec: specs/012-language-archive-routing/spec.md
 
 Keywords: rename language, language name, edit language name, change name, inline edit, pencil icon, Edit link, toggle-to-edit, language project, admin language page, LanguageView, fix typo in name, duplicate name, 409, unique name, trim whitespace, name validation, display name, admin-only, language settings
 Spec: specs/016-language-rename/spec.md
+
 ## Quarter Template Full Style-Family Application
 
 Keywords: quarter template overwrite, all style families, page styles, master pages, frame styles, list styles, numbering styles, first page footer, CC footer, Creative Commons footer, license footer, footer removal, lesson title spacing, lesson number graphic spacing, lesson opening layout, chapterized footers, pagination regression, load styles overwrite, supersedes 009 FR-003, assembled quarter styling, Chris Jackson feedback, stand-alone template vs quarter template, print-ready book
