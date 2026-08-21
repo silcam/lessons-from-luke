@@ -657,6 +657,18 @@ test("Sync: new language", async () => {
   expect(syncPackage.languages).toBe(true);
 });
 
+test("Sync: renamed language", async () => {
+  const language = await storage.createLanguage({ name: "Klingon", defaultSrcLang: 1 });
+
+  const syncTimestamp = Date.now();
+  await new Promise((resolve) => setTimeout(resolve, 10));
+
+  await storage.updateLanguageChecked(language.languageId, { name: "Klingon Renamed" });
+
+  const syncPackage = await storage.sync(syncTimestamp, []);
+  expect(syncPackage.languages).toBe(true);
+});
+
 test("Sync: new lesson", async () => {
   const syncTimestamp = Date.now() - 1000;
 

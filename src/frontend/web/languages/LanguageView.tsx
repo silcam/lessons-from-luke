@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Language, ENGLISH_ID } from "../../../core/models/Language";
+import { Language, ENGLISH_ID, MAX_LANGUAGE_NAME_LENGTH } from "../../../core/models/Language";
 import Heading from "../../common/base-components/Heading";
 import { useAppSelector } from "../../common/state/appState";
 import { lessonName } from "../../../core/models/Lesson";
@@ -16,7 +16,12 @@ import Table from "../../common/base-components/Table";
 import { GetDocumentButton } from "../documents/useGetDocument";
 import SelectInput from "../../common/base-components/SelectInput";
 import Label from "../../common/base-components/Label";
-import { pushLanguageUpdate, pushArchiveLanguage } from "../../common/state/languageSlice";
+import TextInput from "../../common/base-components/TextInput";
+import {
+  pushLanguageUpdate,
+  pushArchiveLanguage,
+  pushLanguageRename,
+} from "../../common/state/languageSlice";
 import { usePush } from "../../common/api/useLoad";
 import ConfirmDialog from "../../common/base-components/ConfirmDialog";
 
@@ -34,6 +39,10 @@ export default function LanguageView(props: IProps) {
   const [uploadDocForm, setUploadDocForm] = useState(false);
 
   const [activeLang, setActiveLang] = useState(props.language);
+
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(props.language.name);
+  const [returningFromEditor, setReturningFromEditor] = useState(false);
 
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [archiveBlockedDependents, setArchiveBlockedDependents] = useState<string[] | null>(null);
@@ -69,6 +78,48 @@ export default function LanguageView(props: IProps) {
     await push(pushLanguageUpdate({ ...activeLang, motherTongue: mt }));
   };
 
+  const [saving, setSaving] = useState(false);
+  const [nameError, setNameError] = useState("");
+
+  const save = async () => {
+    setSaving(true);
+    setNameError("");
+    const updatedLanguage = await push(pushLanguageRename(activeLang.languageId, draft), (err) => {
+      if (err.type == "HTTP" && err.status == 422) {
+        const reason =
+          err.body && typeof err.body === "object" && "reason" in err.body
+            ? (err.body as { reason: unknown }).reason
+            : undefined;
+        setNameError(
+          reason == "tooLong"
+            ? t("Language_name_too_long", { max: `${MAX_LANGUAGE_NAME_LENGTH}` })
+            : reason == "invalid"
+              ? t("Language_name_invalid")
+              : reason == "empty"
+                ? t("Language_name_required")
+                : t("Language_name_error_generic")
+        );
+        return true;
+      }
+      if (err.type == "HTTP" && err.status == 409) {
+        setNameError(t("Language_name_duplicate"));
+        return true;
+      }
+      return false;
+    });
+    setSaving(false);
+    if (updatedLanguage) {
+      setActiveLang(updatedLanguage);
+      setEditing(false);
+      setReturningFromEditor(true);
+    }
+  };
+
+  const cancelEditing = () => {
+    setEditing(false);
+    setReturningFromEditor(true);
+  };
+
   const handleArchiveConfirm = async () => {
     setConfirmArchive(false);
     setArchiveUpdateFailed(false);
@@ -87,7 +138,47 @@ export default function LanguageView(props: IProps) {
   return (
     <div>
       <Button link text={`< ${t("Languages")}`} onClick={props.done} />
-      <Heading text={props.language.name} level={3} />
+      <Heading text={activeLang.name} level={3}>
+        {!editing && (
+          <span style={{ fontSize: "0.6em", fontWeight: "normal", marginLeft: "0.75em" }}>
+            <Button
+              link
+              text={t("Edit_name")}
+              autoFocus={returningFromEditor}
+              onClick={() => {
+                setDraft(activeLang.name);
+                setEditing(true);
+              }}
+            />
+          </span>
+        )}
+      </Heading>
+      {editing && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!saving) save();
+          }}
+        >
+          <Label text={t("Language_name")}>
+            <TextInput
+              value={draft}
+              setValue={setDraft}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Escape" && !saving) {
+                  cancelEditing();
+                }
+              }}
+            />
+          </Label>
+          <div role="alert" aria-live="assertive">
+            {nameError}
+          </div>
+          <Button type="submit" text={t("Save")} onClick={() => {}} disabled={saving} />
+          <Button type="button" red text={t("Cancel")} onClick={cancelEditing} disabled={saving} />
+        </form>
+      )}
       {srcLangUpdateFailed && (
         <div role="alert" aria-live="assertive">
           {t("Source_language_update_failed")}
@@ -119,7 +210,13 @@ export default function LanguageView(props: IProps) {
               <SelectInput
                 value={`${activeLang.defaultSrcLang}`}
                 setValue={(v) => handleSrcLangChange(parseInt(v))}
-                options={languages.adminLanguages.map((lng) => [`${lng.languageId}`, lng.name])}
+                options={languages.adminLanguages
+                  .filter(
+                    (lng) =>
+                      lng.languageId != activeLang.languageId ||
+                      lng.languageId == activeLang.defaultSrcLang
+                  )
+                  .map((lng) => [`${lng.languageId}`, lng.name])}
               />
             </Label>
           </Div>

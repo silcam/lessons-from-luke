@@ -33,6 +33,11 @@ Spec: specs/005-transactional-email-reset/spec.md
 Keywords: language project, delete language, remove language, archive language, soft delete, deprecate language, source language, defaultSrcLang, dependent language, translation target, language list, Languages screen, admin delete, un-archive, restore, URL routing, language detail URL, /languages/:languageId, browser back forward, page refresh, react-router, shareable link, permalink, translate access, translator picker
 Spec: specs/012-language-archive-routing/spec.md
 
+## Language Project Rename
+
+Keywords: rename language, language name, edit language name, change name, inline edit, pencil icon, Edit link, toggle-to-edit, language project, admin language page, LanguageView, fix typo in name, duplicate name, 409, unique name, trim whitespace, name validation, display name, admin-only, language settings
+Spec: specs/016-language-rename/spec.md
+
 ## How to Update This File
 
 - Add one entry per feature spec, before this section.

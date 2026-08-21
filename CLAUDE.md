@@ -244,6 +244,9 @@ Use subagents liberally and aggressively to conserve the main context window. Av
 ## Active Technologies
 
 - RFC 8628 desktop pairing via better-auth `^1.6.14` `device-authorization` + `bearer` plugins (no new packages): `/api/auth/device/*` issues a better-auth **session token** the desktop sends as `Authorization: Bearer`, which `getSession`/`requireUser` already accept. NEW `deviceCode` table on the existing `getAuthPool()`; credential = a `session` row (60-day sliding expiry); admin revoke-by-user = direct SQL delete of the user's sessions. Shared `/api/*` auth enforcement behind a default-off `ENFORCE_API_AUTH` env flag (`requireUserWhenEnforced` wrapper). Desktop stores the token via Electron `safeStorage`; obtains/uses it over HTTP only (never imports better-auth — Principle VI). (004-desktop-auth-pairing)
+- TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + React 16, Redux Toolkit, `react-router-dom` v6, Express, `postgres@1` (016-language-rename)
+- PostgreSQL `languages` table; new partial unique index `languages_name_active_lower_idx` on `lower(name)` WHERE NOT archived via `migrations/1784766630015-addUniqueActiveLanguageNameIndex.js` (016-language-rename)
+
 - TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + React 16 + Redux Toolkit, `react-router-dom` v6, Express, `postgres@1` (domain driver via `Persistence`) (012-language-archive-routing)
 - PostgreSQL `languages` table (domain data → through `Persistence`, Principle VI); new `archived boolean` column via a `migrations/` file (012-language-archive-routing)
 
