@@ -90,7 +90,7 @@ export interface APIPost {
   "/api/admin/languages": [Record<string, never>, NewLanguage, Language];
   "/api/admin/languages/:languageId": [
     { languageId: number },
-    { motherTongue?: boolean; defaultSrcLang?: number },
+    { motherTongue?: boolean; defaultSrcLang?: number; name?: string },
     Language,
   ];
   "/api/admin/languages/:languageId/usfm": [

@@ -14,5 +14,10 @@ const StyledHeading = styled.h1<HProps>`
 `;
 
 export default function Heading(props: HProps) {
-  return <StyledHeading {...props}>{props.text}</StyledHeading>;
+  return (
+    <StyledHeading {...props}>
+      {props.text}
+      {props.children}
+    </StyledHeading>
+  );
 }

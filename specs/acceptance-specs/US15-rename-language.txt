@@ -1,0 +1,31 @@
+;=============================================
+; The Edit control is visible beside the language name.
+;=============================================
+GIVEN an admin is viewing a language project's admin page.
+WHEN they look at the language name.
+THEN an Edit control is visible beside it.
+
+;=============================================
+; Activating Edit shows a pre-filled inline editor with Save and Cancel.
+;=============================================
+GIVEN the admin activates the Edit control.
+WHEN the inline editor appears.
+THEN it is pre-filled with the current name.
+THEN it offers Save and Cancel actions.
+
+;=============================================
+; Saving a valid new name updates the name everywhere immediately and persists.
+;=============================================
+GIVEN the admin has typed a new valid name.
+WHEN they save.
+THEN the name display updates immediately in the page heading.
+THEN the name display updates immediately in the admin language list.
+THEN the new name persists across reloads.
+
+;=============================================
+; Cancelling the inline editor discards the change.
+;=============================================
+GIVEN the admin has opened the inline editor.
+WHEN they cancel.
+THEN the original name is displayed unchanged.
+THEN nothing is saved.

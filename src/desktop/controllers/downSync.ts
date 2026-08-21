@@ -100,6 +100,16 @@ async function syncLanguages(app: DesktopApp) {
   if (downSync.languages) {
     const languages = await throwsNoConnection(() => app.webClient.get("/api/languages", {}));
     app.localStorage.setLanguages(languages);
+
+    const syncState = app.localStorage.getSyncState();
+    const projectLanguage = syncState.language;
+    if (projectLanguage) {
+      const fresh = languages.find((l) => l.languageId === projectLanguage.languageId);
+      if (fresh && fresh.name !== projectLanguage.name) {
+        app.localStorage.setSyncState({ language: { ...projectLanguage, name: fresh.name } }, app);
+      }
+    }
+
     updateDownSync(app, downSync.timestamp, { languages: false });
   }
 }

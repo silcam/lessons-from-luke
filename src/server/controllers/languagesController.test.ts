@@ -177,6 +177,85 @@ test("POST update language defaultSrcLang", async () => {
   });
 });
 
+// POST /api/admin/languages/:languageId name-absent regression lock
+// (lessons-from-luke-fm4a.5.1.7/8/9). A body with no `name` key must leave
+// the stored name untouched and must not add a second, name-driven
+// storage.languages() read on top of the one updateProgress() already makes
+// on every update — the rename feature's duplicate-name lookup (US2) is
+// scoped to name-present requests only.
+test("POST update language: name-absent updates (motherTongue/defaultSrcLang only) are unaffected", async () => {
+  const storage: TestPersistence = (global as any).testStorage;
+  const languagesSpy = jest.spyOn(storage, "languages");
+  const agent = await loggedInAgent();
+  const response = await agent
+    .post("/api/admin/languages/3")
+    .send({ motherTongue: true, defaultSrcLang: 2 });
+  expect(response.status).toBe(200);
+  expect(response.body.name).toBe("Batanga");
+  expect(languagesSpy).toHaveBeenCalledTimes(1);
+  languagesSpy.mockRestore();
+});
+
+// POST /api/admin/languages/:languageId rename — RED (lessons-from-luke-fm4a.5.1.4)
+// The endpoint doesn't accept `name` yet — objFilter doesn't whitelist it.
+test("POST update language: valid trimmed name is accepted and persisted", async () => {
+  const agent = await loggedInAgent();
+  const response = await agent.post("/api/admin/languages/3").send({ name: "  New Name  " });
+  expect(response.status).toBe(200);
+  const language: Language = response.body;
+  expect(language.name).toBe("New Name");
+});
+
+// POST /api/admin/languages/:languageId rename — RED (lessons-from-luke-fm4a.5.2.5, N-3)
+// Empty or whitespace-only name (after trimming) must be rejected 422, and the
+// stored name must be left completely unchanged.
+test("POST update language: 422 when name is empty or whitespace-only, stored name unchanged", async () => {
+  const storage: TestPersistence = (global as any).testStorage;
+  const before = await storage.language({ languageId: 3 });
+
+  const agent = await loggedInAgent();
+
+  const emptyResponse = await agent.post("/api/admin/languages/3").send({ name: "" });
+  expect(emptyResponse.status).toBe(422);
+  expect(emptyResponse.body.reason).toBe("empty");
+
+  const whitespaceResponse = await agent.post("/api/admin/languages/3").send({ name: "   " });
+  expect(whitespaceResponse.status).toBe(422);
+  expect(whitespaceResponse.body.reason).toBe("empty");
+
+  const after = await storage.language({ languageId: 3 });
+  expect(after?.name).toBe(before?.name);
+});
+
+// POST /api/admin/languages/:languageId rename — RED (lessons-from-luke-fm4a.5.2.8, N-7/N-8)
+// A trimmed name longer than 100 characters, or containing a C0/C1 control
+// character, must be rejected 422. This rule applies to the rename path only
+// (language creation is untouched). A 100-character name (boundary) must
+// still succeed.
+test("POST update language: 422 when trimmed name exceeds 100 characters", async () => {
+  const agent = await loggedInAgent();
+  const tooLong = "A".repeat(101);
+  const response = await agent.post("/api/admin/languages/3").send({ name: tooLong });
+  expect(response.status).toBe(422);
+  expect(response.body.reason).toBe("tooLong");
+});
+
+test("POST update language: 422 when name contains a control character", async () => {
+  const agent = await loggedInAgent();
+  const response = await agent.post("/api/admin/languages/3").send({ name: "A\nB" });
+  expect(response.status).toBe(422);
+  expect(response.body.reason).toBe("invalid");
+});
+
+test("POST update language: 200 when trimmed name is exactly 100 characters", async () => {
+  const agent = await loggedInAgent();
+  const boundary = "A".repeat(100);
+  const response = await agent.post("/api/admin/languages/3").send({ name: boundary });
+  expect(response.status).toBe(200);
+  const language: Language = response.body;
+  expect(language.name).toBe(boundary);
+});
+
 // POST /api/admin/languages/:languageId re-point guard — RED
 // (lessons-from-luke-e044.5.5.2, RT-B/RT-F/RT-H). The endpoint still calls
 // storage.updateLanguage directly (no active-source check) — it must route
@@ -192,6 +271,71 @@ test("POST update language: 422 when defaultSrcLang re-points to an archived lan
   expect(response.status).toBe(422);
 });
 
+// POST /api/admin/languages/:languageId rename — RED (lessons-from-luke-fm4a.5.2.14, N-4)
+// A rename to a name that case-insensitively matches another ACTIVE
+// language's name (not the target's own row) is rejected 409, matching the
+// create endpoint's duplicate semantics; archived languages' names do not
+// count as collisions.
+test("POST update language: 409 when new name case-insensitively collides with another active language", async () => {
+  const agent = await loggedInAgent();
+  // Fixture language 2 is "Français" (active); rename language 3 (Batanga)
+  // to a different-case match of it.
+  const response = await agent.post("/api/admin/languages/3").send({ name: "français" });
+  expect(response.status).toBe(409);
+});
+
+// POST /api/admin/languages/:languageId rename TOCTOU close — lessons-from-luke-fm4a.9
+// Two concurrent renames targeting the same new name must not both commit.
+// NOTE (lessons-from-luke-fm4a.11): both requests here share ONE physical
+// connection — the jest harness (TransactionalTestStorage, see
+// jestSetupAfterEnv.ts) wraps the whole test in one transaction over a
+// postgres({ max: 1 }) pool. That serializes the two agent.post() calls at
+// the database level: the first request's SAVEPOINT (including its UPDATE)
+// fully completes before the second request's begins, so the second
+// request's own duplicate-name SELECT ... FOR UPDATE finds the first rename
+// already committed and rejects it as an ordinary duplicate hit via the
+// app-level check. This test still proves the endpoint contract (never two
+// 200s) but does NOT exercise the zero-row race window or the
+// languages_name_active_lower_idx unique-index backstop / 23505->409
+// mapping fm4a.9 added for that window — see
+// src/server/storage/languageRenameRace.test.ts, which uses two real
+// independent database connections to force and verify that race
+// deterministically.
+test("POST update language: concurrent renames to the same name yield exactly one 200 and one 409", async () => {
+  const agentA = await loggedInAgent();
+  const agentB = await loggedInAgent();
+
+  const [responseA, responseB] = await Promise.all([
+    agentA.post("/api/admin/languages/2").send({ name: "Racer Language" }),
+    agentB.post("/api/admin/languages/3").send({ name: "Racer Language" }),
+  ]);
+
+  const statuses = [responseA.status, responseB.status].sort();
+  expect(statuses).toEqual([200, 409]);
+});
+
+// POST /api/admin/languages/:languageId rename — RED (lessons-from-luke-fm4a.5.2.11, D-002)
+// The not-found check MUST run and win BEFORE the duplicate-name check: a
+// rename against a nonexistent languageId returns 404 even when the
+// submitted name collides with an existing active language's name.
+test("POST update language: 404 for nonexistent languageId, even when the new name collides with an active language", async () => {
+  const agent = await loggedInAgent();
+  // Fixture language 2 is "Français" (active); languageId 99999 does not exist.
+  const response = await agent.post("/api/admin/languages/99999").send({ name: "Français" });
+  expect(response.status).toBe(404);
+});
+
+test("POST update language: 200 when new name matches an archived language's name", async () => {
+  const storage: TestPersistence = (global as any).testStorage;
+  await storage.updateLanguage(2, { archived: true });
+
+  const agent = await loggedInAgent();
+  const response = await agent.post("/api/admin/languages/3").send({ name: "Français" });
+  expect(response.status).toBe(200);
+  const language: Language = response.body;
+  expect(language.name).toBe("Français");
+});
+
 test("POST update language: 404 when the target language is archived", async () => {
   const storage: TestPersistence = (global as any).testStorage;
   await storage.updateLanguage(3, { archived: true });
@@ -199,6 +343,27 @@ test("POST update language: 404 when the target language is archived", async () 
   const agent = await loggedInAgent();
   const response = await agent.post("/api/admin/languages/3").send({ motherTongue: false });
   expect(response.status).toBe(404);
+});
+
+// POST /api/admin/languages/:languageId rename — RED (lessons-from-luke-fm4a.7)
+// A name containing path-traversal segments must be rejected 422 so it can
+// never be interpolated into a filesystem path (makeLessonFile/docStorage).
+test("POST update language: 422 when name contains path traversal segments", async () => {
+  const agent = await loggedInAgent();
+  const response = await agent.post("/api/admin/languages/3").send({ name: "../../../evil" });
+  expect(response.status).toBe(422);
+  expect(response.body.reason).toBe("invalid");
+});
+
+// POST /api/admin/languages create — RED (lessons-from-luke-fm4a.7)
+// Language creation predates the rename endpoint's validation; it must be
+// brought in line so both routes reject path-traversal names identically.
+test("POST /api/languages: 422 when name contains path traversal segments", async () => {
+  const agent = await loggedInAgent();
+  const response = await agent
+    .post("/api/admin/languages")
+    .send({ name: "../../../evil", defaultSrcLang: 2 });
+  expect(response.status).toBe(422);
 });
 
 test("POST usfm", async () => {

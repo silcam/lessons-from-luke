@@ -54,10 +54,13 @@ const testStorage: TestPersistence = {
   },
 
   // Like updateLanguage, but (a) rejects with { status: 404 } unless the
-  // target itself is active, and (b) when `update.defaultSrcLang` is present
+  // target itself is active, (b) when `update.defaultSrcLang` is present
   // AND differs from the row's current value, validates the new source is
-  // active — rejects with { status: 422 } if missing or archived. Mirrors
-  // PGStorage.updateLanguageChecked synchronously.
+  // active — rejects with { status: 422 } if missing or archived, and (c)
+  // when `update.name` is present, rejects with { status: 409 } on a
+  // case-insensitive collision with another active language's name. Mirrors
+  // PGStorage.updateLanguageChecked synchronously (no locking needed
+  // in-memory — this store is single-threaded).
   updateLanguageChecked: async (languageId, update) => {
     const language = findBy(testDb.languages, "languageId", languageId);
     if (!language || language.archived) throw { status: 404 };
@@ -65,6 +68,16 @@ const testStorage: TestPersistence = {
     if (update.defaultSrcLang !== undefined && update.defaultSrcLang !== language.defaultSrcLang) {
       const source = findBy(testDb.languages, "languageId", update.defaultSrcLang);
       if (!source || source.archived) throw { status: 422 };
+    }
+
+    if (update.name !== undefined) {
+      const duplicate = testDb.languages.find(
+        (lang) =>
+          lang.languageId !== languageId &&
+          !lang.archived &&
+          lang.name.toLowerCase() === (update.name as string).toLowerCase()
+      );
+      if (duplicate) throw { status: 409 };
     }
 
     Object.assign(language, update);
