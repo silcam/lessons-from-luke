@@ -32,7 +32,7 @@ import {
   missingQuarterParts,
 } from "../../core/models/Quarter";
 import assembleQuarter from "./assembleQuarter";
-import { selectAssemblyConstituents } from "../controllers/assemblyController";
+import { selectAssemblyConstituents } from "../assembly/selectAssemblyConstituents";
 import * as quarterStylesTemplate from "../assembly/quarterStylesTemplate";
 import { PDF_CONVERT_TO_TARGET, classifyPage, reconcilePdfPages } from "./pdfRenderOptions";
 
