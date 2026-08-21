@@ -332,6 +332,18 @@ describe("WebAPIClientForDesktop", () => {
       await expect(client.probeConnection()).resolves.toBeUndefined();
       expect(client.isConnected()).toBe(false);
     });
+
+    test("401 on the probe sets connected=true while staying un-paired (ENFORCE_API_AUTH)", async () => {
+      // With server-side auth enforcement, /api/languages 401s for an un-paired
+      // device. The 401 still proves the server is reachable — connected must
+      // flip true so the "Connect to account" prompt gate opens.
+      const client = new WebAPIClientForDesktop(makeLocalStorage(), makeCredentialStore(null));
+      mockWebGet.mockRejectedValue({ type: "HTTP", status: 401 });
+
+      await expect(client.probeConnection()).resolves.toBeUndefined();
+      expect(client.isConnected()).toBe(true);
+      expect(client.isPaired()).toBe(false);
+    });
   });
 
   describe("isPaired / setPaired / onPairedChange", () => {
@@ -538,6 +550,37 @@ describe("WebAPIClientForDesktop", () => {
 
       expect(result).toBeNull();
       expect(client.isPaired()).toBe(false);
+    });
+
+    test("401 GET response sets connected=true — a 401 proves the server is reachable", async () => {
+      const credStore = makeCredentialStore("my-secret-token");
+      const client = new WebAPIClientForDesktop(makeLocalStorage(), credStore);
+      mockWebGet.mockRejectedValue({ type: "HTTP", status: 401 });
+
+      await client.get("/api/languages", {});
+
+      expect(client.isConnected()).toBe(true);
+    });
+
+    test("401 POST response sets connected=true", async () => {
+      const credStore = makeCredentialStore("my-secret-token");
+      const client = new WebAPIClientForDesktop(makeLocalStorage(), credStore);
+      mockWebPost.mockRejectedValue({ type: "HTTP", status: 401 });
+
+      await client.post("/api/tStrings", {}, { code: "btg", tStrings: [] });
+
+      expect(client.isConnected()).toBe(true);
+    });
+
+    test("401 fires onConnectionChange listener with true when previously disconnected", async () => {
+      const client = new WebAPIClientForDesktop(makeLocalStorage(), makeCredentialStore("token"));
+      const listener = jest.fn();
+      client.onConnectionChange(listener);
+      mockWebGet.mockRejectedValue({ type: "HTTP", status: 401 });
+
+      await client.get("/api/languages", {});
+
+      expect(listener).toHaveBeenCalledWith(true);
     });
 
     test("non-401 HTTP error still rethrows (e.g. 404)", async () => {

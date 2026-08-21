@@ -168,6 +168,26 @@ export default class DesktopApp {
    * treated as "no credential / not paired" so the app always starts up.
    */
   private async initPairing(): Promise<void> {
+    // Mirror webClient's 401 handling back to DesktopApp state so that
+    // `device:state` always reflects the current credential validity, and push
+    // the change to the renderer so the UI drops to the "Connect to account"
+    // prompt instead of continuing to show "Online"/"Uploading" (SC-006).
+    // Registered first and unconditionally: a 401 can arrive during the
+    // startup refreshSession() below, and devices paired later in-session via
+    // PAIRING_START need the mirror too.
+    this.webClient.onPairedChange((paired) => {
+      this.paired = paired;
+      if (!paired) {
+        this.pairedUserName = undefined;
+        this.pairedUserId = undefined;
+      }
+      this.mainWindow?.webContents.send(ON_SYNC_STATE_CHANGE, {
+        paired,
+        pairedUserName: this.pairedUserName,
+        connected: this.webClient.isConnected(),
+      });
+    });
+
     const token = await this.credentialStore.load();
     if (!token) {
       return;
@@ -177,16 +197,6 @@ export default class DesktopApp {
     this.paired = true;
     this.webClient.setPaired(true);
     await this.refreshSession();
-
-    // Mirror webClient's 401 handling back to DesktopApp state so that
-    // `device:state` always reflects the current credential validity.
-    this.webClient.onPairedChange((paired) => {
-      this.paired = paired;
-      if (!paired) {
-        this.pairedUserName = undefined;
-        this.pairedUserId = undefined;
-      }
-    });
   }
 
   /**

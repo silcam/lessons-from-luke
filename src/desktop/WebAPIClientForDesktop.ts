@@ -192,6 +192,10 @@ export default class WebAPIClientForDesktop {
       } else if (error.type === "HTTP" && error.status === 401) {
         // Unauthorized: abort remaining sync requests, clear credential, drop paired state.
         // Do NOT log the error — it could contain response text with session info.
+        // A 401 proves the server is reachable — under ENFORCE_API_AUTH even the
+        // un-paired connectivity probe 401s, and connected must still flip true
+        // so the "Connect to account" prompt gate opens.
+        this.setConnected(true);
         this.syncAborted = true;
         if (this.credentialStore) {
           await this.credentialStore.clear();

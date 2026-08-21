@@ -265,10 +265,61 @@ describe("DesktopApp pairing lifecycle", () => {
       // Simulate webClient signaling 401 → paired=false
       expect(mockWebClient.onPairedChange).toHaveBeenCalled();
       const [onPairedChangeCallback] = mockWebClient.onPairedChange.mock.calls[0];
+      mockWebContents.send.mockClear();
       onPairedChangeCallback(false);
 
       expect((app as any).paired).toBe(false);
       expect((app as any).pairedUserName).toBeUndefined();
+
+      // The renderer must be told, or the UI keeps showing "Online"/"Uploading"
+      // after an admin revocation (spec.md:148 / SC-006).
+      expect(mockWebContents.send).toHaveBeenCalledWith(
+        "onSyncStateChange",
+        expect.objectContaining({ paired: false, pairedUserName: undefined })
+      );
+    });
+
+    test("registers onPairedChange even when no credential is stored", async () => {
+      const cs = makeMockCredentialStore(null);
+      const dp = makeMockDevicePairing();
+      await createApp(cs, dp);
+
+      // Covers devices paired later in-session via PAIRING_START: a revocation
+      // after that pairing must still be mirrored back to DesktopApp state.
+      expect(mockWebClient.onPairedChange).toHaveBeenCalled();
+    });
+
+    test("registers onPairedChange before any webClient request (startup-401 race)", async () => {
+      const cs = makeMockCredentialStore("stored-token");
+      const dp = makeMockDevicePairing();
+      await createApp(cs, dp);
+
+      expect(mockWebClient.onPairedChange).toHaveBeenCalled();
+      expect(mockWebClient.get).toHaveBeenCalled();
+      const registerOrder = mockWebClient.onPairedChange.mock.invocationCallOrder[0];
+      const firstGetOrder = mockWebClient.get.mock.invocationCallOrder[0];
+      expect(registerOrder).toBeLessThan(firstGetOrder);
+    });
+
+    test("a 401 during startup refreshSession drops paired and pushes to the renderer", async () => {
+      // With enforcement on and a revoked session, the startup get-session call
+      // 401s; the real webClient then fires onPairedChange(false). The listener
+      // must already be registered and must push the state to the renderer so
+      // the app starts on the ConnectAccount screen, not "X Synced / Offline".
+      mockWebClient.get.mockRejectedValueOnce({ type: "HTTP", status: 401 });
+      const cs = makeMockCredentialStore("revoked-token");
+      const dp = makeMockDevicePairing();
+      const app = await createApp(cs, dp);
+
+      const [onPairedChangeCallback] = mockWebClient.onPairedChange.mock.calls[0];
+      mockWebContents.send.mockClear();
+      onPairedChangeCallback(false);
+
+      expect((app as any).paired).toBe(false);
+      expect(mockWebContents.send).toHaveBeenCalledWith(
+        "onSyncStateChange",
+        expect.objectContaining({ paired: false, pairedUserName: undefined })
+      );
     });
   });
 
