@@ -135,9 +135,22 @@ export default class WebAPIClientForDesktop {
       if (!this.watchLock) {
         this.watchLock = true;
         this.syncAborted = false; // Reset abort flag for each new sync pass
-        await this.maybeKeepAlive();
-        await cb(this);
-        this.watchLock = false;
+        try {
+          await this.maybeKeepAlive();
+          await cb(this);
+        } catch (err) {
+          // A failed pass must not kill the loop: without this, watchLock stays
+          // held forever and sync/probes halt permanently. Log status only —
+          // never the body, which could contain session info.
+          const error = asAppError(err);
+          this.log(
+            `ERROR  sync pass failed: ${error.type}${
+              error.type === "HTTP" ? ` ${error.status}` : ""
+            }`
+          );
+        } finally {
+          this.watchLock = false;
+        }
       }
     }, WATCH_INTERVAL);
   }

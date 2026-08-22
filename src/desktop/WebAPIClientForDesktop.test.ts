@@ -294,6 +294,26 @@ describe("WebAPIClientForDesktop", () => {
       expect(slowCb).toHaveBeenCalledTimes(2);
     });
 
+    test("a tick that throws does not kill the watch loop (watchLock is released)", async () => {
+      // Regression: a non-401 HTTP error (e.g. the tStrings CSRF 403 after a
+      // mid-pass disconnect) rethrown by trackConnection used to leave
+      // watchLock held forever, permanently halting sync/probes — so a later
+      // revocation was never noticed.
+      const client = new WebAPIClientForDesktop(makeLocalStorage());
+      const cb = jest
+        .fn()
+        .mockRejectedValueOnce({ type: "HTTP", status: 403 })
+        .mockResolvedValue(undefined);
+
+      client.watch(cb);
+      await jest.advanceTimersByTimeAsync(3000);
+      expect(cb).toHaveBeenCalledTimes(1);
+
+      // Next tick must still run
+      await jest.advanceTimersByTimeAsync(3000);
+      expect(cb).toHaveBeenCalledTimes(2);
+    });
+
     test("replaces existing timer when watch is called again", async () => {
       const client = new WebAPIClientForDesktop(makeLocalStorage());
       const cb1 = jest.fn().mockResolvedValue(undefined);
