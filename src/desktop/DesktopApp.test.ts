@@ -11,7 +11,7 @@ const ipcHandlers: Record<string, IpcHandler> = {};
 // Capture the app "ready" callback so tests control when appReady() fires.
 let appReadyCallback: (() => void) | undefined;
 
-const mockWebContents = { send: jest.fn() };
+const mockWebContents = { send: jest.fn(), on: jest.fn() };
 const mockMainWindow = {
   webContents: mockWebContents,
   loadFile: jest.fn(),
@@ -718,6 +718,19 @@ describe("DesktopApp pairing lifecycle", () => {
   // (served by webpack historyApiFallback), not :8081/link (404 in dev).
   // See: bug wgr.28, trustedOrigins.ts DEFAULT_BASE_URL comment.
   // -------------------------------------------------------------------------
+
+  describe("dev window load retry", () => {
+    test("registers a did-fail-load retry handler in dev so a webpack race never strands a blank window", async () => {
+      const cs = makeMockCredentialStore(null);
+      const dp = makeMockDevicePairing();
+      await createApp(cs, dp);
+
+      const failLoadHandlers = mockWebContents.on.mock.calls.filter(
+        (c) => c[0] === "did-fail-load"
+      );
+      expect(failLoadHandlers).toHaveLength(1);
+    });
+  });
 
   describe("dev baseUrl (bug wgr.28)", () => {
     test("uses webpack proxy (:8080) as dev baseUrl when app is not packaged", async () => {

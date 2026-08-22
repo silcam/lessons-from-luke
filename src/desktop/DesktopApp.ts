@@ -453,8 +453,17 @@ export default class DesktopApp {
     });
     windowState.manage(this.mainWindow);
 
-    if (app.isPackaged) this.mainWindow.loadFile("web/desktop.html");
-    else this.mainWindow.loadURL("http://localhost:8082/desktop.html");
+    if (app.isPackaged) {
+      this.mainWindow.loadFile("web/desktop.html");
+    } else {
+      // Dev only: nodemon can launch Electron before the desktop webpack dev
+      // server (:8082) is listening; a single failed load leaves a blank white
+      // window with no retry. Reload on failure until the server comes up.
+      this.mainWindow.webContents.on("did-fail-load", () => {
+        setTimeout(() => this.mainWindow?.loadURL("http://localhost:8082/desktop.html"), 1000);
+      });
+      this.mainWindow.loadURL("http://localhost:8082/desktop.html");
+    }
 
     this.mainWindow.on("closed", () => {
       app.quit();
