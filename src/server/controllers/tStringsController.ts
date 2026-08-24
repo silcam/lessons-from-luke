@@ -34,7 +34,7 @@ export default function tStringsController(app: Express, storage: Persistence) {
         tStrings.map((tStr) => tStr.languageId)
       )
     )
-      throw { status: 401 };
+      throw { status: 403 };
     return storage.saveTStrings(tStrings);
   });
 }

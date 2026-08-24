@@ -367,7 +367,7 @@ describe("POST /api/tStrings CSRF guard", () => {
     else process.env.BETTER_AUTH_ENFORCE_ORIGIN = savedEnforceOrigin;
   });
 
-  test("flag OFF: POST /api/tStrings without Origin → not 403 (CSRF guard inactive)", async () => {
+  test("flag OFF: POST /api/tStrings without Origin → not CSRF-guard 403 (CSRF guard inactive)", async () => {
     delete process.env.ENFORCE_API_AUTH;
     process.env.BETTER_AUTH_ENFORCE_ORIGIN = "1";
     const app = serverApp({ silent: true });
@@ -375,8 +375,14 @@ describe("POST /api/tStrings CSRF guard", () => {
       .post("/api/tStrings")
       .set("Content-Type", "application/json")
       .send({ code: "x", tStrings: [{ masterId: 1, languageId: 1, text: "hi", history: [] }] });
-    // 401 (from storage.invalidCode) or 422 (validation) — but NOT 403 (CSRF)
-    expect(response.status).not.toBe(403);
+    // The invalidCode rejection path also answers 403 (see
+    // tStringsController.test.ts), with an empty body (`throw { status: 403 }`
+    // → `res.status(403).send()`). A CSRF-guard 403 instead carries
+    // `{ error: "Forbidden" }` (requireSameOrigin.ts). So a bare 403 here is
+    // still expected (from the bad access code) — what proves the CSRF guard
+    // itself is inactive is that the body isn't the CSRF guard's shape.
+    expect(response.status).toBe(403);
+    expect(response.body).not.toEqual({ error: "Forbidden" });
   });
 
   test("flag ON: POST /api/tStrings without Origin and no bearer → 403 (CSRF)", async () => {
