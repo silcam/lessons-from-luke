@@ -518,6 +518,66 @@ describe("downSync - fetchMissingSrcStrings (lines 188-202)", () => {
     expect(setTStringsCalls.some((call: any[]) => call[0] === 1)).toBe(true);
   });
 
+  test("batches missing src string ids so no request URL exceeds the server header limit", async () => {
+    // Regression: 2900+ missing ids joined into one URL produced a ~32KB
+    // request line, which Node rejects with 431 — wedging sync in a
+    // retry-forever loop. Ids must be fetched in T_STRING_BATCH_SIZE batches.
+    const language = {
+      languageId: 10,
+      name: "Batanga",
+      code: "btg",
+      motherTongue: false,
+      progress: [],
+      defaultSrcLang: 1,
+      archived: false,
+    };
+    const syncState = makeSyncState({
+      downSync: makeDownSync({ tStrings: {}, timestamp: 5 }),
+      syncLanguages: [{ languageId: 10, timestamp: 1 }],
+      language,
+    });
+    const app = makeApp(syncState);
+
+    const missingCount = 2500; // → 3 batches of ≤1000
+    app.localStorage.getLessons.mockReturnValue([
+      { lessonId: 1, book: "Luke", series: 1, lesson: 1, version: 1 },
+    ]);
+    app.localStorage.getLessonStrings.mockReturnValue(
+      Array.from({ length: missingCount }, (_, i) => ({
+        lessonStringId: i,
+        masterId: i + 1,
+        lessonId: 1,
+        lessonVersion: 1,
+        type: "content",
+        xpath: "/root",
+        motherTongue: false,
+      }))
+    );
+    app.localStorage.getAllTStrings.mockReturnValue([]);
+
+    app.webClient.get
+      .mockResolvedValueOnce(makeDownSync({ tStrings: {}, timestamp: 5 })) // downSyncTStrings initial fetch
+      .mockResolvedValue([]); // all tStrings batch fetches
+
+    await downSyncTStrings(app);
+
+    const tStringFetches = app.webClient.get.mock.calls.filter(
+      (call: any[]) =>
+        call[0] === "/api/languages/:languageId/tStrings/:ids" && call[1].languageId === 1
+    );
+    expect(tStringFetches).toHaveLength(3);
+    const fetchedIds = tStringFetches.flatMap((call: any[]) => call[1].ids.split(","));
+    expect(fetchedIds).toHaveLength(missingCount);
+    tStringFetches.forEach((call: any[]) => {
+      expect(call[1].ids.split(",").length).toBeLessThanOrEqual(1000);
+    });
+    // Every batch result is persisted
+    const srcSetCalls = app.localStorage.setTStrings.mock.calls.filter(
+      (call: any[]) => call[0] === 1
+    );
+    expect(srcSetCalls).toHaveLength(3);
+  });
+
   test("does not fetch if no missing src strings (missingIds.length == 0, exits at line 194)", async () => {
     const language = {
       languageId: 10,
