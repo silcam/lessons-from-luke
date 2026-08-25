@@ -46,7 +46,11 @@ export function removeCoverRepetitionParagraphs(doc: XmlDocument, namespaces: Na
  * All (automatic) style names whose `style:parent-style-name` chain resolves
  * to `base`, breadth-first over the whole document.
  */
-function stylesDerivedFrom(doc: XmlDocument, namespaces: Namespaces, base: string): string[] {
+export function stylesDerivedFrom(
+  doc: XmlDocument,
+  namespaces: Namespaces,
+  base: string
+): string[] {
   const derived: string[] = [];
   const queue = [base];
   while (queue.length > 0) {

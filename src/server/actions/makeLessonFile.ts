@@ -1,5 +1,5 @@
 import { Language, ENGLISH_ID } from "../../core/models/Language";
-import { Lesson, lessonName, isCoverLesson } from "../../core/models/Lesson";
+import { Lesson, lessonName, isCoverLesson, isTOCLesson } from "../../core/models/Lesson";
 import docStorage from "../storage/docStorage";
 import { Persistence } from "../../core/interfaces/Persistence";
 import { makeDocStrings, singleLanguageize } from "../../core/models/DocString";
@@ -37,6 +37,9 @@ export default async function makeLessonFile(
     // Cover masters are bilingual-only uploads; the monolingual variant is
     // derived by dropping the source-language repetition paragraphs.
     removeCoverRepetitions: singleLangDoc && isCoverLesson(lesson.lesson),
+    // The TOC master's Introduction demonstrates the bilingual layout with an
+    // example table; monolingual output drops it and its intro sentence.
+    removeFrontMatterExampleTable: singleLangDoc && isTOCLesson(lesson),
   });
   return filepath;
 }

@@ -280,6 +280,81 @@ describe("clearEmptyParagraphs table boundary", () => {
     expect(paragraphs[0].text()).toBe("Other");
   });
 
+  describe("removeFrontMatterExampleTable", () => {
+    const MT_INSET = "M.T._20_Text_20_-_20_Single_20_Inset";
+    const ENG_INSET = "English_20_Translation_20_-_20_single_20_inset";
+
+    function buildExampleOdt(name: string) {
+      return buildTableOdt(
+        name,
+        `<text:p text:style-name="Standard">This curriculum is set up as a bilingual document (see example below).</text:p>` +
+          `<table:table table:name="Table6"><table:table-row><table:table-cell>` +
+          `<text:p text:style-name="${MT_INSET}">Kwasio line</text:p>` +
+          `<text:p text:style-name="${ENG_INSET}">English inset line</text:p>` +
+          `</table:table-cell></table:table-row></table:table>` +
+          `<text:p>Body text</text:p>`
+      );
+    }
+
+    test("translated: table and intro removed; a later paragraph's translation still applies", () => {
+      const odtPath = buildExampleOdt("fm-translated");
+      const outPath = odtPath.replace(".odt", "-out.odt");
+      const docStrings = contentDocStrings(odtPath).map((ds) => {
+        if (ds.text === "English inset line") return { ...ds, text: "" };
+        if (ds.text === "Body text") return { ...ds, text: "Texte du corps" };
+        return ds;
+      });
+
+      mergeXml(odtPath, outPath, docStrings, {
+        clearEmptyParagraphs: true,
+        removeFrontMatterExampleTable: true,
+      });
+
+      const merged = readContentXml(outPath);
+      const xml = merged.toString(false);
+      expect(merged.find("//table:table", NS)).toHaveLength(0);
+      expect(xml).not.toContain("see example below");
+      expect(xml).toContain("Texte du corps");
+    });
+
+    test("untranslated: all inset + intro strings empty — table fully removed, no orphan, no crash", () => {
+      const odtPath = buildExampleOdt("fm-untranslated");
+      const outPath = odtPath.replace(".odt", "-out.odt");
+      const docStrings = contentDocStrings(odtPath).map((ds) =>
+        ds.text === "Body text" ? ds : { ...ds, text: "" }
+      );
+
+      expect(() =>
+        mergeXml(odtPath, outPath, docStrings, {
+          clearEmptyParagraphs: true,
+          removeFrontMatterExampleTable: true,
+        })
+      ).not.toThrow();
+
+      const merged = readContentXml(outPath);
+      const xml = merged.toString(false);
+      expect(merged.find("//table:table", NS)).toHaveLength(0);
+      expect(xml).not.toContain("see example below");
+      expect(xml).not.toContain("Kwasio line");
+      expect(xml).toContain("Body text");
+    });
+
+    test("opt off (bilingual): table and intro sentence are preserved", () => {
+      const odtPath = buildExampleOdt("fm-bilingual");
+      const outPath = odtPath.replace(".odt", "-out.odt");
+      const docStrings = contentDocStrings(odtPath);
+
+      mergeXml(odtPath, outPath, docStrings, {});
+
+      const merged = readContentXml(outPath);
+      const xml = merged.toString(false);
+      expect(merged.find("//table:table", NS)).toHaveLength(1);
+      expect(xml).toContain("see example below");
+      expect(xml).toContain("Kwasio line");
+      expect(xml).toContain("English inset line");
+    });
+  });
+
   test("real lesson fixture keeps its 1-row, 3-cell title table when all in-table strings go empty", () => {
     const fixtureOutPath = path.join(workDir, "English_Luke-Q1-L06-tableguard.odt");
     const docStrings = parse(xmls.content, "content").map((ds) =>

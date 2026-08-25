@@ -5,10 +5,15 @@ import { unzip } from "../../core/util/fsUtils";
 import { DocString } from "../../core/models/DocString";
 import { removeParagraph } from "./removeParagraph";
 import { removeCoverRepetitionParagraphs } from "./coverRepetitions";
+import {
+  collectFrontMatterExampleElements,
+  removeFrontMatterExampleElements,
+} from "./frontMatterExampleTable";
 
 interface Opts {
   clearEmptyParagraphs?: boolean;
   removeCoverRepetitions?: boolean;
+  removeFrontMatterExampleTable?: boolean;
 }
 
 export default function mergeXml(
@@ -34,7 +39,13 @@ export default function mergeXml(
         // even declare the text:/style: namespace prefixes the removal's
         // XPaths need, so the option must not leak to the other xml types.
         const removeCoverRepetitions = opts.removeCoverRepetitions && xmlType === "content";
-        mergeTranslations(xmlPath, sortedDocStrings[xmlType], { ...opts, removeCoverRepetitions });
+        const removeFrontMatterExampleTable =
+          opts.removeFrontMatterExampleTable && xmlType === "content";
+        mergeTranslations(xmlPath, sortedDocStrings[xmlType], {
+          ...opts,
+          removeCoverRepetitions,
+          removeFrontMatterExampleTable,
+        });
       }
     });
 
@@ -62,6 +73,11 @@ export function sortDocStrings(docStrings: DocString[]): SortedDocStrings {
 function mergeTranslations(contentXmlFilepath: string, translations: DocString[], opts: Opts) {
   const xmlDoc = getXmlDoc(contentXmlFilepath);
   const namespaces = extractNamespaces(xmlDoc);
+  // Collect against the pristine tree (read-only); removal is deferred to
+  // after the mutation passes below so positional xpaths stay valid.
+  const frontMatterExampleElements = opts.removeFrontMatterExampleTable
+    ? collectFrontMatterExampleElements(xmlDoc, namespaces)
+    : [];
   for (let i = 0; i < translations.length; ++i) {
     const translation = translations[i];
     const element = xmlDoc.get<Element>(translation.xpath, namespaces);
@@ -83,10 +99,13 @@ function mergeTranslations(contentXmlFilepath: string, translations: DocString[]
       });
   }
   // After clearEmptyParagraphs: position-based xpaths above must resolve
-  // against the un-mutated tree; this removal is style-driven and safe last.
+  // against the un-mutated tree (clearEmptyParagraphs re-resolves them at
+  // removal time, so removing whole tables earlier would silently shift what
+  // those lookups hit); these removals are style-driven and safe last.
   if (opts.removeCoverRepetitions) {
     removeCoverRepetitionParagraphs(xmlDoc, namespaces);
   }
+  removeFrontMatterExampleElements(frontMatterExampleElements);
   const docStr = cleanOpenDocXml(xmlDoc.toString(false));
   fs.writeFileSync(contentXmlFilepath, docStr);
 }
