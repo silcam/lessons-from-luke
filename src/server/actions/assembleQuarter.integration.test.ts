@@ -288,6 +288,133 @@ function visibleLessonOpenings(
     );
 }
 
+/**
+ * The 018 sacrificial terminal paragraph's marker TEXT. Deliberately a LOCAL
+ * literal rather than an import from `prepareConstituentForAssembly`: this
+ * suite's job is to assert the DELIVERED book carries no such paragraph, and
+ * an imported constant would silently follow a rename.
+ * `prepareConstituentForAssembly.test.ts` pins the exported constant to this
+ * same literal, so the two can never drift apart unnoticed.
+ */
+const SACRIFICIAL_MARKER_TEXT = "QuarterAssemblySacrificialTail";
+
+/** Matches both memory-verse style-naming families (`Coloring Page - Memory Verse` and the `M.T.`-prefixed one). */
+const MEMORY_VERSE_STYLE_PATTERN = /Memory_20_Verse$/;
+
+/**
+ * Matches the coloring page's empty graphic-number spacer style — in every
+ * series-2 constituent the paragraph immediately PRECEDING the final memory
+ * verse, and therefore the style the 018 defect propagates onto that verse
+ * (`insertDocumentFromURL` strips the inserted document's last body
+ * paragraph's own style and gives it the preceding paragraph's).
+ */
+const GRAPHIC_NUMBER_STYLE_PATTERN = /Graphic_20_Number$/;
+
+/**
+ * Resolves a paragraph's `text:style-name` through the document's own
+ * content.xml automatic-style parent chain to the NAMED style it ultimately
+ * inherits from. Style assertions must not care whether a paragraph names
+ * its style directly or reaches it via a `P<n>` automatic style — the merge
+ * renumbers those arbitrarily, and `prepareConstituentForAssembly`'s
+ * memory-verse flattening deliberately converts some of the second form into
+ * the first.
+ */
+function namedStyleResolverFor(
+  contentDoc: ReturnType<typeof libxmljs2.parseXml>
+): (styleName: string) => string {
+  const parents = new Map<string, string | undefined>();
+  contentDoc
+    .find<Element>(
+      "//office:automatic-styles/style:style[@style:family='paragraph']",
+      ODF_NAMESPACES
+    )
+    .forEach((style) => {
+      const name = style.attr("name")?.value();
+      if (name) parents.set(name, style.attr("parent-style-name")?.value() ?? undefined);
+    });
+  return (styleName: string): string => {
+    const seen = new Set<string>();
+    let current: string | undefined = styleName;
+    while (current && !seen.has(current)) {
+      seen.add(current);
+      if (!parents.has(current)) return current;
+      current = parents.get(current);
+    }
+    return current ?? styleName;
+  };
+}
+
+/** Every styled `text:p` in `office:body`, paired with its trimmed text and its chain-resolved NAMED style. */
+function styledParagraphs(
+  contentDoc: ReturnType<typeof libxmljs2.parseXml>
+): { text: string; namedStyle: string }[] {
+  const resolve = namedStyleResolverFor(contentDoc);
+  return contentDoc
+    .find<Element>("//office:body//text:p[@text:style-name]", ODF_NAMESPACES)
+    .map((p) => ({ text: p.text().trim(), namedStyle: resolve(p.attr("style-name")!.value()) }));
+}
+
+/**
+ * One entry per source constituent whose FINAL `office:text` body paragraph
+ * is memory-verse styled — the exact paragraph the 018 defect victimizes
+ * (verified: 11 of the 14 series-2 constituents; the TOC and the two review
+ * lessons end on other content and are unaffected).
+ *
+ * `memoryVerseCount` is derived by reading the READ-ONLY source fixtures,
+ * never hardcoded: the number of memory-verse-styled paragraphs carrying
+ * that exact verse text across the WHOLE corpus. The assembled book must
+ * preserve it. It matters that the count is corpus-wide rather than
+ * per-lesson — each memory verse's TEXT also appears several times in its
+ * own lesson's body and in the next lesson's review section, under ordinary
+ * text styles, so a naive "every paragraph with this text is memory-verse
+ * styled" assertion would be false both before and after the fix.
+ */
+interface TerminalMemoryVerseExpectation {
+  lessonNumber: number;
+  verse: string;
+  memoryVerseCount: number;
+}
+
+function terminalMemoryVerseExpectations(workDir: string): TerminalMemoryVerseExpectation[] {
+  const sourceDocs = ORDERED_LESSON_NUMBERS.map((lessonNumber) => {
+    const extractDir = path.join(workDir, `source-content-${lessonNumber}`);
+    fs.mkdirSync(extractDir, { recursive: true });
+    execFileSync("unzip", [
+      "-o",
+      "-q",
+      sourcePathFor(lessonNumber),
+      "content.xml",
+      "-d",
+      extractDir,
+    ]);
+    const contentDoc = libxmljs2.parseXml(
+      fs.readFileSync(path.join(extractDir, "content.xml"), "utf8")
+    );
+    return { lessonNumber, contentDoc, paragraphs: styledParagraphs(contentDoc) };
+  });
+
+  const expectations: TerminalMemoryVerseExpectation[] = [];
+  sourceDocs.forEach(({ lessonNumber, contentDoc }) => {
+    const officeText = contentDoc.get<Element>("//office:body/office:text", ODF_NAMESPACES);
+    const children = officeText!.childNodes().filter((node) => node.type() === "element");
+    const last = children[children.length - 1] as Element;
+    const styleName = last.attr("style-name")?.value();
+    if (last.name() !== "p" || !styleName) return;
+    if (!MEMORY_VERSE_STYLE_PATTERN.test(namedStyleResolverFor(contentDoc)(styleName))) return;
+    const verse = last.text().trim();
+    const memoryVerseCount = sourceDocs.reduce(
+      (total, source) =>
+        total +
+        source.paragraphs.filter(
+          (p) => p.text === verse && MEMORY_VERSE_STYLE_PATTERN.test(p.namedStyle)
+        ).length,
+      0
+    );
+    expectations.push({ lessonNumber, verse, memoryVerseCount });
+  });
+  return expectations;
+}
+
 function masterPageBlock(stylesXml: string, displayName: string): string | undefined {
   // A master-page with no children (e.g. a footer-less "First Page") is
   // self-closing (`.../>`); one with children is a container closed by a
@@ -657,6 +784,53 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
     // monolingual-template jobs only.
     const contentXml = extractContentXml(outputPath, workDir, "content-extract-bilingual-mt");
     expect(contentXml).toContain('text:style-name="M.T._20_Lesson_20_Title"');
+  });
+
+  test("018 (bilingual): every constituent's FINAL coloring-page memory verse keeps a memory-verse paragraph style in the assembled book, and none is restyled to the preceding graphic-number spacer", () => {
+    // The pinned 018 mechanism: `insertDocumentFromURL` strips the LAST body
+    // paragraph of every inserted constituent of its own named style and
+    // gives it the PRECEDING paragraph's. In every series-2 lesson that last
+    // paragraph is the second coloring-page memory verse and its predecessor
+    // is the empty graphic-number spacer, so the verse renders centered,
+    // bold, italic and un-highlighted instead of in the memory-verse column.
+    const contentDoc = libxmljs2.parseXml(
+      extractContentXml(outputPath, workDir, "content-extract-018-memory-verse")
+    );
+    const paragraphs = styledParagraphs(contentDoc);
+    const expectations = terminalMemoryVerseExpectations(workDir);
+    // 11 of the 14 constituents end on a memory verse (all but the TOC and
+    // the two review lessons) — a guard on the fixture reading itself, so a
+    // silently-empty expectation set can never pass this test vacuously.
+    expect(expectations).toHaveLength(11);
+
+    expectations.forEach(({ lessonNumber, verse, memoryVerseCount }) => {
+      const carrying = paragraphs.filter((p) => p.text === verse);
+      expect({
+        lessonNumber,
+        memoryVerse: carrying.filter((p) => MEMORY_VERSE_STYLE_PATTERN.test(p.namedStyle)).length,
+        graphicNumber: carrying.filter((p) => GRAPHIC_NUMBER_STYLE_PATTERN.test(p.namedStyle))
+          .length,
+      }).toEqual({ lessonNumber, memoryVerse: memoryVerseCount, graphicNumber: 0 });
+    });
+  });
+
+  test("018 companion invariants (bilingual): no sacrificial marker paragraph survives into the delivered book or its render, and the book carries no EMPTY memory-verse paragraph", () => {
+    // Guards the half-implemented states of the 018 fix rather than the
+    // original defect: a sacrificial terminal paragraph that prepare appends
+    // but finalize fails to strip would leave its marker text visible, and —
+    // because the merge annihilates that paragraph's own hidden automatic
+    // style and hands it the memory-verse style instead — an empty
+    // memory-verse paragraph renders as a stray yellow highlighted band under
+    // the final coloring-page verse. Neither shape exists in the source
+    // corpus (verified: zero empty memory-verse paragraphs across all 14).
+    const contentXml = extractContentXml(outputPath, workDir, "content-extract-018-companions");
+    expect(contentXml).not.toContain(SACRIFICIAL_MARKER_TEXT);
+    expect(fullText).not.toContain(SACRIFICIAL_MARKER_TEXT);
+
+    const emptyMemoryVerses = styledParagraphs(libxmljs2.parseXml(contentXml)).filter(
+      (p) => p.text === "" && MEMORY_VERSE_STYLE_PATTERN.test(p.namedStyle)
+    );
+    expect(emptyMemoryVerses).toHaveLength(0);
   });
 
   test("lesson-opening master pages (014 WS2 regression guard, GREEN from birth — no committed fixture ships the Lesson-9 defect): every visible level-1 heading's automatic style carries master-page-name First_20_Page, and exactly 13 openings exist", () => {
@@ -1446,6 +1620,38 @@ describe("assembleQuarter (real soffice merge, monolingual template asset is a c
     );
     expect(firstLessonContentIndex).toBeGreaterThan(-1);
     expect(pageNumberFooterOn(bodyPages[firstLessonContentIndex])).toBe("2");
+
+    // --- 018 (MONOLINGUAL mode, the "both modes" half): the terminal-
+    // paragraph restyle is a property of `insertDocumentFromURL` itself, so
+    // it reproduces even on this single-constituent merge (no following
+    // constituent, no boundary page break). Both of Luke-2-14's coloring-page
+    // memory verses must keep a memory-verse style — after the monolingual
+    // restyle that is the PLAIN family name, which the `$`-anchored patterns
+    // match as well as the `M.T.` one.
+    const monolingualExpectation = terminalMemoryVerseExpectations(workDir).find(
+      (expectation) => expectation.lessonNumber === LESSON_NUMBERS[0]
+    );
+    expect(monolingualExpectation).toBeDefined();
+    const monolingualParagraphs = styledParagraphs(libxmljs2.parseXml(contentXml));
+    const carryingVerse = monolingualParagraphs.filter(
+      (p) => p.text === monolingualExpectation!.verse
+    );
+    expect({
+      memoryVerse: carryingVerse.filter((p) => MEMORY_VERSE_STYLE_PATTERN.test(p.namedStyle))
+        .length,
+      graphicNumber: carryingVerse.filter((p) => GRAPHIC_NUMBER_STYLE_PATTERN.test(p.namedStyle))
+        .length,
+    }).toEqual({ memoryVerse: monolingualExpectation!.memoryVerseCount, graphicNumber: 0 });
+
+    // Same companion invariants as bilingual: no surviving marker paragraph
+    // and no empty memory-verse paragraph (the stray yellow band).
+    expect(contentXml).not.toContain(SACRIFICIAL_MARKER_TEXT);
+    expect(fullText).not.toContain(SACRIFICIAL_MARKER_TEXT);
+    expect(
+      monolingualParagraphs.filter(
+        (p) => p.text === "" && MEMORY_VERSE_STYLE_PATTERN.test(p.namedStyle)
+      )
+    ).toHaveLength(0);
   }, 200_000);
 });
 

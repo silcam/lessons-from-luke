@@ -1034,3 +1034,80 @@ function printEmptyPagesItemText(settingsDoc: XmlDocument): string | undefined {
     .get<Element>("//config:config-item[@config:name='PrintEmptyPages']", NAMESPACES)
     ?.text();
 }
+
+describe("sacrificial terminal paragraph removal (018)", () => {
+  /**
+   * `prepareConstituentForAssembly` appends one hidden marker paragraph to
+   * the end of every constituent so LibreOffice's `insertDocumentFromURL`
+   * has a throwaway victim for its "last body paragraph inherits the
+   * PRECEDING paragraph's style" mutation, instead of the real coloring-page
+   * memory verse. The merge then annihilates that paragraph's own hidden
+   * automatic style — post-merge each marker paragraph carries an arbitrary
+   * merge-assigned style (`P35`, `P8`, …) and would render as a visible
+   * band — so finalize must strip them by TEXT, never by style name.
+   */
+  const MARKER = "QuarterAssemblySacrificialTail";
+
+  /**
+   * A merged-shaped body carrying three marker paragraphs under three
+   * DIFFERENT styles (one merge-assigned, one the original hidden style name,
+   * one shared with real content) plus the three shapes that must survive: a
+   * legitimately empty `Body` paragraph, a paragraph that merely CONTAINS the
+   * marker as a substring, and ordinary content. The leading paragraph is
+   * deliberately non-empty so `removeLeadingBlankParagraphs` — which runs
+   * first in the same pipeline — cannot eat the empty-paragraph case and
+   * make this test lie.
+   */
+  const BODY_XML =
+    `<text:p text:style-name="P8">Front matter opening</text:p>` +
+    `<text:p text:style-name="P35">${MARKER}</text:p>` +
+    `<text:p text:style-name="Body"></text:p>` +
+    `<text:p text:style-name="P7">Real content</text:p>` +
+    `<text:p text:style-name="QuarterAssemblySacrificialTail">${MARKER}</text:p>` +
+    `<text:p text:style-name="Body">${MARKER} is only mentioned in this sentence</text:p>` +
+    `<text:p text:style-name="P8">${MARKER}</text:p>`;
+
+  test.each([[false], [true]])(
+    "strips every marker paragraph whatever style the merge gave it, and leaves all other paragraphs untouched (singleLanguage=%s)",
+    (singleLanguage) => {
+      const odtPath = `${workDir}/assembled.odt`;
+      buildMergedFixtureOdt(odtPath, BODY_XML);
+
+      finalizeAssembledQuarter({ ...defaultOptions(odtPath), singleLanguage });
+
+      const contentDoc = extractXml(odtPath, "content.xml");
+      const paragraphs = contentDoc.find<Element>("//office:body//text:p", NAMESPACES);
+      const texts = paragraphs.map((p) => p.text().trim());
+
+      expect(texts.filter((text) => text === MARKER)).toHaveLength(0);
+      expect(texts).toEqual([
+        "Front matter opening",
+        "",
+        "Real content",
+        `${MARKER} is only mentioned in this sentence`,
+      ]);
+      // The surviving empty paragraph is the legitimate `Body` one, not a
+      // stripped marker's husk.
+      const empty = paragraphs.filter((p) => p.text().trim() === "");
+      expect(empty).toHaveLength(1);
+      expect(empty[0].attr("style-name")?.value()).toBe("Body");
+    }
+  );
+
+  test("is idempotent: finalizing an already-finalized book removes nothing further", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(odtPath, BODY_XML);
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+    const afterFirst = extractXml(odtPath, "content.xml")
+      .find<Element>("//office:body//text:p", NAMESPACES)
+      .map((p) => p.text().trim());
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+    const afterSecond = extractXml(odtPath, "content.xml")
+      .find<Element>("//office:body//text:p", NAMESPACES)
+      .map((p) => p.text().trim());
+
+    expect(afterSecond).toEqual(afterFirst);
+  });
+});

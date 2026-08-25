@@ -85,6 +85,26 @@ import { rezipWithMimetypeFirst } from "../xml/rezipWithMimetypeFirst";
  *   name that memory-verse style DIRECTLY, matching how the first copy
  *   already does. Neither paragraph is removed or deduplicated (FR-014).
  *
+ * **content.xml (sacrificial terminal paragraph, all constituents — 018):**
+ * - `insertDocumentFromURL` MUTATES the last body paragraph of every
+ *   document it inserts: that paragraph loses its own named style and takes
+ *   the PRECEDING paragraph's. Pinned empirically — it reproduces on a lone
+ *   constituent inserted into the blank base with nothing following it, so
+ *   the assembly macro's boundary page break is not implicated, and no
+ *   change to the macro can avoid it. In the real masters the last body
+ *   paragraph is the second coloring-page memory verse and its predecessor
+ *   is the empty graphic-number spacer, so the verse renders centered, bold
+ *   and italic instead of in its highlighted memory-verse column.
+ * - Defused by appending a THROWAWAY paragraph as the last child of
+ *   `office:text`, for the merge to victimize instead of the verse. It
+ *   carries fixed marker TEXT ({@link QUARTER_ASSEMBLY_SACRIFICIAL_MARKER})
+ *   and a self-contained hidden automatic style — spike-verified that an
+ *   EMPTY sacrificial paragraph is not merely restyled but has its style
+ *   annihilated, leaving a visible highlighted band. The merge destroys the
+ *   hidden style either way, so the paragraph cannot be relied on to STAY
+ *   hidden; `finalizeAssembledQuarter` strips it from the merged book by its
+ *   marker text (never by style, which post-merge is arbitrary).
+ *
  * Re-zips with the `mimetype` entry stored FIRST and UNCOMPRESSED (ODF
  * requirement). Mutates `odtPath` IN PLACE — the CALLER must pass a
  * disposable COPY, never the canonical source ODT (see `assembleQuarter`'s
@@ -110,9 +130,21 @@ export interface ConstituentMeta {
 }
 
 const STYLE_NS = "urn:oasis:names:tc:opendocument:xmlns:style:1.0";
+const TEXT_NS = "urn:oasis:names:tc:opendocument:xmlns:text:1.0";
 
 /** The injected hidden heading's automatic-style name (collision-checked against real masters' `P<n>`/`M.T. *` names). */
 const INJECTED_HEADING_STYLE = "QuarterAssemblyHiddenHeading";
+
+/**
+ * The sacrificial terminal paragraph's marker TEXT — the ONLY handle
+ * `finalizeAssembledQuarter` has for stripping these paragraphs back out of
+ * the merged book, because the merge annihilates their automatic style (see
+ * the module doc comment's 018 section). Must never appear in real content.
+ */
+export const QUARTER_ASSEMBLY_SACRIFICIAL_MARKER = "QuarterAssemblySacrificialTail";
+
+/** The sacrificial terminal paragraph's automatic-style name (same literal as the marker text — one name to grep for). */
+const SACRIFICIAL_TAIL_STYLE = "QuarterAssemblySacrificialTail";
 
 /**
  * Chapterize `odtPath`'s footer Lesson fields, ensure its level-1 outline
@@ -147,6 +179,11 @@ export function prepareConstituentForAssembly(
     const contentDoc = libxmljs2.parseXml(fs.readFileSync(contentXmlPath, "utf8"));
     const contentNamespaces = extractNamespaces(contentDoc);
     flattenMemoryVerseAutomaticStyles(contentDoc, stylesDoc, contentNamespaces);
+    // Appended BEFORE the outline-participant count below, deliberately: the
+    // sacrificial paragraph must be inside everything the validation sees, so
+    // a future shape that did participate in the outline would fail loudly
+    // here rather than silently shift every later lesson's footer number.
+    appendSacrificialTerminalParagraph(contentDoc, contentNamespaces);
     if (!isTOC && countOutlineParticipants(contentDoc, stylesDoc, contentNamespaces) === 0) {
       injectHiddenHeading(contentDoc, contentNamespaces, meta.subject ?? fallbackTitle);
     }
@@ -335,6 +372,76 @@ function flattenMemoryVerseAutomaticStyles(
     const target = resolveMemoryVerseTarget(styleName);
     if (target) p.attr("text:style-name", target);
   });
+}
+
+/**
+ * Appends the sacrificial terminal paragraph (018) as the LAST child of
+ * `office:text`, so `insertDocumentFromURL`'s "last body paragraph inherits
+ * the PRECEDING paragraph's style" mutation lands on a throwaway instead of
+ * the real coloring-page memory verse. See the module doc comment's 018
+ * section for the pinned mechanism and why the marker TEXT is load-bearing.
+ *
+ * Its automatic style mirrors {@link injectHiddenHeading}'s already-validated
+ * hidden shape — zero-height and invisible, with NO `style:master-page-name`,
+ * no break properties and no outline level, so it can neither add a page nor
+ * disturb chapter numbering. Idempotent: a constituent already carrying the
+ * marker as its final paragraph is left alone.
+ */
+function appendSacrificialTerminalParagraph(contentDoc: XmlDocument, namespaces: Namespaces): void {
+  const officeText = contentDoc.get<Element>("//office:body/office:text", namespaces);
+  if (!officeText) {
+    throw new Error("constituent content.xml has no office:text to append the tail to");
+  }
+
+  const bodyChildren = officeText.childNodes().filter((node) => node.type() === "element");
+  const lastChild = bodyChildren[bodyChildren.length - 1] as Element | undefined;
+  if (lastChild?.text().trim() === QUARTER_ASSEMBLY_SACRIFICIAL_MARKER) return;
+
+  const automaticStyles = contentDoc.get<Element>("//office:automatic-styles", namespaces);
+  if (!automaticStyles) {
+    throw new Error("constituent content.xml has no office:automatic-styles");
+  }
+  const styleNs = automaticStyles
+    .doc()
+    .root()!
+    .namespaces()
+    .find((ns) => ns.href() === STYLE_NS);
+
+  if (
+    !contentDoc.get<Element>(
+      `//office:automatic-styles/style:style[@style:name='${SACRIFICIAL_TAIL_STYLE}']`,
+      namespaces
+    )
+  ) {
+    const style = new Element(contentDoc, "style");
+    automaticStyles.addChild(style);
+    if (styleNs) style.namespace(styleNs);
+    style.attr({ "style:name": SACRIFICIAL_TAIL_STYLE, "style:family": "paragraph" });
+    const paragraphProps = new Element(contentDoc, "paragraph-properties");
+    style.addChild(paragraphProps);
+    if (styleNs) paragraphProps.namespace(styleNs);
+    paragraphProps.attr({
+      "fo:margin-top": "0cm",
+      "fo:margin-bottom": "0cm",
+      "fo:line-height": "0.05cm",
+      "text:number-lines": "false",
+      "text:line-number": "0",
+    });
+    const textProps = new Element(contentDoc, "text-properties");
+    style.addChild(textProps);
+    if (styleNs) textProps.namespace(styleNs);
+    textProps.attr({ "text:display": "none", "fo:font-size": "2pt" });
+  }
+
+  const textNs = contentDoc
+    .root()!
+    .namespaces()
+    .find((ns) => ns.href() === TEXT_NS);
+  const paragraph = new Element(contentDoc, "p");
+  officeText.addChild(paragraph);
+  if (textNs) paragraph.namespace(textNs);
+  paragraph.attr({ "text:style-name": SACRIFICIAL_TAIL_STYLE });
+  paragraph.text(QUARTER_ASSEMBLY_SACRIFICIAL_MARKER);
 }
 
 /**

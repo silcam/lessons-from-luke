@@ -4,7 +4,10 @@ import fs from "fs";
 import path from "path";
 import { execFileSync } from "child_process";
 import libxmljs2, { Document as XmlDocument, Element } from "libxmljs2";
-import { prepareConstituentForAssembly } from "./prepareConstituentForAssembly";
+import {
+  prepareConstituentForAssembly,
+  QUARTER_ASSEMBLY_SACRIFICIAL_MARKER,
+} from "./prepareConstituentForAssembly";
 import { mkdirSafe, unlinkRecursive, unzip } from "../../core/util/fsUtils";
 
 const NAMESPACES = {
@@ -602,4 +605,197 @@ describe("memory-verse coloring-page style resolution (017 US2-T1, INV-8/INV-9/I
     expect(directParagraphs).toHaveLength(2);
     directParagraphs.forEach((p) => expect(p.text().trim()).toMatch(/^Luke 4:18-19/));
   });
+});
+
+describe("sacrificial terminal paragraph (018)", () => {
+  /**
+   * The pinned 018 mechanism (Phase 0, empirically verified): LibreOffice's
+   * `insertDocumentFromURL` strips the LAST body paragraph of every inserted
+   * constituent of its own named style and gives it the PRECEDING
+   * paragraph's — even for a lone constituent with no following page break.
+   * In every real master that last paragraph is the second coloring-page
+   * memory verse, which therefore renders in the preceding empty
+   * graphic-number spacer's centered/bold/italic style. Prepare defuses it by
+   * appending a throwaway paragraph for the merge to victimize instead.
+   */
+  function copyRealFixture(name: string): string {
+    mkdirSafe(workDir);
+    const dest = `${workDir}/${name}`;
+    fs.copyFileSync(path.join("test", "docs", "serverDocs", name), dest);
+    return dest;
+  }
+
+  /** The `office:text` element children, in document order. */
+  function bodyChildren(contentDoc: XmlDocument): Element[] {
+    const officeText = contentDoc.get<Element>("//office:body/office:text", NAMESPACES)!;
+    return officeText.childNodes().filter((node) => node.type() === "element") as Element[];
+  }
+
+  function markerParagraphs(contentDoc: XmlDocument): Element[] {
+    return contentDoc
+      .find<Element>("//office:body//text:p", NAMESPACES)
+      .filter((p) => p.text().trim() === QUARTER_ASSEMBLY_SACRIFICIAL_MARKER);
+  }
+
+  test("the exported marker constant is the literal the assembly integration suite pins independently", () => {
+    // `assembleQuarter.integration.test.ts` deliberately hardcodes this
+    // literal rather than importing it, so that a rename cannot silently
+    // follow through into the assertion that the DELIVERED book carries no
+    // marker paragraph. This test is the pin that keeps the two in step.
+    expect(QUARTER_ASSEMBLY_SACRIFICIAL_MARKER).toBe("QuarterAssemblySacrificialTail");
+  });
+
+  test("appends exactly one marker paragraph as the LAST office:text child of a lesson constituent", () => {
+    const odtPath = `${workDir}/lesson.odt`;
+    buildFixtureOdt(odtPath, {
+      quarterValue: "2",
+      lessonValue: "14",
+      bodyXml: LESSON_HEADING_XML,
+    });
+
+    prepareConstituentForAssembly(defaultOptions(odtPath));
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    expect(markerParagraphs(contentDoc)).toHaveLength(1);
+
+    const children = bodyChildren(contentDoc);
+    const last = children[children.length - 1];
+    expect(last.name()).toBe("p");
+    expect(last.text().trim()).toBe(QUARTER_ASSEMBLY_SACRIFICIAL_MARKER);
+    expect(last.attr("style-name")?.value()).toBe("QuarterAssemblySacrificialTail");
+  });
+
+  test("appends the marker paragraph to the TOC constituent too, without breaking its zero-outline-participant contract", () => {
+    const odtPath = `${workDir}/toc.odt`;
+    buildFixtureOdt(odtPath, { quarterValue: "2" });
+
+    prepareConstituentForAssembly({
+      odtPath,
+      series: 2,
+      lesson: 99,
+      isTOC: true,
+      fallbackTitle: "Table of Contents",
+    });
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    expect(markerParagraphs(contentDoc)).toHaveLength(1);
+    const children = bodyChildren(contentDoc);
+    expect(children[children.length - 1].text().trim()).toBe(QUARTER_ASSEMBLY_SACRIFICIAL_MARKER);
+  });
+
+  test("defines a self-contained hidden automatic style for the marker paragraph — zero-height and invisible, with no master page, no break and no outline level", () => {
+    const odtPath = `${workDir}/lesson.odt`;
+    buildFixtureOdt(odtPath, {
+      quarterValue: "2",
+      lessonValue: "14",
+      bodyXml: LESSON_HEADING_XML,
+    });
+
+    prepareConstituentForAssembly(defaultOptions(odtPath));
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    const styles = contentDoc.find<Element>(
+      "//office:automatic-styles/style:style[@style:name='QuarterAssemblySacrificialTail']",
+      NAMESPACES
+    );
+    expect(styles).toHaveLength(1);
+    const style = styles[0];
+    expect(style.attr("family")?.value()).toBe("paragraph");
+    // Self-contained: no parent to inherit visible metrics from, and none of
+    // the attributes that could move a page break or shift chapter numbering.
+    expect(style.attr("parent-style-name")).toBeNull();
+    expect(style.attr("master-page-name")).toBeNull();
+    expect(style.attr("default-outline-level")).toBeNull();
+
+    const paragraphProps = style.get<Element>("style:paragraph-properties", NAMESPACES)!;
+    expect(paragraphProps.attr("margin-top")?.value()).toBe("0cm");
+    expect(paragraphProps.attr("margin-bottom")?.value()).toBe("0cm");
+    expect(paragraphProps.attr("line-height")?.value()).toBe("0.05cm");
+    expect(paragraphProps.attr("number-lines")?.value()).toBe("false");
+    expect(paragraphProps.attr("break-before")).toBeNull();
+    expect(paragraphProps.attr("break-after")).toBeNull();
+    expect(paragraphProps.attr("page-number")).toBeNull();
+
+    const textProps = style.get<Element>("style:text-properties", NAMESPACES)!;
+    expect(textProps.attr("display")?.value()).toBe("none");
+    expect(textProps.attr("font-size")?.value()).toBe("2pt");
+  });
+
+  test("is idempotent: preparing an already-prepared constituent leaves exactly one marker paragraph and one marker style", () => {
+    const odtPath = `${workDir}/lesson.odt`;
+    buildFixtureOdt(odtPath, {
+      quarterValue: "2",
+      lessonValue: "14",
+      bodyXml: LESSON_HEADING_XML,
+    });
+
+    prepareConstituentForAssembly(defaultOptions(odtPath));
+    prepareConstituentForAssembly(defaultOptions(odtPath));
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    expect(markerParagraphs(contentDoc)).toHaveLength(1);
+    expect(
+      contentDoc.find<Element>(
+        "//office:automatic-styles/style:style[@style:name='QuarterAssemblySacrificialTail']",
+        NAMESPACES
+      )
+    ).toHaveLength(1);
+  });
+
+  test.each([
+    [
+      "plain style-naming family",
+      "Luke-1-04v03.odt",
+      4,
+      "Coloring_20_Page_20_-_20_Memory_20_Verse",
+    ],
+    [
+      "M.T.-prefixed style-naming family",
+      "Luke-1-08v01.odt",
+      8,
+      "M.T._20_Coloring_20_Page_20_-_20_Memory_20_Verse",
+    ],
+  ])(
+    "on a real constituent (%s) the marker paragraph becomes the merge's victim: it is last, and the memory verse that used to be last is now second-to-last with its own style intact",
+    (_family, fixtureName, lessonNumber, memoryVerseStyleName) => {
+      const odtPath = copyRealFixture(fixtureName);
+
+      const before = extractXml(odtPath, "content.xml");
+      const beforeChildren = bodyChildren(before);
+      expect(beforeChildren[beforeChildren.length - 1].name()).toBe("p");
+      // The tail of the constituent's body, in order — the region the append
+      // must leave untouched. A whole-document child COUNT would be the wrong
+      // guard here: a legacy master with no level-1 heading (Luke-1-04v03)
+      // also gets a hidden heading injected near the START of the body.
+      const beforeTailTexts = beforeChildren.slice(-3).map((child) => child.text().trim());
+      const previouslyLastText = beforeTailTexts[beforeTailTexts.length - 1];
+
+      prepareConstituentForAssembly({
+        odtPath,
+        series: 1,
+        lesson: lessonNumber,
+        isTOC: false,
+        fallbackTitle: `Luke 1-${lessonNumber}`,
+      });
+
+      const after = extractXml(odtPath, "content.xml");
+      const afterChildren = bodyChildren(after);
+      expect(markerParagraphs(after)).toHaveLength(1);
+      // The whole original tail survives in order, with the marker appended
+      // after it — nothing at the end of the body was dropped or reordered.
+      expect(afterChildren.slice(-4).map((child) => child.text().trim())).toEqual([
+        ...beforeTailTexts,
+        QUARTER_ASSEMBLY_SACRIFICIAL_MARKER,
+      ]);
+
+      const last = afterChildren[afterChildren.length - 1];
+      expect(last.text().trim()).toBe(QUARTER_ASSEMBLY_SACRIFICIAL_MARKER);
+
+      const secondToLast = afterChildren[afterChildren.length - 2];
+      expect(secondToLast.text().trim()).toBe(previouslyLastText);
+      // Prepare's memory-verse flattening has already resolved this
+      // paragraph to the NAMED style directly, in either family.
+      expect(secondToLast.attr("style-name")?.value()).toBe(memoryVerseStyleName);
+    }
+  );
 });

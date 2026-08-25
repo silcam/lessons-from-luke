@@ -7,6 +7,7 @@ import {
   restyleMonolingualParagraphs,
 } from "../xml/monolingualRestyle";
 import { rezipWithMimetypeFirst } from "../xml/rezipWithMimetypeFirst";
+import { QUARTER_ASSEMBLY_SACRIFICIAL_MARKER } from "./prepareConstituentForAssembly";
 
 /**
  * finalizeAssembledQuarter — post-merge patches that make the assembled
@@ -35,6 +36,12 @@ import { rezipWithMimetypeFirst } from "../xml/rezipWithMimetypeFirst";
  *   opens with an EMPTY paragraph pinned to a `page-usage="left"` (verso)
  *   master, which as the document's first element makes LibreOffice insert
  *   a blank recto filler page (see `removeLeadingBlankParagraphs`).
+ * - **Sacrificial terminal paragraphs (content.xml, 018)**: strip every
+ *   paragraph carrying `prepareConstituentForAssembly`'s marker text. Those
+ *   paragraphs exist only to absorb `insertDocumentFromURL`'s mutation of
+ *   each inserted constituent's last body paragraph; the merge destroys
+ *   their hidden style, so they must be matched by TEXT here or they render
+ *   as visible bands (see `removeSacrificialParagraphs`).
  * - **Front-matter anchor (content.xml, FR-016)**: sets an explicit
  *   `style:page-number="1"` on `office:text`'s own first body element's
  *   automatic style — settled EMPIRICALLY (017 US1-T5's Gate 7 test): with
@@ -113,6 +120,7 @@ export function finalizeAssembledQuarter(options: FinalizeAssembledQuarterOption
     const contentDoc = libxmljs2.parseXml(fs.readFileSync(contentXmlPath, "utf8"));
     const contentNamespaces = extractNamespaces(contentDoc);
     removeLeadingBlankParagraphs(contentDoc, contentNamespaces);
+    removeSacrificialParagraphs(contentDoc, contentNamespaces);
     if (singleLanguage) {
       restyleMonolingualParagraphs(contentDoc, contentNamespaces);
     }
@@ -216,6 +224,28 @@ function removeLeadingBlankParagraphs(contentDoc: XmlDocument, namespaces: Names
     }
     break;
   }
+}
+
+/**
+ * Removes every sacrificial terminal paragraph (018) the merge carried into
+ * the assembled book — one per constituent boundary plus one at the document
+ * end.
+ *
+ * `prepareConstituentForAssembly` appends these so `insertDocumentFromURL`'s
+ * "last body paragraph inherits the PRECEDING paragraph's style" mutation
+ * victimizes a throwaway rather than each coloring page's second memory
+ * verse (see that module's doc comment for the pinned mechanism). The merge
+ * ANNIHILATES the sacrificial paragraph's own hidden automatic style in the
+ * process, so post-merge these paragraphs carry arbitrary merge-assigned
+ * styles (`P35`, …) and would otherwise render as visible bands. They are
+ * therefore matched by their marker TEXT alone — matching on style name
+ * would miss every one of them.
+ */
+function removeSacrificialParagraphs(contentDoc: XmlDocument, namespaces: Namespaces): void {
+  contentDoc
+    .find<Element>("//office:body//text:p", namespaces)
+    .filter((paragraph) => paragraph.text().trim() === QUARTER_ASSEMBLY_SACRIFICIAL_MARKER)
+    .forEach((paragraph) => paragraph.remove());
 }
 
 /** The master page every lesson opens on in the client's quarter masters. */
