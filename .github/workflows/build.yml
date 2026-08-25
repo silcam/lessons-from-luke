@@ -208,6 +208,12 @@ jobs:
       - name: Run migrations
         run: yarn migrate:test
       - uses: cypress-io/github-action@v7
+        # ENFORCE_WEB_AUTH=1 pins the web AuthGate ON: the dev webpack config
+        # bakes the flag into the served HTML at dev-server start, defaulting
+        # off, and these specs (login.spec.js, visitTranslatePage) depend on
+        # the /login redirect. Mirrors the pin in the local test-e2e script.
+        env:
+          ENFORCE_WEB_AUTH: "1"
         with:
           install: false
           start: npx concurrently "yarn wpDevServerWeb" "yarn serve"
