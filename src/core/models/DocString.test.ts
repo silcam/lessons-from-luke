@@ -143,6 +143,129 @@ describe("singleLanguageize", () => {
   });
 });
 
+// 018 Q2 fix (1c): the suppress queue is scoped to the CONTAINER the MT twin
+// lives in — an MT string queued inside one container (e.g. the front-matter
+// subtitle's draw:text-box) must not suppress a same-masterId string in a
+// different container (e.g. the TOC header paragraph under office:text).
+describe("singleLanguageize container scoping", () => {
+  const CELL =
+    "/office:document-content/office:body/office:text/table:table[1]/table:table-row[2]/table:table-cell[2]";
+  const TEXTBOX =
+    "/office:document-content/office:body/office:text/text:p[3]/draw:frame/draw:text-box";
+
+  test("suppresses the non-MT twin in the SAME table cell", () => {
+    const mtLStr = makeLessonString({ lessonStringId: 1, masterId: 5, motherTongue: true });
+    const majLStr = makeLessonString({ lessonStringId: 2, masterId: 5, motherTongue: false });
+    const mtDoc: DocString = {
+      type: "content",
+      xpath: `${CELL}/text:p[1]/text()`,
+      motherTongue: true,
+      text: "MT title",
+    };
+    const majDoc: DocString = {
+      type: "content",
+      xpath: `${CELL}/text:p[2]/text()`,
+      motherTongue: false,
+      text: "English title",
+    };
+
+    const result = singleLanguageize([mtLStr, majLStr], [mtDoc, majDoc]);
+    expect(result[1].text).toBe("");
+    expect(result[1].suppressed).toBe(true);
+  });
+
+  test("suppresses a non-MT twin reached through a span in the same cell", () => {
+    const mtLStr = makeLessonString({ lessonStringId: 1, masterId: 5, motherTongue: true });
+    const majLStr = makeLessonString({ lessonStringId: 2, masterId: 5, motherTongue: false });
+    const mtDoc: DocString = {
+      type: "content",
+      xpath: `${CELL}/text:p[1]/text:span/text()`,
+      motherTongue: true,
+      text: "MT title",
+    };
+    const majDoc: DocString = {
+      type: "content",
+      xpath: `${CELL}/text:p[2]/text()`,
+      motherTongue: false,
+      text: "English title",
+    };
+
+    const result = singleLanguageize([mtLStr, majLStr], [mtDoc, majDoc]);
+    expect(result[1].suppressed).toBe(true);
+  });
+
+  test("suppresses across list wrappers: MT twin in a bullet list, English twin a plain sibling", () => {
+    const SECTION = "/office:document-content/office:body/office:text/text:section";
+    const mtLStr = makeLessonString({ lessonStringId: 1, masterId: 5, motherTongue: true });
+    const majLStr = makeLessonString({ lessonStringId: 2, masterId: 5, motherTongue: false });
+    const mtDoc: DocString = {
+      type: "content",
+      xpath: `${SECTION}/text:list[12]/text:list-header/text:p/text()`,
+      motherTongue: true,
+      text: "MT bullet",
+    };
+    const majDoc: DocString = {
+      type: "content",
+      xpath: `${SECTION}/text:p[13]/text()`,
+      motherTongue: false,
+      text: "English twin",
+    };
+
+    const result = singleLanguageize([mtLStr, majLStr], [mtDoc, majDoc]);
+    expect(result[1].suppressed).toBe(true);
+  });
+
+  test("does NOT suppress a same-masterId string in a DIFFERENT container (the Q2 header defect)", () => {
+    const mtLStr = makeLessonString({ lessonStringId: 1, masterId: 7, motherTongue: true });
+    const majLStr = makeLessonString({ lessonStringId: 2, masterId: 7, motherTongue: false });
+    const mtDoc: DocString = {
+      type: "content",
+      xpath: `${TEXTBOX}/text:p[2]/text()`,
+      motherTongue: true,
+      text: "Quarter",
+    };
+    const majDoc: DocString = {
+      type: "content",
+      xpath: "/office:document-content/office:body/office:text/text:p[40]/text()",
+      motherTongue: false,
+      text: "Quarter",
+    };
+
+    const result = singleLanguageize([mtLStr, majLStr], [mtDoc, majDoc]);
+    expect(result[1].text).toBe("Quarter");
+    expect(result[1].suppressed).toBeUndefined();
+  });
+
+  test("a cross-container non-match leaves the queue intact for the REAL twin later", () => {
+    const mt = makeLessonString({ lessonStringId: 1, masterId: 7, motherTongue: true });
+    const other = makeLessonString({ lessonStringId: 2, masterId: 7, motherTongue: false });
+    const twin = makeLessonString({ lessonStringId: 3, masterId: 7, motherTongue: false });
+    const mtDoc: DocString = {
+      type: "content",
+      xpath: `${CELL}/text:p[1]/text()`,
+      motherTongue: true,
+      text: "MT",
+    };
+    const otherDoc: DocString = {
+      type: "content",
+      xpath: `${TEXTBOX}/text:p[1]/text()`,
+      motherTongue: false,
+      text: "Elsewhere",
+    };
+    const twinDoc: DocString = {
+      type: "content",
+      xpath: `${CELL}/text:p[2]/text()`,
+      motherTongue: false,
+      text: "English",
+    };
+
+    const result = singleLanguageize([mt, other, twin], [mtDoc, otherDoc, twinDoc]);
+    expect(result[1].suppressed).toBeUndefined();
+    expect(result[1].text).toBe("Elsewhere");
+    expect(result[2].suppressed).toBe(true);
+  });
+});
+
 describe("makeWebifyDocStrings", () => {
   test("returns docStrings with ##id## text format", () => {
     const lStr = makeLessonString({ lessonStringId: 42, type: "styles", motherTongue: true });

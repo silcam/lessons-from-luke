@@ -8,11 +8,14 @@
  * TStrings by `text`, so identical texts anywhere in the doc share one
  * masterId).
  *
- * The pinned finding: the M.T. front-matter subtitle ("Teacher's Guide –
- * Quarter 2") queues masterIds for its "Quarter" and "2" text nodes, and the
- * suppress queue then falsely blanks the SAME-masterId text nodes of the
- * non-MT "Quarter 2 Table of Contents" header paragraph (P25 — the paragraph
- * carrying the front-matter page break + master-page switch).
+ * Originally characterized the DEFECT: the M.T. front-matter subtitle
+ * ("Teacher's Guide – Quarter 2") queued masterIds for its "Quarter" and "2"
+ * text nodes, and the suppress queue then falsely blanked the SAME-masterId
+ * text nodes of the non-MT "Quarter 2 Table of Contents" header paragraph
+ * (P25 — the paragraph carrying the front-matter page break + master-page
+ * switch). Now pins the FIX (1c): the queue is container-scoped, so the
+ * subtitle (inside its draw:text-box) no longer covers the header (under
+ * office:text), while genuine same-cell twins are still suppressed.
  */
 import path from "path";
 import docStorage from "../storage/docStorage";
@@ -42,7 +45,7 @@ function parsedWithSyntheticMasterIds() {
   return { docStrings, lessonStrings };
 }
 
-test("suppress queue falsely blanks the non-MT TOC header paragraph's Quarter/2 nodes via the MT subtitle's identical texts", () => {
+test("container-scoped suppress queue spares the TOC header's Quarter/2 nodes but still blanks genuine same-cell twins", () => {
   const { docStrings, lessonStrings } = parsedWithSyntheticMasterIds();
 
   // Stand-in for "everything translated": every string keeps its source text.
@@ -58,13 +61,14 @@ test("suppress queue falsely blanks the non-MT TOC header paragraph's Quarter/2 
     .map((ds) => ds.xpath);
   expect(subtitleXpaths.length).toBeGreaterThanOrEqual(2);
 
-  // FALSE POSITIVE (the defect's trigger): the header paragraph's own
-  // "Quarter" and "2" nodes — non-MT, outside any table — are blanked.
+  // The defect's trigger, FIXED: the header paragraph's own "Quarter" and
+  // "2" nodes — non-MT, outside any table, in a different container from
+  // the MT subtitle — are NOT blanked anymore.
   const headerBlanked = blanked.filter(
     (ds) =>
       !ds.motherTongue && !ds.xpath.includes("table:table") && ["Quarter", "2"].includes(ds.source)
   );
-  expect(headerBlanked.map((ds) => ds.source).sort()).toEqual(["2", "Quarter"]);
+  expect(headerBlanked).toEqual([]);
 
   // LEGITIMATE suppressions: the TOC rows' non-MT English twin paragraphs
   // (each sits in the SAME table cell as its MT twin).
