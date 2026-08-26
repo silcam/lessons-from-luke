@@ -32,6 +32,11 @@ import {
   missingQuarterParts,
 } from "../../core/models/Quarter";
 import assembleQuarter from "./assembleQuarter";
+import parse from "../xml/parse";
+import docStorage from "../storage/docStorage";
+import { TString } from "../../core/models/TString";
+import { LessonString } from "../../core/models/LessonString";
+import { objKeys } from "../../core/util/objectUtils";
 import { selectAssemblyConstituents } from "../assembly/selectAssemblyConstituents";
 import * as quarterStylesTemplate from "../assembly/quarterStylesTemplate";
 import { PDF_CONVERT_TO_TARGET, classifyPage, reconcilePdfPages } from "./pdfRenderOptions";
@@ -1809,4 +1814,193 @@ describe("this file's convertToPdf helper (F2a RED — contract §3, shared PDF 
     expect(convertToPdfSource).toBeDefined();
     expect(convertToPdfSource).toContain("PDF_CONVERT_TO_TARGET");
   });
+});
+
+describe("assembleQuarter (real soffice merge, TOC pagination — 018 Q2/Q4 client fixes)", () => {
+  let workDir: string;
+
+  beforeAll(() => {
+    execFileSync("soffice", ["--version"]);
+    execFileSync("pdftotext", ["-v"], { stdio: "ignore" });
+    workDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembleQuarter-toc-pagination-"));
+  });
+
+  afterAll(() => {
+    if (workDir) fs.rmSync(workDir, { recursive: true, force: true });
+  });
+
+  /**
+   * Parses a committed TOC master into the LessonString list the real
+   * pipeline would hold for it, with masterIds synthesized by exact source
+   * text — mirroring `PGStorage.addOrFindMasterStrings`, which dedupes
+   * English TStrings by `text` (so identical texts anywhere in the doc share
+   * one masterId; the exact sharing that made the front-matter subtitle's
+   * "Quarter"/"2" falsely suppress the TOC header before the 1c fix).
+   */
+  function tocLessonStrings(fixtureName: string): {
+    lessonStrings: LessonString[];
+    masterIdByText: Map<string, number>;
+  } {
+    const xmls = docStorage.docXml(path.join(SERVER_DOCS_DIR, fixtureName));
+    const docStrings = objKeys(xmls).reduce(
+      (all: ReturnType<typeof parse>, xmlType) => all.concat(parse(xmls[xmlType], xmlType)),
+      []
+    );
+    const masterIdByText = new Map<string, number>();
+    const lessonStrings = docStrings.map((docString, i) => {
+      if (!masterIdByText.has(docString.text)) {
+        masterIdByText.set(docString.text, masterIdByText.size + 1);
+      }
+      return {
+        lessonStringId: i + 1,
+        masterId: masterIdByText.get(docString.text)!,
+        lessonId: TOC_LESSON,
+        lessonVersion: 1,
+        type: docString.type,
+        xpath: docString.xpath,
+        motherTongue: docString.motherTongue,
+      };
+    });
+    return { lessonStrings, masterIdByText };
+  }
+
+  test("Q2 single-language (real majorityLangId 0 merge of Luke-2-99): the translated TOC header keeps its own page after the copyright table, with the heading row directly beneath it — translated headings rendered, untranslated ones falling back to English", async () => {
+    const { lessonStrings, masterIdByText } = tocLessonStrings(`${BOOK}-${SERIES}-99v01.odt`);
+
+    // A French-ish partial translation: the header/subtitle texts and two of
+    // the four TOC column headings. "Truth" and "Story" stay untranslated so
+    // this test also pins the 1b fallback (source English visible, cell NOT
+    // emptied). Every translated text must exist in the fixture.
+    const TRANSLATIONS: Record<string, string> = {
+      Quarter: "Trimestre",
+      "2": "2",
+      "Table of Contents": "Table des matières",
+      "No.": "N°",
+      Title: "Titre",
+    };
+    const FRENCHISH_ID = 42;
+    const mtTStrings: TString[] = Object.entries(TRANSLATIONS).map(([source, text]) => {
+      const masterId = masterIdByText.get(source);
+      expect(masterId).toBeDefined();
+      return { masterId: masterId!, languageId: FRENCHISH_ID, text, history: [] };
+    });
+
+    const frenchishLang: Language = {
+      languageId: FRENCHISH_ID,
+      name: "Frenchish",
+      code: "fr",
+      motherTongue: true,
+      progress: [],
+      archived: false,
+      defaultSrcLang: 0,
+    };
+    const tocLesson: Lesson = { ...lesson(TOC_LESSON), lessonStrings };
+    const singleLangStorage = {
+      tStrings: async ({ lessonId }: { languageId: number; lessonId?: number }) =>
+        lessonId === TOC_LESSON ? mtTStrings : [],
+    } as unknown as Persistence;
+
+    const jobId = "toc-pagination-single-language";
+    const jobWorkRoot = path.join(workDir, "assembly-work-q2");
+    fs.mkdirSync(path.join(jobWorkRoot, jobId), { recursive: true });
+
+    const outputPath = await assembleQuarter({
+      storage: singleLangStorage,
+      lessons: [tocLesson, lesson(LESSON_NUMBERS[0])],
+      motherLang: frenchishLang,
+      majorityLangId: 0,
+      jobId,
+      workRoot: jobWorkRoot,
+    });
+    expect(fs.existsSync(outputPath)).toBe(true);
+
+    // The merged book still carries the header paragraph's text — before the
+    // 1a/1c fixes the whole break-carrying paragraph was deleted from the
+    // single-language constituent.
+    const contentXml = extractContentXml(outputPath, workDir, "content-extract-q2-toc");
+    expect(contentXml).toContain("Trimestre");
+    expect(contentXml).toContain("Table des matières");
+
+    const profileDir = path.join(workDir, "pdf-profile-q2");
+    const pages = pagesOf(pdfToText(convertToPdf(outputPath, workDir, profileDir)));
+
+    const headerPageIndex = pages.findIndex((pageText) =>
+      /Trimestre\s+2\s+Table des matières/.test(pageText)
+    );
+    expect(headerPageIndex).toBeGreaterThanOrEqual(0);
+    const headerPage = pages[headerPageIndex];
+
+    // The fixed page break survived: the header starts a NEW page after the
+    // copyright/license table's page.
+    const copyrightPageIndex = pages.findIndex((pageText) => pageText.includes(CC_FOOTER_MARKER));
+    expect(copyrightPageIndex).toBeGreaterThanOrEqual(0);
+    expect(headerPageIndex).toBeGreaterThan(copyrightPageIndex);
+    expect(headerPage).not.toContain(CC_FOOTER_MARKER);
+
+    // Adjacency: the TOC table's column-heading row sits directly under the
+    // header on the SAME page — translated headings in translation,
+    // untranslated ones as visible English (1b), never as emptied cells.
+    expect(headerPage).toContain("N°");
+    expect(headerPage).toContain("Titre");
+    expect(headerPage).toContain("Truth");
+    expect(headerPage).toContain("Story");
+    // And the first real TOC row too (its untranslated MT title falls back
+    // to the English source).
+    expect(headerPage).toContain(LESSON_TITLES[14]);
+  }, 280_000);
+
+  test("Q4 bilingual (real merge of the Acts-4-99 TOC): the unsplittable-table fix keeps the TOC table on the header's page instead of pushing it whole to the next page", async () => {
+    const actsToc: Lesson = {
+      lessonId: TOC_LESSON,
+      book: "Acts",
+      series: 4,
+      lesson: TOC_LESSON,
+      version: 1,
+      lessonStrings: [],
+    };
+
+    const jobId = "toc-pagination-acts-bilingual";
+    const jobWorkRoot = path.join(workDir, "assembly-work-q4");
+    fs.mkdirSync(path.join(jobWorkRoot, jobId), { recursive: true });
+
+    // English+English short-circuits makeLessonFile to the raw committed
+    // fixture — the merge itself (template footer geometry included) is real.
+    // The companion lesson constituent is the committed Luke-2-14 fixture:
+    // the assembly machinery is per-file (no Acts lesson master is
+    // committed), it exists only so the lesson-1 parity measurement has an
+    // opening page to find — the behavior under test is the Acts TOC's.
+    const outputPath = await assembleQuarter({
+      storage,
+      lessons: [actsToc, lesson(LESSON_NUMBERS[0])],
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId,
+      workRoot: jobWorkRoot,
+    });
+    expect(fs.existsSync(outputPath)).toBe(true);
+
+    const profileDir = path.join(workDir, "pdf-profile-q4");
+    const pages = pagesOf(pdfToText(convertToPdf(outputPath, workDir, profileDir)));
+
+    const headerPageIndex = pages.findIndex((pageText) =>
+      /Quarter\s+4\s+Table of Contents/.test(pageText)
+    );
+    expect(headerPageIndex).toBeGreaterThanOrEqual(0);
+    const headerPage = pages[headerPageIndex];
+
+    // The defect: with may-break-between-rows="false" surviving into the
+    // merge, the 13-row TOC table no longer fit under the header (the
+    // template's Front_20_matter footer is taller than the constituent's)
+    // and jumped WHOLE to the next page, orphaning the header. Fixed, the
+    // table starts directly under the header: its heading row and first
+    // lesson row render on the header's own page.
+    // ("No." renders split across two lines by pdftotext's -layout in this
+    // narrow column, so it is asserted as the bare word.)
+    expect(headerPage).toMatch(/\bNo\b/);
+    expect(headerPage).toContain("Title");
+    expect(headerPage).toContain("Truth");
+    expect(headerPage).toContain("Story");
+    // And the first real TOC row (lesson 40) starts on the same page.
+    expect(headerPage).toContain("Jesus encourages Paul in a dream");
+  }, 280_000);
 });
