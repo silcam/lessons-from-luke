@@ -8,6 +8,8 @@ import {
 } from "../xml/monolingualRestyle";
 import { rezipWithMimetypeFirst } from "../xml/rezipWithMimetypeFirst";
 import { QUARTER_ASSEMBLY_SACRIFICIAL_MARKER } from "./prepareConstituentForAssembly";
+import { SUBJECT_PARENT, TITLE_PARENT, forEachFooterTextNode } from "../assembly/footerVocabulary";
+import { FooterTranslations } from "./resolveFooterTranslations";
 
 /**
  * finalizeAssembledQuarter — post-merge patches that make the assembled
@@ -93,6 +95,13 @@ export interface FinalizeAssembledQuarterOptions {
    * unconditionally, in BOTH modes — see `patchPrintEmptyPages`.
    */
   insertRectoFiller?: boolean;
+  /**
+   * Translations for the quarter styles template's own English footer text
+   * (see `resolveFooterTranslations`). Omitted — the default — the merged
+   * book's footers are left exactly as the template authored them, which is
+   * what every pre-existing call site and test expects.
+   */
+  footerTranslations?: FooterTranslations;
 }
 
 /**
@@ -109,6 +118,7 @@ export function finalizeAssembledQuarter(options: FinalizeAssembledQuarterOption
     subject,
     singleLanguage = false,
     insertRectoFiller = false,
+    footerTranslations,
   } = options;
   const extractDirPath = `${odtPath}_finalize`;
 
@@ -147,6 +157,9 @@ export function finalizeAssembledQuarter(options: FinalizeAssembledQuarterOption
     const stylesDoc = libxmljs2.parseXml(fs.readFileSync(stylesXmlPath, "utf8"));
     const stylesNamespaces = extractNamespaces(stylesDoc);
     patchOutlineNumbering(stylesDoc, stylesNamespaces, firstLessonNumber);
+    if (footerTranslations) {
+      translateFooters(stylesDoc, stylesNamespaces, footerTranslations);
+    }
     if (singleLanguage) {
       assertRestyleTargetsDefined(stylesDoc, stylesNamespaces);
       restyleMonolingualParagraphs(stylesDoc, stylesNamespaces);
@@ -619,6 +632,64 @@ function addParagraphProperties(autoStyle: Element): Element {
   autoStyle.addChild(props);
   if (styleNs) props.namespace(styleNs);
   return props;
+}
+
+/**
+ * Replaces the quarter styles template's hard-coded ENGLISH footer text with
+ * the resolved translations (the client-reported defect: assembled books kept
+ * English footers and an Acts book kept the Luke title, in both bilingual and
+ * single-language modes).
+ *
+ * Three rules, all of them load-bearing:
+ *
+ * - **`text:title`/`text:subject` caches** take the resolved book title and
+ *   subtitle directly. They are live fields resolving against the `meta.xml`
+ *   `patchBookMetadata` writes from the same values, so this only keeps the
+ *   cached rendering a non-refreshing reader shows in step. Empty resolved
+ *   values are skipped — never blank a cache.
+ * - **Everything else** is looked up in `vocabulary` by its TRIMMED text and
+ *   substituted with the original leading/trailing whitespace preserved
+ *   ("Quarter " → "Trimestre "). An unmapped literal is left untouched, so a
+ *   missing translation degrades to English rather than to a blank.
+ * - **A no-op write is skipped entirely.** Re-serializing an unchanged text
+ *   node would rewrite entity spellings (`&apos;` → `'`), so an English book
+ *   would no longer come out byte-identical, and the recto-filler path
+ *   finalizes the same file TWICE with the same translations.
+ *
+ * Live field caches (`text:chapter`, `text:page-number`,
+ * `text:user-defined`) are never visited at all — see `forEachFooterTextNode`.
+ *
+ * Text carried in from the constituents is already translated, so it never
+ * matches an English key and is left alone by construction.
+ */
+function translateFooters(
+  stylesDoc: XmlDocument,
+  namespaces: Namespaces,
+  translations: FooterTranslations
+): void {
+  forEachFooterTextNode(stylesDoc, namespaces, (node, parentLocalName) => {
+    const original = node.text();
+    const replacement = footerReplacementFor(original, parentLocalName, translations);
+    if (replacement !== undefined && replacement !== original) {
+      node.text(replacement);
+    }
+  });
+}
+
+/** The replacement text for one footer text node, or `undefined` to leave it alone. */
+function footerReplacementFor(
+  original: string,
+  parentLocalName: string,
+  translations: FooterTranslations
+): string | undefined {
+  if (parentLocalName === TITLE_PARENT) return translations.title || undefined;
+  if (parentLocalName === SUBJECT_PARENT) return translations.subject || undefined;
+  const trimmed = original.trim();
+  const translation = translations.vocabulary[trimmed];
+  if (!translation) return undefined;
+  const leading = original.slice(0, original.indexOf(trimmed));
+  const trailing = original.slice(original.indexOf(trimmed) + trimmed.length);
+  return `${leading}${translation}${trailing}`;
 }
 
 /** Sets num-format/num-list-format/start-value on the level-1 outline style ONLY. */

@@ -2081,3 +2081,179 @@ describe("assembleQuarter (real soffice merge, TOC pagination — 018 Q2/Q4 clie
     expect(headerPage).toContain("Jesus encourages Paul in a dream");
   }, 280_000);
 });
+
+/**
+ * Client feedback (Kwasio/French review): the assembled quarter book kept
+ * ENGLISH footers — "Lessons from Luke", "Teacher's Guide", "Quarter",
+ * "Lesson", "Page" — even when the book itself was fully translated, because
+ * those words live as literal spans inside the committed quarter styles
+ * template that `sofficeAssemble`'s macro loads verbatim.
+ *
+ * This exercises the real merge + real template load in a NON-English
+ * language, then reads the delivered book's own `styles.xml` footers and its
+ * rendered text. The constituents' bodies stay English (the fixture lessons
+ * carry no lesson strings) — only the template's footer vocabulary is under
+ * test here, so every marker below is a made-up, ASCII, unmistakable token
+ * that appears nowhere in the English corpus.
+ */
+describe("assembleQuarter (real soffice merge) — translated footers", () => {
+  const TRANSLATED_LANGUAGE_ID = 4242;
+  const TITLE_MASTER_ID = 900_001;
+  const SUBJECT_MASTER_ID = 900_002;
+  const QUARTER_MASTER_ID = 900_003;
+  const LESSON_MASTER_ID = 900_004;
+  const PAGE_MASTER_ID = 900_005;
+
+  const TRANSLATED_TITLE = "Lekcje z Lukasza";
+  const TRANSLATED_SUBJECT = "Podrecznik nauczyciela";
+  const TRANSLATED_QUARTER = "Trimestro";
+  const TRANSLATED_LESSON = "Lekcja";
+  const TRANSLATED_PAGE = "Strona";
+
+  function corpusTString(masterId: number, languageId: number, text: string): TString {
+    return { masterId, languageId, text, history: [] };
+  }
+
+  const ENGLISH_FOOTER_CORPUS: TString[] = [
+    corpusTString(TITLE_MASTER_ID, ENGLISH_ID, "Lessons from Luke"),
+    corpusTString(SUBJECT_MASTER_ID, ENGLISH_ID, "Teacher’s Guide"),
+    corpusTString(QUARTER_MASTER_ID, ENGLISH_ID, "Quarter"),
+    corpusTString(LESSON_MASTER_ID, ENGLISH_ID, "Lesson"),
+    corpusTString(PAGE_MASTER_ID, ENGLISH_ID, "Page"),
+  ];
+
+  const TRANSLATIONS: TString[] = [
+    corpusTString(TITLE_MASTER_ID, TRANSLATED_LANGUAGE_ID, TRANSLATED_TITLE),
+    corpusTString(SUBJECT_MASTER_ID, TRANSLATED_LANGUAGE_ID, TRANSLATED_SUBJECT),
+    corpusTString(QUARTER_MASTER_ID, TRANSLATED_LANGUAGE_ID, TRANSLATED_QUARTER),
+    corpusTString(LESSON_MASTER_ID, TRANSLATED_LANGUAGE_ID, TRANSLATED_LESSON),
+    corpusTString(PAGE_MASTER_ID, TRANSLATED_LANGUAGE_ID, TRANSLATED_PAGE),
+  ];
+
+  /**
+   * Read-only `Persistence` double. `makeLessonFile`'s per-lesson reads
+   * (`lessonId` scoped) return nothing, so every constituent's body stays the
+   * English master's; the resolver's two corpus reads are the ones that matter.
+   */
+  const translatedStorage = {
+    tStrings: async (params: { languageId: number; lessonId?: number; masterIds?: number[] }) => {
+      if (params.lessonId !== undefined) return [];
+      if (params.languageId === ENGLISH_ID) return ENGLISH_FOOTER_CORPUS;
+      return TRANSLATIONS.filter((ts) => params.masterIds?.includes(ts.masterId));
+    },
+  } as unknown as Persistence;
+
+  const translatedLang: Language = {
+    languageId: TRANSLATED_LANGUAGE_ID,
+    name: "Testish",
+    code: "tst",
+    motherTongue: true,
+    progress: [],
+    archived: false,
+    defaultSrcLang: ENGLISH_ID,
+  };
+
+  /** The TOC constituent's own `dc:title`/`dc:subject` meta strings — how the resolver finds the book title. */
+  function tocLessonWithMetaStrings(): Lesson {
+    const metaString = (masterId: number, xpath: string): LessonString => ({
+      lessonStringId: masterId,
+      masterId,
+      lessonId: TOC_LESSON,
+      lessonVersion: 1,
+      type: "meta",
+      xpath,
+      motherTongue: false,
+    });
+    return {
+      ...lesson(TOC_LESSON),
+      lessonStrings: [
+        metaString(TITLE_MASTER_ID, "/office:document-meta/office:meta/dc:title/text()"),
+        metaString(SUBJECT_MASTER_ID, "/office:document-meta/office:meta/dc:subject/text()"),
+      ],
+    };
+  }
+
+  let workDir: string;
+  let outputPath: string;
+  let stylesXml: string;
+  let footerText: string;
+  let fullText: string;
+  const generatedTmpPaths: string[] = [];
+
+  beforeAll(async () => {
+    execFileSync("soffice", ["--version"]);
+    execFileSync("pdftotext", ["-v"]);
+
+    // `makeLessonFile` writes each translated constituent into docStorage's
+    // tmp dir (`test/docs/serverDocs/tmp/` under NODE_ENV=test), outside
+    // workDir — record them so afterAll can remove them.
+    const realTmpFilePath = docStorage.tmpFilePath;
+    jest.spyOn(docStorage, "tmpFilePath").mockImplementation((baseName: string) => {
+      const generated = realTmpFilePath(baseName);
+      generatedTmpPaths.push(generated);
+      return generated;
+    });
+
+    workDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembleQuarter-footers-"));
+    const workRoot = path.join(workDir, "assembly-work");
+    fs.mkdirSync(workRoot, { recursive: true });
+
+    outputPath = await assembleQuarter({
+      storage: translatedStorage,
+      lessons: [
+        tocLessonWithMetaStrings(),
+        ...LESSON_NUMBERS.map((n) => ({ ...lesson(n), lessonStrings: [] })),
+      ],
+      motherLang: translatedLang,
+      majorityLangId: TRANSLATED_LANGUAGE_ID,
+      jobId: "translated-footers",
+      workRoot,
+    });
+
+    stylesXml = extractStylesXml(outputPath, workDir, "styles-extract-footers");
+    footerText = (stylesXml.match(/<style:footer>[\s\S]*?<\/style:footer>/g) ?? []).join("\n");
+
+    const pdfPath = convertToPdf(outputPath, workDir, path.join(workDir, "pdf-profile"));
+    fullText = pdfToText(pdfPath);
+  });
+
+  afterAll(() => {
+    jest.restoreAllMocks();
+    if (workDir) fs.rmSync(workDir, { recursive: true, force: true });
+    if (outputPath) fs.rmSync(outputPath, { force: true });
+    generatedTmpPaths.splice(0).forEach((generated) => fs.rmSync(generated, { force: true }));
+  });
+
+  test("the delivered book's footers carry the translated words, not the template's English ones", () => {
+    expect(footerText).toContain(TRANSLATED_QUARTER);
+    expect(footerText).toContain(TRANSLATED_LESSON);
+    expect(footerText).toContain(TRANSLATED_PAGE);
+    expect(footerText).not.toContain(">Quarter<");
+    expect(footerText).not.toContain(">Lesson<");
+  });
+
+  test("the hard-coded book title and guide subtitle are gone from the footers (both apostrophe spellings)", () => {
+    expect(footerText).toContain(TRANSLATED_TITLE);
+    expect(footerText).toContain(TRANSLATED_SUBJECT);
+    expect(footerText).not.toContain("Lessons from Luke");
+    expect(footerText).not.toContain("Teacher’s Guide");
+    expect(footerText).not.toContain("Teacher&apos;s Guide");
+  });
+
+  test("the book-level metadata the live title/subject fields resolve against is translated too", () => {
+    const metaXml = execFileSync("unzip", ["-p", outputPath, "meta.xml"], { encoding: "utf8" });
+
+    expect(metaXml).toContain(`<dc:title>${TRANSLATED_TITLE}</dc:title>`);
+    expect(metaXml).toContain(`<dc:subject>${TRANSLATED_SUBJECT}</dc:subject>`);
+  });
+
+  test("the translated footer words actually RENDER — the live chapter/page fields still resolve beside them", () => {
+    expect(fullText).toContain(TRANSLATED_QUARTER);
+    expect(fullText).toContain(TRANSLATED_LESSON);
+    // The per-lesson live chapter-number field still resolves next to the
+    // translated word, exactly as the English footer marker does.
+    LESSON_NUMBERS.forEach((n) => {
+      expect(fullText).toContain(`${TRANSLATED_LESSON} ${n}`);
+    });
+  });
+});

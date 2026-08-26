@@ -70,6 +70,8 @@ function buildMergedFixtureOdt(
     omitPlainRestyleTargets?: boolean;
     automaticStylesInner?: string;
     settingsXml?: SettingsXmlVariant;
+    /** `office:master-styles` content — the merged book's footers (omitted by default). */
+    masterStylesInner?: string;
   } = {}
 ): void {
   const srcDir = `${workDir}/src-${path.basename(odtPath, ".odt")}`;
@@ -130,7 +132,12 @@ function buildMergedFixtureOdt(
   </office:styles>
   <office:automatic-styles>
     <style:style style:name="MP1" style:family="paragraph" style:parent-style-name="M.T._20_Coloring_20_Page_20_-_20_Truth"/>
-  </office:automatic-styles>
+  </office:automatic-styles>${
+    opts.masterStylesInner === undefined
+      ? ""
+      : `
+  <office:master-styles>${opts.masterStylesInner}</office:master-styles>`
+  }
 </office:document-styles>`
   );
 
@@ -1109,5 +1116,154 @@ describe("sacrificial terminal paragraph removal (018)", () => {
       .map((p) => p.text().trim());
 
     expect(afterSecond).toEqual(afterFirst);
+  });
+});
+
+/**
+ * A merged-book master-styles block shaped like the real quarter styles
+ * template's footers: literal English words in spans and in the footer
+ * paragraph itself, live field caches (`text:chapter`, `text:page-number`,
+ * `text:user-defined`) and the `text:title`/`text:subject` caches.
+ */
+const TEMPLATE_SHAPED_MASTER_STYLES = `
+    <style:master-page style:name="Standard">
+      <style:footer><text:p><text:span>Lessons from Luke</text:span><text:span>Quarter </text:span><text:span><text:user-defined text:name="Quarter">2</text:user-defined></text:span><text:span>Lesson </text:span><text:span><text:chapter text:display="number" text:outline-level="1">25</text:chapter></text:span><text:chapter text:display="name" text:outline-level="1">Review Lesson</text:chapter>Page <text:page-number text:select-page="current">108</text:page-number></text:p></style:footer>
+    </style:master-page>
+    <style:master-page style:name="Front_20_matter">
+      <style:footer><text:p><text:title>Lessons from Luke</text:title>: <text:subject>Teacher's Guide</text:subject><text:span>Teacher’s Guide</text:span><text:span>Memory Verse</text:span></text:p></style:footer>
+    </style:master-page>`;
+
+const FRENCH_FOOTER_TRANSLATIONS = {
+  vocabulary: {
+    Quarter: "Trimestre",
+    Lesson: "Leçon",
+    Page: "Page",
+    "Lessons from Luke": "Leçons de Luc",
+    "Teacher's Guide": "Guide du moniteur",
+    "Teacher’s Guide": "Guide du moniteur",
+  },
+  title: "Leçons de Luc",
+  subject: "Guide du moniteur",
+};
+
+function footerParagraphs(odtPath: string): string[] {
+  const stylesDoc = extractXml(odtPath, "styles.xml");
+  return stylesDoc
+    .find<Element>("//office:master-styles//style:footer//text:p", NAMESPACES)
+    .map((paragraph) => paragraph.text());
+}
+
+describe("footer translation (client feedback: assembled books keep English footers)", () => {
+  test("substitutes each mapped English literal while preserving its own surrounding whitespace", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(odtPath, "", { masterStylesInner: TEMPLATE_SHAPED_MASTER_STYLES });
+
+    finalizeAssembledQuarter({
+      ...defaultOptions(odtPath),
+      footerTranslations: FRENCH_FOOTER_TRANSLATIONS,
+    });
+
+    const stylesDoc = extractXml(odtPath, "styles.xml");
+    const spans = stylesDoc
+      .find<Element>("//office:master-styles//style:footer//text:span", NAMESPACES)
+      .map((span) => span.text());
+    expect(spans).toContain("Trimestre ");
+    expect(spans).toContain("Leçon ");
+    expect(spans).toContain("Leçons de Luc");
+    expect(footerParagraphs(odtPath).join("\n")).toContain("Page ");
+  });
+
+  test("never rewrites a live field's cached text (chapter, page-number, user-defined)", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(odtPath, "", { masterStylesInner: TEMPLATE_SHAPED_MASTER_STYLES });
+
+    finalizeAssembledQuarter({
+      ...defaultOptions(odtPath),
+      footerTranslations: {
+        ...FRENCH_FOOTER_TRANSLATIONS,
+        vocabulary: { ...FRENCH_FOOTER_TRANSLATIONS.vocabulary, "Review Lesson": "Révision" },
+      },
+    });
+
+    const stylesDoc = extractXml(odtPath, "styles.xml");
+    expect(stylesDoc.get<Element>("//text:chapter[@text:display='name']", NAMESPACES)!.text()).toBe(
+      "Review Lesson"
+    );
+    expect(stylesDoc.get<Element>("//text:page-number", NAMESPACES)!.text()).toBe("108");
+    expect(stylesDoc.get<Element>("//text:user-defined", NAMESPACES)!.text()).toBe("2");
+  });
+
+  test("updates the text:title/text:subject caches to the resolved book title and subtitle", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(odtPath, "", { masterStylesInner: TEMPLATE_SHAPED_MASTER_STYLES });
+
+    finalizeAssembledQuarter({
+      ...defaultOptions(odtPath),
+      footerTranslations: FRENCH_FOOTER_TRANSLATIONS,
+    });
+
+    const stylesDoc = extractXml(odtPath, "styles.xml");
+    expect(stylesDoc.get<Element>("//text:title", NAMESPACES)!.text()).toBe("Leçons de Luc");
+    expect(stylesDoc.get<Element>("//text:subject", NAMESPACES)!.text()).toBe("Guide du moniteur");
+  });
+
+  test("leaves an English literal with no mapping exactly as it was", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(odtPath, "", { masterStylesInner: TEMPLATE_SHAPED_MASTER_STYLES });
+
+    finalizeAssembledQuarter({
+      ...defaultOptions(odtPath),
+      footerTranslations: FRENCH_FOOTER_TRANSLATIONS,
+    });
+
+    expect(footerParagraphs(odtPath).join("\n")).toContain("Memory Verse");
+  });
+
+  test("with no translations supplied, the merged book's styles.xml comes out unchanged", () => {
+    const withTranslations = `${workDir}/with.odt`;
+    const without = `${workDir}/without.odt`;
+    buildMergedFixtureOdt(withTranslations, "", {
+      masterStylesInner: TEMPLATE_SHAPED_MASTER_STYLES,
+    });
+    buildMergedFixtureOdt(without, "", { masterStylesInner: TEMPLATE_SHAPED_MASTER_STYLES });
+
+    finalizeAssembledQuarter({
+      ...defaultOptions(withTranslations),
+      footerTranslations: { vocabulary: {}, title: "", subject: "" },
+    });
+    finalizeAssembledQuarter(defaultOptions(without));
+
+    expect(extractRaw(withTranslations, "styles.xml")).toBe(extractRaw(without, "styles.xml"));
+  });
+
+  test("is idempotent — the recto-filler path finalizes the same file twice with the same translations", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(odtPath, "", { masterStylesInner: TEMPLATE_SHAPED_MASTER_STYLES });
+
+    finalizeAssembledQuarter({
+      ...defaultOptions(odtPath),
+      footerTranslations: FRENCH_FOOTER_TRANSLATIONS,
+    });
+    const afterFirst = extractRaw(odtPath, "styles.xml");
+    finalizeAssembledQuarter({
+      ...defaultOptions(odtPath),
+      footerTranslations: FRENCH_FOOTER_TRANSLATIONS,
+    });
+
+    expect(extractRaw(odtPath, "styles.xml")).toBe(afterFirst);
+  });
+
+  test("leaves the title/subject caches alone when the resolved values are empty", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(odtPath, "", { masterStylesInner: TEMPLATE_SHAPED_MASTER_STYLES });
+
+    finalizeAssembledQuarter({
+      ...defaultOptions(odtPath),
+      footerTranslations: { vocabulary: { Quarter: "Trimestre" }, title: "", subject: "" },
+    });
+
+    const stylesDoc = extractXml(odtPath, "styles.xml");
+    expect(stylesDoc.get<Element>("//text:title", NAMESPACES)!.text()).toBe("Lessons from Luke");
+    expect(stylesDoc.get<Element>("//text:subject", NAMESPACES)!.text()).toBe("Teacher's Guide");
   });
 });

@@ -3,6 +3,7 @@
 jest.mock("./makeLessonFile");
 jest.mock("./prepareConstituentForAssembly");
 jest.mock("./finalizeAssembledQuarter");
+jest.mock("./resolveFooterTranslations");
 jest.mock("../assembly/sofficeAssemble");
 jest.mock("../assembly/quarterStylesTemplate");
 jest.mock("./measureLessonOneParity");
@@ -16,6 +17,7 @@ import { Lesson, TOC_LESSON } from "../../core/models/Lesson";
 import makeLessonFile from "./makeLessonFile";
 import { prepareConstituentForAssembly } from "./prepareConstituentForAssembly";
 import { finalizeAssembledQuarter } from "./finalizeAssembledQuarter";
+import { resolveFooterTranslations } from "./resolveFooterTranslations";
 import { sofficeAssemble } from "../assembly/sofficeAssemble";
 import { measureLessonOneParity, pollProcessGroupExited } from "./measureLessonOneParity";
 import {
@@ -31,6 +33,22 @@ const isMonolingualTemplatePathMock = isMonolingualTemplatePath as unknown as je
 const makeLessonFileMock = makeLessonFile as unknown as jest.Mock;
 const prepareConstituentForAssemblyMock = prepareConstituentForAssembly as unknown as jest.Mock;
 const finalizeAssembledQuarterMock = finalizeAssembledQuarter as unknown as jest.Mock;
+const resolveFooterTranslationsMock = resolveFooterTranslations as unknown as jest.Mock;
+
+/**
+ * The default resolver behavior these tests assume: the English
+ * short-circuit, which issues no query and passes the constituent's own
+ * title/subject straight through (see `resolveFooterTranslations`).
+ */
+async function englishShortCircuit(options: {
+  constituentMeta: { title: string; subject: string };
+}) {
+  return {
+    vocabulary: {},
+    title: options.constituentMeta.title,
+    subject: options.constituentMeta.subject,
+  };
+}
 const sofficeAssembleMock = sofficeAssemble as unknown as jest.Mock;
 const measureLessonOneParityMock = measureLessonOneParity as unknown as jest.Mock;
 const pollProcessGroupExitedMock = pollProcessGroupExited as unknown as jest.Mock;
@@ -85,6 +103,12 @@ const storage = {} as Persistence;
 const retainedPaths: string[] = [];
 
 beforeEach(() => {
+  // Every describe below assembles; without a default the auto-mock resolves
+  // `undefined`, which assembleQuarter would (correctly) treat as a resolver
+  // failure and log about.
+  resolveFooterTranslationsMock.mockReset();
+  resolveFooterTranslationsMock.mockImplementation(englishShortCircuit);
+
   const realTmpFilePath = docStorage.tmpFilePath;
   jest.spyOn(docStorage, "tmpFilePath").mockImplementation((baseName: string) => {
     const retained = realTmpFilePath(baseName);
@@ -447,6 +471,179 @@ describe("assembleQuarter", () => {
     // The TOC's meta (the first constituent's), not a lesson's.
     expect(options.title).toBe("Lessons from Luke");
     expect(options.subject).toBe("Teacher's Guide");
+  });
+
+  test("resolves the footers in the MAJORITY translation language, against the TOC lesson and its own metadata", async () => {
+    const lessons = unorderedQuarterLessons();
+
+    await assembleQuarter({
+      storage,
+      lessons,
+      motherLang,
+      majorityLangId: 5,
+      jobId: "job-footers",
+      workRoot: fixtureDir,
+    });
+
+    expect(resolveFooterTranslationsMock).toHaveBeenCalledTimes(1);
+    const [options] = resolveFooterTranslationsMock.mock.calls[0] as [
+      {
+        storage: Persistence;
+        footerLanguageId: number;
+        tocLesson: Lesson;
+        constituentMeta: { title: string; subject: string };
+      },
+    ];
+    expect(options.footerLanguageId).toBe(5);
+    expect(options.tocLesson.lesson).toBe(TOC_LESSON);
+    expect(options.constituentMeta).toEqual({
+      title: "Lessons from Luke",
+      subject: "Teacher's Guide",
+    });
+  });
+
+  test("single-language mode (majorityLangId 0) resolves the footers in the mother tongue instead", async () => {
+    await assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang: { ...motherLang, languageId: 9, name: "Kwasio", code: "nmg" },
+      majorityLangId: 0,
+      jobId: "job-footers-mono",
+      workRoot: fixtureDir,
+    });
+
+    const [options] = resolveFooterTranslationsMock.mock.calls[0] as [{ footerLanguageId: number }];
+    expect(options.footerLanguageId).toBe(9);
+  });
+
+  /** The options of the LAST `finalizeAssembledQuarter` call — the pass that carries the footer translation. */
+  function lastFinalizeOptions(): {
+    title: string;
+    subject: string;
+    insertRectoFiller?: boolean;
+    footerTranslations?: { vocabulary: Record<string, string> };
+  } {
+    const calls = finalizeAssembledQuarterMock.mock.calls;
+    return calls[calls.length - 1][0];
+  }
+
+  test("hands the resolved vocabulary, title and subject to a FINAL finalize pass, after the measurement render", async () => {
+    resolveFooterTranslationsMock.mockResolvedValue({
+      vocabulary: { Quarter: "Trimestre" },
+      title: "Leçons de Luc",
+      subject: "Guide du moniteur",
+    });
+
+    await assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: 5,
+      jobId: "job-footers-2",
+      workRoot: fixtureDir,
+    });
+
+    const options = lastFinalizeOptions();
+    expect(options.title).toBe("Leçons de Luc");
+    expect(options.subject).toBe("Guide du moniteur");
+    expect(options.footerTranslations?.vocabulary).toEqual({ Quarter: "Trimestre" });
+    // The page-classification oracle reads the RENDERED English footer
+    // marker, so every measurement render must happen while the footers are
+    // still English.
+    expect(finalizeAssembledQuarterMock).toHaveBeenCalledTimes(2);
+    const [firstFinalize] = finalizeAssembledQuarterMock.mock.calls[0] as [
+      { footerTranslations?: unknown },
+    ];
+    expect(firstFinalize.footerTranslations).toBeUndefined();
+    expect(measureLessonOneParityMock.mock.invocationCallOrder[0]).toBeLessThan(
+      finalizeAssembledQuarterMock.mock.invocationCallOrder[1]
+    );
+  });
+
+  test("skips the extra footer pass entirely when nothing would change (an all-English book)", async () => {
+    await assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: ENGLISH_ID,
+      jobId: "job-footers-noop",
+      workRoot: fixtureDir,
+    });
+
+    expect(finalizeAssembledQuarterMock).toHaveBeenCalledTimes(1);
+  });
+
+  test("the final footer pass keeps the recto filler that was measured in, never flipping the flag back off", async () => {
+    resolveFooterTranslationsMock.mockResolvedValue({
+      vocabulary: { Quarter: "Trimestre" },
+      title: "Leçons de Luc",
+      subject: "Guide du moniteur",
+    });
+    measureLessonOneParityMock.mockResolvedValueOnce({
+      lessonOnePageIndex: 4,
+      needsFiller: true,
+      renderedPageCount: 80,
+    });
+
+    await assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: 5,
+      jobId: "job-footers-filler",
+      workRoot: fixtureDir,
+    });
+
+    const options = lastFinalizeOptions();
+    expect(options.insertRectoFiller).toBe(true);
+    expect(options.footerTranslations?.vocabulary).toEqual({ Quarter: "Trimestre" });
+    expect(finalizeAssembledQuarterMock).toHaveBeenCalledTimes(3);
+  });
+
+  test("a failure in the FINAL footer pass yields the same curated, path-free reason as any other finalization failure", async () => {
+    resolveFooterTranslationsMock.mockResolvedValue({
+      vocabulary: { Quarter: "Trimestre" },
+      title: "Leçons de Luc",
+      subject: "Guide du moniteur",
+    });
+    finalizeAssembledQuarterMock.mockImplementation((options: { footerTranslations?: unknown }) => {
+      if (options.footerTranslations) throw new Error("/abs/path/styles.xml: libxmljs2 exploded");
+    });
+
+    await expect(
+      assembleQuarter({
+        storage,
+        lessons: unorderedQuarterLessons(),
+        motherLang,
+        majorityLangId: 5,
+        jobId: "job-footers-throw",
+        workRoot: fixtureDir,
+      })
+    ).rejects.toThrow("assembly failed to finalize the merged book");
+  });
+
+  test("a footer-translation failure degrades to the untranslated book rather than failing the assembly", async () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    resolveFooterTranslationsMock.mockRejectedValue(new Error("/secret/path: db is down"));
+
+    const retained = await assembleQuarter({
+      storage,
+      lessons: unorderedQuarterLessons(),
+      motherLang,
+      majorityLangId: 5,
+      jobId: "job-footers-fail",
+      workRoot: fixtureDir,
+    });
+
+    expect(fs.existsSync(retained)).toBe(true);
+    expect(finalizeAssembledQuarterMock).toHaveBeenCalledTimes(1);
+    const [options] = finalizeAssembledQuarterMock.mock.calls[0] as [
+      { title: string; subject: string; footerTranslations?: unknown },
+    ];
+    expect(options.footerTranslations).toBeUndefined();
+    expect(options.title).toBe("Lessons from Luke");
+    expect(options.subject).toBe("Teacher's Guide");
+    expect(warn).toHaveBeenCalled();
   });
 
   test("never passes a raw makeLessonFile path to the soffice merge", async () => {

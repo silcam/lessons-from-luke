@@ -7,6 +7,7 @@ import { expectedLessonNumbers } from "../../core/models/Quarter";
 import makeLessonFile from "./makeLessonFile";
 import { prepareConstituentForAssembly, ConstituentMeta } from "./prepareConstituentForAssembly";
 import { finalizeAssembledQuarter } from "./finalizeAssembledQuarter";
+import { FooterTranslations, resolveFooterTranslations } from "./resolveFooterTranslations";
 import { sofficeAssemble, profileDirFor } from "../assembly/sofficeAssemble";
 import {
   isMonolingualTemplatePath,
@@ -280,14 +281,45 @@ async function assembleIntoJobDir(
   const firstLesson = orderedLessons.find((lsn) => !isTOCLesson(lsn));
   const series = firstLesson?.series ?? orderedLessons[0].series;
   const firstLessonNumber = firstLesson?.lesson ?? 1;
+
+  // The quarter styles template's own footers are hard-coded English (and
+  // hard-coded to the Luke title). Resolve their translations from the
+  // existing corpus — READ-ONLY — so the delivered book's footers match the
+  // language every per-lesson download already shows.
+  //
+  // The footer language is the majority-translation language when there is
+  // one, else the mother tongue: styles-type LessonStrings are
+  // `motherTongue: false`, so `makeLessonFile` renders them from exactly
+  // this language (see its `otherTStrings` selection).
+  const footerLanguageId = majorityLangId > 0 ? majorityLangId : motherLang.languageId;
+  throwIfAborted(signal);
+  let footerTranslations: FooterTranslations | undefined;
+  try {
+    footerTranslations = await resolveFooterTranslations({
+      storage,
+      footerLanguageId,
+      tocLesson: orderedLessons[0],
+      constituentMeta: { title: bookMeta?.title ?? "", subject: bookMeta?.subject ?? "" },
+    });
+  } catch (error) {
+    // Footers are cosmetic relative to the book itself: a resolver or DB
+    // failure degrades to the pre-translation behavior (English footers,
+    // the constituent's own metadata) rather than failing an otherwise
+    // complete assembly.
+    console.warn("assembleQuarter: failed to resolve footer translations", error);
+    footerTranslations = undefined;
+  }
+  const title = footerTranslations?.title ?? bookMeta?.title ?? "";
+  const subject = footerTranslations?.subject ?? bookMeta?.subject ?? "";
+
   throwIfAborted(signal);
   try {
     finalizeAssembledQuarter({
       odtPath: result.outputPath,
       series,
       firstLessonNumber,
-      title: bookMeta?.title ?? "",
-      subject: bookMeta?.subject ?? "",
+      title,
+      subject,
       singleLanguage,
     });
   } catch {
@@ -299,6 +331,7 @@ async function assembleIntoJobDir(
   // US3-T8 (contract §4): consult the ASSEMBLY_RECTO_FILLER kill-switch
   // EXACTLY ONCE per job, before the first measurement — never re-checked
   // inside the pass itself.
+  let fillerInserted = false;
   if (isRectoFillerEnabled()) {
     const profileDir = profileDirFor(workRoot, jobId);
 
@@ -313,6 +346,7 @@ async function assembleIntoJobDir(
     });
 
     if (measurement.needsFiller) {
+      fillerInserted = true;
       // A re-finalize rewrites the SAME odtPath in place (unzip/patch/rezip),
       // while the measurement render may still hold the file open — confirm
       // its process group has exited first.
@@ -323,8 +357,8 @@ async function assembleIntoJobDir(
           odtPath: result.outputPath,
           series,
           firstLessonNumber,
-          title: bookMeta?.title ?? "",
-          subject: bookMeta?.subject ?? "",
+          title,
+          subject,
           singleLanguage,
           insertRectoFiller: true,
         });
@@ -360,6 +394,44 @@ async function assembleIntoJobDir(
       "assembleQuarter: ASSEMBLY_RECTO_FILLER is disabled — skipping lesson-1 opening-page " +
         "measurement and confirmation (FR-008)"
     );
+  }
+
+  // The footer translation is applied LAST, deliberately: the recto-filler
+  // measurement oracle locates lesson 1 (and classifies every page) by the
+  // rendered ENGLISH footer marker — `Quarter <Q> Lesson <N>` plus the
+  // `Page <n>` token (see `pdfRenderOptions`'s `classifyPage` and
+  // `measureLessonOneParity`'s `firstLessonMarker`). Translating the footers
+  // before those renders makes every page unclassifiable and fails the job.
+  // Measuring the English book and translating afterwards leaves that whole
+  // contracted subsystem untouched.
+  //
+  // `insertRectoFiller` carries the SAME value the last finalize applied, so
+  // this stays inside the proven flag-constant fixed point (INV-13): it must
+  // never re-run with the flag flipped off under an already-inserted filler.
+  //
+  // Skipped entirely when nothing would change — an all-English Luke book
+  // resolves an empty vocabulary (see `resolveFooterTranslations`), so it
+  // pays nothing for this.
+  if (footerTranslations && Object.keys(footerTranslations.vocabulary).length > 0) {
+    // The confirmation render may still hold the file open, and this
+    // rewrites it in place.
+    await confirmPreviousGroupExited(signal);
+    throwIfAborted(signal);
+    try {
+      finalizeAssembledQuarter({
+        odtPath: result.outputPath,
+        series,
+        firstLessonNumber,
+        title,
+        subject,
+        singleLanguage,
+        insertRectoFiller: fillerInserted,
+        footerTranslations,
+      });
+    } catch {
+      // Curated, path-free reason ONLY — see the first finalize above.
+      throw new Error("assembly failed to finalize the merged book");
+    }
   }
 
   // Move the one file that must outlive the job out of jobDir before the
