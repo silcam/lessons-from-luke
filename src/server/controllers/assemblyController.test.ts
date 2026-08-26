@@ -18,7 +18,6 @@
 
 import fs from "fs";
 import express, { Express } from "express";
-import { Pool } from "pg";
 import request from "supertest";
 import assemblyController from "./assemblyController";
 import { Persistence } from "../../core/interfaces/Persistence";
@@ -53,17 +52,14 @@ function mockAuthedSession(userId = "user-1") {
   } as unknown as ReturnType<typeof getAuth>);
 }
 
-// assemblyRateLimit (also mounted on the POST route) short-circuits in test
-// mode unless BETTER_AUTH_ENFORCE_RATE_LIMIT=1 (mirrors invitationRateLimit.ts
-// / auth.ts's existing flag), so most tests below never touch the pool or
-// checkAndIncrementThrottle. The dedicated 429 test flips the flag and mocks
-// checkAndIncrementThrottle directly instead of standing up a real pg.Pool.
+// The per-user time-window throttle was removed from this route (decision
+// 2026-08-26 — the registry cap is the only admission control). The shared
+// helper stays mocked so the no-throttle test below can PROVE the route never
+// consults it, even with BETTER_AUTH_ENFORCE_RATE_LIMIT=1.
 jest.mock("../util/rateLimitCounter");
 const mockCheckAndIncrementThrottle = checkAndIncrementThrottle as jest.MockedFunction<
   typeof checkAndIncrementThrottle
 >;
-
-const FAKE_AUTH_POOL = {} as unknown as Pool;
 
 const LANGUAGE_ID = ENGLISH_ID;
 const BOOK = "Luke";
@@ -130,7 +126,6 @@ function buildApp(storage: Persistence, registry: AssemblyJobRegistry): Express 
   assemblyController(app, storage, {
     registry,
     workRoot: "/tmp/assembly-work-test",
-    authPool: FAKE_AUTH_POOL,
   });
   return app;
 }
@@ -277,13 +272,12 @@ describe("POST .../assembly (start or attach)", () => {
     expect(registry.startOrAttach).not.toHaveBeenCalled();
   });
 
-  // Remediation: lessons-from-luke-ipuf.7 — per-user rate limit on the
-  // assembly start route (assemblyRateLimit.ts), modeled on
-  // invitationRateLimit.ts. Enforcement is normally skipped in test mode, so
-  // this test flips BETTER_AUTH_ENFORCE_RATE_LIMIT and mocks the shared
-  // checkAndIncrementThrottle helper directly rather than standing up a real
-  // pg.Pool against the better-auth `rateLimit` table.
-  it("429: an authenticated caller exceeding the rate limit gets 429 — no job started", async () => {
+  // Decision 2026-08-26 (supersedes the lessons-from-luke-ipuf.7 per-user
+  // time-window throttle): the registry's live-job cap is the ONLY admission
+  // control on this route. As soon as a slot frees, a new request must be
+  // admitted — no per-user rate-limit table lookup may reject it, even with
+  // BETTER_AUTH_ENFORCE_RATE_LIMIT=1 (the flag other throttles honor).
+  it("admits an authenticated POST whenever the registry accepts — no per-user time-window throttle", async () => {
     const saved = process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT;
     process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT = "1";
     mockCheckAndIncrementThrottle.mockResolvedValue(true);
@@ -296,8 +290,9 @@ describe("POST .../assembly (start or attach)", () => {
 
       const res = await request(app).post(BASE_PATH).send({ mode: "bilingual" });
 
-      expect(res.status).toBe(429);
-      expect(registry.startOrAttach).not.toHaveBeenCalled();
+      expect(res.status).toBe(202);
+      expect(registry.startOrAttach).toHaveBeenCalledTimes(1);
+      expect(mockCheckAndIncrementThrottle).not.toHaveBeenCalled();
     } finally {
       process.env.BETTER_AUTH_ENFORCE_RATE_LIMIT = saved;
     }

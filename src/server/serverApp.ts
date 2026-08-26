@@ -205,7 +205,6 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   assemblyController(app, storage, {
     registry: assemblyRegistry,
     workRoot: assemblyWorkRootPath,
-    authPool: getAuthPool(),
   });
 
   if (process.env.NODE_ENV === "test") {

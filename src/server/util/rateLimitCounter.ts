@@ -74,8 +74,14 @@ export async function checkAndIncrementThrottle(
       existing.id,
     ]);
     count = 1;
+  } else if (existing.count >= max) {
+    // Already at the limit within the window: reject WITHOUT touching the
+    // row. Updating `lastRequest` here is the self-extending-lockout bug —
+    // the window must expire `windowMs` after the last ALLOWED request, so a
+    // caller retrying while throttled can't keep re-locking themselves.
+    return true;
   } else {
-    // Within window: increment count.
+    // Within window and under the limit: increment count.
     await pool.query(`UPDATE "rateLimit" SET count = count + 1, "lastRequest" = $1 WHERE id = $2`, [
       nowMs,
       existing.id,
