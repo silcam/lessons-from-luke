@@ -64,7 +64,9 @@ test("Merge skips translations with non-matching xpaths", () => {
 test("Merge with clearEmptyParagraphs removes empty translated strings", () => {
   const docStrings = parse(xmls.content, "content");
   // Set first docString text to empty to trigger removeParagraph path
-  const withEmpty = docStrings.map((ds, i) => (i === 0 ? { ...ds, text: "" } : ds));
+  const withEmpty = docStrings.map((ds, i) =>
+    i === 0 ? { ...ds, text: "", suppressed: true } : ds
+  );
   expect(() =>
     mergeXml(odtPath, newOdtPath, withEmpty, { clearEmptyParagraphs: true })
   ).not.toThrow();
@@ -84,6 +86,7 @@ test("Merge with clearEmptyParagraphs and non-matching xpath skips gracefully", 
   const docStrings = [
     {
       text: "",
+      suppressed: true,
       type: "content" as const,
       motherTongue: true,
       xpath: "/nonexistent/xpath/that/will/not/match",
@@ -108,13 +111,13 @@ describe("clearEmptyParagraphs table boundary", () => {
 
   // Builds a minimal ODT zip containing only a content.xml — mergeXml only
   // touches the xml files it has docStrings for.
-  function buildTableOdt(name: string, officeTextInner: string): string {
+  function buildTableOdt(name: string, officeTextInner: string, automaticStyles = ""): string {
     const srcDir = path.join(workDir, `src-${name}`);
     mkdirSafe(srcDir);
     fs.writeFileSync(
       path.join(srcDir, "content.xml"),
       `<?xml version="1.0" encoding="UTF-8"?>
-<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" office:version="1.2"><office:body><office:text>${officeTextInner}</office:text></office:body></office:document-content>`
+<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" office:version="1.2"><office:automatic-styles>${automaticStyles}</office:automatic-styles><office:body><office:text>${officeTextInner}</office:text></office:body></office:document-content>`
     );
     const odtPath = path.join(workDir, `${name}.odt`);
     fs.rmSync(odtPath, { force: true });
@@ -166,7 +169,7 @@ describe("clearEmptyParagraphs table boundary", () => {
     );
     const outPath = odtPath.replace(".odt", "-out.odt");
     const docStrings = contentDocStrings(odtPath).map((ds) =>
-      ds.text === "Middle" ? { ...ds, text: "" } : ds
+      ds.text === "Middle" ? { ...ds, text: "", suppressed: true } : ds
     );
 
     mergeXml(odtPath, outPath, docStrings, { clearEmptyParagraphs: true });
@@ -198,7 +201,7 @@ describe("clearEmptyParagraphs table boundary", () => {
     );
     const outPath = odtPath.replace(".odt", "-out.odt");
     const docStrings = contentDocStrings(odtPath).map((ds) =>
-      ds.text.startsWith("R1") ? { ...ds, text: "" } : ds
+      ds.text.startsWith("R1") ? { ...ds, text: "", suppressed: true } : ds
     );
 
     mergeXml(odtPath, outPath, docStrings, { clearEmptyParagraphs: true });
@@ -222,7 +225,7 @@ describe("clearEmptyParagraphs table boundary", () => {
     );
     const outPath = odtPath.replace(".odt", "-out.odt");
     const docStrings = contentDocStrings(odtPath).map((ds) =>
-      ds.text === "A" || ds.text === "B" ? { ...ds, text: "" } : ds
+      ds.text === "A" || ds.text === "B" ? { ...ds, text: "", suppressed: true } : ds
     );
 
     mergeXml(odtPath, outPath, docStrings, { clearEmptyParagraphs: true });
@@ -247,7 +250,7 @@ describe("clearEmptyParagraphs table boundary", () => {
     );
     const outPath = odtPath.replace(".odt", "-out.odt");
     const docStrings = contentDocStrings(odtPath).map((ds) =>
-      ds.text === "Gone" ? { ...ds, text: "" } : ds
+      ds.text === "Gone" ? { ...ds, text: "", suppressed: true } : ds
     );
 
     mergeXml(odtPath, outPath, docStrings, { clearEmptyParagraphs: true });
@@ -269,7 +272,7 @@ describe("clearEmptyParagraphs table boundary", () => {
     );
     const outPath = odtPath.replace(".odt", "-out.odt");
     const docStrings = contentDocStrings(odtPath).map((ds) =>
-      ds.text === "Remove me" ? { ...ds, text: "" } : ds
+      ds.text === "Remove me" ? { ...ds, text: "", suppressed: true } : ds
     );
 
     mergeXml(odtPath, outPath, docStrings, { clearEmptyParagraphs: true });
@@ -278,6 +281,173 @@ describe("clearEmptyParagraphs table boundary", () => {
     const paragraphs = merged.find<Element>("//office:text/text:p", NS);
     expect(paragraphs).toHaveLength(1);
     expect(paragraphs[0].text()).toBe("Other");
+  });
+
+  // 018 Q2 fix (1b): `text: ""` alone now means UNTRANSLATED — the source
+  // text stays in place and the paragraph survives. Only strings
+  // `singleLanguageize` explicitly marked `suppressed: true` are blanked and
+  // removed. (The old behavior deleted untranslated paragraphs too, which is
+  // what emptied the TOC's column-heading cells in single-language books.)
+  describe("suppressed vs untranslated", () => {
+    test("untranslated string (text '' without suppressed) keeps its source text and paragraph", () => {
+      const odtPath = buildTableOdt(
+        "untranslated-kept",
+        `<text:p>No.</text:p><text:p>Other</text:p>`
+      );
+      const outPath = odtPath.replace(".odt", "-out.odt");
+      const docStrings = contentDocStrings(odtPath).map((ds) =>
+        ds.text === "No." ? { ...ds, text: "" } : ds
+      );
+
+      mergeXml(odtPath, outPath, docStrings, { clearEmptyParagraphs: true });
+
+      const merged = readContentXml(outPath);
+      const paragraphs = merged.find<Element>("//office:text/text:p", NS);
+      expect(paragraphs).toHaveLength(2);
+      expect(paragraphs[0].text()).toBe("No.");
+    });
+
+    test("suppressed string (text '' with suppressed: true) is blanked and its paragraph removed", () => {
+      const odtPath = buildTableOdt(
+        "suppressed-removed",
+        `<text:p>English twin</text:p><text:p>Other</text:p>`
+      );
+      const outPath = odtPath.replace(".odt", "-out.odt");
+      const docStrings = contentDocStrings(odtPath).map((ds) =>
+        ds.text === "English twin" ? { ...ds, text: "", suppressed: true } : ds
+      );
+
+      mergeXml(odtPath, outPath, docStrings, { clearEmptyParagraphs: true });
+
+      const merged = readContentXml(outPath);
+      const paragraphs = merged.find<Element>("//office:text/text:p", NS);
+      expect(paragraphs).toHaveLength(1);
+      expect(paragraphs[0].text()).toBe("Other");
+    });
+
+    // Green from birth: pins that OUTSIDE clearEmptyParagraphs mode a bare
+    // text "" still deliberately blanks the node — the admin lesson-strings
+    // editor deletes a string by posting text: "" (see updateLesson).
+    test("without clearEmptyParagraphs, text '' still blanks the node in place", () => {
+      const odtPath = buildTableOdt("blank-admin-edit", `<text:p>Heading</text:p>`);
+      const outPath = odtPath.replace(".odt", "-out.odt");
+      const docStrings = contentDocStrings(odtPath).map((ds) =>
+        ds.text === "Heading" ? { ...ds, text: "" } : ds
+      );
+
+      mergeXml(odtPath, outPath, docStrings, {});
+
+      const merged = readContentXml(outPath);
+      const paragraphs = merged.find<Element>("//office:text/text:p", NS);
+      expect(paragraphs).toHaveLength(1);
+      expect(paragraphs[0].text()).toBe("");
+    });
+  });
+
+  // 018 Q2 fix (1a): paragraphs whose automatic style carries a fixed page
+  // break or a master-page switch are STRUCTURAL — emptying their text must
+  // never delete the paragraph, or the break/master-page assignment is lost
+  // (the real defect: the TOC master's "Quarter N Table of Contents" header,
+  // style P25, vanished from single-language books).
+  describe("protected page-break / master-page paragraphs", () => {
+    const PROTECTED_STYLES =
+      `<style:style style:name="PBreak" style:family="paragraph" style:master-page-name="Front_20_matter">` +
+      `<style:paragraph-properties fo:break-before="page"/></style:style>` +
+      `<style:style style:name="PMaster" style:family="paragraph" style:master-page-name="Inside_20_cover"/>` +
+      `<style:style style:name="PAuto" style:family="paragraph">` +
+      `<style:paragraph-properties fo:break-before="auto"/></style:style>` +
+      `<style:style style:name="PEmptyMaster" style:family="paragraph" style:master-page-name=""/>`;
+
+    function mergeEmptied(name: string, officeTextInner: string, emptyTexts: string[]) {
+      const odtPath = buildTableOdt(name, officeTextInner, PROTECTED_STYLES);
+      const outPath = odtPath.replace(".odt", "-out.odt");
+      const docStrings = contentDocStrings(odtPath).map((ds) =>
+        emptyTexts.includes(ds.text) ? { ...ds, text: "", suppressed: true } : ds
+      );
+      mergeXml(odtPath, outPath, docStrings, { clearEmptyParagraphs: true });
+      return readContentXml(outPath);
+    }
+
+    test("emptied paragraph with fo:break-before='page' is kept blank, style intact", () => {
+      const merged = mergeEmptied(
+        "protected-break",
+        `<text:p text:style-name="PBreak">Header text</text:p><text:p>Other</text:p>`,
+        ["Header text"]
+      );
+      const paragraphs = merged.find<Element>("//office:text/text:p", NS);
+      expect(paragraphs).toHaveLength(2);
+      expect(paragraphs[0].attr("style-name")?.value()).toBe("PBreak");
+      expect(paragraphs[0].text()).toBe("");
+    });
+
+    test("emptied paragraph with a non-empty style:master-page-name only is kept blank", () => {
+      const merged = mergeEmptied(
+        "protected-master",
+        `<text:p text:style-name="PMaster">Cover text</text:p><text:p>Other</text:p>`,
+        ["Cover text"]
+      );
+      const paragraphs = merged.find<Element>("//office:text/text:p", NS);
+      expect(paragraphs).toHaveLength(2);
+      expect(paragraphs[0].attr("style-name")?.value()).toBe("PMaster");
+      expect(paragraphs[0].text()).toBe("");
+    });
+
+    test("emptied paragraph with fo:break-before='auto' is still removed", () => {
+      const merged = mergeEmptied(
+        "unprotected-auto",
+        `<text:p text:style-name="PAuto">Auto text</text:p><text:p>Other</text:p>`,
+        ["Auto text"]
+      );
+      const paragraphs = merged.find<Element>("//office:text/text:p", NS);
+      expect(paragraphs).toHaveLength(1);
+      expect(paragraphs[0].text()).toBe("Other");
+    });
+
+    test("emptied paragraph with an EMPTY style:master-page-name is still removed", () => {
+      const merged = mergeEmptied(
+        "unprotected-empty-master",
+        `<text:p text:style-name="PEmptyMaster">Plain text</text:p><text:p>Other</text:p>`,
+        ["Plain text"]
+      );
+      const paragraphs = merged.find<Element>("//office:text/text:p", NS);
+      expect(paragraphs).toHaveLength(1);
+      expect(paragraphs[0].text()).toBe("Other");
+    });
+
+    test("multi-node protected paragraph (spans) fully emptied is kept blank once, not duplicated", () => {
+      const merged = mergeEmptied(
+        "protected-spans",
+        `<text:p text:style-name="PBreak"><text:span>Quarter </text:span><text:span>2</text:span></text:p><text:p>Other</text:p>`,
+        ["Quarter", "2"]
+      );
+      const paragraphs = merged.find<Element>("//office:text/text:p", NS);
+      expect(paragraphs).toHaveLength(2);
+      expect(paragraphs[0].attr("style-name")?.value()).toBe("PBreak");
+      expect(paragraphs[0].text().trim()).toBe("");
+    });
+
+    test("real TOC master: emptying the P25 header keeps the break-carrying paragraph", () => {
+      const tocPath = path.join(process.cwd(), "test", "docs", "serverDocs", "Luke-2-99v01.odt");
+      const outPath = path.join(workDir, "toc-header-protected.odt");
+      const contentXml = docStorage.docXml(tocPath).content;
+      const docStrings = parse(contentXml, "content").map((ds) =>
+        ["Quarter", "2", "Table of Contents"].includes(ds.text) &&
+        !ds.motherTongue &&
+        !ds.xpath.includes("table:table")
+          ? { ...ds, text: "", suppressed: true }
+          : ds
+      );
+
+      mergeXml(tocPath, outPath, docStrings, { clearEmptyParagraphs: true });
+
+      const merged = readContentXml(outPath);
+      const headerParagraphs = merged.find<Element>(
+        "//office:text/text:p[@text:style-name='P25']",
+        { ...NS, style: "urn:oasis:names:tc:opendocument:xmlns:style:1.0" }
+      );
+      expect(headerParagraphs).toHaveLength(1);
+      expect(headerParagraphs[0].text().trim()).toBe("");
+    });
   });
 
   describe("removeFrontMatterExampleTable", () => {
@@ -300,7 +470,7 @@ describe("clearEmptyParagraphs table boundary", () => {
       const odtPath = buildExampleOdt("fm-translated");
       const outPath = odtPath.replace(".odt", "-out.odt");
       const docStrings = contentDocStrings(odtPath).map((ds) => {
-        if (ds.text === "English inset line") return { ...ds, text: "" };
+        if (ds.text === "English inset line") return { ...ds, text: "", suppressed: true };
         if (ds.text === "Body text") return { ...ds, text: "Texte du corps" };
         return ds;
       });
@@ -358,7 +528,7 @@ describe("clearEmptyParagraphs table boundary", () => {
   test("real lesson fixture keeps its 1-row, 3-cell title table when all in-table strings go empty", () => {
     const fixtureOutPath = path.join(workDir, "English_Luke-Q1-L06-tableguard.odt");
     const docStrings = parse(xmls.content, "content").map((ds) =>
-      ds.xpath.includes("table:table-cell") ? { ...ds, text: "" } : ds
+      ds.xpath.includes("table:table-cell") ? { ...ds, text: "", suppressed: true } : ds
     );
     expect(docStrings.some((ds) => ds.text === "" && ds.xpath.includes("table:table-cell"))).toBe(
       true

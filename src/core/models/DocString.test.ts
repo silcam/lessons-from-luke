@@ -100,6 +100,31 @@ describe("singleLanguageize", () => {
     expect(result[0].text).toBe("Keep me");
   });
 
+  // 018 Q2 fix (1b): suppression must be DISTINGUISHABLE from "untranslated"
+  // downstream — both used to share the `text: ""` sentinel, which made
+  // mergeXml's clearEmptyParagraphs delete untranslated paragraphs too.
+  test("marks suppressed strings with suppressed: true", () => {
+    const mtLStr = makeLessonString({ lessonStringId: 1, masterId: 5, motherTongue: true });
+    const majLStr = makeLessonString({ lessonStringId: 2, masterId: 5, motherTongue: false });
+    const mtDoc: DocString = { type: "content", xpath: "/a", motherTongue: true, text: "MT" };
+    const majDoc: DocString = { type: "content", xpath: "/b", motherTongue: false, text: "Eng" };
+
+    const result = singleLanguageize([mtLStr, majLStr], [mtDoc, majDoc]);
+    expect(result[1].suppressed).toBe(true);
+  });
+
+  test("does not mark unmatched or motherTongue strings as suppressed", () => {
+    const mtLStr = makeLessonString({ lessonStringId: 1, masterId: 5, motherTongue: true });
+    const majLStr = makeLessonString({ lessonStringId: 2, masterId: 9, motherTongue: false });
+    const mtDoc: DocString = { type: "content", xpath: "/a", motherTongue: true, text: "MT" };
+    const majDoc: DocString = { type: "content", xpath: "/b", motherTongue: false, text: "Keep" };
+
+    const result = singleLanguageize([mtLStr, majLStr], [mtDoc, majDoc]);
+    expect(result[0].suppressed).toBeUndefined();
+    expect(result[1].suppressed).toBeUndefined();
+    expect(result[1].text).toBe("Keep");
+  });
+
   test("clears earlier queue entries when a match is found", () => {
     // MT string for masterId 1 queued, but no majority match for 1
     // Then MT string for masterId 2 queued, majority match for 2 found — clears both

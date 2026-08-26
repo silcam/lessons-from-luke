@@ -12,9 +12,18 @@ const TABLE_CONTAINER_NAMES = new Set([
   "covered-table-cell",
 ]);
 
-export function removeParagraph(element: Element) {
+const PARAGRAPH_NAMES = ["p", "h"];
+
+export function removeParagraph(element: Element, protectedStyles?: ReadonlySet<string>) {
   // Belt-and-braces: never delete a table container itself.
   if (TABLE_CONTAINER_NAMES.has(element.name())) return;
+
+  // Paragraphs whose style carries a fixed page break or a master-page
+  // switch are structural: deleting them silently deletes the break/switch
+  // with them. Keep them (blank) — checked before the table-container logic
+  // so a protected paragraph inside a cell is kept by this guard, not by the
+  // cell-validity fallback.
+  if (isProtectedParagraph(element, protectedStyles)) return;
 
   const parent = element.parent();
   if (!isAnElement(parent)) {
@@ -30,15 +39,22 @@ export function removeParagraph(element: Element) {
     return;
   }
 
-  if (!parent.text()) removeParagraph(parent);
+  if (!parent.text()) removeParagraph(parent, protectedStyles);
   else element.remove();
+}
+
+function isProtectedParagraph(element: Element, protectedStyles?: ReadonlySet<string>): boolean {
+  if (!protectedStyles || !PARAGRAPH_NAMES.includes(element.name())) return false;
+  const styleName = element.attr("style-name")?.value();
+  return !!styleName && protectedStyles.has(styleName);
 }
 
 function paragraphChildCount(parent: Element) {
   return parent
     .childNodes()
-    .filter((node) => node.type() === "element" && ["p", "h"].includes((node as Element).name()))
-    .length;
+    .filter(
+      (node) => node.type() === "element" && PARAGRAPH_NAMES.includes((node as Element).name())
+    ).length;
 }
 
 function isAnElement(element: Element | Document): element is Element {

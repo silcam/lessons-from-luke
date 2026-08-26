@@ -7,6 +7,14 @@ export interface DocString {
   xpath: string;
   motherTongue: boolean;
   text: string;
+  /**
+   * Set by `singleLanguageize` on majority-language strings it blanked
+   * because a mother-tongue twin covers them. Distinguishes "blank because
+   * suppressed" (paragraph should be removed from the doc) from "blank
+   * because untranslated" (`text: ""` from `makeDocStrings` — the source
+   * text should be left in place).
+   */
+  suppressed?: boolean;
 }
 
 export function makeDocStrings(
@@ -43,7 +51,7 @@ export function singleLanguageize(lessonStrings: LessonString[], docStrings: Doc
 
     if (idSuppressQueue.includes(lessonString.masterId)) {
       idSuppressQueue.splice(0, idSuppressQueue.indexOf(lessonString.masterId) + 1);
-      return { ...docString, text: "" };
+      return { ...docString, text: "", suppressed: true };
     }
 
     return docString;
