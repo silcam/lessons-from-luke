@@ -1949,6 +1949,83 @@ describe("assembleQuarter (real soffice merge, TOC pagination — 018 Q2/Q4 clie
     expect(headerPage).toContain(LESSON_TITLES[14]);
   }, 280_000);
 
+  test("Q4 single-language (real majorityLangId 0 merge of the Acts-4-99 TOC): blank-header protection, container-scoped suppression and the table flip compose — translated header on its own page with the split table directly beneath", async () => {
+    const { lessonStrings, masterIdByText } = tocLessonStrings("Acts-4-99v01.odt");
+
+    const TRANSLATIONS: Record<string, string> = {
+      Quarter: "Trimestre",
+      "4": "4",
+      "Table of Contents": "Table des matières",
+      "No.": "N°",
+      Title: "Titre",
+    };
+    const FRENCHISH_ID = 42;
+    const mtTStrings: TString[] = Object.entries(TRANSLATIONS).map(([source, text]) => {
+      const masterId = masterIdByText.get(source);
+      expect(masterId).toBeDefined();
+      return { masterId: masterId!, languageId: FRENCHISH_ID, text, history: [] };
+    });
+
+    const frenchishLang: Language = {
+      languageId: FRENCHISH_ID,
+      name: "Frenchish",
+      code: "fr",
+      motherTongue: true,
+      progress: [],
+      archived: false,
+      defaultSrcLang: 0,
+    };
+    const actsToc: Lesson = {
+      lessonId: TOC_LESSON,
+      book: "Acts",
+      series: 4,
+      lesson: TOC_LESSON,
+      version: 1,
+      lessonStrings,
+    };
+    const singleLangStorage = {
+      tStrings: async ({ lessonId }: { languageId: number; lessonId?: number }) =>
+        lessonId === TOC_LESSON ? mtTStrings : [],
+    } as unknown as Persistence;
+
+    const jobId = "toc-pagination-acts-single-language";
+    const jobWorkRoot = path.join(workDir, "assembly-work-q4-mono");
+    fs.mkdirSync(path.join(jobWorkRoot, jobId), { recursive: true });
+
+    // Companion Luke lesson again — only so lesson-1 parity has an opening
+    // page to measure; the Acts TOC's rendering is what is under test.
+    const outputPath = await assembleQuarter({
+      storage: singleLangStorage,
+      lessons: [actsToc, lesson(LESSON_NUMBERS[0])],
+      motherLang: frenchishLang,
+      majorityLangId: 0,
+      jobId,
+      workRoot: jobWorkRoot,
+    });
+    expect(fs.existsSync(outputPath)).toBe(true);
+
+    const profileDir = path.join(workDir, "pdf-profile-q4-mono");
+    const pages = pagesOf(pdfToText(convertToPdf(outputPath, workDir, profileDir)));
+
+    const headerPageIndex = pages.findIndex((pageText) =>
+      /Trimestre\s+4\s+Table des matières/.test(pageText)
+    );
+    expect(headerPageIndex).toBeGreaterThanOrEqual(0);
+    const headerPage = pages[headerPageIndex];
+
+    const copyrightPageIndex = pages.findIndex((pageText) => pageText.includes(CC_FOOTER_MARKER));
+    expect(copyrightPageIndex).toBeGreaterThanOrEqual(0);
+    expect(headerPageIndex).toBeGreaterThan(copyrightPageIndex);
+    expect(headerPage).not.toContain(CC_FOOTER_MARKER);
+
+    expect(headerPage).toContain("N°");
+    expect(headerPage).toContain("Titre");
+    expect(headerPage).toContain("Truth");
+    expect(headerPage).toContain("Story");
+    // (the full title wraps mid-phrase in this narrow pdftotext column)
+    expect(headerPage).toContain("Jesus encourages Paul");
+  }, 280_000);
+
   test("Q4 bilingual (real merge of the Acts-4-99 TOC): the unsplittable-table fix keeps the TOC table on the header's page instead of pushing it whole to the next page", async () => {
     const actsToc: Lesson = {
       lessonId: TOC_LESSON,
