@@ -530,10 +530,13 @@ async function runMeasurementPass(options: {
 }): Promise<LessonOneParity> {
   try {
     return await measureLessonOneParity(options);
-  } catch {
-    // Curated, path-free reason ONLY — see the makeLessonFile catch above
-    // for the full "reason hygiene" contract.
-    throw new Error("assembly failed to measure lesson 1's opening page");
+  } catch (error) {
+    // Server-side diagnostics keep the real failure; the coordinator-facing
+    // reason (the message) stays curated and path-free (reason hygiene
+    // contract) — `AssemblyJobRegistry` only ever surfaces `message`, never
+    // `cause`.
+    console.warn("assembleQuarter: lesson-one parity measurement failed", error);
+    throw new Error("assembly failed to measure lesson 1's opening page", { cause: error });
   }
 }
 

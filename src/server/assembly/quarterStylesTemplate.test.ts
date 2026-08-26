@@ -129,4 +129,41 @@ describe("committed template assets carry no text:page-adjust offset (017 FR-004
 
     expect(stylesXml).not.toContain("text:page-adjust");
   });
+
+  /**
+   * Both lesson-title style families must keep chapter numbering alive.
+   * The footer's lesson number is a `text:chapter` field resolved from the
+   * nearest level-1 outline heading, and each lesson master's hidden title
+   * heading styles itself from one of two families: plain
+   * `Lesson title - invisible` (Luke Q3/Q4 masters) or
+   * `M.T. Lesson title - invisible` (Luke Q1/Q2 masters). The merge loads
+   * template styles with `OverwriteStyles=True`, so a template whose copy of
+   * either style lacks `style:default-outline-level="1"` DEMOTES that
+   * family's headings to plain paragraphs — every footer then renders
+   * `Quarter <Q> Lesson ` with no number and `measureLessonOneParity`'s
+   * locator fails the whole assembly ("assembly failed to measure lesson 1's
+   * opening page", the 2026-08 Kwasio bilingual Q3/Q4 defect).
+   */
+  describe.each(["quarter-styles-template.odt", "quarter-styles-template-monolingual.odt"])(
+    "assets/%s keeps every lesson-title style family outline-level-1",
+    (assetFilename) => {
+      test('every *Lesson_20_title_20_-_20_invisible style carries style:default-outline-level="1"', () => {
+        const assetPath = path.join(process.cwd(), "assets", assetFilename);
+        const stylesXml = extractStylesXml(assetPath);
+
+        // A template may legitimately OMIT a family (the monolingual asset
+        // has no M.T. variant — an undefined style leaves the constituent's
+        // own definition untouched); what it must never do is DEFINE one
+        // without the outline level. The plain family must exist in both.
+        const styleTags = stylesXml.match(
+          /<style:style[^>]*style:name="[^"]*Lesson_20_title_20_-_20_invisible"[^>]*>/g
+        );
+        expect(styleTags).not.toBeNull();
+        expect(styleTags!.length).toBeGreaterThanOrEqual(1);
+        for (const tag of styleTags!) {
+          expect(tag).toContain('style:default-outline-level="1"');
+        }
+      });
+    }
+  );
 });
