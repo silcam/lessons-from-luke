@@ -69,7 +69,7 @@ function buildFixtureOdt(odtPath: string, opts: FixtureOpts = {}): void {
   fs.writeFileSync(
     `${srcDir}/content.xml`,
     `<?xml version="1.0" encoding="UTF-8"?>
-<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" office:version="1.2">
+<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" office:version="1.2">
   <office:automatic-styles>${opts.contentAutoStylesXml ?? ""}</office:automatic-styles>
   <office:body><office:text>
     <text:sequence-decls><text:sequence-decl text:display-outline-level="0" text:name="Figure"/></text:sequence-decls>
@@ -604,6 +604,125 @@ describe("memory-verse coloring-page style resolution (017 US2-T1, INV-8/INV-9/I
     const directParagraphs = directMemoryVerseParagraphs(contentDoc, familyStyleName);
     expect(directParagraphs).toHaveLength(2);
     directParagraphs.forEach((p) => expect(p.text().trim()).toMatch(/^Luke 4:18-19/));
+  });
+});
+
+describe("TOC table row-break relaxation (018 Q4 fix)", () => {
+  const TABLE_NS = { ...NAMESPACES, table: "urn:oasis:names:tc:opendocument:xmlns:table:1.0" };
+
+  function copyRealFixture(name: string): string {
+    mkdirSafe(workDir);
+    const dest = `${workDir}/${name}`;
+    fs.copyFileSync(path.join("test", "docs", "serverDocs", name), dest);
+    return dest;
+  }
+
+  function mayBreakBetweenRows(
+    contentDoc: XmlDocument,
+    tableStyleName: string
+  ): string | undefined {
+    return contentDoc
+      .get<Element>(
+        `//office:automatic-styles/style:style[@style:name='${tableStyleName}'][@style:family='table']/style:table-properties`,
+        TABLE_NS
+      )
+      ?.attr("may-break-between-rows")
+      ?.value();
+  }
+
+  test("Acts TOC (real Acts-4-99 master): the unsplittable table directly after the front-matter break header becomes splittable; the two example tables stay unsplittable", () => {
+    const odtPath = copyRealFixture("Acts-4-99v01.odt");
+
+    prepareConstituentForAssembly({
+      odtPath,
+      series: 4,
+      lesson: 99,
+      isTOC: true,
+      fallbackTitle: "Acts TOC",
+    });
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    // Table2 is the TOC table (the first table:table following the P29
+    // header whose style carries fo:break-before="page" +
+    // master-page-name="Front_20_matter") — shipped may-break-between-rows
+    // "false", which shoves the whole 13-row table onto the next page when
+    // it no longer fits under the header.
+    expect(mayBreakBetweenRows(contentDoc, "Table2")).toBe("true");
+    // Strictly scoped: the copyright table (already splittable) and the
+    // bilingual example tables are untouched.
+    expect(mayBreakBetweenRows(contentDoc, "Table1")).toBe("true");
+    expect(mayBreakBetweenRows(contentDoc, "Table3")).toBe("false");
+    expect(mayBreakBetweenRows(contentDoc, "Table4")).toBe("false");
+  });
+
+  test("Luke TOC (real Luke-2-99 master): a no-op — its TOC table omits the attribute (already splittable) and the example tables stay unsplittable", () => {
+    const odtPath = copyRealFixture("Luke-2-99v01.odt");
+
+    prepareConstituentForAssembly({
+      odtPath,
+      series: 2,
+      lesson: 99,
+      isTOC: true,
+      fallbackTitle: "Luke TOC",
+    });
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    expect(mayBreakBetweenRows(contentDoc, "Table1")).toBeUndefined();
+    expect(mayBreakBetweenRows(contentDoc, "Table3")).toBe("false");
+    expect(mayBreakBetweenRows(contentDoc, "Table4")).toBe("false");
+  });
+
+  const TOC_TABLE_AUTO_STYLES =
+    `<style:style style:name="PHeader" style:family="paragraph" style:master-page-name="Front_20_matter">` +
+    `<style:paragraph-properties fo:break-before="page"/></style:style>` +
+    `<style:style style:name="TocTable" style:family="table">` +
+    `<style:table-properties style:may-break-between-rows="false"/></style:style>`;
+
+  function tocTableBodyXml(headerText: string) {
+    return (
+      `<text:p text:style-name="PHeader">${headerText}</text:p>` +
+      `<table:table xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" table:name="TocTable" table:style-name="TocTable">` +
+      `<table:table-column/><table:table-row><table:table-cell>` +
+      `<text:p text:style-name="Body">row</text:p>` +
+      `</table:table-cell></table:table-row></table:table>`
+    );
+  }
+
+  test("anchors on the header STYLE, not its text: a blanked header paragraph (single-language output) still flips the adjacent table", () => {
+    const odtPath = `${workDir}/blank-header-toc.odt`;
+    mkdirSafe(workDir);
+    buildFixtureOdt(odtPath, {
+      quarterValue: "2",
+      bodyXml: tocTableBodyXml(""),
+      contentAutoStylesXml: TOC_TABLE_AUTO_STYLES,
+    });
+
+    prepareConstituentForAssembly({
+      odtPath,
+      series: 2,
+      lesson: 99,
+      isTOC: true,
+      fallbackTitle: "TOC",
+    });
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    expect(mayBreakBetweenRows(contentDoc, "TocTable")).toBe("true");
+  });
+
+  test("never touches a NON-TOC constituent's tables", () => {
+    const odtPath = `${workDir}/lesson-with-table.odt`;
+    mkdirSafe(workDir);
+    buildFixtureOdt(odtPath, {
+      quarterValue: "2",
+      lessonValue: "14",
+      bodyXml: LESSON_HEADING_XML + tocTableBodyXml("Some header"),
+      contentAutoStylesXml: TOC_TABLE_AUTO_STYLES,
+    });
+
+    prepareConstituentForAssembly(defaultOptions(odtPath));
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    expect(mayBreakBetweenRows(contentDoc, "TocTable")).toBe("false");
   });
 });
 

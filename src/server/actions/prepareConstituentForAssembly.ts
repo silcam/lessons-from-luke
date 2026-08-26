@@ -179,6 +179,7 @@ export function prepareConstituentForAssembly(
     const contentDoc = libxmljs2.parseXml(fs.readFileSync(contentXmlPath, "utf8"));
     const contentNamespaces = extractNamespaces(contentDoc);
     flattenMemoryVerseAutomaticStyles(contentDoc, stylesDoc, contentNamespaces);
+    if (isTOC) relaxTocTableRowBreaks(contentDoc, contentNamespaces);
     // Appended BEFORE the outline-participant count below, deliberately: the
     // sacrificial paragraph must be inside everything the validation sees, so
     // a future shape that did participate in the outline would fail loudly
@@ -319,6 +320,57 @@ function countOutlineParticipants(
     .filter((p) => effectiveOutlineLevel(p.attr("style-name")!.value()) === "1").length;
 
   return headings + outlineParagraphs;
+}
+
+/**
+ * 018 Q4 fix — TOC constituents only: make the TOC table splittable across
+ * pages. The Acts TOC masters ship their TOC table's automatic table style
+ * with `style:may-break-between-rows="false"` (Luke's omits it, so Luke
+ * splits fine); once anything costs the front-matter body a little height —
+ * e.g. the quarter styles template's footer geometry — the unsplittable
+ * 13-row table no longer fits under the "Quarter N Table of Contents"
+ * header and jumps WHOLE to the next page, leaving the header orphaned.
+ *
+ * Strictly scoped to the ONE table that follows the TOC header paragraph:
+ * the first `table:table` in document order after the first paragraph whose
+ * automatic style carries `fo:break-before="page"` + a `Front_20_matter`
+ * master-page switch. The anchor is the STYLE, never the header's text —
+ * single-language assembly can legitimately blank the text. Only an
+ * explicit `"false"` is flipped; an absent attribute (Luke) stays absent,
+ * and no other table (copyright, bilingual example tables) is touched.
+ */
+function relaxTocTableRowBreaks(contentDoc: XmlDocument, namespaces: Namespaces): void {
+  const headerStyle = contentDoc
+    .find<Element>(
+      "//office:automatic-styles/style:style[@style:family='paragraph'][@style:master-page-name='Front_20_matter']",
+      namespaces
+    )
+    .find(
+      (style) =>
+        style
+          .get<Element>("./style:paragraph-properties", namespaces)
+          ?.attr("break-before")
+          ?.value() === "page"
+    );
+  const headerStyleName = headerStyle?.attr("name")?.value();
+  if (!headerStyleName) return;
+
+  const headerParagraph = contentDoc.get<Element>(
+    `//office:body//text:p[@text:style-name='${headerStyleName}']` +
+      ` | //office:body//text:h[@text:style-name='${headerStyleName}']`,
+    namespaces
+  );
+  const tocTable = headerParagraph?.get<Element>("following::table:table[1]", namespaces);
+  const tableStyleName = tocTable?.attr("style-name")?.value();
+  if (!tableStyleName) return;
+
+  const tableProperties = contentDoc.get<Element>(
+    `//office:automatic-styles/style:style[@style:name='${tableStyleName}'][@style:family='table']/style:table-properties`,
+    namespaces
+  );
+  if (tableProperties?.attr("may-break-between-rows")?.value() === "false") {
+    tableProperties.attr({ "style:may-break-between-rows": "true" });
+  }
 }
 
 /** Matches both style-naming families: `Coloring Page - Memory Verse` and `M.T. Coloring Page - Memory Verse`. */
