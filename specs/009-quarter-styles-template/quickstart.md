@@ -40,10 +40,13 @@ unzip -p assembled.odt styles.xml \
 
 ## Swap in Chris's real template (no code change — FR-005)
 
-```bash
-# Replace the asset file; the next assembly uses the new styles.
-cp /path/to/chris-real-quarter-styles.odt assets/quarter-styles-template.odt
-```
+> **Stale procedure removed.** Since this quickstart was written, later
+> features added template invariants a bare `cp` can silently violate (the
+> 017 page-adjust ban, the outline-level-1 requirement on invisible
+> lesson-title styles, the footer-vocabulary guard, named master pages, live
+> footer fields). Follow the swap procedure in **`assets/README.md`** —
+> replace the file, then run `yarn test:once` and `yarn test:integration`
+> before deploying.
 
 No rebuild of application code is required — the asset is read per job at
 runtime from `process.cwd()/assets/`.

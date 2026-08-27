@@ -11,6 +11,7 @@ import {
   resolveTemplatePath,
   validateTemplateAsset,
 } from "./quarterStylesTemplate";
+import { MONOLINGUAL_PARAGRAPH_STYLE_RENAMES } from "../xml/monolingualRestyle";
 
 const existsSyncMock = fs.existsSync as unknown as jest.Mock;
 const statSyncMock = fs.statSync as unknown as jest.Mock;
@@ -166,4 +167,81 @@ describe("committed template assets carry no text:page-adjust offset (017 FR-004
       });
     }
   );
+
+  /**
+   * The assembled book's pagination hangs off two master pages the code
+   * addresses BY NAME: `finalizeAssembledQuarter` pins each lesson's opening
+   * heading to `First_20_Page` (finalizeAssembledQuarter.ts
+   * FIRST_PAGE_MASTER_NAME), and `prepareConstituentForAssembly` keys its
+   * TOC/front-matter break handling on automatic styles bound to
+   * `Front_20_matter` (prepareConstituentForAssembly.ts). Runtime asset
+   * validation only checks exists+nonzero, so renaming or deleting either
+   * master in a template edit would ship silently — with wrong pagination —
+   * without this guard.
+   */
+  describe.each(["quarter-styles-template.odt", "quarter-styles-template-monolingual.odt"])(
+    "assets/%s defines the master pages the assembly pipeline addresses by name",
+    (assetFilename) => {
+      test.each(["First_20_Page", "Front_20_matter"])("master page %s exists", (masterName) => {
+        const assetPath = path.join(process.cwd(), "assets", assetFilename);
+        const stylesXml = extractStylesXml(assetPath);
+
+        expect(stylesXml).toMatch(new RegExp(`<style:master-page[^>]*style:name="${masterName}"`));
+      });
+    }
+  );
+
+  /**
+   * The `Lesson_20_Content` master's footer renders each page's lesson
+   * number from a LIVE `text:chapter` field (resolved against the nearest
+   * level-1 outline heading) and its quarter number from a live
+   * `text:user-defined text:name="Quarter"` field
+   * (`normalizeQuarterFieldCache` refreshes its cache per book). A template
+   * edit that "fixes" the footer by typing static text in place of either
+   * field has no runtime guard — every page would silently show one
+   * lesson/quarter number book-wide. The assertion is scoped to the
+   * `Lesson_20_Content` master-page block: the `Standard` master carries the
+   * same fields, so a whole-file check would pass even after the real
+   * footer lost them.
+   */
+  describe.each(["quarter-styles-template.odt", "quarter-styles-template-monolingual.odt"])(
+    "assets/%s keeps live footer fields on the Lesson_20_Content master",
+    (assetFilename) => {
+      function lessonContentMasterBlock(): string {
+        const assetPath = path.join(process.cwd(), "assets", assetFilename);
+        const stylesXml = extractStylesXml(assetPath);
+        const block = stylesXml.match(
+          /<style:master-page[^>]*style:name="Lesson_20_Content"[^>]*>[\s\S]*?<\/style:master-page>/
+        );
+        expect(block).not.toBeNull();
+        return block![0];
+      }
+
+      test("footer carries a live text:chapter lesson-number field", () => {
+        expect(lessonContentMasterBlock()).toContain("<text:chapter");
+      });
+
+      test('footer carries a live text:user-defined text:name="Quarter" field', () => {
+        expect(lessonContentMasterBlock()).toMatch(/<text:user-defined[^>]*text:name="Quarter"/);
+      });
+    }
+  );
+
+  /**
+   * The monolingual restyle rewrites M.T. style references to the plain
+   * targets in `MONOLINGUAL_PARAGRAPH_STYLE_RENAMES`, which only the
+   * template assets define. `assertRestyleTargetsDefined` already fails the
+   * assembly job at runtime when a target is missing; this promotes that to
+   * a build-time failure against the committed monolingual asset.
+   */
+  test("assets/quarter-styles-template-monolingual.odt defines every plain restyle-target paragraph style", () => {
+    const assetPath = path.join(process.cwd(), "assets", "quarter-styles-template-monolingual.odt");
+    const stylesXml = extractStylesXml(assetPath);
+
+    for (const { to } of MONOLINGUAL_PARAGRAPH_STYLE_RENAMES) {
+      expect(stylesXml).toMatch(
+        new RegExp(`<style:style[^>]*style:name="${to}"[^>]*style:family="paragraph"`)
+      );
+    }
+  });
 });
