@@ -148,6 +148,52 @@ describe("MainRouter", () => {
     });
   });
 
+  describe("/ with web auth enforcement off (ENFORCE_WEB_AUTH disabled)", () => {
+    // With enforcement off, AuthGate passes straight through to GatedHome,
+    // so GatedHome must handle loading/anonymous states itself — an anonymous
+    // visitor to "/" must land on the login form, never a white screen.
+    afterEach(() => {
+      document.head.innerHTML = "";
+    });
+
+    function disableEnforcement() {
+      document.head.innerHTML = '<meta name="enforce-web-auth" content="0">';
+    }
+
+    it("anonymous and loaded: lands on the login form (no white screen)", () => {
+      disableEnforcement();
+      renderMainRouter("/", { user: null, loaded: true });
+
+      expect(screen.getAllByText("Log In").length).toBeGreaterThan(0);
+      expect(screen.getByPlaceholderText("Email")).toBeTruthy();
+      expect(screen.getByPlaceholderText("Password")).toBeTruthy();
+    });
+
+    it("auth state still loading: shows the loading state, not the login form", () => {
+      disableEnforcement();
+      renderMainRouter("/", { user: null, loaded: false });
+
+      // Positive assertion: LoadingSnake renders its bouncy "o" spans.
+      expect(screen.getAllByText("o").length).toBeGreaterThan(0);
+      expect(screen.queryByPlaceholderText("Email")).toBeNull();
+      expect(screen.queryByPlaceholderText("Password")).toBeNull();
+    });
+
+    it("signed-in admin: renders AdminHome (as before)", () => {
+      disableEnforcement();
+      renderMainRouter("/", { user: { id: "u1", admin: true }, loaded: true });
+
+      expect(screen.getByText("Log Out")).toBeTruthy();
+    });
+
+    it("signed-in non-admin: renders SignedInHome (as before)", () => {
+      disableEnforcement();
+      renderMainRouter("/", { user: { id: "u1", admin: false }, loaded: true });
+
+      expect(screen.getByText("You're signed in.")).toBeTruthy();
+    });
+  });
+
   describe("admin deep-link cold load — no sign-in flash (AdminGate regression)", () => {
     /**
      * Render MainRouter with a RequestContext provider (AdminHome's child

@@ -22,6 +22,7 @@ import RedeemInvitation from "./auth/RedeemInvitation";
 import AuthGate from "./auth/AuthGate";
 import AdminGate from "./auth/AdminGate";
 import ForgotPassword from "./auth/ForgotPassword";
+import LoadingSnake from "../common/base-components/LoadingSnake";
 import ResetPassword from "./auth/ResetPassword";
 
 function TranslateRouteWrapper() {
@@ -61,9 +62,12 @@ function RedeemInvitationWrapper() {
 }
 
 function GatedHome() {
-  // AuthGate guarantees `user` is non-null past this point.
-  const user = useSelector((state: AppState) => state.currentUser.user);
-  if (!user) return null;
+  // With ENFORCE_WEB_AUTH on, AuthGate resolves loading/anonymous states before
+  // this renders. With it off, AuthGate passes through, so GatedHome must handle
+  // them itself: "/" always needs identity to pick a home surface.
+  const { user, loaded } = useSelector((state: AppState) => state.currentUser);
+  if (!loaded) return <LoadingSnake />;
+  if (!user) return <Navigate to="/login" replace />;
   return user.admin ? <AdminHome /> : <SignedInHome />;
 }
 
