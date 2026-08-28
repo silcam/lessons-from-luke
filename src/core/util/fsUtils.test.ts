@@ -11,10 +11,16 @@ import {
   setupDesktopStorage,
 } from "./fsUtils";
 import fs from "fs";
+import os from "os";
 import path from "path";
 
+// Read the pristine, git-tracked fixture; extract into an OS temp dir so nothing
+// is ever written inside a tracked path.
 const zipPath = "test/docs/serverDocs/Luke-1-01v03.odt";
-const dirPath = "test/docs/serverDocs/Luke-1-01v03.odt_FILES";
+const dirPath = path.join(
+  fs.mkdtempSync(path.join(os.tmpdir(), "fsUtils-test-")),
+  "Luke-1-01v03.odt_FILES"
+);
 
 const tmpTestDir = "test/tmp-fsutils-test";
 

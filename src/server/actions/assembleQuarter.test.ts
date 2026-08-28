@@ -96,7 +96,7 @@ const storage = {} as Persistence;
 /**
  * Every result this file retains. `assembleQuarter` moves its assembled ODT
  * out of the (deleted) job dir into `docStorage`'s tmp dir — which under
- * NODE_ENV=test is the real `test/docs/serverDocs/tmp/`, not a fixture temp
+ * NODE_ENV=test is the real `test/docs/serverDocs-run/tmp/`, not a fixture temp
  * dir — so unlink each one rather than accumulating an assembled book per
  * successful test per jest run.
  */

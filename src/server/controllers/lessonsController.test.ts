@@ -9,9 +9,10 @@ import { DocString } from "../../core/models/DocString";
 import { unlinkSafe } from "../../core/util/fsUtils";
 import { findByStrict } from "../../core/util/arrayUtils";
 import webifyLesson from "../actions/webifyLesson";
+import docStorage from "../storage/docStorage";
 
 afterAll(() => {
-  unlinkSafe("test/docs/serverDocs/Luke-1-01v04.odt");
+  unlinkSafe(`${docStorage.docsDirPath()}/Luke-1-01v04.odt`);
 });
 
 test("GET Lessons", async () => {

@@ -40,6 +40,7 @@ import { objKeys } from "../../core/util/objectUtils";
 import { selectAssemblyConstituents } from "../assembly/selectAssemblyConstituents";
 import * as quarterStylesTemplate from "../assembly/quarterStylesTemplate";
 import { PDF_CONVERT_TO_TARGET, classifyPage, reconcilePdfPages } from "./pdfRenderOptions";
+import { assertLibreOfficeSupported } from "../util/libreOfficeVersion";
 
 // The real merge (~14 `soffice` inserts + a `--convert-to pdf` verification
 // pass) comfortably exceeds Jest's 5s default. `sofficeAssemble`'s own hard
@@ -52,7 +53,15 @@ const LESSON_NUMBERS = [14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26];
 /** TOC first, then the 13 lessons ascending — the contractual assembly order. */
 const ORDERED_LESSON_NUMBERS = [TOC_LESSON, ...LESSON_NUMBERS];
 
-const SERVER_DOCS_DIR = path.join(process.cwd(), "test", "docs", "serverDocs");
+/**
+ * The directory `makeLessonFile` actually reads constituents from
+ * (`docStorage.docFilepath()`, i.e. `docStorage.docsDirPath()`) — NOT a
+ * hardcoded tracked-fixtures path. Under NODE_ENV=test, docStorage.docsDirPath()
+ * resolves to the seeded disposable copy the test run works against, so
+ * hashing sources from here (the Pass-6 source-immutability guard's
+ * `sourcePathFor`) hashes the exact files handed to assembleQuarter.
+ */
+const SERVER_DOCS_DIR = docStorage.docsDirPath();
 
 /**
  * Each lesson's own level-1 heading text — what `text:chapter[display="name"]`
@@ -557,7 +566,7 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
     // Confirm the external toolchain this test depends on is actually
     // present BEFORE doing any work, so a missing dependency fails loudly
     // and immediately rather than mid-merge.
-    execFileSync("soffice", ["--version"]);
+    assertLibreOfficeSupported(execFileSync("soffice", ["--version"]).toString());
     execFileSync("pdftotext", ["-v"]);
     execFileSync("pdfinfo", ["-v"]);
 
@@ -602,9 +611,9 @@ describe("assembleQuarter (real soffice merge, golden-reference parity)", () => 
   afterAll(() => {
     if (workDir) fs.rmSync(workDir, { recursive: true, force: true });
     // `assembleQuarter` deletes its own job dir and retains the result in
-    // docStorage's tmp dir (`test/docs/serverDocs/tmp/`) — outside workDir,
-    // so unlink it explicitly rather than accumulating one assembled book
-    // per jest run.
+    // docStorage's tmp dir (`docStorage.docsDirPath() + "/tmp"`, the seeded
+    // disposable run dir under NODE_ENV=test) — outside workDir, so unlink it
+    // explicitly rather than accumulating one assembled book per jest run.
     if (outputPath) fs.rmSync(outputPath, { force: true });
   });
 
@@ -1243,7 +1252,7 @@ describe("assembleQuarter (real soffice merge) — US16 covers never affect asse
   }
 
   beforeAll(async () => {
-    execFileSync("soffice", ["--version"]);
+    assertLibreOfficeSupported(execFileSync("soffice", ["--version"]).toString());
     execFileSync("pdftotext", ["-v"]);
 
     // Cover-master fixtures for series 2 must exist (committed alongside the
@@ -1332,7 +1341,7 @@ describe("assembleQuarter (real soffice merge, corrupt-template fail-loud — 00
   let corruptTemplatePath: string;
 
   beforeAll(() => {
-    execFileSync("soffice", ["--version"]);
+    assertLibreOfficeSupported(execFileSync("soffice", ["--version"]).toString());
 
     workDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembleQuarter-corrupt-template-"));
     corruptTemplatePath = path.join(workDir, "corrupt-template.odt");
@@ -1413,7 +1422,7 @@ describe("assembleQuarter (real soffice merge, template asset swap — 009 US3/F
   let fixtureB: string;
 
   beforeAll(() => {
-    execFileSync("soffice", ["--version"]);
+    assertLibreOfficeSupported(execFileSync("soffice", ["--version"]).toString());
 
     workDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembleQuarter-template-swap-"));
     fixtureA = buildStyleSourceFixture(workDir, "fixture-a", "#123456");
@@ -1477,7 +1486,7 @@ describe("assembleQuarter (real soffice merge, monolingual template asset is a c
   let workDir: string;
 
   beforeAll(() => {
-    execFileSync("soffice", ["--version"]);
+    assertLibreOfficeSupported(execFileSync("soffice", ["--version"]).toString());
     workDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembleQuarter-monolingual-"));
   });
 
@@ -1678,7 +1687,7 @@ describe("assembleQuarter (real soffice merge, doctored Lesson-9-shaped constitu
   let workDir: string;
 
   beforeAll(() => {
-    execFileSync("soffice", ["--version"]);
+    assertLibreOfficeSupported(execFileSync("soffice", ["--version"]).toString());
     workDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembleQuarter-doctored-"));
 
     // Doctor a copy of the clean constituent into the Lesson-9 defect shape.
@@ -1748,7 +1757,7 @@ describe("assembleQuarter (real soffice merge) — US3-T7 kill-switch off branch
   let workDir: string;
 
   beforeAll(() => {
-    execFileSync("soffice", ["--version"]);
+    assertLibreOfficeSupported(execFileSync("soffice", ["--version"]).toString());
     workDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembleQuarter-t7-switch-off-"));
   });
 
@@ -1820,7 +1829,7 @@ describe("assembleQuarter (real soffice merge, TOC pagination — 018 Q2/Q4 clie
   let workDir: string;
 
   beforeAll(() => {
-    execFileSync("soffice", ["--version"]);
+    assertLibreOfficeSupported(execFileSync("soffice", ["--version"]).toString());
     execFileSync("pdftotext", ["-v"], { stdio: "ignore" });
     workDir = fs.mkdtempSync(path.join(os.tmpdir(), "assembleQuarter-toc-pagination-"));
   });
@@ -2181,12 +2190,13 @@ describe("assembleQuarter (real soffice merge) — translated footers", () => {
   const generatedTmpPaths: string[] = [];
 
   beforeAll(async () => {
-    execFileSync("soffice", ["--version"]);
+    assertLibreOfficeSupported(execFileSync("soffice", ["--version"]).toString());
     execFileSync("pdftotext", ["-v"]);
 
     // `makeLessonFile` writes each translated constituent into docStorage's
-    // tmp dir (`test/docs/serverDocs/tmp/` under NODE_ENV=test), outside
-    // workDir — record them so afterAll can remove them.
+    // tmp dir (`docStorage.docsDirPath() + "/tmp"`, the seeded disposable run
+    // dir under NODE_ENV=test), outside workDir — record them so afterAll can
+    // remove them.
     const realTmpFilePath = docStorage.tmpFilePath;
     jest.spyOn(docStorage, "tmpFilePath").mockImplementation((baseName: string) => {
       const generated = realTmpFilePath(baseName);

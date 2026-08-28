@@ -82,16 +82,19 @@ Key details:
 - Migration state files: `.migrate-test`, `.migrate-dev`, `.migrate-prod` (one per environment, gitignored). The legacy `.migrate` file is auto-copied to `.migrate-prod` on first run for backward compatibility
 - If a database is recreated/emptied and `migrate` reports `relation "languages" does not exist`, the state file thinks migrations already ran. Reset with e.g. `echo '{"lastRun":null,"migrations":[]}' > .migrate-test && yarn migrate:test`
 - If you check out a branch whose `migrations/` set is _behind_ what `.migrate-test` records, `migrate` aborts with `Missing migration file: <name>`. Non-destructive fix: restore the missing migration file(s) untracked (`git show <branch>:migrations/<f> > migrations/<f>`), run the migration, then delete them — this leaves `.migrate-test` and the DB intact for the other branch. The state-file reset above is the heavier alternative
+- The `assembleQuarter.integration.test.ts` suite (`yarn test:integration`) requires LibreOffice >= 7.4 and poppler-utils (`pdftotext`/`pdfinfo`) on `PATH`; it preflights the version via `src/server/util/libreOfficeVersion.ts` and fails fast with a clear error if it's older (e.g. 7.3.7 renders golden-reference PDFs differently and cascades into unrelated-looking failures)
 
 ## Environments
 
 There are three runtime environments, fully isolated from one another:
 
-| Env         | `NODE_ENV`    | Storage class   | Database                 | ODT root                | Used by                                                                            |
-| ----------- | ------------- | --------------- | ------------------------ | ----------------------- | ---------------------------------------------------------------------------------- |
-| Production  | `production`  | `PGStorage`     | `lessons-from-luke`      | `docs/`                 | deployed server                                                                    |
-| Development | `development` | `PGDevStorage`  | `lessons-from-luke-dev`  | `docs/dev/`             | `yarn dev-web`, `yarn dev-desktop`, `yarn serve-dev`                               |
-| Test        | `test`        | `PGTestStorage` | `lessons-from-luke-test` | `test/docs/serverDocs/` | `yarn test*`, `yarn test-e2e` (Cypress), `yarn test-desktop-e2e-deps` (Playwright) |
+| Env         | `NODE_ENV`    | Storage class   | Database                 | ODT root                    | Used by                                                                            |
+| ----------- | ------------- | --------------- | ------------------------ | --------------------------- | ---------------------------------------------------------------------------------- |
+| Production  | `production`  | `PGStorage`     | `lessons-from-luke`      | `docs/`                     | deployed server                                                                    |
+| Development | `development` | `PGDevStorage`  | `lessons-from-luke-dev`  | `docs/dev/`                 | `yarn dev-web`, `yarn dev-desktop`, `yarn serve-dev`                               |
+| Test        | `test`        | `PGTestStorage` | `lessons-from-luke-test` | `test/docs/serverDocs-run/` | `yarn test*`, `yarn test-e2e` (Cypress), `yarn test-desktop-e2e-deps` (Playwright) |
+
+**Test-filesystem isolation.** `test/docs/serverDocs/` is the **git-tracked, read-only** fixture corpus. Under `NODE_ENV=test` the ODT root is instead `test/docs/serverDocs-run/` — a disposable, gitignored copy wiped and reseeded from the tracked corpus once per run (jest `globalSetup`, the integration globalSetup, and `server.ts` boot; see `src/server/storage/seedServerDocs.ts`). Tests may read the tracked corpus directly as a fixture, but nothing ever writes into it.
 
 Only the test environment mounts the `/api/test/reset-storage` endpoint; in dev and production it returns 404. Dev resets through the `yarn reset:dev` CLI instead.
 

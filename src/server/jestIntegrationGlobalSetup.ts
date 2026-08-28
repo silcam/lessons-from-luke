@@ -13,12 +13,19 @@ import { execSync, spawn } from "child_process";
 import postgres from "postgres";
 import secrets from "./util/secrets";
 import pgLoadFixtures from "./storage/pgLoadFixtures";
+import { reseedServerDocsRunDir } from "./storage/seedServerDocs";
 import path from "path";
 
 // Populated in setup, used in teardown
 let serverProcess: ReturnType<typeof spawn> | null = null;
 
 export default async function globalSetup() {
+  // Step 0: Wipe + reseed the disposable ODT dir (test/docs/serverDocs-run) so
+  // neither this process nor the spawned server writes into the git-tracked
+  // fixture corpus. Must happen before the child server boots.
+  reseedServerDocsRunDir();
+  console.log("\u2713 test/docs/serverDocs-run reseeded from fixtures");
+
   // Step 1: Migrate and load fixtures (same as the base globalSetup)
   execSync("yarn migrate:test", { stdio: "inherit" });
 

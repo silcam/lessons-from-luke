@@ -160,8 +160,16 @@ describe("US14: Cover text auto-populates from existing translations", () => {
 
     // THEN: viewing the A3 cover in the Français translation UI already
     // shows the translated title — no translator action was taken on it.
+    // The lesson picker only renders once all three requests that gate
+    // TranslateHome's loading state resolve (loadTranslatingLanguage,
+    // loadLessons, loadLanguages) — wait for them before clicking so we
+    // don't click into a list that's still reflowing while data lands.
+    cy.intercept("GET", "/api/languages/code/DEF").as("translatingLanguage1");
+    cy.intercept("GET", "/api/lessons").as("lessons1");
+    cy.intercept("GET", "/api/languages").as("languages1");
     cy.visit("/translate/DEF");
-    cy.contains("button", "Cover (A3)").click();
+    cy.wait(["@translatingLanguage1", "@lessons1", "@languages1"]);
+    cy.contains("button", "Cover (A3)").should("be.visible").click();
     cy.contains("div", "Lessons from Luke", { timeout: 20000 })
       .parent()
       .find("textarea")
@@ -174,8 +182,16 @@ describe("US14: Cover text auto-populates from existing translations", () => {
   it("lets the copyright line be translated once through the normal translation UI, and remains editable", () => {
     uploadCover("English-Luke-Q1-Cover-A4.odt", "A4");
 
+    // The lesson picker only renders once all three requests that gate
+    // TranslateHome's loading state resolve (loadTranslatingLanguage,
+    // loadLessons, loadLanguages) — wait for them before clicking so we
+    // don't click into a list that's still reflowing while data lands.
+    cy.intercept("GET", "/api/languages/code/DEF").as("translatingLanguage2");
+    cy.intercept("GET", "/api/lessons").as("lessons2");
+    cy.intercept("GET", "/api/languages").as("languages2");
     cy.visit("/translate/DEF");
-    cy.contains("button", "Cover (A4)").click();
+    cy.wait(["@translatingLanguage2", "@lessons2", "@languages2"]);
+    cy.contains("button", "Cover (A4)").should("be.visible").click();
 
     // WHEN the translator types a translation into the untranslated
     // copyright line's per-string textarea.
@@ -236,8 +252,16 @@ describe("US14: Cover text auto-populates from existing translations", () => {
 
     // WHEN the translator updates the publication year — an ordinary edit
     // through the same textarea/Save mechanism as any other string.
+    // The lesson picker only renders once all three requests that gate
+    // TranslateHome's loading state resolve (loadTranslatingLanguage,
+    // loadLessons, loadLanguages) — wait for them before clicking so we
+    // don't click into a list that's still reflowing while data lands.
+    cy.intercept("GET", "/api/languages/code/DEF").as("translatingLanguage3");
+    cy.intercept("GET", "/api/lessons").as("lessons3");
+    cy.intercept("GET", "/api/languages").as("languages3");
     cy.visit("/translate/DEF");
-    cy.contains("button", "Cover (A4)").click();
+    cy.wait(["@translatingLanguage3", "@lessons3", "@languages3"]);
+    cy.contains("button", "Cover (A4)").should("be.visible").click();
     cy.contains("div", "Year of Publication", { timeout: 20000 })
       .parent()
       .find("textarea")

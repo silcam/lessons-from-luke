@@ -15,6 +15,10 @@ module.exports = defineConfig({
     defaultCommandTimeout: 10000,
     responseTimeout: 30000,
     pageLoadTimeout: 60000,
+    retries: {
+      runMode: 2,
+      openMode: 0,
+    },
     env: {
       adminEmail: process.env.CYPRESS_ADMIN_EMAIL ?? secrets.adminEmail ?? "admin@example.com",
       adminPassword: process.env.CYPRESS_ADMIN_PASSWORD ?? secrets.adminPassword ?? "",

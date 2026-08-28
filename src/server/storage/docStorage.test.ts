@@ -7,6 +7,13 @@ import process from "process";
 // Mock fs before importing docStorage so the mock is in place
 jest.mock("fs");
 jest.mock("../../core/util/fsUtils");
+// The real seed module does live fs work; docStorage only calls it lazily, but
+// keep the seeding inert here so the mocked fs is never handed to it. The path
+// helper stays real (docsDirPath depends on it).
+jest.mock("./seedServerDocs", () => ({
+  serverDocsRunDir: () => `${process.cwd()}/test/docs/serverDocs-run`,
+  ensureServerDocsRunDir: jest.fn(),
+}));
 
 import fs from "fs";
 import {
@@ -27,7 +34,9 @@ const mockUnlinkSafe = unlinkSafe as jest.MockedFunction<typeof unlinkSafe>;
 const mockMoveFileSync = moveFileSync as jest.MockedFunction<typeof moveFileSync>;
 
 function docsDirPath() {
-  return `${process.cwd()}/test/docs/serverDocs`;
+  // Under NODE_ENV=test docStorage redirects to the disposable run dir so no
+  // test writes into the git-tracked fixture corpus. See seedServerDocs.ts.
+  return `${process.cwd()}/test/docs/serverDocs-run`;
 }
 
 describe("docStorage", () => {
