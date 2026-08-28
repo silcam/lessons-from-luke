@@ -6,12 +6,15 @@
  * -------
  * assembleQuarter.integration.test.ts renders assembled quarters to PDF via
  * `soffice --headless` and asserts golden values extracted with pdftotext.
- * Those golden values were settled on newer LibreOffice renders (CI: Debian
- * bookworm, ~7.4; dev workstations on 25.8). On older LibreOffice — observed
- * on 7.3.7 — the render differs enough that page-layout-dependent helpers
- * (e.g. measureLessonOneParity.ts's locateLessonOnePage) can't even locate
- * the expected content, cascading into a wall of unrelated-looking failures
- * far from the real cause.
+ * Those golden values were settled on newer LibreOffice renders matching
+ * production/staging (Ubuntu 24.04 LTS "Noble", LibreOffice 24.2 — CI's
+ * integration job now runs on `ubuntu-24.04` for the same LO 24.2 build).
+ * On old LibreOffice — observed on 7.3.7 — the render differs enough that
+ * page-layout-dependent helpers (e.g. measureLessonOneParity.ts's
+ * locateLessonOnePage) can't even locate the expected content, cascading
+ * into a wall of unrelated-looking failures far from the real cause.
+ * (7.4 was previously observed to pass; the floor sits at 24.2 for
+ * production parity, not because 7.4 renders were seen to break.)
  *
  * This module gives the suite's `beforeAll` preflights a single, fast,
  * loud failure instead of that cascade: parse the installed LibreOffice
@@ -25,7 +28,7 @@ export interface LibreOfficeVersion {
 }
 
 /** The minimum LibreOffice version the golden-reference renders require. */
-export const MIN_SUPPORTED_VERSION: LibreOfficeVersion = { major: 7, minor: 4 };
+export const MIN_SUPPORTED_VERSION: LibreOfficeVersion = { major: 24, minor: 2 };
 
 /**
  * Parses the raw stdout of `soffice --version`, e.g.
@@ -76,7 +79,8 @@ export function assertLibreOfficeSupported(rawVersionOutput: string): void {
     throw new Error(
       `LibreOffice >= ${MIN_SUPPORTED_VERSION.major}.${MIN_SUPPORTED_VERSION.minor} required for the ` +
         `assembleQuarter integration suite (found ${fullVersionStringFor(rawVersionOutput, version)}). ` +
-        `The golden-reference values were settled on newer renders; upgrade LibreOffice.`
+        `The golden-reference values were settled on the production/staging render line ` +
+        `(Ubuntu 24.04 LTS, LibreOffice 24.2); upgrade LibreOffice.`
     );
   }
 }

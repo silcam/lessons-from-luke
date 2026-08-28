@@ -82,7 +82,7 @@ Key details:
 - Migration state files: `.migrate-test`, `.migrate-dev`, `.migrate-prod` (one per environment, gitignored). The legacy `.migrate` file is auto-copied to `.migrate-prod` on first run for backward compatibility
 - If a database is recreated/emptied and `migrate` reports `relation "languages" does not exist`, the state file thinks migrations already ran. Reset with e.g. `echo '{"lastRun":null,"migrations":[]}' > .migrate-test && yarn migrate:test`
 - If you check out a branch whose `migrations/` set is _behind_ what `.migrate-test` records, `migrate` aborts with `Missing migration file: <name>`. Non-destructive fix: restore the missing migration file(s) untracked (`git show <branch>:migrations/<f> > migrations/<f>`), run the migration, then delete them — this leaves `.migrate-test` and the DB intact for the other branch. The state-file reset above is the heavier alternative
-- The `assembleQuarter.integration.test.ts` suite (`yarn test:integration`) requires LibreOffice >= 7.4 and poppler-utils (`pdftotext`/`pdfinfo`) on `PATH`; it preflights the version via `src/server/util/libreOfficeVersion.ts` and fails fast with a clear error if it's older (e.g. 7.3.7 renders golden-reference PDFs differently and cascades into unrelated-looking failures)
+- The `assembleQuarter.integration.test.ts` suite (`yarn test:integration`) requires LibreOffice >= 24.2 and poppler-utils (`pdftotext`/`pdfinfo`) on `PATH`; it preflights the version via `src/server/util/libreOfficeVersion.ts` and fails fast with a clear error if it's older (e.g. 7.3.7 or 7.4.5 render golden-reference PDFs differently and cascade into unrelated-looking failures). This matches production/staging (Ubuntu 24.04 LTS, LibreOffice 24.2)
 
 ## Environments
 

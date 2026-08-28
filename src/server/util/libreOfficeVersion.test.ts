@@ -51,12 +51,18 @@ describe("isVersionAtLeast", () => {
 describe("assertLibreOfficeSupported", () => {
   test("7.3.7 (below floor) throws with a clear upgrade message", () => {
     expect(() => assertLibreOfficeSupported("LibreOffice 7.3.7.2 30(Build:2)")).toThrow(
-      /LibreOffice >= 7\.4 required for the assembleQuarter integration suite \(found 7\.3\.7\)/
+      /LibreOffice >= 24\.2 required for the assembleQuarter integration suite \(found 7\.3\.7\)/
     );
   });
 
-  test("7.4.5 (at floor) passes", () => {
-    expect(() => assertLibreOfficeSupported("LibreOffice 7.4.5.1")).not.toThrow();
+  test("7.4.5 (below the new floor) throws with a clear upgrade message", () => {
+    expect(() => assertLibreOfficeSupported("LibreOffice 7.4.5.1")).toThrow(
+      /LibreOffice >= 24\.2 required for the assembleQuarter integration suite \(found 7\.4\.5\)/
+    );
+  });
+
+  test("24.2.7 (at floor, matching production/staging) passes", () => {
+    expect(() => assertLibreOfficeSupported("LibreOffice 24.2.7.2 420(Build:2)")).not.toThrow();
   });
 
   test("25.8.1 (well above floor) passes", () => {
@@ -69,7 +75,7 @@ describe("assertLibreOfficeSupported", () => {
     );
   });
 
-  test("MIN_SUPPORTED_VERSION matches the documented (7, 4) floor", () => {
-    expect(MIN_SUPPORTED_VERSION).toEqual({ major: 7, minor: 4 });
+  test("MIN_SUPPORTED_VERSION matches the documented (24, 2) floor", () => {
+    expect(MIN_SUPPORTED_VERSION).toEqual({ major: 24, minor: 2 });
   });
 });
