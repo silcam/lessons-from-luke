@@ -2087,7 +2087,8 @@ describe("assembleQuarter (real soffice merge, TOC pagination — 018 Q2/Q4 clie
     expect(headerPage).toContain("Truth");
     expect(headerPage).toContain("Story");
     // And the first real TOC row (lesson 40) starts on the same page.
-    expect(headerPage).toContain("Jesus encourages Paul in a dream");
+    // (the full title wraps mid-phrase in this narrow pdftotext column)
+    expect(headerPage).toContain("Jesus encourages Paul");
   }, 280_000);
 });
 
