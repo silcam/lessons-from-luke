@@ -1,5 +1,8 @@
 describe("Translate", () => {
   it("Handles bad codes", () => {
+    // /translate/:code is gated (003-web-auth-gate); the "not found" fallback
+    // renders inside the gate, so sign in before visiting an unknown code.
+    cy.login();
     cy.visit("/translate/NOPEDYNOPE");
     cy.contains(
       "Translation Project not found. Please check that you have the right web address."
@@ -15,17 +18,15 @@ describe("Translate", () => {
     cy.contains("Le livre de Luc").should("exist");
   });
 
-  it("Uses the defaultSrcLang to set interface locale", () => {
-    cy.login();
-    cy.request("POST", "/api/admin/languages/3", { defaultSrcLang: 2 });
-    cy.request("POST", "/api/auth/sign-out");
-
-    cy.visit("/translate/GHI");
-    cy.contains("Luc 1-1").should("exist");
-
-    cy.login();
-    cy.request("POST", "/api/admin/languages/3", { defaultSrcLang: 1 });
-  });
+  // Removed: "Uses the defaultSrcLang to set interface locale".
+  // It verified that an *anonymous* visitor to /translate/:code inherited the
+  // project's defaultSrcLang as the interface locale (reducer setLocaleIfNoUser,
+  // which is a no-op once a user is signed in). 003-web-auth-gate gates
+  // /translate/:code, so anonymous viewing of a translation page no longer exists
+  // and the scenario is unreachable end-to-end. The underlying behavior stays
+  // unit-covered: currentUserSlice.test.ts ("setLocaleIfNoUser") and
+  // languageSlice.test.ts ("dispatches setTranslating and setLocaleIfNoUser on
+  // success").
 
   it("Translates stuff", () => {
     cy.visitTranslatePage("GHI");

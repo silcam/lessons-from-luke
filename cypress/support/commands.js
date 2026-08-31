@@ -61,6 +61,11 @@ Cypress.Commands.add("inLabel", (label) =>
 //    elements only render once the lesson tStrings have also loaded, so this
 //    serves as the final "page fully ready" signal.
 Cypress.Commands.add("visitTranslatePage", (code) => {
+  // /translate/:code is a gated content route (003-web-auth-gate): AuthGate
+  // redirects signed-out visitors to the sign-in page, so the translate UI never
+  // mounts and its initial API calls never fire. Authenticate first so the gate
+  // passes and the page loads.
+  cy.login();
   cy.clearLocalStorage();
   cy.intercept("GET", "/api/lessons").as("_tpLessons");
   cy.intercept("GET", `/api/languages/code/${code}`).as("_tpLanguage");

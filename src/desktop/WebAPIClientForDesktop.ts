@@ -1,4 +1,4 @@
-import { GetRoute, APIGet, APIPost, PostRoute } from "../core/interfaces/Api";
+import { GetRoute, APIGet, APIPost, PostRoute } from "../core/api/ApiContracts";
 import { webGet, webPost } from "../core/api/WebAPIClient";
 import { AppError, asAppError } from "../core/models/AppError";
 import { app } from "electron";

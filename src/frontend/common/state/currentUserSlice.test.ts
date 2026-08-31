@@ -109,6 +109,19 @@ describe("currentUserSlice reducers", () => {
     });
   });
 
+  describe("clearError", () => {
+    it("sets error to null", () => {
+      const stateWithError = {
+        ...initialState,
+        error: "Invalid credentials",
+      };
+
+      const state = currentUserSlice.reducer(stateWithError, currentUserSlice.actions.clearError());
+
+      expect(state.error).toBeNull();
+    });
+  });
+
   describe("initial state", () => {
     it("has user null and loaded false", () => {
       const state = currentUserSlice.reducer(undefined, { type: "@@INIT" });

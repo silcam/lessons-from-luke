@@ -1,0 +1,21 @@
+Feature: Sign-in required to use the web app
+  As a visitor to the web app
+  I want to be prompted to sign in when I reach a gated route
+  So that unauthenticated visitors cannot access translation content
+
+  Scenario: Signed-out visitor is redirected to sign-in from a gated route
+    Given a visitor who is not signed in
+    When they navigate to a gated web route (e.g. /translate/ABC123)
+    Then they see the sign-in page
+    And they do not see the gated content
+
+  Scenario: Signed-in user can access a gated route
+    Given a signed-in user
+    When they navigate to a gated web route
+    Then the route's content renders normally
+
+  Scenario: Sign-in page shows contextual prompt on redirect from gated route
+    Given a visitor who is not signed in
+    When they are redirected to the sign-in page from a gated route
+    Then the sign-in page displays a brief contextual prompt ("Please sign in to continue")
+    And the prompt is announced to screen readers via a live region

@@ -1,4 +1,4 @@
-import { GetRoute, APIGet, APIPost, PostRoute } from "../../core/interfaces/Api";
+import { GetRoute, APIGet, APIPost, PostRoute } from "../../core/api/ApiContracts";
 import { asAppError } from "../../core/models/AppError";
 
 export async function ipcGet<T extends GetRoute>(
