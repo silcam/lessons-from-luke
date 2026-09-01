@@ -132,7 +132,7 @@
     "@types/eslint-plugin-jsx-a11y": "^6",
     "concurrently": "^7.0.0",
     "cypress": "^13.0.0",
-    "electron": "^41.2.0",
+    "electron": "^41.10.3",
     "electron-builder": "^26.15.3",
     "eslint": "^10.7.0",
     "eslint-config-prettier": "^10.1.8",
