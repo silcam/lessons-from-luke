@@ -3,12 +3,18 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { AppState } from "../../common/state/appState";
 import LoadingSnake from "../../common/base-components/LoadingSnake";
+import { isWebAuthEnforced } from "./webAuthEnforcement";
 
 /**
  * AuthGate — React Router v6 layout route that enforces sign-in on all child
  * routes.
  *
  * Decision matrix:
+ *   - `ENFORCE_WEB_AUTH` disabled (server-injected `<meta name="enforce-web-auth"
+ *     content="0">`) → render `<Outlet />` immediately, with no loading state and
+ *     no redirect. Checked first so disabling the flag produces no loading flash.
+ *     Content routes are then anonymously reachable; `/` handles its own
+ *     loading/anonymous fallback in `GatedHome` (MainRouter).
  *   - `loaded === false`              → render `<LoadingSnake />` (auth state
  *     not yet known; never redirect before we know).
  *   - `loaded === true, user === null` → redirect to `/login?returnTo=<encoded path>`
@@ -24,6 +30,10 @@ import LoadingSnake from "../../common/base-components/LoadingSnake";
 export default function AuthGate() {
   const { user, loaded } = useSelector((state: AppState) => state.currentUser);
   const location = useLocation();
+
+  if (!isWebAuthEnforced()) {
+    return <Outlet />;
+  }
 
   if (!loaded) {
     return <LoadingSnake />;

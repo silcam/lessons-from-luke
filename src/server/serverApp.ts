@@ -24,8 +24,25 @@ import { getAuth, getAuthPool } from "./auth/auth";
 import requireUserWhenEnforced from "./middle/requireUserWhenEnforced";
 import { requireSameOrigin } from "./middle/requireSameOrigin";
 import { isEnforcementEnabled } from "./util/enforcementFlag";
+import { isWebEnforcementEnabled } from "./util/webEnforcementFlag";
 
 const PRODUCTION = process.env.NODE_ENV == "production";
+
+/**
+ * Build the <meta> tags injected into the production SPA shell's <head>.
+ *
+ * - csp-nonce: the per-request CSP nonce webApp.tsx wires into
+ *   __webpack_nonce__ so styled-components' runtime <style> tags validate.
+ * - enforce-web-auth: "1"/"0" mirror of the ENFORCE_WEB_AUTH env flag, read at
+ *   call time (per request) so the served HTML always reflects current config.
+ */
+export function buildMetaTags(nonce: string): string {
+  const enforceWebAuth = isWebEnforcementEnabled() ? "1" : "0";
+  return (
+    `<meta name="csp-nonce" content="${nonce}">` +
+    `<meta name="enforce-web-auth" content="${enforceWebAuth}">`
+  );
+}
 
 function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   const app = express();
@@ -248,10 +265,12 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
         }
         const nonce = res.locals.cspNonce as string;
         // base64 contains no HTML metacharacters, so it is safe to interpolate.
-        const metaTag = `<meta name="csp-nonce" content="${nonce}">`;
+        // The web-enforcement flag is read per request (not at module load) so a
+        // restart-free env change is picked up by the next request.
+        const metaTags = buildMetaTags(nonce);
         const html = indexHtmlTemplate.includes("<head>")
-          ? indexHtmlTemplate.replace("<head>", `<head>${metaTag}`)
-          : `${metaTag}${indexHtmlTemplate}`;
+          ? indexHtmlTemplate.replace("<head>", `<head>${metaTags}`)
+          : `${metaTags}${indexHtmlTemplate}`;
         res.type("html").send(html);
       } catch {
         res.status(500).send("Internal Server Error");

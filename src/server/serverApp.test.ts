@@ -248,6 +248,86 @@ describe("serverApp production branch", () => {
     });
   });
 
+  test("wildcard route injects enforce-web-auth=0 when ENFORCE_WEB_AUTH is unset", async () => {
+    const original = process.env.ENFORCE_WEB_AUTH;
+    delete process.env.ENFORCE_WEB_AUTH;
+    try {
+      await withProductionServerApp(async (app) => {
+        const response = await request(app).get("/any/frontend/path");
+        expect(response.status).toBe(200);
+        expect(response.text).toContain(`<meta name="enforce-web-auth" content="0">`);
+      });
+    } finally {
+      if (original === undefined) {
+        delete process.env.ENFORCE_WEB_AUTH;
+      } else {
+        process.env.ENFORCE_WEB_AUTH = original;
+      }
+    }
+  });
+
+  test("wildcard route injects enforce-web-auth=1 when ENFORCE_WEB_AUTH=1", async () => {
+    const original = process.env.ENFORCE_WEB_AUTH;
+    process.env.ENFORCE_WEB_AUTH = "1";
+    try {
+      await withProductionServerApp(async (app) => {
+        const response = await request(app).get("/any/frontend/path");
+        expect(response.status).toBe(200);
+        expect(response.text).toContain(`<meta name="enforce-web-auth" content="1">`);
+      });
+    } finally {
+      if (original === undefined) {
+        delete process.env.ENFORCE_WEB_AUTH;
+      } else {
+        process.env.ENFORCE_WEB_AUTH = original;
+      }
+    }
+  });
+
+  test("csp-nonce and enforce-web-auth meta tags coexist in the served HTML", async () => {
+    const original = process.env.ENFORCE_WEB_AUTH;
+    process.env.ENFORCE_WEB_AUTH = "1";
+    try {
+      await withProductionServerApp(async (app) => {
+        const response = await request(app).get("/any/frontend/path");
+        expect(response.status).toBe(200);
+        const csp = (response.header["content-security-policy"] ?? "") as string;
+        const headerNonce = csp.match(/'nonce-([A-Za-z0-9+/=]+)'/)?.[1];
+        expect(headerNonce).toBeTruthy();
+        expect(response.text).toContain(`<meta name="csp-nonce" content="${headerNonce}">`);
+        expect(response.text).toContain(`<meta name="enforce-web-auth" content="1">`);
+      });
+    } finally {
+      if (original === undefined) {
+        delete process.env.ENFORCE_WEB_AUTH;
+      } else {
+        process.env.ENFORCE_WEB_AUTH = original;
+      }
+    }
+  });
+
+  test("the flag is read per request, not cached at module load", async () => {
+    const original = process.env.ENFORCE_WEB_AUTH;
+    delete process.env.ENFORCE_WEB_AUTH;
+    try {
+      await withProductionServerApp(async (app) => {
+        const off = await request(app).get("/any/frontend/path");
+        expect(off.text).toContain(`<meta name="enforce-web-auth" content="0">`);
+
+        // Same app instance, flag flipped between requests.
+        process.env.ENFORCE_WEB_AUTH = "true";
+        const on = await request(app).get("/any/frontend/path");
+        expect(on.text).toContain(`<meta name="enforce-web-auth" content="1">`);
+      });
+    } finally {
+      if (original === undefined) {
+        delete process.env.ENFORCE_WEB_AUTH;
+      } else {
+        process.env.ENFORCE_WEB_AUTH = original;
+      }
+    }
+  });
+
   test("each request gets a fresh, unique CSP nonce", async () => {
     await withProductionServerApp(async (app) => {
       const nonceOf = async () => {

@@ -8,9 +8,11 @@
  *
  * Additional assertions:
  *   - Public paths do NOT trigger a redirect (no redirect loop)
+ *   - Gate disabled via the ENFORCE_WEB_AUTH meta tag → render Outlet, no redirect
  *   - AuthGate is NOT imported by any desktop entry file
- *     (structural isolation — web-only placement is the architectural enforcement,
- *     not a runtime flag; see constitution Principle VI)
+ *     (structural isolation — web-only placement is the architectural enforcement
+ *     of the desktop boundary; see constitution Principle VI. The ENFORCE_WEB_AUTH
+ *     runtime flag independently governs web-side enforcement.)
  */
 
 // Break networkSlice → appState → networkSlice circular dep
@@ -185,15 +187,48 @@ describe("AuthGate", () => {
       expect(screen.getByText("Lesson content")).toBeTruthy();
     });
   });
+
+  describe("disabled state (ENFORCE_WEB_AUTH off)", () => {
+    afterEach(() => {
+      document.head.innerHTML = "";
+    });
+
+    function disableGate() {
+      document.head.innerHTML = '<meta name="enforce-web-auth" content="0">';
+    }
+
+    it("renders the Outlet without waiting for auth state to load", () => {
+      disableGate();
+      renderAuthGate("/translate/ABC123", { user: null, loaded: false });
+      expect(screen.getByText("Gated content")).toBeTruthy();
+      expect(screen.queryByText("Sign-in page")).toBeNull();
+    });
+
+    it("renders no LoadingSnake when not loaded and the gate is disabled", () => {
+      disableGate();
+      const { container } = renderAuthGate("/translate/ABC123", { user: null, loaded: false });
+      // Only the gated content is rendered — no LoadingSnake characters at all
+      expect(container.textContent).toBe("Gated content");
+    });
+
+    it("renders the Outlet for an unauthenticated user instead of redirecting", () => {
+      disableGate();
+      renderAuthGate("/translate/ABC123", { user: null, loaded: true });
+      expect(screen.getByText("Gated content")).toBeTruthy();
+      expect(screen.queryByText("Sign-in page")).toBeNull();
+    });
+  });
 });
 
 /**
  * Import-graph isolation guard (constitution Principle VI)
  *
  * AuthGate lives under src/frontend/web/ and must never be imported by desktop
- * entry points. Web-only placement is the architectural enforcement mechanism —
- * there is no runtime flag. This test performs a static scan of the desktop
- * entry files to prove that boundary holds.
+ * entry points. Web-only placement is the architectural enforcement mechanism for
+ * that boundary — desktop isolation stays structural, independent of the
+ * ENFORCE_WEB_AUTH runtime flag, which only governs whether web-side enforcement
+ * is active. This test performs a static scan of the desktop entry files to prove
+ * the structural boundary holds.
  *
  * Desktop entry files checked:
  *   - src/frontend/desktopFrontend/MainPage.tsx  (React root for Electron)
