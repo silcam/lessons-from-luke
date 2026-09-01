@@ -1,0 +1,1269 @@
+/// <reference types="jest" />
+
+import fs from "fs";
+import path from "path";
+import { execFileSync } from "child_process";
+import libxmljs2, { Document as XmlDocument, Element } from "libxmljs2";
+import {
+  finalizeAssembledQuarter,
+  FinalizeAssembledQuarterOptions,
+} from "./finalizeAssembledQuarter";
+import { mkdirSafe, unlinkRecursive, unzip } from "../../core/util/fsUtils";
+
+const NAMESPACES = {
+  office: "urn:oasis:names:tc:opendocument:xmlns:office:1.0",
+  text: "urn:oasis:names:tc:opendocument:xmlns:text:1.0",
+  style: "urn:oasis:names:tc:opendocument:xmlns:style:1.0",
+  fo: "urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0",
+  meta: "urn:oasis:names:tc:opendocument:xmlns:meta:1.0",
+  dc: "http://purl.org/dc/elements/1.1/",
+  config: "urn:oasis:names:tc:opendocument:xmlns:config:1.0",
+};
+
+const workDir = "test/tmp-finalizeAssembledQuarter";
+
+afterEach(() => {
+  unlinkRecursive(workDir);
+});
+
+/**
+ * Builds a minimal merged-output-shaped ODT fixture: a `styles.xml` whose
+ * `text:outline-style` level-1 entry has the blank base document's EMPTY
+ * `style:num-format` (the exact defect the finalization patches — chapter
+ * NUMBER fields render blank against it), and a `meta.xml` with no
+ * Quarter property. Packed WITHOUT mimetype-first ordering so the repack
+ * assertion is meaningful.
+ */
+/**
+ * `settings.xml` variants for the `PrintEmptyPages` pin (contract §2.6,
+ * INV-7a):
+ * - "default": the config-item-set is present with `PrintEmptyPages` already
+ *   `false` — the shape finalize must flip to `true`.
+ * - "omitPrintEmptyPagesItem": the config-item-set is present but carries no
+ *   `PrintEmptyPages` item at all — finalize must create it.
+ * - "omitConfigSet": `office:settings` is present but empty — no
+ *   `ooo:configuration-settings` item set to patch.
+ * - "omitFile": `settings.xml` is not written into the archive at all.
+ */
+type SettingsXmlVariant = "default" | "omitPrintEmptyPagesItem" | "omitConfigSet" | "omitFile";
+
+function settingsXmlContent(variant: SettingsXmlVariant): string | undefined {
+  if (variant === "omitFile") return undefined;
+  const configItemSet =
+    variant === "omitConfigSet"
+      ? ""
+      : `<config:config-item-set config:name="ooo:configuration-settings">${
+          variant === "omitPrintEmptyPagesItem"
+            ? `<config:config-item config:name="SomeOtherSetting" config:type="boolean">true</config:config-item>`
+            : `<config:config-item config:name="PrintEmptyPages" config:type="boolean">false</config:config-item>`
+        }</config:config-item-set>`;
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-settings xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0" office:version="1.2">
+  <office:settings>${configItemSet}</office:settings>
+</office:document-settings>`;
+}
+
+function buildMergedFixtureOdt(
+  odtPath: string,
+  officeTextInner = "",
+  opts: {
+    omitPlainRestyleTargets?: boolean;
+    automaticStylesInner?: string;
+    settingsXml?: SettingsXmlVariant;
+    /** `office:master-styles` content — the merged book's footers (omitted by default). */
+    masterStylesInner?: string;
+  } = {}
+): void {
+  const srcDir = `${workDir}/src-${path.basename(odtPath, ".odt")}`;
+  mkdirSafe(workDir);
+  mkdirSafe(srcDir);
+  mkdirSafe(`${srcDir}/META-INF`);
+
+  fs.writeFileSync(`${srcDir}/mimetype`, "application/vnd.oasis.opendocument.text");
+  fs.writeFileSync(
+    `${srcDir}/META-INF/manifest.xml`,
+    `<?xml version="1.0" encoding="UTF-8"?>
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.2">
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.2" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+</manifest:manifest>`
+  );
+  fs.writeFileSync(
+    `${srcDir}/content.xml`,
+    `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" office:version="1.2">
+  <office:automatic-styles>
+    <style:style style:name="P7" style:family="paragraph" style:parent-style-name="M.T._20_Lesson_20_Title"/>
+    <style:style style:name="P8" style:family="paragraph" style:parent-style-name="M.T._20_Text"/>${
+      opts.automaticStylesInner ?? ""
+    }
+  </office:automatic-styles>
+  <office:body><office:text>${officeTextInner}</office:text></office:body>
+</office:document-content>`
+  );
+  fs.writeFileSync(
+    `${srcDir}/meta.xml`,
+    `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-meta xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0" xmlns:dc="http://purl.org/dc/elements/1.1/" office:version="1.2">
+  <office:meta><meta:generator>test</meta:generator><dc:title>stale title</dc:title></office:meta>
+</office:document-meta>`
+  );
+  fs.writeFileSync(
+    `${srcDir}/styles.xml`,
+    `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:loext="urn:org:documentfoundation:names:experimental:office:xmlns:loext:1.0" office:version="1.2">
+  <office:styles>
+    <text:outline-style style:name="Outline">
+      <text:outline-level-style text:level="1" loext:num-list-format="%1%" style:num-format=""/>
+      <text:outline-level-style text:level="2" loext:num-list-format="%2%" style:num-format=""/>
+    </text:outline-style>${
+      opts.omitPlainRestyleTargets
+        ? ""
+        : `
+    <style:style style:name="Lesson_20_Title" style:family="paragraph"/>
+    <style:style style:name="Lesson_20_title_20_-_20_invisible" style:family="paragraph"/>
+    <style:style style:name="Coloring_20_Page_20_-_20_Memory_20_Verse" style:family="paragraph"/>
+    <style:style style:name="Coloring_20_Page_20_-_20_Truth" style:family="paragraph"/>`
+    }
+    <style:style style:name="M.T._20_Lesson_20_Title" style:family="paragraph"/>
+    <style:style style:name="M.T._20_Coloring_20_Page_20_-_20_Truth" style:family="paragraph"/>
+  </office:styles>
+  <office:automatic-styles>
+    <style:style style:name="MP1" style:family="paragraph" style:parent-style-name="M.T._20_Coloring_20_Page_20_-_20_Truth"/>
+  </office:automatic-styles>${
+    opts.masterStylesInner === undefined
+      ? ""
+      : `
+  <office:master-styles>${opts.masterStylesInner}</office:master-styles>`
+  }
+</office:document-styles>`
+  );
+
+  const settingsXml = settingsXmlContent(opts.settingsXml ?? "default");
+  if (settingsXml !== undefined) {
+    fs.writeFileSync(`${srcDir}/settings.xml`, settingsXml);
+  }
+
+  const absOut = path.resolve(odtPath);
+  fs.rmSync(absOut, { force: true });
+  execFileSync("zip", ["-r", "-X", absOut, "."], { cwd: srcDir });
+}
+
+type FinalizedEntry = "styles.xml" | "meta.xml" | "content.xml" | "settings.xml";
+
+function extractXml(odtPath: string, entry: FinalizedEntry): XmlDocument {
+  const extractDir = `${workDir}/extracted-${entry.replace(".xml", "")}`;
+  unlinkRecursive(extractDir);
+  unzip(odtPath, extractDir);
+  return libxmljs2.parseXml(fs.readFileSync(`${extractDir}/${entry}`, "utf8"));
+}
+
+/**
+ * Raw (unparsed) text of a single entry, extracted fresh from the archive —
+ * used for the INV-13/INV-13a fixed-point comparisons. Comparing the
+ * extracted XML text, not archive bytes: `rezipWithMimetypeFirst` rewrites
+ * compressed streams and central-directory metadata on every call, so a
+ * whole-archive byte-diff is unsatisfiable by design (contract §1).
+ */
+function extractRaw(odtPath: string, entry: FinalizedEntry): string {
+  const extractDir = `${workDir}/extracted-raw-${entry.replace(".xml", "")}`;
+  unlinkRecursive(extractDir);
+  unzip(odtPath, extractDir);
+  return fs.readFileSync(`${extractDir}/${entry}`, "utf8");
+}
+
+function listArchiveEntries(odtPath: string): { name: string; method: string }[] {
+  const out = execFileSync("unzip", ["-v", odtPath], { encoding: "utf8" });
+  const lines = out.split("\n").slice(3, -3);
+  return lines
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line) => {
+      const parts = line.split(/\s+/);
+      return { method: parts[1], name: parts[parts.length - 1] };
+    });
+}
+
+function defaultOptions(odtPath: string) {
+  return {
+    odtPath,
+    series: 2,
+    firstLessonNumber: 14,
+    title: "Lessons from Luke",
+    subject: "Teacher's Guide",
+  };
+}
+
+/** Builds a content.xml `<style:style>` automatic-style fragment for a paragraph family. */
+function autoStyleTag(name: string, inner: string, attrs = ""): string {
+  return `<style:style style:name="${name}" style:family="paragraph"${attrs}>${inner}</style:style>`;
+}
+
+test("patches the level-1 outline style so chapter-number footer fields render: num-format 1, %1% list format, start-value = the quarter's first absolute lesson number", () => {
+  const odtPath = `${workDir}/assembled.odt`;
+  buildMergedFixtureOdt(odtPath);
+
+  finalizeAssembledQuarter(defaultOptions(odtPath));
+
+  const stylesDoc = extractXml(odtPath, "styles.xml");
+  const level1 = stylesDoc.get<Element>("//text:outline-level-style[@text:level='1']", NAMESPACES)!;
+  expect(level1.attr("num-format")!.value()).toBe("1");
+  expect(level1.attr("start-value")!.value()).toBe("14");
+  expect(level1.attr("num-list-format")!.value()).toBe("%1%");
+});
+
+test("leaves the other outline levels untouched", () => {
+  const odtPath = `${workDir}/assembled.odt`;
+  buildMergedFixtureOdt(odtPath);
+
+  finalizeAssembledQuarter(defaultOptions(odtPath));
+
+  const stylesDoc = extractXml(odtPath, "styles.xml");
+  const level2 = stylesDoc.get<Element>("//text:outline-level-style[@text:level='2']", NAMESPACES)!;
+  expect(level2.attr("num-format")!.value()).toBe("");
+  expect(level2.attr("start-value")).toBeNull();
+});
+
+test("writes the book-level metadata the surviving live footer fields resolve against: Quarter custom property, dc:title, dc:subject (SOP §16.2)", () => {
+  const odtPath = `${workDir}/assembled.odt`;
+  buildMergedFixtureOdt(odtPath);
+
+  finalizeAssembledQuarter(defaultOptions(odtPath));
+
+  const metaDoc = extractXml(odtPath, "meta.xml");
+  const quarter = metaDoc.get<Element>("//meta:user-defined[@meta:name='Quarter']", NAMESPACES)!;
+  expect(quarter.text()).toBe("2");
+  expect(metaDoc.get<Element>("//dc:title", NAMESPACES)!.text()).toBe("Lessons from Luke");
+  expect(metaDoc.get<Element>("//dc:subject", NAMESPACES)!.text()).toBe("Teacher's Guide");
+  // No duplicate dc:title left behind (the merged doc had a stale one).
+  expect(metaDoc.find<Element>("//dc:title", NAMESPACES)).toHaveLength(1);
+});
+
+test("skips writing an empty title/subject rather than blanking the merged document's metadata", () => {
+  const odtPath = `${workDir}/assembled.odt`;
+  buildMergedFixtureOdt(odtPath);
+
+  finalizeAssembledQuarter({ ...defaultOptions(odtPath), title: "", subject: "" });
+
+  const metaDoc = extractXml(odtPath, "meta.xml");
+  expect(metaDoc.get<Element>("//dc:title", NAMESPACES)!.text()).toBe("stale title");
+  expect(metaDoc.find<Element>("//dc:subject", NAMESPACES)).toHaveLength(0);
+});
+
+test("throws when the merged document has no level-1 outline style to patch (chapter numbers would silently render blank)", () => {
+  const odtPath = `${workDir}/assembled.odt`;
+  buildMergedFixtureOdt(odtPath);
+  // Corrupt the fixture: strip the outline style entirely.
+  const extractDir = `${workDir}/corrupt`;
+  unzip(odtPath, extractDir);
+  const styles = fs
+    .readFileSync(`${extractDir}/styles.xml`, "utf8")
+    .replace(/<text:outline-style[\s\S]*?<\/text:outline-style>/, "");
+  fs.writeFileSync(`${extractDir}/styles.xml`, styles);
+  fs.rmSync(path.resolve(odtPath), { force: true });
+  execFileSync("zip", ["-r", "-X", path.resolve(odtPath), "."], { cwd: extractDir });
+
+  expect(() => finalizeAssembledQuarter(defaultOptions(odtPath))).toThrow(/outline/i);
+});
+
+test("strips the empty leading paragraph that forces a blank recto page 1 (Q1 Inside_20_cover verso master)", () => {
+  const odtPath = `${workDir}/assembled.odt`;
+  // The Q1 TOC opens with an empty paragraph on the verso master, then the cover.
+  buildMergedFixtureOdt(
+    odtPath,
+    `<text:sequence-decls/>` +
+      `<text:p text:style-name="P1"><text:soft-page-break/></text:p>` +
+      `<text:p text:style-name="Body">Somo kutoka kitabu cha Luka.</text:p>`
+  );
+
+  finalizeAssembledQuarter(defaultOptions(odtPath));
+
+  const contentDoc = extractXml(odtPath, "content.xml");
+  const paragraphs = contentDoc.find<Element>("//office:text/text:p", NAMESPACES);
+  expect(paragraphs).toHaveLength(1);
+  expect(paragraphs[0].text().trim()).toBe("Somo kutoka kitabu cha Luka.");
+});
+
+test("removes multiple consecutive empty leading paragraphs, stopping at the first with content", () => {
+  const odtPath = `${workDir}/assembled.odt`;
+  buildMergedFixtureOdt(
+    odtPath,
+    `<text:p text:style-name="P1"><text:soft-page-break/></text:p>` +
+      `<text:p text:style-name="P2"/>` +
+      `<text:p text:style-name="Body">cover</text:p>` +
+      `<text:p text:style-name="Body"/>`
+  );
+
+  finalizeAssembledQuarter(defaultOptions(odtPath));
+
+  const contentDoc = extractXml(odtPath, "content.xml");
+  const paragraphs = contentDoc.find<Element>("//office:text/text:p", NAMESPACES);
+  // Both leading empties removed; the trailing empty (after content) is kept.
+  expect(paragraphs.map((p) => p.text().trim())).toEqual(["cover", ""]);
+});
+
+test("leaves a non-empty first paragraph untouched (other quarters open directly on the cover)", () => {
+  const odtPath = `${workDir}/assembled.odt`;
+  buildMergedFixtureOdt(
+    odtPath,
+    `<text:p text:style-name="P1">Somo kutoka kitabu cha Luka.</text:p>`
+  );
+
+  finalizeAssembledQuarter(defaultOptions(odtPath));
+
+  const contentDoc = extractXml(odtPath, "content.xml");
+  const paragraphs = contentDoc.find<Element>("//office:text/text:p", NAMESPACES);
+  expect(paragraphs).toHaveLength(1);
+  expect(paragraphs[0].text().trim()).toBe("Somo kutoka kitabu cha Luka.");
+});
+
+/**
+ * Monolingual restyle (feature 014): the mono template deliberately omits
+ * four M.T. paragraph styles, so a single-language assembly must restyle
+ * their references to the plain equivalents.
+ */
+function optionsWithSingleLanguage(
+  odtPath: string,
+  singleLanguage: boolean
+): FinalizeAssembledQuarterOptions {
+  return { ...defaultOptions(odtPath), singleLanguage };
+}
+
+// A preceding auto-styled level-1 opening (P26, unrelated to the M.T. restyle
+// under test) gives the 017 US1-T4 body-restart pass a legitimate first-opening
+// target, so the M.T. heading below — riding a common NAMED style directly,
+// with no automatic style to isolate — is never itself the restart's target.
+const MT_PRECEDING_OPENING = `<text:h text:style-name="P26" text:outline-level="1">Somo 0</text:h>`;
+const MT_OFFICE_TEXT_INNER =
+  MT_PRECEDING_OPENING +
+  `<text:h text:style-name="M.T._20_Lesson_20_Title">Yesu</text:h>` +
+  `<text:p text:style-name="M.T._20_Coloring_20_Page_20_-_20_Memory_20_Verse">verse</text:p>` +
+  `<text:p text:style-name="M.T._20_Text">body</text:p>`;
+const MT_AUTOMATIC_STYLES_INNER = `<style:style style:name="P26" style:family="paragraph"/>`;
+
+test("singleLanguage: true restyles M.T. references in BOTH content.xml and styles.xml to the plain styles", () => {
+  const odtPath = `${workDir}/assembled.odt`;
+  buildMergedFixtureOdt(odtPath, MT_OFFICE_TEXT_INNER, {
+    automaticStylesInner: MT_AUTOMATIC_STYLES_INNER,
+  });
+
+  finalizeAssembledQuarter(optionsWithSingleLanguage(odtPath, true));
+
+  const contentDoc = extractXml(odtPath, "content.xml");
+  const heading = contentDoc.get<Element>("(//text:h)[2]", NAMESPACES)!;
+  expect(heading.attr("style-name")!.value()).toBe("Lesson_20_Title");
+  const verse = contentDoc.get<Element>("//office:text/text:p[1]", NAMESPACES)!;
+  expect(verse.attr("style-name")!.value()).toBe("Coloring_20_Page_20_-_20_Memory_20_Verse");
+  const p7 = contentDoc.get<Element>("//style:style[@style:name='P7']", NAMESPACES)!;
+  expect(p7.attr("parent-style-name")!.value()).toBe("Lesson_20_Title");
+  // Out-of-scope M.T. Text stays, in content refs and auto-style parents alike.
+  const body = contentDoc.get<Element>("//office:text/text:p[2]", NAMESPACES)!;
+  expect(body.attr("style-name")!.value()).toBe("M.T._20_Text");
+  const p8 = contentDoc.get<Element>("//style:style[@style:name='P8']", NAMESPACES)!;
+  expect(p8.attr("parent-style-name")!.value()).toBe("M.T._20_Text");
+
+  const stylesDoc = extractXml(odtPath, "styles.xml");
+  const mp1 = stylesDoc.get<Element>("//style:style[@style:name='MP1']", NAMESPACES)!;
+  expect(mp1.attr("parent-style-name")!.value()).toBe("Coloring_20_Page_20_-_20_Truth");
+  // Definitions are never renamed.
+  const defNames = stylesDoc
+    .find<Element>("//office:styles/style:style", NAMESPACES)
+    .map((el) => el.attr("name")!.value());
+  expect(defNames).toContain("M.T._20_Lesson_20_Title");
+});
+
+test("singleLanguage: false leaves every M.T. reference intact (bilingual output byte-for-byte unaffected)", () => {
+  const odtPath = `${workDir}/assembled.odt`;
+  buildMergedFixtureOdt(odtPath, MT_OFFICE_TEXT_INNER, {
+    automaticStylesInner: MT_AUTOMATIC_STYLES_INNER,
+  });
+
+  finalizeAssembledQuarter(optionsWithSingleLanguage(odtPath, false));
+
+  const contentDoc = extractXml(odtPath, "content.xml");
+  expect(contentDoc.get<Element>("(//text:h)[2]", NAMESPACES)!.attr("style-name")!.value()).toBe(
+    "M.T._20_Lesson_20_Title"
+  );
+  const stylesDoc = extractXml(odtPath, "styles.xml");
+  const mp1 = stylesDoc.get<Element>("//style:style[@style:name='MP1']", NAMESPACES)!;
+  expect(mp1.attr("parent-style-name")!.value()).toBe("M.T._20_Coloring_20_Page_20_-_20_Truth");
+});
+
+test("omitting singleLanguage defaults to bilingual — M.T. references intact", () => {
+  const odtPath = `${workDir}/assembled.odt`;
+  buildMergedFixtureOdt(odtPath, MT_OFFICE_TEXT_INNER, {
+    automaticStylesInner: MT_AUTOMATIC_STYLES_INNER,
+  });
+
+  finalizeAssembledQuarter(defaultOptions(odtPath));
+
+  const contentDoc = extractXml(odtPath, "content.xml");
+  expect(contentDoc.get<Element>("(//text:h)[2]", NAMESPACES)!.attr("style-name")!.value()).toBe(
+    "M.T._20_Lesson_20_Title"
+  );
+});
+
+test("singleLanguage: true throws loudly when a plain restyle target is missing from styles.xml (template-asset regression)", () => {
+  const odtPath = `${workDir}/assembled.odt`;
+  buildMergedFixtureOdt(odtPath, MT_OFFICE_TEXT_INNER, {
+    omitPlainRestyleTargets: true,
+    automaticStylesInner: MT_AUTOMATIC_STYLES_INNER,
+  });
+
+  expect(() => finalizeAssembledQuarter(optionsWithSingleLanguage(odtPath, true))).toThrow(
+    /restyle/i
+  );
+});
+
+/**
+ * Lesson-opening master-page normalization (feature 014, workstream 2):
+ * every visible level-1 heading whose content.xml automatic style lacks a
+ * `style:master-page-name` must get `First_20_Page`, in BOTH modes — the
+ * production Luke-1-09 constituent ships the defect (break-before only),
+ * which makes the whole lesson inherit the previous page's master.
+ */
+describe("lesson-opening master-page normalization", () => {
+  function autoStyle(name: string, inner: string, attrs = ""): string {
+    return `<style:style style:name="${name}" style:family="paragraph"${attrs}>${inner}</style:style>`;
+  }
+
+  test("adds master-page-name First_20_Page to a level-1 opening whose auto style has only fo:break-before (the Lesson-9 defect shape), keeping the break", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(
+      odtPath,
+      `<text:h text:style-name="P20" text:outline-level="1">Somo 9</text:h>`,
+      {
+        automaticStylesInner: autoStyle(
+          "P20",
+          `<style:paragraph-properties fo:break-before="page"/>`
+        ),
+      }
+    );
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    const p20 = contentDoc.get<Element>("//style:style[@style:name='P20']", NAMESPACES)!;
+    expect(p20.attr("master-page-name")!.value()).toBe("First_20_Page");
+    const props = p20.get<Element>("style:paragraph-properties", NAMESPACES)!;
+    expect(props.attr("break-before")!.value()).toBe("page");
+  });
+
+  test("normalizes an opening whose auto style lacks BOTH master-page-name and break-before (outline-level attribute absent = level 1)", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(odtPath, `<text:h text:style-name="P21">Somo 10</text:h>`, {
+      automaticStylesInner: autoStyle("P21", ""),
+    });
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    const p21 = contentDoc.get<Element>("//style:style[@style:name='P21']", NAMESPACES)!;
+    expect(p21.attr("master-page-name")!.value()).toBe("First_20_Page");
+  });
+
+  test("leaves an already-correct opening untouched and preserves an existing non-First-Page master", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(
+      odtPath,
+      `<text:h text:style-name="P22" text:outline-level="1">Somo 1</text:h>` +
+        `<text:h text:style-name="P23" text:outline-level="1">Somo 2</text:h>`,
+      {
+        automaticStylesInner:
+          autoStyle("P22", "", ` style:master-page-name="First_20_Page"`) +
+          autoStyle("P23", "", ` style:master-page-name="Inside_20_cover"`),
+      }
+    );
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    const p22 = contentDoc.get<Element>("//style:style[@style:name='P22']", NAMESPACES)!;
+    expect(p22.attr("master-page-name")!.value()).toBe("First_20_Page");
+    const p23 = contentDoc.get<Element>("//style:style[@style:name='P23']", NAMESPACES)!;
+    expect(p23.attr("master-page-name")!.value()).toBe("Inside_20_cover");
+    // No clone was minted for the already-correct openings.
+    expect(
+      contentDoc.find<Element>("//office:automatic-styles/style:style", NAMESPACES)
+    ).toHaveLength(4); // P7, P8, P22, P23
+  });
+
+  test("never touches the hidden injected heading (auto style with text:display='none')", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(
+      odtPath,
+      `<text:h text:style-name="PHidden" text:outline-level="1">Somo 14</text:h>`,
+      {
+        automaticStylesInner: autoStyle("PHidden", `<style:text-properties text:display="none"/>`),
+      }
+    );
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    const hidden = contentDoc.get<Element>("//style:style[@style:name='PHidden']", NAMESPACES)!;
+    expect(hidden.attr("master-page-name")).toBeNull();
+  });
+
+  test("clones a shared auto style, patching and repointing only the heading; the co-referencing paragraph and original style are unchanged", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(
+      odtPath,
+      `<text:h text:style-name="PS" text:outline-level="1">Somo 3</text:h>` +
+        `<text:p text:style-name="PS">shared-style body</text:p>`,
+      {
+        automaticStylesInner: autoStyle(
+          "PS",
+          `<style:paragraph-properties fo:break-before="page"/>`
+        ),
+      }
+    );
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    const heading = contentDoc.get<Element>("//text:h", NAMESPACES)!;
+    const headingStyleName = heading.attr("style-name")!.value();
+    expect(headingStyleName).not.toBe("PS");
+    const clone = contentDoc.get<Element>(
+      `//office:automatic-styles/style:style[@style:name='${headingStyleName}']`,
+      NAMESPACES
+    )!;
+    expect(clone.attr("master-page-name")!.value()).toBe("First_20_Page");
+    expect(
+      clone.get<Element>("style:paragraph-properties", NAMESPACES)!.attr("break-before")!.value()
+    ).toBe("page");
+    // The paragraph still references the original, unpatched style.
+    const paragraph = contentDoc.get<Element>("//office:text/text:p", NAMESPACES)!;
+    expect(paragraph.attr("style-name")!.value()).toBe("PS");
+    const original = contentDoc.get<Element>("//style:style[@style:name='PS']", NAMESPACES)!;
+    expect(original.attr("master-page-name")).toBeNull();
+  });
+
+  test("ignores level-2+ headings and headings referencing common named styles", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    // A valid FIRST level-1 opening (P25) precedes the level-2 heading and
+    // the named-style heading, so the body-restart pass (017 US1-T4) has a
+    // legitimate target and this fixture keeps exercising ONLY what it was
+    // written to test: normalization ignoring level-2+ and named-style
+    // headings (Heading_20_1, here the SECOND visible level-1 opening).
+    buildMergedFixtureOdt(
+      odtPath,
+      `<text:h text:style-name="P25" text:outline-level="1">Somo 1</text:h>` +
+        `<text:h text:style-name="P24" text:outline-level="2">Sehemu</text:h>` +
+        `<text:h text:style-name="Heading_20_1" text:outline-level="1">Somo 4</text:h>`,
+      {
+        automaticStylesInner:
+          autoStyle("P25", "") +
+          autoStyle("P24", `<style:paragraph-properties fo:break-before="page"/>`),
+      }
+    );
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    const p24 = contentDoc.get<Element>("//style:style[@style:name='P24']", NAMESPACES)!;
+    expect(p24.attr("master-page-name")).toBeNull();
+    // The named-common-style heading is skipped: no auto style minted for it.
+    const named = contentDoc.find<Element>("//office:automatic-styles/style:style", NAMESPACES);
+    expect(named.map((s) => s.attr("name")!.value())).toEqual(["P7", "P8", "P25", "P24"]);
+  });
+});
+
+/**
+ * Body restart (017 US1-T3, FR-005, INV-3, contract §2.2/§2.5, data-model.md
+ * INV-3): the FIRST visible level-1 opening's automatic style must carry
+ * BOTH `style:master-page-name="First_20_Page"` and an explicit
+ * `style:page-number="1"` restart, and it must be the ONLY paragraph in the
+ * book carrying that restart. This is a NEW pass, distinct from — and not
+ * gated by — `normalizeLessonOpeningMasterPages`' skip conditions: that
+ * function trusts (skips cloning for) an auto style that already carries a
+ * master, and skips entirely when the heading rides a common named style.
+ * Neither skip is safe for the restart (contract §2.2), so the restart pass
+ * must guarantee its own isolation regardless.
+ */
+describe("body restart (FR-005 / INV-3)", () => {
+  test('sets style:page-number="1" alongside master-page-name=First_20_Page on the FIRST visible level-1 opening\'s own (isolated) automatic style', () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(
+      odtPath,
+      `<text:h text:style-name="P30" text:outline-level="1">Somo 1</text:h>` +
+        `<text:h text:style-name="P31" text:outline-level="1">Somo 2</text:h>`,
+      { automaticStylesInner: autoStyleTag("P30", "") + autoStyleTag("P31", "") }
+    );
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    const heading1 = contentDoc.get<Element>("//office:body//text:h[1]", NAMESPACES)!;
+    const style1Name = heading1.attr("style-name")!.value();
+    const style1 = contentDoc.get<Element>(
+      `//office:automatic-styles/style:style[@style:name='${style1Name}']`,
+      NAMESPACES
+    )!;
+    expect(style1.attr("master-page-name")!.value()).toBe("First_20_Page");
+    const props1 = style1.get<Element>("style:paragraph-properties", NAMESPACES);
+    expect(props1?.attr("page-number")?.value()).toBe("1");
+  });
+
+  test('exactly one paragraph in the book carries the explicit style:page-number="1" restart — the second (and every later) opening\'s automatic style carries NO style:page-number attribute', () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(
+      odtPath,
+      `<text:h text:style-name="P32" text:outline-level="1">Somo 1</text:h>` +
+        `<text:h text:style-name="P33" text:outline-level="1">Somo 2</text:h>` +
+        `<text:h text:style-name="P34" text:outline-level="1">Somo 3</text:h>`,
+      {
+        automaticStylesInner:
+          autoStyleTag("P32", "") + autoStyleTag("P33", "") + autoStyleTag("P34", ""),
+      }
+    );
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    const restarts = contentDoc
+      .find<Element>("//office:automatic-styles/style:style", NAMESPACES)
+      .filter(
+        (style) =>
+          style
+            .get<Element>("style:paragraph-properties", NAMESPACES)
+            ?.attr("page-number")
+            ?.value() === "1"
+      );
+    expect(restarts).toHaveLength(1);
+  });
+
+  test("skips the injected hidden heading (text:display='none') when locating the first VISIBLE opening — the restart lands on the first heading that actually renders", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(
+      odtPath,
+      `<text:h text:style-name="PHiddenR" text:outline-level="1">hidden</text:h>` +
+        `<text:h text:style-name="P35" text:outline-level="1">Somo 1</text:h>`,
+      {
+        automaticStylesInner:
+          autoStyleTag("PHiddenR", `<style:text-properties text:display="none"/>`) +
+          autoStyleTag("P35", ""),
+      }
+    );
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    const hidden = contentDoc.get<Element>("//style:style[@style:name='PHiddenR']", NAMESPACES)!;
+    // libxmljs2's `.get()` returns `undefined` (not `null`) for an absent
+    // element — the hidden style is never touched, so it never gains a
+    // `style:paragraph-properties` child at all.
+    expect(
+      hidden.get<Element>("style:paragraph-properties", NAMESPACES)?.attr("page-number")
+    ).toBeUndefined();
+    const p35 = contentDoc.get<Element>("//style:style[@style:name='P35']", NAMESPACES)!;
+    expect(
+      p35.get<Element>("style:paragraph-properties", NAMESPACES)!.attr("page-number")!.value()
+    ).toBe("1");
+  });
+});
+
+/**
+ * Restart isolation (INV-3): the restart's target automatic style must have
+ * the first heading as its ONLY referencer — cloned and repointed where it
+ * is not, REGARDLESS of whether the style already carries a
+ * `style:master-page-name` (contract §2.2: "the restart must NOT inherit
+ * that skip"). Deliberately builds a fixture that
+ * `normalizeLessonOpeningMasterPages` would leave untouched (already-pinned
+ * master) to prove the restart pass does not rely on that function's
+ * cloning.
+ */
+describe("restart isolation (INV-3)", () => {
+  test("clones and repoints when the first opening's auto style is SHARED with a non-heading paragraph, even though it already carries style:master-page-name (the case normalizeLessonOpeningMasterPages trusts and skips)", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(
+      odtPath,
+      `<text:h text:style-name="PSR" text:outline-level="1">Somo 1</text:h>` +
+        `<text:p text:style-name="PSR">shared-style body</text:p>`,
+      {
+        automaticStylesInner: autoStyleTag("PSR", "", ` style:master-page-name="First_20_Page"`),
+      }
+    );
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    const heading = contentDoc.get<Element>("//text:h", NAMESPACES)!;
+    const headingStyleName = heading.attr("style-name")!.value();
+    // The heading must no longer reference the shared style.
+    expect(headingStyleName).not.toBe("PSR");
+    const clone = contentDoc.get<Element>(
+      `//office:automatic-styles/style:style[@style:name='${headingStyleName}']`,
+      NAMESPACES
+    )!;
+    expect(clone.attr("master-page-name")!.value()).toBe("First_20_Page");
+    expect(
+      clone.get<Element>("style:paragraph-properties", NAMESPACES)!.attr("page-number")!.value()
+    ).toBe("1");
+    // The co-referencing paragraph keeps the ORIGINAL, un-restarted style.
+    const paragraph = contentDoc.get<Element>("//office:text/text:p", NAMESPACES)!;
+    expect(paragraph.attr("style-name")!.value()).toBe("PSR");
+    const original = contentDoc.get<Element>("//style:style[@style:name='PSR']", NAMESPACES)!;
+    // libxmljs2's `.get()` returns `undefined` (not `null`) for an absent
+    // element — the original style is never touched, so it never gains a
+    // `style:paragraph-properties` child at all.
+    expect(
+      original.get<Element>("style:paragraph-properties", NAMESPACES)?.attr("page-number")
+    ).toBeUndefined();
+  });
+});
+
+/**
+ * Throw, don't skip (contract §2.3): a heading on a common NAMED style with
+ * no automatic style to clone leaves the restart pass nothing to isolate —
+ * finalize must throw the curated, path-free reason rather than silently
+ * leaving FR-005 unmet.
+ */
+describe("throw when the restart target cannot be isolated", () => {
+  test("throws when the first visible level-1 opening rides a common NAMED style (no automatic style exists to clone)", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(
+      odtPath,
+      `<text:h text:style-name="Heading_20_1" text:outline-level="1">Somo 1</text:h>`
+    );
+
+    expect(() => finalizeAssembledQuarter(defaultOptions(odtPath))).toThrow(
+      /assembly failed to finalize the merged book/i
+    );
+  });
+});
+
+/**
+ * Deterministic clone naming (contract §2.2/§2.4, INV-13a): the restart's
+ * clone name is derived deterministically from the heading's own style
+ * name — or an existing restart clone is detected and reused — never
+ * minted by probing for the next free suffix. A non-deterministic name
+ * would break the `finalize(finalize(doc,false),true)` mixed-mode fixed
+ * point the US1-T5/T6 tasks depend on.
+ */
+describe("deterministic clone naming", () => {
+  test("the restart clone's name is a deterministic function of the original style name, not a probed suffix", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(
+      odtPath,
+      `<text:h text:style-name="PDN" text:outline-level="1">Somo 1</text:h>` +
+        `<text:p text:style-name="PDN">shared-style body</text:p>`,
+      { automaticStylesInner: autoStyleTag("PDN", "") }
+    );
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    const heading = contentDoc.get<Element>("//text:h", NAMESPACES)!;
+    // Deterministically derived from the heading's own original style name —
+    // not a `_QA`-suffix probe (the naming scheme
+    // `normalizeLessonOpeningMasterPages` uses for its OWN, unrelated clone).
+    expect(heading.attr("style-name")!.value()).toBe("PDN_Restart");
+  });
+
+  test("a second finalize pass over an already-restarted document reuses the SAME clone name — no new clone is minted", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(
+      odtPath,
+      `<text:h text:style-name="PDN2" text:outline-level="1">Somo 1</text:h>` +
+        `<text:p text:style-name="PDN2">shared-style body</text:p>`,
+      { automaticStylesInner: autoStyleTag("PDN2", "") }
+    );
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+    const firstPassContentDoc = extractXml(odtPath, "content.xml");
+    const firstPassStyleName = firstPassContentDoc
+      .get<Element>("//text:h", NAMESPACES)!
+      .attr("style-name")!
+      .value();
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+
+    const secondPassContentDoc = extractXml(odtPath, "content.xml");
+    const secondPassStyleName = secondPassContentDoc
+      .get<Element>("//text:h", NAMESPACES)!
+      .attr("style-name")!
+      .value();
+    expect(secondPassStyleName).toBe(firstPassStyleName);
+    // Exactly one restart clone exists — no `_Restart_Restart` double-clone.
+    const restartClones = secondPassContentDoc
+      .find<Element>("//office:automatic-styles/style:style", NAMESPACES)
+      .filter((style) => style.attr("name")!.value().endsWith("_Restart"));
+    expect(restartClones).toHaveLength(1);
+  });
+});
+
+test("re-packs with the mimetype entry stored FIRST and UNCOMPRESSED (ODF requirement)", () => {
+  const odtPath = `${workDir}/assembled.odt`;
+  buildMergedFixtureOdt(odtPath);
+
+  finalizeAssembledQuarter(defaultOptions(odtPath));
+
+  const entries = listArchiveEntries(odtPath);
+  expect(entries[0].name).toBe("mimetype");
+  expect(entries[0].method).toBe("Stored");
+});
+
+/**
+ * Recto filler insertion (017 US3, FR-009, contract §2.2/§2.5, data-model.md
+ * INV-6/INV-6a/INV-6b): the NEW `insertRectoFiller` option (default false, so
+ * every existing call site above stays valid) inserts exactly one empty
+ * `<text:p>` immediately before lesson 1's opening heading, on a fresh
+ * automatic style pinned to the footer-less `First_20_Page` master with no
+ * `style:page-number` — the filler consumes a front-matter number but
+ * carries no restart of its own.
+ */
+describe("recto filler insertion (FR-009, contract §2.2/§2.5)", () => {
+  function fillerFixture(odtPath: string): void {
+    buildMergedFixtureOdt(
+      odtPath,
+      `<text:h text:style-name="PF1" text:outline-level="1">Somo 1</text:h>`,
+      { automaticStylesInner: autoStyleTag("PF1", "") }
+    );
+  }
+
+  test("insertRectoFiller: false (the default) never inserts a filler paragraph", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    fillerFixture(odtPath);
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    expect(contentDoc.find<Element>("//office:text/text:p", NAMESPACES)).toHaveLength(0);
+  });
+
+  test("insertRectoFiller: true inserts exactly one empty text:p immediately before lesson 1's opening heading, on a fresh automatic style pinned to First_20_Page with no style:page-number", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    fillerFixture(odtPath);
+
+    finalizeAssembledQuarter({ ...defaultOptions(odtPath), insertRectoFiller: true });
+
+    const contentDoc = extractXml(odtPath, "content.xml");
+    const officeText = contentDoc.get<Element>("//office:body/office:text", NAMESPACES)!;
+    const children = officeText
+      .childNodes()
+      .filter((node) => node.type() === "element") as Element[];
+    expect(children).toHaveLength(2);
+    const [filler, heading] = children;
+    expect(filler.name()).toBe("p");
+    expect(filler.text().trim()).toBe("");
+    expect(heading.name()).toBe("h");
+
+    const fillerStyleName = filler.attr("style-name")!.value();
+    // A FRESH style — not the heading's own PF1 (that would make the filler
+    // and the heading co-referencers of the same, differently-purposed style).
+    expect(fillerStyleName).not.toBe("PF1");
+    const fillerStyle = contentDoc.get<Element>(
+      `//office:automatic-styles/style:style[@style:name='${fillerStyleName}']`,
+      NAMESPACES
+    )!;
+    expect(fillerStyle.attr("master-page-name")!.value()).toBe("First_20_Page");
+    // No style:page-number on the filler — the body restart stays exclusively
+    // on lesson 1's own heading (INV-6/INV-3).
+    expect(
+      fillerStyle.get<Element>("style:paragraph-properties", NAMESPACES)?.attr("page-number")
+    ).toBeUndefined();
+  });
+
+  test("throws the curated reason when insertRectoFiller is requested but lesson 1's opening heading cannot be located", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    // No level-1 heading anywhere — nowhere to insert the filler before.
+    buildMergedFixtureOdt(odtPath);
+
+    expect(() =>
+      finalizeAssembledQuarter({ ...defaultOptions(odtPath), insertRectoFiller: true })
+    ).toThrow(/assembly failed to finalize the merged book/i);
+  });
+});
+
+/**
+ * PrintEmptyPages pin (017 US3, FR-008, SC-004, contract §2.6, data-model.md
+ * INV-7a): finalize additionally patches `settings.xml`, pinning the
+ * `PrintEmptyPages` config item to `true` — creating it if absent — in BOTH
+ * `insertRectoFiller` modes, since the polarity is opposite to
+ * `IsSkipEmptyPages` and this is the DELIVERED `.odt`'s own print setting,
+ * not a render/export option. Asset-only validation cannot observe this; the
+ * merged value comes from whichever base document `Module1.xba` merges into.
+ */
+describe("PrintEmptyPages pin (contract §2.6, INV-7a)", () => {
+  function printEmptyPagesItem(settingsDoc: XmlDocument): Element {
+    return settingsDoc.get<Element>(
+      "//config:config-item[@config:name='PrintEmptyPages']",
+      NAMESPACES
+    )!;
+  }
+
+  test("flips an existing PrintEmptyPages=false item to true", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(odtPath, "", { settingsXml: "default" });
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+
+    const settingsDoc = extractXml(odtPath, "settings.xml");
+    expect(printEmptyPagesItem(settingsDoc)!.text()).toBe("true");
+    expect(printEmptyPagesItem(settingsDoc)!.attr("type")!.value()).toBe("boolean");
+  });
+
+  test("creates the PrintEmptyPages item when the configuration-settings set exists but omits it", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(odtPath, "", { settingsXml: "omitPrintEmptyPagesItem" });
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+
+    const settingsDoc = extractXml(odtPath, "settings.xml");
+    expect(printEmptyPagesItem(settingsDoc)!.text()).toBe("true");
+    // The pre-existing, unrelated item is left alone.
+    const other = settingsDoc.get<Element>(
+      "//config:config-item[@config:name='SomeOtherSetting']",
+      NAMESPACES
+    )!;
+    expect(other.text()).toBe("true");
+  });
+
+  test("pins PrintEmptyPages to true in BOTH insertRectoFiller modes", () => {
+    const falsePath = `${workDir}/assembled-false.odt`;
+    buildMergedFixtureOdt(
+      falsePath,
+      `<text:h text:style-name="PPE1" text:outline-level="1">Somo 1</text:h>`,
+      { automaticStylesInner: autoStyleTag("PPE1", ""), settingsXml: "default" }
+    );
+    finalizeAssembledQuarter({ ...defaultOptions(falsePath), insertRectoFiller: false });
+    expect(printEmptyPagesItem(extractXml(falsePath, "settings.xml"))!.text()).toBe("true");
+
+    const truePath = `${workDir}/assembled-true.odt`;
+    buildMergedFixtureOdt(
+      truePath,
+      `<text:h text:style-name="PPE2" text:outline-level="1">Somo 1</text:h>`,
+      { automaticStylesInner: autoStyleTag("PPE2", ""), settingsXml: "default" }
+    );
+    finalizeAssembledQuarter({ ...defaultOptions(truePath), insertRectoFiller: true });
+    expect(printEmptyPagesItem(extractXml(truePath, "settings.xml"))!.text()).toBe("true");
+  });
+
+  test("throws the curated reason when settings.xml is missing from the merged archive", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(odtPath, "", { settingsXml: "omitFile" });
+
+    expect(() => finalizeAssembledQuarter(defaultOptions(odtPath))).toThrow(
+      /assembly failed to finalize the merged book/i
+    );
+  });
+
+  test("throws the curated reason when settings.xml has no configuration-settings item set", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(odtPath, "", { settingsXml: "omitConfigSet" });
+
+    expect(() => finalizeAssembledQuarter(defaultOptions(odtPath))).toThrow(
+      /assembly failed to finalize the merged book/i
+    );
+  });
+});
+
+/**
+ * Finalize fixed point (017 US3, contract §2.4, data-model.md INV-13/
+ * INV-13a): running finalize twice must not double-insert the filler or
+ * double-apply the PrintEmptyPages pin. Scope is every file finalize
+ * patches — content.xml, styles.xml, settings.xml, and meta.xml — not
+ * content.xml alone, since the filler and the pin both live outside it.
+ *
+ * Each comparison is preceded by a guard assertion on the ONCE-finalized
+ * output, so the property is exercised against the NEW behavior this task
+ * covers, not only against machinery (body restart, metadata upsert) that
+ * was already a fixed point before this feature.
+ */
+describe("finalize fixed point (contract §2.4, INV-13, INV-13a)", () => {
+  const FOUR_FILE_SCOPE = ["content.xml", "styles.xml", "settings.xml", "meta.xml"] as const;
+
+  function fixedPointFixture(odtPath: string): void {
+    buildMergedFixtureOdt(
+      odtPath,
+      `<text:h text:style-name="PFP" text:outline-level="1">Somo 1</text:h>`,
+      { automaticStylesInner: autoStyleTag("PFP", ""), settingsXml: "default" }
+    );
+  }
+
+  test.each([false, true])(
+    "flag-constant fixed point (INV-13): finalize(finalize(doc)) is byte-identical to finalize(doc) over content.xml, styles.xml, settings.xml, and meta.xml — insertRectoFiller: %s",
+    (insertRectoFiller) => {
+      const oncePath = `${workDir}/once-${String(insertRectoFiller)}.odt`;
+      fixedPointFixture(oncePath);
+      finalizeAssembledQuarter({ ...defaultOptions(oncePath), insertRectoFiller });
+
+      // Guard: the once-finalized output must already carry the new
+      // invariants this fixed point is meant to protect, or the comparison
+      // below is vacuous.
+      expect(printEmptyPagesItemText(extractXml(oncePath, "settings.xml"))).toBe("true");
+      if (insertRectoFiller) {
+        expect(
+          extractXml(oncePath, "content.xml").find<Element>("//office:text/text:p", NAMESPACES)
+        ).toHaveLength(1);
+      }
+
+      const twicePath = `${workDir}/twice-${String(insertRectoFiller)}.odt`;
+      fs.copyFileSync(oncePath, twicePath);
+      finalizeAssembledQuarter({ ...defaultOptions(twicePath), insertRectoFiller });
+
+      for (const entry of FOUR_FILE_SCOPE) {
+        expect(extractRaw(twicePath, entry)).toBe(extractRaw(oncePath, entry));
+      }
+    }
+  );
+
+  test("mixed-mode fixed point (INV-13a, the production path): finalize(finalize(doc, false), true) equals finalize(doc, true), over the same four-file scope", () => {
+    const mixedPath = `${workDir}/mixed.odt`;
+    fixedPointFixture(mixedPath);
+    finalizeAssembledQuarter({ ...defaultOptions(mixedPath), insertRectoFiller: false });
+    finalizeAssembledQuarter({ ...defaultOptions(mixedPath), insertRectoFiller: true });
+
+    const directPath = `${workDir}/direct.odt`;
+    fixedPointFixture(directPath);
+    finalizeAssembledQuarter({ ...defaultOptions(directPath), insertRectoFiller: true });
+
+    // Guard: the direct single-pass output must carry the filler, or the
+    // comparison below never exercises the mixed sequence's own defect class
+    // (an already-restarted, already-repointed tree on the second call).
+    expect(
+      extractXml(directPath, "content.xml").find<Element>("//office:text/text:p", NAMESPACES)
+    ).toHaveLength(1);
+
+    for (const entry of FOUR_FILE_SCOPE) {
+      expect(extractRaw(mixedPath, entry)).toBe(extractRaw(directPath, entry));
+    }
+  });
+});
+
+/** Shared with the fixed-point describe block above. */
+function printEmptyPagesItemText(settingsDoc: XmlDocument): string | undefined {
+  return settingsDoc
+    .get<Element>("//config:config-item[@config:name='PrintEmptyPages']", NAMESPACES)
+    ?.text();
+}
+
+describe("sacrificial terminal paragraph removal (018)", () => {
+  /**
+   * `prepareConstituentForAssembly` appends one hidden marker paragraph to
+   * the end of every constituent so LibreOffice's `insertDocumentFromURL`
+   * has a throwaway victim for its "last body paragraph inherits the
+   * PRECEDING paragraph's style" mutation, instead of the real coloring-page
+   * memory verse. The merge then annihilates that paragraph's own hidden
+   * automatic style — post-merge each marker paragraph carries an arbitrary
+   * merge-assigned style (`P35`, `P8`, …) and would render as a visible
+   * band — so finalize must strip them by TEXT, never by style name.
+   */
+  const MARKER = "QuarterAssemblySacrificialTail";
+
+  /**
+   * A merged-shaped body carrying three marker paragraphs under three
+   * DIFFERENT styles (one merge-assigned, one the original hidden style name,
+   * one shared with real content) plus the three shapes that must survive: a
+   * legitimately empty `Body` paragraph, a paragraph that merely CONTAINS the
+   * marker as a substring, and ordinary content. The leading paragraph is
+   * deliberately non-empty so `removeLeadingBlankParagraphs` — which runs
+   * first in the same pipeline — cannot eat the empty-paragraph case and
+   * make this test lie.
+   */
+  const BODY_XML =
+    `<text:p text:style-name="P8">Front matter opening</text:p>` +
+    `<text:p text:style-name="P35">${MARKER}</text:p>` +
+    `<text:p text:style-name="Body"></text:p>` +
+    `<text:p text:style-name="P7">Real content</text:p>` +
+    `<text:p text:style-name="QuarterAssemblySacrificialTail">${MARKER}</text:p>` +
+    `<text:p text:style-name="Body">${MARKER} is only mentioned in this sentence</text:p>` +
+    `<text:p text:style-name="P8">${MARKER}</text:p>`;
+
+  test.each([[false], [true]])(
+    "strips every marker paragraph whatever style the merge gave it, and leaves all other paragraphs untouched (singleLanguage=%s)",
+    (singleLanguage) => {
+      const odtPath = `${workDir}/assembled.odt`;
+      buildMergedFixtureOdt(odtPath, BODY_XML);
+
+      finalizeAssembledQuarter({ ...defaultOptions(odtPath), singleLanguage });
+
+      const contentDoc = extractXml(odtPath, "content.xml");
+      const paragraphs = contentDoc.find<Element>("//office:body//text:p", NAMESPACES);
+      const texts = paragraphs.map((p) => p.text().trim());
+
+      expect(texts.filter((text) => text === MARKER)).toHaveLength(0);
+      expect(texts).toEqual([
+        "Front matter opening",
+        "",
+        "Real content",
+        `${MARKER} is only mentioned in this sentence`,
+      ]);
+      // The surviving empty paragraph is the legitimate `Body` one, not a
+      // stripped marker's husk.
+      const empty = paragraphs.filter((p) => p.text().trim() === "");
+      expect(empty).toHaveLength(1);
+      expect(empty[0].attr("style-name")?.value()).toBe("Body");
+    }
+  );
+
+  test("is idempotent: finalizing an already-finalized book removes nothing further", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(odtPath, BODY_XML);
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+    const afterFirst = extractXml(odtPath, "content.xml")
+      .find<Element>("//office:body//text:p", NAMESPACES)
+      .map((p) => p.text().trim());
+
+    finalizeAssembledQuarter(defaultOptions(odtPath));
+    const afterSecond = extractXml(odtPath, "content.xml")
+      .find<Element>("//office:body//text:p", NAMESPACES)
+      .map((p) => p.text().trim());
+
+    expect(afterSecond).toEqual(afterFirst);
+  });
+});
+
+/**
+ * A merged-book master-styles block shaped like the real quarter styles
+ * template's footers: literal English words in spans and in the footer
+ * paragraph itself, live field caches (`text:chapter`, `text:page-number`,
+ * `text:user-defined`) and the `text:title`/`text:subject` caches.
+ */
+const TEMPLATE_SHAPED_MASTER_STYLES = `
+    <style:master-page style:name="Standard">
+      <style:footer><text:p><text:span>Lessons from Luke</text:span><text:span>Quarter </text:span><text:span><text:user-defined text:name="Quarter">2</text:user-defined></text:span><text:span>Lesson </text:span><text:span><text:chapter text:display="number" text:outline-level="1">25</text:chapter></text:span><text:chapter text:display="name" text:outline-level="1">Review Lesson</text:chapter>Page <text:page-number text:select-page="current">108</text:page-number></text:p></style:footer>
+    </style:master-page>
+    <style:master-page style:name="Front_20_matter">
+      <style:footer><text:p><text:title>Lessons from Luke</text:title>: <text:subject>Teacher's Guide</text:subject><text:span>Teacher’s Guide</text:span><text:span>Memory Verse</text:span></text:p></style:footer>
+    </style:master-page>`;
+
+const FRENCH_FOOTER_TRANSLATIONS = {
+  vocabulary: {
+    Quarter: "Trimestre",
+    Lesson: "Leçon",
+    Page: "Page",
+    "Lessons from Luke": "Leçons de Luc",
+    "Teacher's Guide": "Guide du moniteur",
+    "Teacher’s Guide": "Guide du moniteur",
+  },
+  title: "Leçons de Luc",
+  subject: "Guide du moniteur",
+};
+
+function footerParagraphs(odtPath: string): string[] {
+  const stylesDoc = extractXml(odtPath, "styles.xml");
+  return stylesDoc
+    .find<Element>("//office:master-styles//style:footer//text:p", NAMESPACES)
+    .map((paragraph) => paragraph.text());
+}
+
+describe("footer translation (client feedback: assembled books keep English footers)", () => {
+  test("substitutes each mapped English literal while preserving its own surrounding whitespace", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(odtPath, "", { masterStylesInner: TEMPLATE_SHAPED_MASTER_STYLES });
+
+    finalizeAssembledQuarter({
+      ...defaultOptions(odtPath),
+      footerTranslations: FRENCH_FOOTER_TRANSLATIONS,
+    });
+
+    const stylesDoc = extractXml(odtPath, "styles.xml");
+    const spans = stylesDoc
+      .find<Element>("//office:master-styles//style:footer//text:span", NAMESPACES)
+      .map((span) => span.text());
+    expect(spans).toContain("Trimestre ");
+    expect(spans).toContain("Leçon ");
+    expect(spans).toContain("Leçons de Luc");
+    expect(footerParagraphs(odtPath).join("\n")).toContain("Page ");
+  });
+
+  test("never rewrites a live field's cached text (chapter, page-number, user-defined)", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(odtPath, "", { masterStylesInner: TEMPLATE_SHAPED_MASTER_STYLES });
+
+    finalizeAssembledQuarter({
+      ...defaultOptions(odtPath),
+      footerTranslations: {
+        ...FRENCH_FOOTER_TRANSLATIONS,
+        vocabulary: { ...FRENCH_FOOTER_TRANSLATIONS.vocabulary, "Review Lesson": "Révision" },
+      },
+    });
+
+    const stylesDoc = extractXml(odtPath, "styles.xml");
+    expect(stylesDoc.get<Element>("//text:chapter[@text:display='name']", NAMESPACES)!.text()).toBe(
+      "Review Lesson"
+    );
+    expect(stylesDoc.get<Element>("//text:page-number", NAMESPACES)!.text()).toBe("108");
+    expect(stylesDoc.get<Element>("//text:user-defined", NAMESPACES)!.text()).toBe("2");
+  });
+
+  test("updates the text:title/text:subject caches to the resolved book title and subtitle", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(odtPath, "", { masterStylesInner: TEMPLATE_SHAPED_MASTER_STYLES });
+
+    finalizeAssembledQuarter({
+      ...defaultOptions(odtPath),
+      footerTranslations: FRENCH_FOOTER_TRANSLATIONS,
+    });
+
+    const stylesDoc = extractXml(odtPath, "styles.xml");
+    expect(stylesDoc.get<Element>("//text:title", NAMESPACES)!.text()).toBe("Leçons de Luc");
+    expect(stylesDoc.get<Element>("//text:subject", NAMESPACES)!.text()).toBe("Guide du moniteur");
+  });
+
+  test("leaves an English literal with no mapping exactly as it was", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(odtPath, "", { masterStylesInner: TEMPLATE_SHAPED_MASTER_STYLES });
+
+    finalizeAssembledQuarter({
+      ...defaultOptions(odtPath),
+      footerTranslations: FRENCH_FOOTER_TRANSLATIONS,
+    });
+
+    expect(footerParagraphs(odtPath).join("\n")).toContain("Memory Verse");
+  });
+
+  test("with no translations supplied, the merged book's styles.xml comes out unchanged", () => {
+    const withTranslations = `${workDir}/with.odt`;
+    const without = `${workDir}/without.odt`;
+    buildMergedFixtureOdt(withTranslations, "", {
+      masterStylesInner: TEMPLATE_SHAPED_MASTER_STYLES,
+    });
+    buildMergedFixtureOdt(without, "", { masterStylesInner: TEMPLATE_SHAPED_MASTER_STYLES });
+
+    finalizeAssembledQuarter({
+      ...defaultOptions(withTranslations),
+      footerTranslations: { vocabulary: {}, title: "", subject: "" },
+    });
+    finalizeAssembledQuarter(defaultOptions(without));
+
+    expect(extractRaw(withTranslations, "styles.xml")).toBe(extractRaw(without, "styles.xml"));
+  });
+
+  test("is idempotent — the recto-filler path finalizes the same file twice with the same translations", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(odtPath, "", { masterStylesInner: TEMPLATE_SHAPED_MASTER_STYLES });
+
+    finalizeAssembledQuarter({
+      ...defaultOptions(odtPath),
+      footerTranslations: FRENCH_FOOTER_TRANSLATIONS,
+    });
+    const afterFirst = extractRaw(odtPath, "styles.xml");
+    finalizeAssembledQuarter({
+      ...defaultOptions(odtPath),
+      footerTranslations: FRENCH_FOOTER_TRANSLATIONS,
+    });
+
+    expect(extractRaw(odtPath, "styles.xml")).toBe(afterFirst);
+  });
+
+  test("leaves the title/subject caches alone when the resolved values are empty", () => {
+    const odtPath = `${workDir}/assembled.odt`;
+    buildMergedFixtureOdt(odtPath, "", { masterStylesInner: TEMPLATE_SHAPED_MASTER_STYLES });
+
+    finalizeAssembledQuarter({
+      ...defaultOptions(odtPath),
+      footerTranslations: { vocabulary: { Quarter: "Trimestre" }, title: "", subject: "" },
+    });
+
+    const stylesDoc = extractXml(odtPath, "styles.xml");
+    expect(stylesDoc.get<Element>("//text:title", NAMESPACES)!.text()).toBe("Lessons from Luke");
+    expect(stylesDoc.get<Element>("//text:subject", NAMESPACES)!.text()).toBe("Teacher's Guide");
+  });
+});

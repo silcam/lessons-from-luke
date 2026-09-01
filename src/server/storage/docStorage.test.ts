@@ -7,9 +7,22 @@ import process from "process";
 // Mock fs before importing docStorage so the mock is in place
 jest.mock("fs");
 jest.mock("../../core/util/fsUtils");
+// The real seed module does live fs work; docStorage only calls it lazily, but
+// keep the seeding inert here so the mocked fs is never handed to it. The path
+// helper stays real (docsDirPath depends on it).
+jest.mock("./seedServerDocs", () => ({
+  serverDocsRunDir: () => `${process.cwd()}/test/docs/serverDocs-run`,
+  ensureServerDocsRunDir: jest.fn(),
+}));
 
 import fs from "fs";
-import { mkdirSafe, unzip, unlinkRecursive, unlinkSafe } from "../../core/util/fsUtils";
+import {
+  mkdirSafe,
+  moveFileSync,
+  unzip,
+  unlinkRecursive,
+  unlinkSafe,
+} from "../../core/util/fsUtils";
 import docStorage from "./docStorage";
 import { BaseLesson } from "../../core/models/Lesson";
 
@@ -18,9 +31,12 @@ const mockMkdirSafe = mkdirSafe as jest.MockedFunction<typeof mkdirSafe>;
 const mockUnzip = unzip as jest.MockedFunction<typeof unzip>;
 const mockUnlinkRecursive = unlinkRecursive as jest.MockedFunction<typeof unlinkRecursive>;
 const mockUnlinkSafe = unlinkSafe as jest.MockedFunction<typeof unlinkSafe>;
+const mockMoveFileSync = moveFileSync as jest.MockedFunction<typeof moveFileSync>;
 
 function docsDirPath() {
-  return `${process.cwd()}/test/docs/serverDocs`;
+  // Under NODE_ENV=test docStorage redirects to the disposable run dir so no
+  // test writes into the git-tracked fixture corpus. See seedServerDocs.ts.
+  return `${process.cwd()}/test/docs/serverDocs-run`;
 }
 
 describe("docStorage", () => {
@@ -177,7 +193,7 @@ describe("docStorage", () => {
   });
 
   describe("mvWebifiedHtml", () => {
-    it("waits for the source htm and renames it to the lesson-version path", async () => {
+    it("waits for the source htm and moves it to the lesson-version path", async () => {
       const lesson: BaseLesson = { lessonId: 11, book: "Luke", series: 1, lesson: 1, version: 3 };
       const tmpOdtPath = `${docsDirPath()}/web/12345.odt`;
       const inPath = `${docsDirPath()}/web/12345.htm`;
@@ -185,11 +201,13 @@ describe("docStorage", () => {
 
       // existsSync returns true immediately so waitFor resolves on first check
       (mockFs.existsSync as jest.Mock).mockReturnValue(true);
-      (mockFs.renameSync as jest.Mock).mockReturnValue(undefined);
+      mockMoveFileSync.mockReturnValue(undefined);
 
       await docStorage.mvWebifiedHtml(tmpOdtPath, lesson);
 
-      expect(mockFs.renameSync).toHaveBeenCalledWith(inPath, outPath);
+      // `moveFileSync`, not a bare `fs.renameSync`: a bare rename fails EXDEV
+      // when `docs/` is its own mount (eslint.config.js forbids it).
+      expect(mockMoveFileSync).toHaveBeenCalledWith(inPath, outPath);
     });
   });
 });

@@ -1,0 +1,31 @@
+;=============================================
+; Numeric references auto-populate on project creation.
+;=============================================
+GIVEN an English master whose reference paragraphs store the book name and the numeric part as separate text runs.
+WHEN a new project is created for a language.
+THEN every numeric reference string is auto-populated verbatim from English.
+THEN book-name strings remain empty and translatable.
+
+;=============================================
+; Recognition tolerates dash-character and whitespace variants.
+;=============================================
+GIVEN a numeric reference string that differs only by trailing whitespace or by dash character.
+WHEN the project is created.
+THEN each such string is still recognized and auto-populated.
+THEN both the hyphen variant and the en-dash variant are accepted as reference shapes.
+
+;=============================================
+; Translating the book name once completes every reference.
+;=============================================
+GIVEN a project whose numeric references are auto-populated.
+WHEN the translator translates the book name once.
+THEN every reference in that language shows the translated book name plus the pre-filled numeric part.
+THEN no per-reference manual entry remains.
+
+;=============================================
+; Auto-populated references are ordinary editable translations.
+;=============================================
+GIVEN an auto-populated numeric reference string.
+WHEN the translator inspects it.
+THEN it has the same provenance and history recording as existing auto-translated strings.
+THEN it is not locked and is not a special string type.

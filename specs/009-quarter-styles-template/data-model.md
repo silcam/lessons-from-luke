@@ -1,0 +1,82 @@
+# Data Model: Automated Quarter-Styles Template Application (009)
+
+This feature adds **no persistent storage, no tables, no migration, and no new
+domain entity**. The "entities" below are static assets and in-process values in
+the existing 007 assembly pipeline. Included for completeness of the design
+contract.
+
+---
+
+## Quarter styles template (application asset)
+
+A global, swappable style-source document whose named styles are applied onto
+every assembled quarter book during assembly. Two mode-keyed assets exist: one
+for bilingual assemblies and one for single-language (monolingual) assemblies.
+
+| Attribute      | Value                                                                                                                                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Kind           | Static, version-controlled binary asset (`.odt`).                                                                                                                                                            |
+| Location       | `assets/quarter-styles-template.odt` (bilingual) and `assets/quarter-styles-template-monolingual.odt` (single-language), repo root, resolved at runtime from `process.cwd()`.                                |
+| Cardinality    | Two global assets, keyed by assembly mode — same bilingual file for all bilingual assemblies, same monolingual file for all single-language assemblies; no per-language/book/quarter variants.               |
+| Mode selection | `resolveTemplatePath(singleLanguage)` returns the monolingual asset when the majority-translation language id is `0` (single-language), else the bilingual asset.                                            |
+| Lifecycle      | Build/deploy-time artifact; shipped with the app (Capistrano checkout). Never user-managed, never runtime-generated.                                                                                         |
+| Mutability     | Read-only at runtime. Replaced only by a maintainer file swap (FR-005).                                                                                                                                      |
+| Source         | Bilingual: derived from `test/docs/references/English_Luke-Q2-Master-bilingual.odt`. Monolingual: the client's `English_Luke-Q4-Master-monolingual.odt` (a superset of the per-quarter monolingual masters). |
+| Validation     | Per-job, before the `soffice` run: whichever mode-selected asset is used MUST exist and be non-empty. Failure ⇒ job `failed` with a curated reason (FR-004).                                                 |
+
+**Style-family scope actually applied** (research R2): only paragraph +
+character styles are imported and overwritten
+(`LoadTextStyles=True, OverwriteStyles=True`); page styles, numbering styles, and
+frame styles are explicitly NOT imported
+(`LoadPageStyles=False, LoadNumberingStyles=False, LoadFrameStyles=False`).
+
+**Overwrite scope caveat** (red-team): `LoadTextStyles + OverwriteStyles`
+overwrites **every** paragraph/character style **by name**, not just `M.T.*` — so
+the heading paragraph styles (which carry `style:default-outline-level`, the basis
+of the 007 chapterized-footer resolution) are replaced too. `LoadNumberingStyles=False`
+protects the chapter-numbering **definition** but not the outline-level on those
+paragraph styles; footer/outline participation is therefore pinned by the
+integration test's per-lesson footer-value assertion, not by the OFF flags. See
+plan Edge Cases § "Overwrite scope" and contract §5.
+
+**Observable guarantee** (FR-002 / SC-003, scoped per research R3): after
+application, the `M.T.*` **body paragraph** family carries no background
+highlight. (`M.T. Text` = `transparent` in the stand-in; the two cover paragraph
+styles and one `text`-family highlight style retain the reference's own
+`#ffffcc` — see plan Acceptance Test Strategy scope note.)
+
+---
+
+## Template application step (in-process macro value)
+
+Not a stored entity — a transient value flowing through the pipeline.
+
+| Field                | Type / shape                         | Source → sink                                                                          |
+| -------------------- | ------------------------------------ | -------------------------------------------------------------------------------------- |
+| `templatePath`       | absolute `string`                    | `quarterStylesTemplate.resolveTemplatePath()` → `assembleQuarter` → `sofficeAssemble`. |
+| `SPIKE_TEMPLATE_URL` | `file://<templatePath>` env string   | `sofficeAssemble` sets it on the run child → macro `Environ()`.                        |
+| load properties      | `com.sun.star.beans.PropertyValue[]` | Constructed inside the macro (fixed flag set, research R2).                            |
+
+**State transitions (assembly job — existing 007 states, one new failure cause)**:
+
+```
+queued → running → ready            (template applied successfully)
+queued → running → failed(reason)   NEW reason causes:
+                                       - "quarter styles template asset is missing or unreadable"  (pre-run validation)
+                                       - existing "assembly produced no result"                     (macro aborted before storeToURL on load error)
+```
+
+No new job state; the template failure reuses the existing `failed`-with-reason
+terminal state and the existing curated-reason hygiene (no raw `soffice` stderr,
+no stack, no absolute path in the caller-facing reason).
+
+---
+
+## Unchanged entities (referenced, not modified)
+
+- **Assembled quarter book** (007): same structural guarantees; only its
+  `M.T.*` paragraph styling changes.
+- **Assembly job / `AssemblyJobRegistry`** (007): unchanged shape; gains one
+  failure cause, surfaced through the existing state machine.
+- **`Persistence` / domain data**: untouched. The template is a static asset, not
+  domain data, so the `Persistence` mandate (constitution VI) does not apply.

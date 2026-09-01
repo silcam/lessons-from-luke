@@ -32,6 +32,28 @@ export default [
   {
     files: ["**/*.{ts,tsx}"],
     rules: {
+      // A bare `fs.rename`/`renameSync` fails EXDEV across filesystems, and
+      // that failure hides in development and surfaces in CI or production:
+      // on macOS `/tmp`, `docs/` and the workspace share a device; inside a
+      // CI container — or on a host where `docs/` is its own mount — they do
+      // not. `moveFileSync` (src/core/util/fsUtils.ts) falls back to a copy.
+      // A genuine same-directory ATOMIC replace is the one legitimate
+      // exception: disable inline WITH a comment saying why (see
+      // `LocalStorage.writeTextFile`).
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "MemberExpression[object.name=/^(fs|fsPromises)$/][property.name=/^rename(Sync)?$/]",
+          message:
+            "Use moveFileSync from src/core/util/fsUtils — a bare fs.rename fails EXDEV across filesystems (passes locally, fails in CI containers).",
+        },
+        {
+          selector: "MemberExpression[object.property.name='promises'][property.name='rename']",
+          message:
+            "Use moveFileSync from src/core/util/fsUtils — a bare fs.rename fails EXDEV across filesystems (passes locally, fails in CI containers).",
+        },
+      ],
       // Downgraded pending opportunistic refactor — too many call sites to
       // gate commits on. New violations should still be addressed during
       // touched-file work.
@@ -84,6 +106,11 @@ export default [
         },
       ],
     },
+  },
+  // `moveFileSync` itself is the one place allowed to call `fs.renameSync`.
+  {
+    files: ["src/core/util/fsUtils.ts"],
+    rules: { "no-restricted-syntax": "off" },
   },
   // Jest test files
   {

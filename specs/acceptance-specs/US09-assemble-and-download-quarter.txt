@@ -1,0 +1,23 @@
+;=============================================
+; A complete quarter assembles into one ordered document.
+;=============================================
+GIVEN a language quarter with a Table of Contents and all 13 lessons available.
+WHEN the operator triggers the assemble-and-download action.
+THEN the system produces one document containing the Table of Contents followed by lessons 1-13 in order.
+THEN the system delivers the document for download.
+
+;=============================================
+; The assembled document is fully editable.
+;=============================================
+GIVEN the assembled document has been produced.
+WHEN the operator opens it in a word processor.
+THEN every section is editable.
+THEN there are no protected sections and no externally linked content.
+
+;=============================================
+; Page numbering runs continuously with per-lesson first-page suppression.
+;=============================================
+GIVEN the assembled document.
+WHEN the operator reviews page numbers.
+THEN numbering runs continuously across the whole book.
+THEN each lesson's first page shows no page number.

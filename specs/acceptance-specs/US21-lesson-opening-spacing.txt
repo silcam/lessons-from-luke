@@ -1,0 +1,13 @@
+;=============================================
+; Single-language lesson-opening spacing matches the quarter master.
+;=============================================
+GIVEN a single-language quarter assembled from the stand-alone constituent lessons.
+WHEN a lesson opening is compared against the curriculum owner's single-language quarter master.
+THEN the spacing between the lesson-number graphic, lesson title, and overview header matches the master layout.
+
+;=============================================
+; Bilingual lesson-opening spacing matches the quarter master.
+;=============================================
+GIVEN a bilingual quarter assembled from the stand-alone constituent lessons.
+WHEN a lesson opening is compared against the curriculum owner's bilingual quarter master.
+THEN the spacing between the lesson-number graphic, lesson title, and overview header matches the master layout.

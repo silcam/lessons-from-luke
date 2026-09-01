@@ -9,7 +9,16 @@ import {
 import Heading from "../../common/base-components/Heading";
 import { useDropzone } from "react-dropzone";
 import SelectInput, { optionsDisplayIsKey } from "../../common/base-components/SelectInput";
-import { Book, AllBooks, BaseLesson, lessonName, TOC_LESSON } from "../../../core/models/Lesson";
+import {
+  Book,
+  AllBooks,
+  BaseLesson,
+  lessonName,
+  TOC_LESSON,
+  COVER_A4_LESSON,
+  COVER_A3_LESSON,
+  isCoverLesson,
+} from "../../../core/models/Lesson";
 import NumberPicker from "../../common/base-components/NumberPicker";
 import Button from "../../common/base-components/Button";
 import Label from "../../common/base-components/Label";
@@ -61,9 +70,35 @@ export default function UploadLessonForm(props: { done: () => void }) {
           <Checkbox
             label={t("Table_of_Contents")}
             value={uploadMeta.lesson == TOC_LESSON}
+            disabled={isCoverLesson(uploadMeta.lesson)}
             setValue={(toc) => setUploadMeta({ ...uploadMeta, lesson: toc ? TOC_LESSON : 1 })}
           />
-          {uploadMeta.lesson != TOC_LESSON && (
+          <Checkbox
+            label={t("Cover")}
+            value={isCoverLesson(uploadMeta.lesson)}
+            disabled={uploadMeta.lesson == TOC_LESSON}
+            setValue={(cover) =>
+              setUploadMeta({ ...uploadMeta, lesson: cover ? COVER_A4_LESSON : 1 })
+            }
+          />
+          {isCoverLesson(uploadMeta.lesson) && (
+            <Label text={t("Cover_format")}>
+              <SelectInput
+                value={uploadMeta.lesson == COVER_A3_LESSON ? "A3" : "A4"}
+                setValue={(format) =>
+                  setUploadMeta({
+                    ...uploadMeta,
+                    lesson: format == "A3" ? COVER_A3_LESSON : COVER_A4_LESSON,
+                  })
+                }
+                options={[
+                  ["A4", "A4"],
+                  ["A3", "A3"],
+                ]}
+              />
+            </Label>
+          )}
+          {uploadMeta.lesson != TOC_LESSON && !isCoverLesson(uploadMeta.lesson) && (
             <Label text={t("Lesson")}>
               <NumberPicker
                 value={uploadMeta.lesson}
@@ -139,7 +174,7 @@ function DocUploadInput(props: { file: File | null; setFile: (f: File) => void }
   );
 }
 
-function metaFromFilename(filename: string): EnglishUploadMeta {
+export function metaFromFilename(filename: string): EnglishUploadMeta {
   const meta = defaultEnglishUploadMeta();
   if (filename.includes("Act")) meta.book = "Acts";
 
@@ -152,6 +187,8 @@ function metaFromFilename(filename: string): EnglishUploadMeta {
 
   match = /L(\d+)/.exec(filename);
   if (match) meta.lesson = parseInt(match[1]);
+  else if (/Cover-A4/i.test(filename)) meta.lesson = COVER_A4_LESSON;
+  else if (/Cover-A3/i.test(filename)) meta.lesson = COVER_A3_LESSON;
   else meta.lesson = TOC_LESSON;
 
   return meta;

@@ -1,4 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const sliceModule = require("./currentUserSlice");
 const currentUserSlice = sliceModule.default;
 import { User } from "../../../core/models/User";

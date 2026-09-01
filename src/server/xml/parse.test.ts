@@ -240,6 +240,56 @@ describe("findStylesToMatch", () => {
   });
 });
 
+// Task lessons-from-luke-l96d.5.6.5: cover master style extraction (RED)
+// The real cover masters use style names that differ from what parse.ts's
+// knownStyleNames currently recognizes: hyphen variants
+// M.T._20_-_20_Cover_20_Title / M.T._20_-_20_Cover_20_subtitle, plus the bare
+// styles Copyright_20_text and Book_20_number. Until knownStyleNames is
+// extended, paragraphs using these style names are extracted as
+// motherTongue: false (they fall through to the whole-document allStrings
+// pass) instead of motherTongue: true.
+describe("Cover master style extraction", () => {
+  const coverMasterContentXml = `<?xml version="1.0"?>
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:body>
+    <office:text>
+      <text:p text:style-name="M.T._20_-_20_Cover_20_Title">Lessons from Luke</text:p>
+      <text:p text:style-name="M.T._20_-_20_Cover_20_subtitle">Quarter 1</text:p>
+      <text:p text:style-name="Copyright_20_text">2019 Wycliffe Bible Translators, Inc.</text:p>
+      <text:p text:style-name="Book_20_number">1</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>`;
+
+  test("recognizes M.T._20_-_20_Cover_20_Title as a translatable (motherTongue) string", () => {
+    const result = parse(coverMasterContentXml, "content");
+    const match = result.find((s) => s.text === "Lessons from Luke");
+    expect(match?.motherTongue).toBe(true);
+  });
+
+  test("recognizes M.T._20_-_20_Cover_20_subtitle as a translatable (motherTongue) string", () => {
+    const result = parse(coverMasterContentXml, "content");
+    const match = result.find((s) => s.text === "Quarter 1");
+    expect(match?.motherTongue).toBe(true);
+  });
+
+  test("recognizes Copyright_20_text as a translatable (motherTongue) string", () => {
+    const result = parse(coverMasterContentXml, "content");
+    const match = result.find((s) => s.text === "2019 Wycliffe Bible Translators, Inc.");
+    expect(match?.motherTongue).toBe(true);
+  });
+
+  test("recognizes Book_20_number as a translatable (motherTongue) string", () => {
+    const result = parse(coverMasterContentXml, "content");
+    const match = result.find((s) => s.text === "1");
+    expect(match?.motherTongue).toBe(true);
+  });
+});
+
 // Task 18: Spanish and Cishingini parse roundtrip tests
 describe("Parse Spanish ODT", () => {
   const spanishOdtPath = process.cwd() + "/test/fixtures/Spanish_Luke-Q1-L01.odt";
