@@ -1,16 +1,21 @@
-import { GetRoute, APIGet, PostRoute, APIPost } from "../../../core/api/ApiContracts";
+import { AllGetRoute, AllAPIGet, AllPostRoute, AllAPIPost } from "../../../core/api/ApiContracts";
 import React from "react";
 
-export type GetRequest = <T extends GetRoute>(
+// GetRequest / PostRequest use the *all-routes* maps so that common components
+// (e.g. syncStateSlice, useLessonTStrings) can call both web-only and
+// desktop-only routes through the context.  The concrete provider implementations
+// (webGet in the browser, ipcGet in Electron) are responsible for handling the
+// routes that are valid for their platform.
+export type GetRequest = <T extends AllGetRoute>(
   route: T,
-  params: APIGet[T][0]
-) => Promise<APIGet[T][1] | null>;
+  params: AllAPIGet[T][0]
+) => Promise<AllAPIGet[T][1] | null>;
 
-export type PostRequest = <T extends PostRoute>(
+export type PostRequest = <T extends AllPostRoute>(
   route: T,
-  params: APIPost[T][0],
-  data: APIPost[T][1]
-) => Promise<APIPost[T][2] | null>;
+  params: AllAPIPost[T][0],
+  data: AllAPIPost[T][1]
+) => Promise<AllAPIPost[T][2] | null>;
 
 const RequestContext = React.createContext<{
   get: GetRequest;

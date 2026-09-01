@@ -306,5 +306,5 @@ export default class LocalStorage {
 
 // Update img ref's to point to server
 function desktopifyDocPreview(html: string): string {
-  return html.replace(/<img src="/g, '<img src="https://luke.silcameroon.org');
+  return html.replace(/<img src="/g, '<img src="https://luke.silcam.org');
 }

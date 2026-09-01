@@ -109,7 +109,7 @@ test("Save TString - Invalid Code", async () => {
     ],
     code: "WRONG",
   });
-  expect(response.status).toBe(401);
+  expect(response.status).toBe(403);
 });
 
 test("Save TString - archived language's code is rejected (RT-D)", async () => {
@@ -130,7 +130,7 @@ test("Save TString - archived language's code is rejected (RT-D)", async () => {
     ],
     code: "GHI",
   });
-  expect(response.status).toBe(401);
+  expect(response.status).toBe(403);
 });
 
 test("Save TString - new string", async () => {

@@ -1,0 +1,23 @@
+;=============================================
+; Connected desktop stays connected across restarts.
+;=============================================
+GIVEN a connected desktop.
+WHEN the app is closed and reopened.
+THEN the desktop is still connected and resumes syncing without asking the user to approve again.
+
+;=============================================
+; Unconnected desktop with no network keeps full local use.
+;=============================================
+GIVEN an unconnected or disconnected desktop with no network.
+WHEN the user works in the app.
+THEN all locally cached content remains fully usable.
+THEN no authentication error is shown.
+
+;=============================================
+; Unconnected desktop online prompts to connect rather than failing silently.
+;=============================================
+GIVEN an unconnected desktop that is online.
+WHEN it cannot sync because it has no credential.
+THEN it clearly indicates it is not connected.
+THEN it prompts the user to connect.
+THEN it does not silently fail or error.

@@ -1,0 +1,27 @@
+;=============================================
+; Enforcement off causes no behavior change.
+;=============================================
+GIVEN the ENFORCE_API_AUTH flag is off (the default).
+WHEN any client calls the shared data API.
+THEN behavior is exactly as before this feature (no regression for web or desktop).
+
+;=============================================
+; Enforcement on rejects anonymous requests.
+;=============================================
+GIVEN the ENFORCE_API_AUTH flag is on.
+WHEN an anonymous request hits a shared data endpoint.
+THEN the server rejects the request as unauthorized (401).
+
+;=============================================
+; Enforcement on accepts authenticated web and desktop clients.
+;=============================================
+GIVEN the ENFORCE_API_AUTH flag is on.
+WHEN a logged-in web user or a connected desktop calls a shared data endpoint.
+THEN the request succeeds and returns the expected data.
+
+;=============================================
+; Pre-login public endpoints remain reachable with enforcement on.
+;=============================================
+GIVEN the ENFORCE_API_AUTH flag is on.
+WHEN a user opens the sign-in page or an invitation-redemption link.
+THEN those pages and their API calls still work without being signed in.

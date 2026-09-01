@@ -1,3 +1,14 @@
+/**
+ * AdminHome.tsx — Admin home page
+ *
+ * Renders:
+ *   - Header bar with Users link + Invitations link + Log Out button
+ *   - LanguagesBox and LessonsBox (existing)
+ *
+ * Users management (list + revoke device access) lives on its own page at
+ * /admin/users — see src/frontend/web/users/UsersPage.tsx.
+ */
+
 import React from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link } from "react-router-dom";
@@ -21,6 +32,11 @@ export default function AdminHome() {
       title={t("Home")}
       renderRight={() => (
         <FlexRow>
+          {user?.admin && (
+            <Link to="/admin/users">
+              <Button text={t("AdminHome_users_heading")} onClick={() => {}} />
+            </Link>
+          )}
           {user?.admin && (
             <Link to="/admin/invitations">
               <Button text={t("Invitations_page_heading")} onClick={() => {}} />

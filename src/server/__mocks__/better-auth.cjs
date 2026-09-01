@@ -153,6 +153,17 @@ function betterAuth(config) {
 
     api: {
       getSession: async (context) => {
+        // Check Authorization: Bearer <token> first (simulates the bearer plugin).
+        // The bearer token value is the same session token stored in the cookie,
+        // so a successful sign-in's token works as both a cookie value and bearer.
+        const authorization = context.headers && context.headers.get("authorization");
+        if (authorization && authorization.toLowerCase().startsWith("bearer ")) {
+          const bearerToken = authorization.slice(7).trim();
+          const bearerData = sessions.get(bearerToken);
+          if (bearerData) return bearerData;
+        }
+
+        // Fall back to cookie-based session lookup.
         const cookie = context.headers && context.headers.get("cookie");
         const cookies = parseCookies(cookie || "");
         const token = cookies[COOKIE_NAME];
