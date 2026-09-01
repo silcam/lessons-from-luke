@@ -56,7 +56,10 @@ function makeSyncState(overrides: Partial<StoredSyncState> = {}): StoredSyncStat
   };
 }
 
-function makeApp(syncStateOverrides: Partial<StoredSyncState> = {}) {
+function makeApp(
+  syncStateOverrides: Partial<StoredSyncState> = {},
+  pairedState: { paired: boolean; pairedUserName?: string } = { paired: false }
+) {
   const state = { current: makeSyncState(syncStateOverrides) };
 
   const localStorage = {
@@ -88,6 +91,7 @@ function makeApp(syncStateOverrides: Partial<StoredSyncState> = {}) {
     localStorage,
     webClient,
     getWindow: jest.fn(() => mockWindow),
+    getPairedState: jest.fn(() => pairedState),
   };
 
   return app as any;
@@ -131,6 +135,33 @@ describe("syncStateController", () => {
 
       const result = await registeredHandlers["/api/syncState"]();
       expect(result.language).toEqual(language);
+    });
+
+    test("returns paired=true when app.getPairedState() reports paired", async () => {
+      const app = makeApp({}, { paired: true, pairedUserName: "Alice" });
+      app.webClient.isConnected.mockReturnValue(false);
+      syncStateController(app);
+
+      const result = await registeredHandlers["/api/syncState"]();
+      expect(result.paired).toBe(true);
+    });
+
+    test("returns pairedUserName when paired", async () => {
+      const app = makeApp({}, { paired: true, pairedUserName: "Alice" });
+      app.webClient.isConnected.mockReturnValue(false);
+      syncStateController(app);
+
+      const result = await registeredHandlers["/api/syncState"]();
+      expect(result.pairedUserName).toBe("Alice");
+    });
+
+    test("returns paired=false when app.getPairedState() reports unpaired", async () => {
+      const app = makeApp({}, { paired: false });
+      app.webClient.isConnected.mockReturnValue(false);
+      syncStateController(app);
+
+      const result = await registeredHandlers["/api/syncState"]();
+      expect(result.paired).toBe(false);
     });
   });
 

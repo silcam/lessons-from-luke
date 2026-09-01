@@ -192,13 +192,18 @@ async function fetchMissingSrcStrings(app: DesktopApp) {
   });
   if (missingIds.length == 0) return;
 
-  const tStrings = await throwsNoConnection(() =>
-    app.webClient.get("/api/languages/:languageId/tStrings/:ids", {
-      languageId: language.defaultSrcLang,
-      ids: uniq(missingIds).join(","),
-    })
-  );
-  app.localStorage.setTStrings(language.defaultSrcLang, tStrings);
+  const ids = uniq(missingIds);
+  let batch = 0;
+  while (ids.length > batch * T_STRING_BATCH_SIZE) {
+    const tStrings = await throwsNoConnection(() =>
+      app.webClient.get("/api/languages/:languageId/tStrings/:ids", {
+        languageId: language.defaultSrcLang,
+        ids: ids.slice(T_STRING_BATCH_SIZE * batch, T_STRING_BATCH_SIZE * (batch + 1)).join(","),
+      })
+    );
+    app.localStorage.setTStrings(language.defaultSrcLang, tStrings);
+    ++batch;
+  }
 }
 
 export async function fetchMissingPreviews(app: DesktopApp) {

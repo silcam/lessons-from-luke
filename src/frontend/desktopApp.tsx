@@ -6,7 +6,7 @@ import RequestContext from "./common/api/RequestContext";
 import { ipcGet, ipcPost } from "./desktopFrontend/desktopAPIClient";
 import MainPage from "./desktopFrontend/MainPage";
 import { Provider } from "react-redux";
-import store from "./common/state/appState";
+import store from "./desktopFrontend/desktopAppState";
 import RootDiv from "./common/base-components/RootDiv";
 
 // Inject base styles

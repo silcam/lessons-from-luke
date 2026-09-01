@@ -21,6 +21,8 @@ import InvitationsList from "./invitations/InvitationsList";
 import RedeemInvitation from "./auth/RedeemInvitation";
 import AuthGate from "./auth/AuthGate";
 import AdminGate from "./auth/AdminGate";
+import DeviceLinkPage from "./deviceLink/DeviceLinkPage";
+import UsersPage from "./users/UsersPage";
 import ForgotPassword from "./auth/ForgotPassword";
 import LoadingSnake from "../common/base-components/LoadingSnake";
 import ResetPassword from "./auth/ResetPassword";
@@ -96,11 +98,18 @@ export default function MainRouter() {
             element={<DocStringsPageWrapper />}
           />
           <Route path="/update-issues/:lessonId" element={<UpdateIssuesPageWrapper />} />
+          {/* Device pairing approval — requires auth so the session is known when
+              approving/denying (FR-002); unauthenticated visitors are redirected
+              to sign-in with returnTo encoding the full path+search so the
+              user_code survives the sign-in round-trip (US1.8). Self-service for
+              any signed-in user, so it stays outside AdminGate. */}
+          <Route path="/link" element={<DeviceLinkPage />} />
           {/* Admin-only routes — registered unconditionally so deep-links resolve
               during initial auth load; AdminGate owns the authorization decision. */}
           <Route element={<AdminGate />}>
             <Route path="/admin/invitations/new" element={<CreateInvitation />} />
             <Route path="/admin/invitations" element={<InvitationsList />} />
+            <Route path="/admin/users" element={<UsersPage />} />
             <Route path="/languages/:languageId" element={<AdminHome />} />
           </Route>
         </Route>

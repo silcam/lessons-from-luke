@@ -50,6 +50,18 @@ const fr: I18nStrings = {
     "Vous voulez réinitialiser ce projet et télécharger toutes les données à nouveau ?",
   Yes_resync: "Oui, réinitialiser",
   Cancel: "Annuler",
+  Please_sign_in_to_continue: "Veuillez vous connecter pour continuer",
+
+  // Desktop auth pairing — Admin: Revoke device access (US4.4)
+  AdminHome_users_heading: "Utilisateurs",
+  AdminHome_revoke_device_access: "Révoquer l'accès des appareils",
+  AdminHome_revoke_confirm_prompt:
+    "Révoquer l'accès aux appareils pour %{name} ? Cette action le déconnectera de tous les appareils connectés et de sa session web.",
+  AdminHome_revoke_confirm_button: "Révoquer",
+  AdminHome_revoke_success: "Accès révoqué (%{count} identifiants supprimés)",
+  AdminHome_revoke_error: "Échec de la révocation des sessions. Veuillez réessayer.",
+  AdminHome_users_loading: "Chargement des utilisateurs…",
+  AdminHome_users_load_error: "Impossible de charger les utilisateurs. Veuillez réessayer.",
 };
 
 export default fr;

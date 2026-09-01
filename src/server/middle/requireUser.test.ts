@@ -6,7 +6,7 @@ import type { Request, Response, NextFunction } from "express";
 jest.mock("../auth/auth");
 
 import { getAuth } from "../auth/auth";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+
 const requireUserModule = require("./requireUser") as {
   default: (req: Request, res: Response, next: NextFunction) => Promise<void>;
   loadSession: (req: Request) => Promise<unknown>;
@@ -87,7 +87,11 @@ describe("requireUser middleware", () => {
     expect(res._status).toBe(401);
   });
 
-  test("responds 401 and does NOT call next() when getSession throws (fail-closed)", async () => {
+  test("responds 503 and does NOT call next() when getSession throws (fail-closed, but transient)", async () => {
+    // A session-store error is NOT proof the caller is unauthenticated. A 401
+    // tells desktop clients to destroy their credential; a transient store
+    // error (e.g. auth pool warming up after a restart) must answer 503 so
+    // clients retry instead of un-pairing. Still fails closed: no next().
     mockGetAuth.mockReturnValue(
       makeMockAuth(async () => {
         throw new Error("session store unavailable");
@@ -101,7 +105,7 @@ describe("requireUser middleware", () => {
     await requireUser(req, res, next);
 
     expect(next).not.toHaveBeenCalled();
-    expect(res._status).toBe(401);
+    expect(res._status).toBe(503);
   });
 });
 
@@ -149,7 +153,7 @@ describe("requireAdmin middleware", () => {
     expect(res._status).toBe(403);
   });
 
-  test("responds 401 and does NOT call next() when getSession throws (fail-closed)", async () => {
+  test("responds 503 and does NOT call next() when getSession throws (fail-closed, but transient)", async () => {
     mockGetAuth.mockReturnValue(
       makeMockAuth(async () => {
         throw new Error("db connection lost");
@@ -163,7 +167,7 @@ describe("requireAdmin middleware", () => {
     await requireAdmin(req, res, next);
 
     expect(next).not.toHaveBeenCalled();
-    expect(res._status).toBe(401);
+    expect(res._status).toBe(503);
   });
 });
 
@@ -182,7 +186,7 @@ describe("loadSession", () => {
     expect(result).toEqual(sessionData);
   });
 
-  test("returns null when getSession throws", async () => {
+  test("returns the 'error' sentinel (distinct from null) when getSession throws", async () => {
     mockGetAuth.mockReturnValue(
       makeMockAuth(async () => {
         throw new Error("unexpected error");
@@ -192,6 +196,6 @@ describe("loadSession", () => {
     const req = mockReq();
     const result = await loadSession(req);
 
-    expect(result).toBeNull();
+    expect(result).toBe("error");
   });
 });

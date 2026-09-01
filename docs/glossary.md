@@ -27,3 +27,26 @@ to it after authenticating. Constrained to same-app relative paths to prevent op
 **Default-deny** (adjective): The gating policy in which web routes are protected unless
 explicitly added to the public allowlist, so omission fails safe (toward requiring auth).
 [See: public-allowlist]
+
+**Device pairing** (noun): The code-based browser handshake that connects one desktop
+installation to a user account. The desktop shows a pairing code and opens the browser; the
+signed-in user enters the code and approves; the desktop, which is polling, receives a device
+credential bound to that user. Uses only outbound calls from the desktop (no loopback server,
+no custom URL scheme). [See: pairing-code, device-credential]
+
+**Pairing code** (noun): The short, human-readable, single-use, short-lived code the desktop
+displays and the user enters/pastes in the browser to authorize a device pairing. Distinct from
+the desktop's polling secret, which is never shown in the browser. [See: device-pairing]
+
+**Device credential** (noun): The bearer-style, revocable credential a desktop holds after a
+successful pairing. Bound to the approving user, presented on shared-API requests to identify
+the connected user, and invalidated either by the desktop (self sign-out on Disconnect) or by an
+admin (revoke a user's device access). [See: device-pairing, shared-api, api-auth-enforcement]
+
+**Shared API** (noun): The domain `/api/*` data routes (languages, lessons, tStrings, sync) used
+by both the web and desktop clients. Distinct from the `/api/auth/*` authentication routes.
+[See: api-auth-enforcement]
+
+**API auth enforcement** (noun): The server policy — controlled by a flag that defaults to off —
+that requires an authenticated identity (a web session or a device credential) on shared-API
+requests and rejects anonymous callers. [See: shared-api, device-credential]

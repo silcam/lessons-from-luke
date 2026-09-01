@@ -2,6 +2,7 @@
 import { _electron as electron } from "playwright";
 import Axios from "axios";
 import path from "path";
+import secrets from "../../src/server/util/secrets";
 
 // Headless-test flags appended to every electron.launch:
 // - --no-sandbox: Chromium's setuid sandbox is unavailable on Ubuntu CI runners
@@ -14,12 +15,27 @@ import path from "path";
 //   tests past their 15-20s timeouts in CI.
 const ELECTRON_TEST_ARGS = ["--no-sandbox", "--disable-gpu", "--disable-software-rasterizer"];
 
+const API_BASE = "http://localhost:8081";
+const MAIN = path.join(__dirname, "../../dist/desktop/main-test.js");
+const adminEmail = (secrets.adminEmail ?? "admin@example.com").toLowerCase();
+const adminPassword = secrets.adminPassword;
+
+// A real better-auth session token, obtained by signing in as the seeded admin.
+// Since 004 the desktop gates the sync/translate UI behind device pairing
+// (FR-015): an online-but-unpaired device shows a "connect to account" prompt,
+// not the code-entry form. The real device handshake is approved in the
+// browser, which this Electron-only e2e cannot drive, so the paired tests inject
+// this token via DESKTOP_E2E_TOKEN to start the app already paired. The unpaired
+// gate itself is asserted by the "Login guard" test below; the handshake logic
+// is unit-tested in src/desktop/DesktopApp.test.ts.
+let desktopToken: string;
+
 beforeAll(async () => {
   try {
     // Readiness probe: /api/languages is public and DB-backed, so a 200 confirms
     // the API process is up AND can reach Postgres. (The legacy /api/users/current
     // endpoint this used to hit was removed in the better-auth migration.)
-    await Axios.get("http://localhost:8081/api/languages");
+    await Axios.get(`${API_BASE}/api/languages`);
     await Axios.get("http://localhost:8082/desktop.html", {});
     // Seed the test API's database from fixtures so the GHI project / Batanga
     // language exist. Without this, a freshly-migrated CI database has only
@@ -27,27 +43,71 @@ beforeAll(async () => {
     // times out waiting for the "Syncing Batanga project..." screen. (Locally
     // this worked by accident because the test DB carried over fixtures from
     // the previous jest run.)
-    await Axios.post("http://localhost:8081/api/test/reset-storage");
+    await Axios.post(`${API_BASE}/api/test/reset-storage`);
   } catch (err) {
     console.error(
       "Please ensure that the Server App is running on port 8081 and webpack for desktop on port 8082. (Try starting yarn test-desktop-e2e-deps.)"
     );
     throw err;
   }
+
+  // Sign in as the migrate:test-seeded admin and capture the bearer session
+  // token from better-auth's `set-auth-token` response header (bearer plugin).
+  // The desktop sends this as `Authorization: Bearer <token>` and getSession
+  // accepts it identically to a token earned through the device flow.
+  const signIn = await Axios.post(`${API_BASE}/api/auth/sign-in/email`, {
+    email: adminEmail,
+    password: adminPassword,
+  });
+  const token = signIn.headers["set-auth-token"];
+  if (!token) {
+    throw new Error("Admin sign-in did not return a set-auth-token header (bearer plugin).");
+  }
+  desktopToken = token;
 });
 
-test("Downsync", async () => {
-  const app = await electron.launch({
-    args: [path.join(__dirname, "../../dist/desktop/main-test.js"), ...ELECTRON_TEST_ARGS],
-    env: { ...process.env, FIXTURES: "fresh-install" },
+// The e2e harness runs the API on :8081 and the desktop webpack dev server on
+// :8082 — there is no :8080 web dev server (which interactive dev-desktop relies
+// on for the pairing verification_uri). DESKTOP_E2E_BASE_URL points the app's
+// API base directly at the running API server so sync/online calls succeed.
+const DESKTOP_E2E_BASE_URL = API_BASE;
+
+// Launch the desktop already paired (post-pairing flow: code entry → sync → translate).
+function launchPaired() {
+  return electron.launch({
+    args: [MAIN, ...ELECTRON_TEST_ARGS],
+    env: {
+      ...process.env,
+      FIXTURES: "fresh-install",
+      DESKTOP_E2E_TOKEN: desktopToken,
+      DESKTOP_E2E_BASE_URL,
+    },
   });
+}
+
+// Launch the desktop unpaired (no credential), as a fresh field install would be.
+function launchUnpaired() {
+  return electron.launch({
+    args: [MAIN, ...ELECTRON_TEST_ARGS],
+    env: { ...process.env, FIXTURES: "fresh-install", DESKTOP_E2E_BASE_URL },
+  });
+}
+
+test("Downsync", async () => {
+  const app = await launchPaired();
   const window = await app.firstWindow();
 
   await window.locator('h1:text("Online")').waitFor();
   await window.click("input[type='text']");
   await window.keyboard.type("GHI");
   await window.click("button:text('OK')");
-  await window.locator('h1:text("Syncing Batanga project...")').waitFor();
+  // Entering the GHI code must launch a sync of the Batanga project. The header
+  // text is timing-sensitive — it reads "Syncing Batanga project..." while
+  // progress < 100 and flips to "Batanga Synced" the instant it completes — so
+  // match the project name, which is present in both states. (Waiting for the
+  // literal "Syncing..." wording races the sync finishing before Playwright's
+  // first poll, especially with the GPU disabled under Xvfb, and would hang.)
+  await window.locator('h1:text("Batanga")').waitFor();
 
   await window.locator('button:text("Start Translating")').waitFor();
   await window.click('button:text("Start Translating")');
@@ -56,31 +116,29 @@ test("Downsync", async () => {
   await app.close();
 }, 15000);
 
-test("Login guard: translation UI is inaccessible before entering a project code", async () => {
-  const app = await electron.launch({
-    args: [path.join(__dirname, "../../dist/desktop/main-test.js"), ...ELECTRON_TEST_ARGS],
-    env: { ...process.env, FIXTURES: "fresh-install" },
-  });
+test("Login guard: translation UI is inaccessible before pairing", async () => {
+  // Unpaired (no DESKTOP_E2E_TOKEN): per spec FR-015 an online-but-unpaired
+  // device must surface a clear "connect" prompt rather than the code-entry
+  // form or any path into the translation UI.
+  const app = await launchUnpaired();
   const window = await app.firstWindow();
 
-  // App must reach the online/code-entry state before we can assert anything
+  // App must reach the online state before the pairing gate is shown.
   await window.locator('h1:text("Online")').waitFor();
 
-  // The code-entry text input should be visible
-  await window.locator("input[type='text']").waitFor();
+  // The connect prompt is the only actionable control — its presence confirms
+  // we are on the gate screen (which replaces the code-entry form).
+  await window.locator('button:text("Connect to account")').waitFor();
 
-  // The "Start Translating" button must not exist — no translation UI yet
-  const startBtn = window.locator('button:text("Start Translating")');
-  expect(await startBtn.count()).toBe(0);
+  // No code-entry form, and no way to start translating, before pairing.
+  expect(await window.locator("input[type='text']").count()).toBe(0);
+  expect(await window.locator('button:text("Start Translating")').count()).toBe(0);
 
   await app.close();
-}, 10000);
+}, 15000);
 
 test("Translation workflow: type and save a translation string", async () => {
-  const app = await electron.launch({
-    args: [path.join(__dirname, "../../dist/desktop/main-test.js"), ...ELECTRON_TEST_ARGS],
-    env: { ...process.env, FIXTURES: "fresh-install" },
-  });
+  const app = await launchPaired();
   const window = await app.firstWindow();
 
   // Complete downsync

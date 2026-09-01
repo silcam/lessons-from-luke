@@ -8,24 +8,28 @@ import type { User } from "../../core/models/User";
 declare module "express-serve-static-core" {
   interface Request {
     user?: User;
-    authSession?: { id: string; userId: string; expiresAt: Date };
   }
 }
 
 /**
  * Load the better-auth session for the current request.
  *
- * When a valid session is present, populates req.user and req.authSession
- * and returns the raw session object from better-auth.
+ * When a valid session is present, populates req.user and returns the raw
+ * session object from better-auth.
  *
- * Fails closed: any error from the session store is treated as
- * "no session" and returns null (never lets an error bypass authentication).
+ * Fails closed: any error from the session store leaves req.user undefined
+ * (never lets an error bypass authentication) and returns the "error"
+ * sentinel — distinct from null (definitively no session) so callers can
+ * answer 503 instead of 401. A 401 tells desktop clients their credential is
+ * revoked and they should destroy it; a transient store error (e.g. the auth
+ * pool warming up right after a server restart) must not do that.
  * The error is logged server-side without leaking connection details.
  *
  * @param req - Express Request object (mutated in place when session exists)
- * @returns The raw better-auth session object, or null if no session or on error
+ * @returns The raw better-auth session object, null if no session, or
+ *          "error" if the session store failed
  */
-export async function loadSession(req: Request): Promise<unknown> {
+export async function loadSession(req: Request): Promise<unknown | "error"> {
   try {
     const session = await getAuth().api.getSession({
       headers: fromNodeHeaders(req.headers),
@@ -35,17 +39,12 @@ export async function loadSession(req: Request): Promise<unknown> {
         id: session.user.id,
         admin: Boolean((session.user as { admin?: boolean }).admin),
       };
-      req.authSession = session.session as {
-        id: string;
-        userId: string;
-        expiresAt: Date;
-      };
     }
     return session ?? null;
   } catch (err) {
     // Fail closed: log without leaking internals, leave req.user undefined
     console.error("[requireUser] session load error:", (err as Error).message);
-    return null;
+    return "error";
   }
 }
 
@@ -67,7 +66,11 @@ export default async function requireUser(
   res: Response,
   next: NextFunction
 ): Promise<void> {
-  await loadSession(req);
+  const session = await loadSession(req);
+  if (session === "error") {
+    res.status(503).json({ error: "Service Unavailable" });
+    return;
+  }
   if (!req.user) {
     res.status(401).json({ error: "Unauthorized" });
     return;
@@ -78,7 +81,8 @@ export default async function requireUser(
 /**
  * Express middleware: requires a valid signed-in admin session.
  *
- * - No session or session load error → 401 Unauthorized (JSON)
+ * - Session load error → 503 Service Unavailable (JSON)
+ * - No session → 401 Unauthorized (JSON)
  * - Session exists but user.admin !== true → 403 Forbidden (JSON)
  * - Session with admin === true → calls next()
  *
@@ -90,7 +94,11 @@ export default async function requireUser(
  * @returns Promise<void>
  */
 export async function requireAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
-  await loadSession(req);
+  const session = await loadSession(req);
+  if (session === "error") {
+    res.status(503).json({ error: "Service Unavailable" });
+    return;
+  }
   if (!req.user) {
     res.status(401).json({ error: "Unauthorized" });
     return;
