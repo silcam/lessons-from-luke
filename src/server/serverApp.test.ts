@@ -394,6 +394,33 @@ describe("ENFORCE_API_AUTH enforcement gate", () => {
     expect(response.status).toBe(401);
   });
 
+  test("flag ON: anonymous GET /api/assembly/<jobId>/status → 401", async () => {
+    process.env.ENFORCE_API_AUTH = "1";
+    const app = serverApp({ silent: true });
+    const response = await request(app).get(
+      "/api/assembly/00000000-0000-0000-0000-000000000000/status"
+    );
+    expect(response.status).toBe(401);
+  });
+
+  test("flag ON: anonymous GET /api/assembly/<jobId>/download → 401", async () => {
+    process.env.ENFORCE_API_AUTH = "1";
+    const app = serverApp({ silent: true });
+    const response = await request(app).get(
+      "/api/assembly/00000000-0000-0000-0000-000000000000/download"
+    );
+    expect(response.status).toBe(401);
+  });
+
+  test("flag OFF: anonymous GET /api/assembly/<jobId>/status → 404 (unknown job, gate is a no-op)", async () => {
+    delete process.env.ENFORCE_API_AUTH;
+    const app = serverApp({ silent: true });
+    const response = await request(app).get(
+      "/api/assembly/00000000-0000-0000-0000-000000000000/status"
+    );
+    expect(response.status).toBe(404);
+  });
+
   test("flag ON: anonymous GET /webified/<asset> → 401 (static mount gated)", async () => {
     process.env.ENFORCE_API_AUTH = "1";
     const app = serverApp({ silent: true });

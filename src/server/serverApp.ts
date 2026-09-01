@@ -243,10 +243,16 @@ function serverApp(opts: { silent?: boolean; storage?: Persistence } = {}) {
   });
 
   // Auth enforcement gate: all gated domain route prefixes.
+  // /api/assembly covers the job status/download routes — leaving them open
+  // would let anonymous callers holding a jobId poll and download assembled
+  // curriculum ODTs even when ENFORCE_API_AUTH is set. (The assembly POST
+  // under /api/languages additionally carries always-on requireUser +
+  // requireSameOrigin from this branch's security review.)
   app.use("/api/languages", requireUserWhenEnforced);
   app.use("/api/lessons", requireUserWhenEnforced);
   app.use("/api/tStrings", requireUserWhenEnforced);
   app.use("/api/sync", requireUserWhenEnforced);
+  app.use("/api/assembly", requireUserWhenEnforced);
 
   // Blanket CSRF guard: all state-changing admin POST routes (audit trail).
   // Runs after requireAdmin (registered above at line app.use('/api/admin', ...))
