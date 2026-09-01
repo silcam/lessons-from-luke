@@ -36,6 +36,9 @@ const currentUserSlice = createSlice({
     setError: (state, action: PayloadAction<string>) => {
       state.error = action.payload;
     },
+    clearError: (state) => {
+      state.error = null;
+    },
   },
 });
 

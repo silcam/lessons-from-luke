@@ -1,5 +1,5 @@
 import { ipcMain } from "electron";
-import { GetRoute, PostRoute, APIPost, APIGet } from "../core/interfaces/Api";
+import { GetRoute, PostRoute, APIPost, APIGet } from "../core/api/ApiContracts";
 import syncStateController from "./controllers/syncStateController";
 import { asAppError, AppError } from "../core/models/AppError";
 import DesktopApp from "./DesktopApp";

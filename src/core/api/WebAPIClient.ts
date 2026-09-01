@@ -1,4 +1,5 @@
-import { GetRoute, APIGet, Params, APIPost, PostRoute } from "../interfaces/Api";
+import { GetRoute, APIGet, APIPost, PostRoute } from "./ApiContracts";
+import { Params } from "../interfaces/Api";
 import Axios from "axios";
 import { AppError } from "../models/AppError";
 

@@ -104,7 +104,7 @@ export default function ResetPassword(): React.ReactElement {
     }
   };
 
-  const goToSignIn = () => navigate("/");
+  const goToSignIn = () => navigate("/login");
 
   // ── Success state ────────────────────────────────────────────────────────────
 

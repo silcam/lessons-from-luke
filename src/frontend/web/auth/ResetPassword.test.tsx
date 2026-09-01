@@ -195,6 +195,26 @@ describe("ResetPassword", () => {
       });
     });
 
+    it("navigates to /login when 'Continue to sign in' is clicked", async () => {
+      resetPassword.mockReturnValue(jest.fn().mockResolvedValue({ payload: undefined }));
+
+      const { container } = renderWithToken(TEST_TOKEN);
+
+      const passwordInput = container.querySelector("input[autocomplete='new-password']");
+      expect(passwordInput).not.toBeNull();
+      fireEvent.change(passwordInput!, { target: { value: "new-strong-password-123" } });
+
+      const submitButton = screen.getByRole("button");
+      await act(async () => {
+        fireEvent.click(submitButton);
+      });
+
+      const continueButton = await screen.findByRole("button", { name: /continue.*sign in/i });
+      fireEvent.click(continueButton);
+
+      expect(mockNavigate).toHaveBeenCalledWith("/login");
+    });
+
     it("moves focus to the result heading on success state transition (Pass 8 a11y)", async () => {
       resetPassword.mockReturnValue(jest.fn().mockResolvedValue({ payload: undefined }));
 

@@ -1,4 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const sliceModule = require("./currentUserSlice");
 const currentUserSlice = sliceModule.default;
 import { User } from "../../../core/models/User";
@@ -104,6 +103,19 @@ describe("currentUserSlice reducers", () => {
       );
 
       const state = currentUserSlice.reducer(stateAfterError, currentUserSlice.actions.logout());
+
+      expect(state.error).toBeNull();
+    });
+  });
+
+  describe("clearError", () => {
+    it("sets error to null", () => {
+      const stateWithError = {
+        ...initialState,
+        error: "Invalid credentials",
+      };
+
+      const state = currentUserSlice.reducer(stateWithError, currentUserSlice.actions.clearError());
 
       expect(state.error).toBeNull();
     });

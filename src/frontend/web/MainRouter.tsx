@@ -1,15 +1,15 @@
 import React, { useEffect } from "react";
-import { Routes, Route, useParams } from "react-router-dom";
+import { Routes, Route, useParams, Navigate } from "react-router-dom";
 import TranslateRoute from "../common/translate/TranslateHome";
 import AdminHome from "./home/AdminHome";
-import PublicHome from "./home/PublicHome";
+import LoginPage from "./auth/LoginPage";
 import SignedInHome from "./home/SignedInHome";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, AppState } from "../common/state/appState";
-import { User } from "../../core/models/User";
-import { loadCurrentUser } from "./auth/authThunks";
+import { loadCurrentUser, pushLogout } from "./auth/authThunks";
+import useTranslation from "../common/util/useTranslation";
+import Button from "../common/base-components/Button";
 import RootDiv from "../common/base-components/RootDiv";
-import LoadingSnake from "../common/base-components/LoadingSnake";
 import LessonPage from "./lessons/LessonPage";
 import AppLoadingBar from "../common/api/AppLoadingBar";
 import UsfmImportResultPage from "./languages/UsfmImportResultPage";
@@ -19,12 +19,23 @@ import { useClearBannersOnNavigation } from "../common/banners/useClearBannersOn
 import CreateInvitation from "./invitations/CreateInvitation";
 import InvitationsList from "./invitations/InvitationsList";
 import RedeemInvitation from "./auth/RedeemInvitation";
+import AuthGate from "./auth/AuthGate";
+import AdminGate from "./auth/AdminGate";
 import ForgotPassword from "./auth/ForgotPassword";
+import LoadingSnake from "../common/base-components/LoadingSnake";
 import ResetPassword from "./auth/ResetPassword";
 
 function TranslateRouteWrapper() {
   const { code } = useParams<{ code: string }>();
-  return <TranslateRoute code={code!} />;
+  const dispatch = useDispatch<AppDispatch>();
+  const t = useTranslation();
+  const logOut = () => dispatch(pushLogout());
+  return (
+    <TranslateRoute
+      code={code!}
+      renderHeaderExtra={() => <Button text={t("Log_out")} onClick={logOut} />}
+    />
+  );
 }
 
 function LessonPageWrapper() {
@@ -50,15 +61,17 @@ function RedeemInvitationWrapper() {
   return <RedeemInvitation token={token!} />;
 }
 
-function renderHome(user: User | null) {
-  if (!user) return <PublicHome />;
-  if (user.admin) return <AdminHome />;
-  // Logged-in non-admins get an interim placeholder (see SignedInHome).
-  return <SignedInHome />;
+function GatedHome() {
+  // With ENFORCE_WEB_AUTH on, AuthGate resolves loading/anonymous states before
+  // this renders. With it off, AuthGate passes through, so GatedHome must handle
+  // them itself: "/" always needs identity to pick a home surface.
+  const { user, loaded } = useSelector((state: AppState) => state.currentUser);
+  if (!loaded) return <LoadingSnake />;
+  if (!user) return <Navigate to="/login" replace />;
+  return user.admin ? <AdminHome /> : <SignedInHome />;
 }
 
 export default function MainRouter() {
-  const { user, loaded } = useSelector((state: AppState) => state.currentUser);
   const dispatch = useDispatch<AppDispatch>();
   useClearBannersOnNavigation();
 
@@ -70,8 +83,11 @@ export default function MainRouter() {
   return (
     <RootDiv>
       <AppLoadingBar />
-      {loaded ? (
-        <Routes>
+      <Routes>
+        {/* AuthGate wraps all named content routes — unauthenticated visitors
+            are redirected to /login?returnTo=<path> before seeing any content. */}
+        <Route element={<AuthGate />}>
+          <Route path="/" element={<GatedHome />} />
           <Route path="/translate/:code" element={<TranslateRouteWrapper />} />
           <Route path="/lessons/:id" element={<LessonPageWrapper />} />
           <Route path="/usfmImportResult" element={<UsfmImportResultPage />} />
@@ -80,19 +96,27 @@ export default function MainRouter() {
             element={<DocStringsPageWrapper />}
           />
           <Route path="/update-issues/:lessonId" element={<UpdateIssuesPageWrapper />} />
-          {/* Public route — anyone with the token URL can redeem (FR-007, FR-011) */}
-          <Route path="/invitation/:token" element={<RedeemInvitationWrapper />} />
-          {/* Public routes — self-service password reset (US1) */}
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          {user?.admin && <Route path="/admin/invitations/new" element={<CreateInvitation />} />}
-          {user?.admin && <Route path="/admin/invitations" element={<InvitationsList />} />}
-          {user?.admin && <Route path="/languages/:languageId" element={<AdminHome />} />}
-          <Route path="*" element={renderHome(user)} />
-        </Routes>
-      ) : (
-        <LoadingSnake />
-      )}
+          {/* Admin-only routes — registered unconditionally so deep-links resolve
+              during initial auth load; AdminGate owns the authorization decision. */}
+          <Route element={<AdminGate />}>
+            <Route path="/admin/invitations/new" element={<CreateInvitation />} />
+            <Route path="/admin/invitations" element={<InvitationsList />} />
+            <Route path="/languages/:languageId" element={<AdminHome />} />
+          </Route>
+        </Route>
+        {/* Public route — the sign-in form. Outside AuthGate so it's always
+            reachable; AuthGate redirects unauthenticated visitors here. */}
+        <Route path="/login" element={<LoginPage />} />
+        {/* Public route — anyone with the token URL can redeem (FR-007, FR-011).
+            MUST be outside AuthGate to prevent redirect loops. */}
+        <Route path="/invitation/:token" element={<RedeemInvitationWrapper />} />
+        {/* Public routes — self-service password reset (US1). Outside AuthGate:
+            locked-out users must reach them without a session. */}
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        {/* Catch-all: send unknown paths home, where AuthGate applies. */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </RootDiv>
   );
 }

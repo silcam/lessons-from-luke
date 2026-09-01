@@ -1,0 +1,21 @@
+Feature: Return to the requested page after signing in
+  As a signed-out visitor who followed a deep link
+  I want to be returned to my intended destination after signing in
+  So that I do not have to re-navigate to my original page
+
+  Scenario: User is returned to original deep-link after gate-driven sign-in
+    Given a signed-out visitor who opened a gated deep link (e.g. /translate/ABC123)
+    And they were redirected to sign in
+    When they sign in successfully
+    Then they are returned to the originally-requested route including its path parameters
+
+  Scenario: User who signs in directly (no redirect) lands on home page
+    Given a user who opens the sign-in page directly (not via a redirect from a gated route)
+    When they sign in successfully
+    Then they land on the home page
+
+  Scenario: External URL as return destination is ignored
+    Given a preserved post-login destination that points to an external or absolute URL
+    When sign-in completes
+    Then that destination is ignored
+    And the user lands on the home page

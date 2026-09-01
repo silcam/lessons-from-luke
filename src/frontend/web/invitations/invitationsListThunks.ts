@@ -10,7 +10,7 @@
  */
 
 import { createAsyncThunk } from "@reduxjs/toolkit";
-import { InvitationSummaryRow } from "../../../core/interfaces/Api";
+import { InvitationSummaryRow } from "../../../core/api/ApiContracts";
 
 export type { InvitationSummaryRow };
 
