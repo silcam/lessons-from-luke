@@ -108,7 +108,8 @@ test("mvWebifiedHtml renames converted HTML file on success", async () => {
 test("tmpFilePath deletes old files from tmp directory", () => {
   // Create a file with a timestamp from 25 hours ago
   const oldTimestamp = new Date().valueOf() - 1000 * 60 * 60 * 25;
-  const tmpDir = `${process.cwd()}/test/docs/serverDocs/tmp`;
+  const tmpDir = `${docStorage.docsDirPath()}/tmp`;
+  fs.mkdirSync(tmpDir, { recursive: true });
   const oldFilePath = `${tmpDir}/${oldTimestamp}`;
   fs.writeFileSync(oldFilePath, "old temp file");
   expect(fs.existsSync(oldFilePath)).toBe(true);

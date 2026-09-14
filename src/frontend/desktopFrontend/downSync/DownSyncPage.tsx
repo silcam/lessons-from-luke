@@ -31,7 +31,6 @@ export default function DownSyncPage(props: IProps) {
       clearInterval(interval);
     };
     // mount-only polling interval; `get` from context is stable for the page lifetime
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // !paired + connected: device is online but has no account credential.

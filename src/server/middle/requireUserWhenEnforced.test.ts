@@ -20,7 +20,6 @@ const mockIsEnforcementEnabled = isEnforcementEnabled as jest.MockedFunction<
 >;
 const mockRequireUser = requireUser as jest.MockedFunction<typeof requireUser>;
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { default: requireUserWhenEnforced } = require("./requireUserWhenEnforced") as {
   default: (req: Request, res: Response, next: NextFunction) => Promise<void>;
 };

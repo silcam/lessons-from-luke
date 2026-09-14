@@ -1,0 +1,23 @@
+;=============================================
+; Bilingual assembly presents each string bilingually.
+;=============================================
+GIVEN a quarter available for assembly.
+WHEN the operator chooses bilingual assembly.
+THEN the assembled book presents each string bilingually.
+THEN the output is consistent with the existing per-lesson bilingual download.
+
+;=============================================
+; Single-language assembly presents mother-tongue content only.
+;=============================================
+GIVEN a quarter available for assembly.
+WHEN the operator chooses single-language assembly.
+THEN the assembled book presents mother-tongue content only.
+THEN the output is consistent with the existing per-lesson single-language download.
+
+;=============================================
+; Partial translation uses the existing per-lesson fallback in either mode.
+;=============================================
+GIVEN a quarter where some strings are not yet translated.
+WHEN the operator assembles in either mode.
+THEN the assembled book uses the same partial-translation fallback the per-lesson download uses today.
+THEN the feature imposes no stricter completeness bar than single-lesson download.

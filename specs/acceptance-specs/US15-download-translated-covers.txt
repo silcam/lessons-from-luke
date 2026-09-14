@@ -1,0 +1,24 @@
+;=============================================
+; Downloading a translated cover produces a fully populated document.
+;=============================================
+GIVEN a language with translated cover strings.
+WHEN the operator downloads the A4 cover for Luke quarter 1.
+THEN the file is named <Language>_Luke-Q1-Cover-A4.odt.
+THEN it contains the translated title, subtitle, copyright, and publisher address text.
+
+;=============================================
+; Cover output respects bilingual and monolingual language configuration.
+;=============================================
+GIVEN a bilingual language configuration.
+WHEN a cover is downloaded.
+THEN the output contains the mother-tongue and majority-language paragraph pairs exactly as lessons do.
+GIVEN a monolingual configuration.
+WHEN a cover is downloaded.
+THEN the output is monolingual, as lessons are.
+
+;=============================================
+; Cover download links use human-readable names.
+;=============================================
+GIVEN a language page listing downloadable documents.
+WHEN covers are listed.
+THEN their download links use human-readable cover names.

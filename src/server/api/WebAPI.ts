@@ -41,6 +41,14 @@ export async function handleErrors(res: Response, cb: () => Promise<void>) {
     // unexpected/internal errors and must not leak internals.
     if (status != 500 && err.body !== undefined) res.status(status).json(err.body);
     else res.status(status).send();
-    if (status == 500) console.error(err);
+    if (status == 500) {
+      console.error(err);
+      // In tests the handler often outlives the failing test, so jest drops
+      // the console.error above; raw stderr bypasses jest's console capture.
+      if (process.env.NODE_ENV === "test") {
+        const detail = err instanceof Error ? (err.stack ?? err.message) : JSON.stringify(err);
+        process.stderr.write(`[handleErrors] 500: ${detail}\n`);
+      }
+    }
   }
 }

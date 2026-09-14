@@ -1,0 +1,15 @@
+;=============================================
+; Content-page footers resolve per lesson after full style-family application.
+;=============================================
+GIVEN an assembled quarter with full style-family application (paragraph, character, page, frame, list).
+WHEN content pages of different lessons are inspected.
+THEN each content page shows its own lesson's footer fields (quarter, book title, lesson number, lesson name).
+THEN page numbers are continuous and correct across the book.
+
+;=============================================
+; Table of contents and lesson numbering are unaffected.
+;=============================================
+GIVEN an assembled quarter with full style-family application.
+WHEN the table of contents and lesson-number sequence are inspected.
+THEN all lessons are present in the TOC in correct order with correct numbers.
+THEN only level-1 headings participate in the outline that drives lesson numbering.

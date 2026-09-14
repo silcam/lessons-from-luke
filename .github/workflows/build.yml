@@ -89,10 +89,11 @@ jobs:
           done
 
   integration:
-    runs-on: ubuntu-latest
+    # Pinned explicitly (not ubuntu-latest) — this must stay on Noble so the
+    # apt-installed `libreoffice` package matches production/staging (Ubuntu
+    # 24.04.4 LTS, LibreOffice 24.2.7.2). See src/server/util/libreOfficeVersion.ts.
+    runs-on: ubuntu-24.04
     needs: static-checks
-    container:
-      image: node:24.15.0-bookworm
     services:
       postgres:
         image: postgres:16
@@ -105,15 +106,20 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+        ports:
+          - 5432:5432
     steps:
       - uses: actions/checkout@v7
-      - name: Install system dependencies (LibreOffice for `soffice --headless`)
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: ".nvmrc"
+      - name: Install system dependencies (LibreOffice for `soffice --headless`, poppler-utils for `pdftotext`/`pdfinfo` in assembleQuarter.integration.test.ts)
         run: |
-          apt-get update -qq
-          apt-get install -y -qq postgresql-client zip libreoffice
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client zip libreoffice poppler-utils
       - name: Create test database
         run: |
-          PGPASSWORD=lessons-from-luke psql -h postgres -U lessons-from-luke -c \
+          PGPASSWORD=lessons-from-luke psql -h localhost -U lessons-from-luke -c \
             'CREATE DATABASE "lessons-from-luke-test" OWNER "lessons-from-luke";'
       - name: Generate secrets.json
         run: |
@@ -123,13 +129,13 @@ jobs:
             "adminEmail": "admin@example.com",
             "adminPassword": "ci-test-password-1234",
             "db": {
-              "host": "postgres",
+              "host": "localhost",
               "database": "lessons-from-luke",
               "username": "lessons-from-luke",
               "password": "lessons-from-luke"
             },
             "testDb": {
-              "host": "postgres",
+              "host": "localhost",
               "database": "lessons-from-luke-test",
               "username": "lessons-from-luke",
               "password": "lessons-from-luke"

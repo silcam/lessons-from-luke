@@ -1,6 +1,7 @@
 import { safeStorage, app } from "electron";
 import fs from "fs";
 import path from "path";
+import { moveFileSync, unlinkSafe } from "../../core/util/fsUtils";
 
 const CREDENTIAL_FILENAME = "credential.bin";
 
@@ -51,7 +52,8 @@ export class CredentialStore {
     const credentialPath = path.join(this.basePath, CREDENTIAL_FILENAME);
     const tmpPath = credentialPath + "_tmp";
     fs.writeFileSync(tmpPath, encrypted);
-    fs.renameSync(tmpPath, credentialPath);
+    moveFileSync(tmpPath, credentialPath);
+    unlinkSafe(tmpPath);
   }
 
   /**

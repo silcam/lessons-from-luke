@@ -1,0 +1,21 @@
+;=============================================
+; Shared cover strings auto-populate from existing translations.
+;=============================================
+GIVEN a language with the title and "Teacher's Guide" already translated via the Table of Contents.
+WHEN a cover master is uploaded.
+THEN those cover strings show the existing translations without any translator action.
+
+;=============================================
+; Cover-only strings are translated once and remain editable.
+;=============================================
+GIVEN an untranslated cover-only string such as the copyright line.
+WHEN the translator translates it in the normal translation UI.
+THEN the translation is saved.
+THEN it remains editable like any other string.
+
+;=============================================
+; Editing a translated cover-only string later is an ordinary edit.
+;=============================================
+GIVEN a translated copyright line.
+WHEN the publication year changes.
+THEN the translator updates it as an ordinary string edit with no special workflow.

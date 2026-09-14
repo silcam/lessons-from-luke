@@ -1,0 +1,15 @@
+;=============================================
+; A quarter with no covers uploaded still reports complete.
+;=============================================
+GIVEN a quarter with all lessons translated and no covers uploaded.
+WHEN completeness is evaluated.
+THEN the quarter reports complete.
+THEN covers are not treated as missing parts.
+
+;=============================================
+; Covers never merge into the assembled quarter output.
+;=============================================
+GIVEN the same quarter after covers are uploaded and translated.
+WHEN the quarter is assembled.
+THEN the assembled output is unchanged from the no-covers case.
+THEN the assembled output contains no cover content.

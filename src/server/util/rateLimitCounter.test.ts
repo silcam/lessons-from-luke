@@ -66,16 +66,19 @@ describe("checkAndIncrementThrottle", () => {
     expect(row?.count).toBe(2);
   });
 
-  it("reports throttled once the count exceeds max within the window", async () => {
+  it("reports throttled at max within the window WITHOUT touching the row — a rejected request must not extend the window", async () => {
     const key = "test-prefix:over-limit";
-    const nowMs = Date.now();
-    await insertRow(key, 3, nowMs);
+    const lastAllowedMs = Date.now() - 30_000; // mid-window (60s window)
+    await insertRow(key, 3, lastAllowedMs);
 
     const throttled = await checkAndIncrementThrottle(testPool, "test-prefix:", key, 60_000, 3);
 
     expect(throttled).toBe(true);
     const row = await getRow(key);
-    expect(row?.count).toBe(4);
+    // Neither count nor lastRequest may move: otherwise retrying while
+    // throttled restarts the window forever (the self-extending-lockout bug).
+    expect(row?.count).toBe(3);
+    expect(Number(row?.lastRequest)).toBe(lastAllowedMs);
   });
 
   it("resets the counter to 1 when the existing row's window has expired", async () => {

@@ -82,16 +82,19 @@ Key details:
 - Migration state files: `.migrate-test`, `.migrate-dev`, `.migrate-prod` (one per environment, gitignored). The legacy `.migrate` file is auto-copied to `.migrate-prod` on first run for backward compatibility
 - If a database is recreated/emptied and `migrate` reports `relation "languages" does not exist`, the state file thinks migrations already ran. Reset with e.g. `echo '{"lastRun":null,"migrations":[]}' > .migrate-test && yarn migrate:test`
 - If you check out a branch whose `migrations/` set is _behind_ what `.migrate-test` records, `migrate` aborts with `Missing migration file: <name>`. Non-destructive fix: restore the missing migration file(s) untracked (`git show <branch>:migrations/<f> > migrations/<f>`), run the migration, then delete them — this leaves `.migrate-test` and the DB intact for the other branch. The state-file reset above is the heavier alternative
+- The `assembleQuarter.integration.test.ts` suite (`yarn test:integration`) requires LibreOffice >= 24.2 and poppler-utils (`pdftotext`/`pdfinfo`) on `PATH`; it preflights the version via `src/server/util/libreOfficeVersion.ts` and fails fast with a clear error if it's older (e.g. 7.3.7 or 7.4.5 render golden-reference PDFs differently and cascade into unrelated-looking failures). This matches production/staging (Ubuntu 24.04 LTS, LibreOffice 24.2)
 
 ## Environments
 
 There are three runtime environments, fully isolated from one another:
 
-| Env         | `NODE_ENV`    | Storage class   | Database                 | ODT root                | Used by                                                                            |
-| ----------- | ------------- | --------------- | ------------------------ | ----------------------- | ---------------------------------------------------------------------------------- |
-| Production  | `production`  | `PGStorage`     | `lessons-from-luke`      | `docs/`                 | deployed server                                                                    |
-| Development | `development` | `PGDevStorage`  | `lessons-from-luke-dev`  | `docs/dev/`             | `yarn dev-web`, `yarn dev-desktop`, `yarn serve-dev`                               |
-| Test        | `test`        | `PGTestStorage` | `lessons-from-luke-test` | `test/docs/serverDocs/` | `yarn test*`, `yarn test-e2e` (Cypress), `yarn test-desktop-e2e-deps` (Playwright) |
+| Env         | `NODE_ENV`    | Storage class   | Database                 | ODT root                    | Used by                                                                            |
+| ----------- | ------------- | --------------- | ------------------------ | --------------------------- | ---------------------------------------------------------------------------------- |
+| Production  | `production`  | `PGStorage`     | `lessons-from-luke`      | `docs/`                     | deployed server                                                                    |
+| Development | `development` | `PGDevStorage`  | `lessons-from-luke-dev`  | `docs/dev/`                 | `yarn dev-web`, `yarn dev-desktop`, `yarn serve-dev`                               |
+| Test        | `test`        | `PGTestStorage` | `lessons-from-luke-test` | `test/docs/serverDocs-run/` | `yarn test*`, `yarn test-e2e` (Cypress), `yarn test-desktop-e2e-deps` (Playwright) |
+
+**Test-filesystem isolation.** `test/docs/serverDocs/` is the **git-tracked, read-only** fixture corpus. Under `NODE_ENV=test` the ODT root is instead `test/docs/serverDocs-run/` — a disposable, gitignored copy wiped and reseeded from the tracked corpus once per run (jest `globalSetup`, the integration globalSetup, and `server.ts` boot; see `src/server/storage/seedServerDocs.ts`). Tests may read the tracked corpus directly as a fixture, but nothing ever writes into it.
 
 Only the test environment mounts the `/api/test/reset-storage` endpoint; in dev and production it returns 404. Dev resets through the `yarn reset:dev` CLI instead.
 
@@ -246,6 +249,25 @@ Use subagents liberally and aggressively to conserve the main context window. Av
 - RFC 8628 desktop pairing via better-auth `^1.6.14` `device-authorization` + `bearer` plugins (no new packages): `/api/auth/device/*` issues a better-auth **session token** the desktop sends as `Authorization: Bearer`, which `getSession`/`requireUser` already accept. NEW `deviceCode` table on the existing `getAuthPool()`; credential = a `session` row (60-day sliding expiry); admin revoke-by-user = direct SQL delete of the user's sessions. Shared `/api/*` auth enforcement behind a default-off `ENFORCE_API_AUTH` env flag (`requireUserWhenEnforced` wrapper). Desktop stores the token via Electron `safeStorage`; obtains/uses it over HTTP only (never imports better-auth — Principle VI). (004-desktop-auth-pairing)
 - TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + React 16, Redux Toolkit, `react-router-dom` v6, Express, `postgres@1` (016-language-rename)
 - PostgreSQL `languages` table; new partial unique index `languages_name_active_lower_idx` on `lower(name)` WHERE NOT archived via `migrations/1784766630015-addUniqueActiveLanguageNameIndex.js` (016-language-rename)
+- TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + Express (server), libxmljs2 (ODF XML parse/patch), LibreOffice (017-quarter-pagination-fixes)
+- No persistent storage change: no tables, columns, migrations, or `Persistence` contract change; two committed template assets change instead (017-quarter-pagination-fixes)
+
+- TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + Express (server), the existing `makeLessonFile` / `mergeXml` / (008-covers-in-platform)
+- No new persistent storage, **no migration**, no `Persistence` contract change. (008-covers-in-platform)
+
+- TypeScript (ES2022, CommonJS, strict + all strict flags), + existing 007/009 assembly pipeline (013-quarter-template-full-styles)
+- No new persistent storage, tables, columns, or migrations. The two (013-quarter-template-full-styles)
+
+- TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + Express (server), libxmljs2 (ODT XML parse/rewrite/merge), the existing `parse` / `mergeXml` / `saveDocStrings` pipeline, LibreOffice `soffice --headless` (round-trip verification). React 16 + Redux Toolkit UI (existing translation & update-issues screens, unchanged). (011-verse-reference-auto-population)
+
+- TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + Express (server), libxmljs2 (ODT XML rewrite/parse/merge), existing `parse`/`mergeXml`/`saveDocStrings` pipeline, LibreOffice `soffice --headless` (round-trip verification), React 16 + Redux Toolkit (existing translation & update-issues UI, unchanged) (011-verse-reference-auto-population)
+- No new tables/columns/migrations. Domain data via the `Persistence` interface (`storage.tStrings`, `addOrFindMasterStrings`, `saveDocStrings`, `updateLesson`). Master odt files in the existing `docStorage`. (011-verse-reference-auto-population)
+
+- TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + existing 007 assembly pipeline (009-quarter-styles-template)
+- No new persistent storage. Template is a \*\*static committed (009-quarter-styles-template)
+
+- TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + Express (server), existing `makeLessonFile` / `mergeXml` per-lesson pipeline, LibreOffice `soffice` headless (already a production dependency via `webifyLesson`), `child_process.exec`/`spawn`, React 16 + Redux Toolkit + styled-components (frontend), Axios + file-saver (download) (007-assembled-quarter-download)
+- No new persistent storage. Domain reads go through the existing `Persistence` interface (`storage.lessons()`, `storage.lesson(id)`). Assembly job state is an **in-memory process-scoped registry** (FR-011 — explicitly non-durable). Output ODTs and constituents live in the existing `docStorage` tmp dir (24 h cleanup reused for result retention). (007-assembled-quarter-download)
 
 - TypeScript (ES2022, CommonJS, strict + all strict flags), Node 24 (nvm) + React 16 + Redux Toolkit, `react-router-dom` v6, Express, `postgres@1` (domain driver via `Persistence`) (012-language-archive-routing)
 - PostgreSQL `languages` table (domain data → through `Persistence`, Principle VI); new `archived boolean` column via a `migrations/` file (012-language-archive-routing)

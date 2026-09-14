@@ -5,9 +5,16 @@ import path from "path";
 import { UploadedFile } from "express-fileupload";
 import { BaseLesson } from "../../core/models/Lesson";
 import { zeroPad } from "../../core/util/numberUtils";
-import { mkdirSafe, unzip, unlinkRecursive, unlinkSafe } from "../../core/util/fsUtils";
+import {
+  mkdirSafe,
+  moveFileSync,
+  unzip,
+  unlinkRecursive,
+  unlinkSafe,
+} from "../../core/util/fsUtils";
 import { objKeys } from "../../core/util/objectUtils";
 import waitFor from "../../core/util/waitFor";
+import { ensureServerDocsRunDir, serverDocsRunDir } from "./seedServerDocs";
 
 async function saveDoc(file: UploadedFile, lesson: BaseLesson) {
   const filepath = docFilepath(lesson);
@@ -100,7 +107,7 @@ async function mvWebifiedHtml(tmpOdtPath: string, lesson: BaseLesson) {
     await waitFor(() => fs.existsSync(inPath));
 
     const outPath = webifiedHtmPath(lesson);
-    fs.renameSync(inPath, outPath);
+    moveFileSync(inPath, outPath);
   } catch (err) {
     console.error(err);
   }
@@ -119,10 +126,23 @@ function webifyPath() {
   return requireDir(docsDirPath() + "/web");
 }
 
+// Guard so the lazy test-corpus seed runs at most once per process, regardless
+// of how individual test files mock fs.existsSync afterwards.
+let seededServerDocsRunDir = false;
+
 function docsDirPath() {
   const env = process.env.NODE_ENV;
-  const subpath =
-    env === "test" ? "/test/docs/serverDocs" : env === "development" ? "/docs/dev" : "/docs";
+  if (env === "test") {
+    // Never hand out the git-tracked fixture dir — tests write here. See
+    // seedServerDocs.ts. globalSetup normally wipes+reseeds the run dir; this
+    // lazy, non-destructive fallback covers entry paths that bypass it.
+    if (!seededServerDocsRunDir) {
+      seededServerDocsRunDir = true;
+      ensureServerDocsRunDir();
+    }
+    return requireDir(serverDocsRunDir());
+  }
+  const subpath = env === "development" ? "/docs/dev" : "/docs";
   return requireDir(process.cwd() + subpath);
 }
 
@@ -140,4 +160,5 @@ export default {
   webifyPath,
   mvWebifiedHtml,
   webifiedHtml,
+  docsDirPath,
 };

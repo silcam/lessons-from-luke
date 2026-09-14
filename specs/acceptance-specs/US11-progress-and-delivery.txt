@@ -1,0 +1,21 @@
+;=============================================
+; An in-progress indicator shows while assembly runs.
+;=============================================
+GIVEN the operator triggers assembly.
+WHEN the job is running.
+THEN the UI shows an in-progress "Assembling..." indicator rather than a frozen or unresponsive control.
+
+;=============================================
+; The finished document is downloadable when assembly completes.
+;=============================================
+GIVEN assembly completes successfully.
+WHEN the document is ready.
+THEN the operator can download the finished quarter document.
+
+;=============================================
+; A duplicate request attaches to the already-running assembly.
+;=============================================
+GIVEN the operator triggers assembly for a quarter and mode that is already being assembled.
+WHEN the second request is made.
+THEN the system does not start redundant assembly work.
+THEN the operator is shown the progress of the already-running assembly.

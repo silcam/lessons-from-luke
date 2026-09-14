@@ -25,7 +25,7 @@ import { getTrustedOrigins } from "../auth/trustedOrigins";
 const mockGetTrustedOrigins = getTrustedOrigins as jest.MockedFunction<typeof getTrustedOrigins>;
 
 // Import the module under test via require so it picks up the jest.mock() above.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+
 const { requireSameOrigin } = require("./requireSameOrigin") as {
   requireSameOrigin: (req: Request, res: Response, next: NextFunction) => void;
 };

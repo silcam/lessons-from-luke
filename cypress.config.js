@@ -11,10 +11,19 @@ try {
 module.exports = defineConfig({
   e2e: {
     baseUrl: "http://localhost:8080",
-    specPattern: "cypress/integration/**/*.spec.{js,ts}",
+    specPattern: "cypress/integration/**/*.{spec,cy}.{js,ts}",
     defaultCommandTimeout: 10000,
+    // Wide enough that the translate page's right pane (min content ~1010px)
+    // never overflows the viewport — autoFocus scrolling an overflow:hidden
+    // row would otherwise displace the lesson-picker column mid-click.
+    viewportWidth: 1280,
+    viewportHeight: 800,
     responseTimeout: 30000,
     pageLoadTimeout: 60000,
+    retries: {
+      runMode: 2,
+      openMode: 0,
+    },
     env: {
       adminEmail: process.env.CYPRESS_ADMIN_EMAIL ?? secrets.adminEmail ?? "admin@example.com",
       adminPassword: process.env.CYPRESS_ADMIN_PASSWORD ?? secrets.adminPassword ?? "",

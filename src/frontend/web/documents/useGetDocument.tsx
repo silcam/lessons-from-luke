@@ -2,7 +2,7 @@ import React from "react";
 import { useJustLoad } from "../../common/api/useLoad";
 import Axios from "axios";
 import { saveAs } from "file-saver";
-import { documentName, BaseLesson } from "../../../core/models/Lesson";
+import { documentName, BaseLesson, isCoverLesson } from "../../../core/models/Lesson";
 import { PublicLanguage } from "../../../core/models/Language";
 import Button from "../../common/base-components/Button";
 
@@ -18,7 +18,12 @@ export default function useGetDocument() {
         `/api/languages/${language.languageId}/lessons/${lesson.lessonId}/document?majorityLanguageId=${majorityLanguageId}`,
         { responseType: "blob" }
       );
-      saveAs(new Blob([response.data]), documentName(language.name, lesson));
+      const mode = isCoverLesson(lesson.lesson)
+        ? majorityLanguageId === 0
+          ? "monolingual"
+          : "bilingual"
+        : undefined;
+      saveAs(new Blob([response.data]), documentName(language.name, lesson, mode));
     });
   };
   return { getDocument, loading };

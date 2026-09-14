@@ -43,6 +43,41 @@ append :linked_dirs, "node_modules", "docs", ".yarn/cache"
 
 set :nvm_node, "v#{File.read(File.expand_path('../.nvmrc', __dir__)).strip.delete_prefix('v')}"
 
+# ---------------------------------------------------------------------------
+# REQUIRED PRODUCTION DEPLOY CONSTRAINT — Passenger must be pinned to a
+# single app worker process for this application.
+#
+# Why: the assembled-quarter-download feature's AssemblyJobRegistry (see
+# specs/007-assembled-quarter-download/data-model.md §AssemblyJobRegistry
+# "Process-scoping assumption", flagged Pass 3/HIGH in plan.md's Red-Team
+# "Deployment Topology" section) is in-memory, per-process state. Its
+# FR-010 job-dedup guarantee, its concurrency-1 soffice serialization, and
+# its queue-depth cap are correct ONLY when exactly one Node worker process
+# is running. Passenger's default pool can scale to multiple worker
+# processes on demand, which would silently break all three guarantees
+# (duplicate assemblies, concurrent soffice runs, and an effective N×
+# queue-depth cap) with no error surfaced to the app.
+#
+# This pin is NOT expressible from Capistrano/this repo — PassengerMaxPoolSize
+# and PassengerMinInstances are Apache/Nginx vhost-level directives set on
+# the production host, outside this repo's version control. The production
+# Passenger vhost config for this app MUST set, for as long as
+# AssemblyJobRegistry remains in-memory / single-process by design:
+#
+#   PassengerMaxPoolSize 1
+#   PassengerMinInstances 1
+#
+# (PassengerMaxPoolSize is server-wide under Apache mod_passenger, not
+# per-vhost — acceptable here because `lukeproduction` (config/deploy/
+# production.rb) is a dedicated host running only this app.)
+#
+# (Or the equivalent `passenger_max_pool_size 1;` / `passenger_min_instances 1;`
+# directives if the vhost is Nginx.) Do not remove/relax this constraint
+# without first moving job-registry state out of process memory (e.g. to
+# Postgres via getAuthPool()/the domain Persistence layer, as already done
+# for better-auth sessions).
+# ---------------------------------------------------------------------------
+
 namespace :deploy do
   before 'deploy:symlink:release', "custom:yarn_build"
   after 'custom:yarn_build', 'custom:migrate_db'

@@ -1,0 +1,28 @@
+;=============================================
+; No filler is inserted when front matter already leaves lesson 1 recto.
+;=============================================
+GIVEN the recto guarantee is enabled and front matter whose length leaves lesson 1 on a right-hand page.
+WHEN the book is assembled.
+THEN no blank page is inserted.
+
+;=============================================
+; Exactly one blank page is inserted when front matter would leave lesson 1 verso.
+;=============================================
+GIVEN the recto guarantee is enabled and front matter whose length would leave lesson 1 on a left-hand page.
+WHEN the book is assembled.
+THEN exactly one blank page is inserted before lesson 1.
+
+;=============================================
+; The inserted blank page carries no content or number but consumes a front-matter number.
+;=============================================
+GIVEN the recto guarantee is enabled and an inserted blank page.
+WHEN the reader looks at it.
+THEN it carries no content and prints no page number.
+THEN it consumes one number in the front-matter sequence.
+
+;=============================================
+; Lesson 1 opens recto in both assembly modes.
+;=============================================
+GIVEN the recto guarantee is enabled and either assembly mode, bilingual or single-language.
+WHEN the book is assembled.
+THEN lesson 1 opens recto in both modes.

@@ -7,9 +7,10 @@ import { LessonString } from "../../core/models/LessonString";
 import { TString } from "../../core/models/TString";
 import { unlinkSafe } from "../../core/util/fsUtils";
 import { TestPersistence } from "../../core/interfaces/Persistence";
+import docStorage from "../storage/docStorage";
 
 afterAll(() => {
-  unlinkSafe("test/docs/serverDocs/Luke-1-06v01.odt");
+  unlinkSafe(`${docStorage.docsDirPath()}/Luke-1-06v01.odt`);
 });
 
 test("Upload new English Lesson", async () => {
