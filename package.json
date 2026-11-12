@@ -46,6 +46,8 @@
     "reparse-english:dev": "tsc -b ./src/server && NODE_ENV=development node dist/server/tasks/reparseEnglish.js",
     "default-translate": "tsc -b ./src/server && NODE_ENV=production node dist/server/tasks/defaultTranslateAll.js",
     "default-translate:dev": "tsc -b ./src/server && NODE_ENV=development node dist/server/tasks/defaultTranslateAll.js",
+    "reimport-odt": "tsc -b ./src/server && NODE_ENV=production node dist/server/tasks/reimportOdtTranslations.js",
+    "reimport-odt:dev": "tsc -b ./src/server && NODE_ENV=development node dist/server/tasks/reimportOdtTranslations.js",
     "test": "NODE_ENV=test jest --watchAll --runInBand",
     "test:once": "NODE_ENV=test jest --runInBand --watchAll=false",
     "test:random": "NODE_ENV=test jest --runInBand --watchAll=false --testSequencer=./RandomSequencer.js",
