@@ -127,6 +127,9 @@ export interface EvaluationRow {
   approve: boolean;
   // Set by resolve; apply saves decision.text instead of newText
   decision?: Decision;
+  // Unresolved rows only: masterIds in this lesson whose exported text equals oldText.
+  // A hint for review; apply never uses it.
+  candidateMasterIds?: number[];
 }
 
 // An occurrence of a changed masterId that the updated ODT left as it was
@@ -135,6 +138,29 @@ export interface UnchangedOccurrence {
   overrideLessonStringId: number | null;
   xpath: string;
   text: string;
+}
+
+// Strings the alignment could not pair (see alignToExpected)
+export interface Unmatched {
+  // In the original ODT but not in today's export: these have no masterId
+  inOdtNotExpected: {
+    type: LessonStringType;
+    xpath: string;
+    text: string;
+    // Set when the updated ODT changed it; such a string is also an unresolved row
+    newText?: string;
+    // masterIds in this lesson whose exported text is the same (see candidateMasterIds)
+    candidateMasterIds: number[];
+  }[];
+  // In today's export but not in the original ODT. xpath is the English master's.
+  expectedNotInOdt: {
+    type: LessonStringType;
+    masterId: number;
+    lessonStringId: number;
+    motherTongue: boolean;
+    xpath: string;
+    text: string;
+  }[];
 }
 
 export type CandidateSource = "updated-odt" | "db" | "unchanged-occurrence";
@@ -169,6 +195,8 @@ export interface Evaluation {
   rows: EvaluationRow[];
   // Absent in evaluation files written before conflicts support
   unchangedOccurrences?: UnchangedOccurrence[];
+  // Absent in evaluation files written before unmatched strings were listed
+  unmatched?: Unmatched;
 }
 
 if (require.main === module) {
@@ -296,6 +324,34 @@ export async function evaluate(
   rows.forEach((row) => (row.approve = defaultApproval(row, !!storage)));
 
   const resolutions = [...resolved.values()];
+  const matchedExpected = new Set(resolutions.map((res) => res.expected));
+  const candidates = candidateMasterIds(expected);
+  rows
+    .filter((row) => row.resolution === "unresolved" && storage)
+    .forEach((row) => (row.candidateMasterIds = candidates(row.type, row.oldText)));
+  const unmatched: Unmatched | undefined = storage
+    ? {
+        inOdtNotExpected: pairs
+          .filter(({ index }) => !resolved.has(index))
+          .map(({ index, newText }) => ({
+            type: original[index].type,
+            xpath: original[index].xpath,
+            text: original[index].text,
+            ...(newText !== original[index].text ? { newText } : {}),
+            candidateMasterIds: candidates(original[index].type, original[index].text),
+          })),
+        expectedNotInOdt: expected
+          .filter((exp) => !matchedExpected.has(exp))
+          .map((exp) => ({
+            type: exp.type,
+            masterId: exp.masterId,
+            lessonStringId: exp.lessonString.lessonStringId,
+            motherTongue: exp.lessonString.motherTongue,
+            xpath: exp.lessonString.xpath,
+            text: exp.text,
+          })),
+      }
+    : undefined;
   return {
     generated: new Date().toISOString(),
     odtOnly: !storage,
@@ -318,6 +374,7 @@ export async function evaluate(
     },
     rows,
     unchangedOccurrences,
+    unmatched,
   };
 }
 
@@ -494,6 +551,19 @@ export function normalize(text: string) {
   return text.normalize("NFC").replace(/\s+/g, " ").trim();
 }
 
+// A string the alignment could not place in order may still have the exact text of a
+// string in this lesson, e.g. a twin paragraph when the wrong download mode was given.
+// Returns those strings' masterIds (all of them: the same text can have several).
+export function candidateMasterIds(expected: ExpectedString[]) {
+  const byText = new Map<string, number[]>();
+  expected.forEach((exp) => {
+    const key = `${exp.type}|${normalize(exp.text)}`;
+    const masterIds = byText.get(key) ?? [];
+    if (!masterIds.includes(exp.masterId)) byText.set(key, [...masterIds, exp.masterId]);
+  });
+  return (type: LessonStringType, text: string) => byText.get(`${type}|${normalize(text)}`) ?? [];
+}
+
 export function classifyChange(oldText: string, newText: string): ChangeKind {
   if (oldText.normalize("NFC") === newText.normalize("NFC")) return "unicode-only";
   if (normalize(oldText) === normalize(newText)) return "whitespace-only";
@@ -660,6 +730,7 @@ export function writeEvaluation(
     "newText",
     "decision",
     "xpath",
+    "candidateMasterIds",
   ];
   const lines = evaluation.rows.map((row) =>
     [
@@ -675,6 +746,7 @@ export function writeEvaluation(
       row.newText,
       row.decision?.text,
       row.xpath,
+      row.candidateMasterIds?.join(","),
     ]
       .map(tsvCell)
       .join("\t")
@@ -682,6 +754,52 @@ export function writeEvaluation(
   const tsvPath = path.join(outDir, `${baseName}.evaluation.tsv`);
   fs.writeFileSync(tsvPath, [header.join("\t"), ...lines].join("\n") + "\n");
   if (!quiet) console.log(`Wrote ${jsonPath}\nWrote ${tsvPath}`);
+
+  if (evaluation.unmatched) {
+    const unmatchedPath = path.join(outDir, `${baseName}.unmatched.tsv`);
+    fs.writeFileSync(unmatchedPath, unmatchedTsv(evaluation.unmatched));
+    if (!quiet) console.log(`Wrote ${unmatchedPath}`);
+  }
+}
+
+// Both kinds of unmatched string, in document order, one table
+function unmatchedTsv(unmatched: Unmatched) {
+  const header = [
+    "side",
+    "type",
+    "masterId",
+    "lessonStringId",
+    "motherTongue",
+    "text",
+    "newText",
+    "xpath",
+    "candidateMasterIds",
+  ];
+  const lines = [
+    ...unmatched.inOdtNotExpected.map((str) => [
+      "in-ODT-but-unexpected",
+      str.type,
+      null,
+      null,
+      null,
+      str.text,
+      str.newText,
+      str.xpath,
+      str.candidateMasterIds.join(","),
+    ]),
+    ...unmatched.expectedNotInOdt.map((str) => [
+      "expected-but-absent",
+      str.type,
+      str.masterId,
+      str.lessonStringId,
+      str.motherTongue,
+      str.text,
+      null,
+      str.xpath,
+      null,
+    ]),
+  ].map((cells) => cells.map(tsvCell).join("\t"));
+  return [header.join("\t"), ...lines].join("\n") + "\n";
 }
 
 function tsvCell(val: unknown) {
@@ -705,6 +823,29 @@ function printSummary(evaluation: Evaluation) {
         `unresolved ${summary.unresolved}; expected-but-absent ${summary.expectedNotInOdt}, ` +
         `in-ODT-but-unexpected ${summary.odtNotInExpected}`
     );
+  if (evaluation.unmatched) {
+    const { inOdtNotExpected, expectedNotInOdt } = evaluation.unmatched;
+    printSome(
+      "in the ODT but unexpected (no masterId)",
+      inOdtNotExpected.map(
+        (str) =>
+          `${str.text}${str.newText != null ? "  [changed]" : ""}` +
+          (str.candidateMasterIds.length > 0
+            ? `  (same text as m${str.candidateMasterIds.join(", m")})`
+            : "")
+      )
+    );
+    const withCandidates = inOdtNotExpected.filter((str) => str.candidateMasterIds.length > 0);
+    if (withCandidates.length > 0)
+      console.log(
+        `    ${withCandidates.length} of ${inOdtNotExpected.length} have the same text as a ` +
+          `string in this lesson: check the download mode (--majority-language-id)`
+      );
+    printSome(
+      "expected but absent",
+      expectedNotInOdt.map((str) => `m${str.masterId}: ${str.text}`)
+    );
+  }
   const flagged = rows.filter((row) => row.flags.length > 0);
   if (flagged.length > 0) console.log(`  flagged rows: ${flagged.length}`);
   if (summary.unchangedTwins)
@@ -712,6 +853,19 @@ function printSummary(evaluation: Evaluation) {
       `  twin paragraphs left unchanged (saving updates them too): ${summary.unchangedTwins}`
     );
   console.log(`  approved by default: ${rows.filter((row) => row.approve).length}`);
+}
+
+// Lists up to 5 strings; the rest are in the .unmatched.tsv
+function printSome(label: string, texts: string[]) {
+  if (texts.length === 0) return;
+  const shown = 5;
+  console.log(`  ${label}:`);
+  texts.slice(0, shown).forEach((text) => console.log(`    ${truncate(text, 70)}`));
+  if (texts.length > shown) console.log(`    … ${texts.length - shown} more in the .unmatched.tsv`);
+}
+
+function truncate(text: string, length: number) {
+  return text.length > length ? text.slice(0, length - 1) + "…" : text;
 }
 
 function count(rows: EvaluationRow[], change: ChangeKind) {
